@@ -1,28 +1,38 @@
-import Express, { json } from "express"
 import "dotenv/config"
+import "./config/startup"
+
+import Express, { json } from "express"
 import sequelize from "./database/database"
 
 const app = Express()
-app.use(json()) // middleware to parse json data
 const PORT = process.env.PORT || 3000
 
-import testRoutes from "./routes/testRoutes"
-import userRoutes from "./routes/userRoutes"
-import baseRoutes from "./routes/baseRoutes"
+import baseRoutes from "./routes/base"
+import paymentRoutes from "./routes/payment"
+import cardRoutes from "./routes/card"
+import subscriptionRoutes from "./routes/subscription"
+import emailRoutes from "./routes/email"
+import cronRoutes from "./routes/cron"
+
+app.use(json()) // middleware to parse json data
 
 app.use("/", baseRoutes)
-app.use("/user", userRoutes)
-app.use("/test", testRoutes)
+app.use("/payment", paymentRoutes)
+app.use("/card", cardRoutes)
+app.use("/subscription", subscriptionRoutes)
+app.use("/email", emailRoutes)
+app.use("/cron", cronRoutes)
 
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({ status: false, message: err.message })
+  res.status(500).json({ success: "error", message: err.message })
 })
 
 app.listen(PORT, async () => {
   console.log(`App listening at port ${PORT}`)
   try {
     await sequelize.sync()
+    console.log("Database synced")
   } catch (error) {
     console.error("Error syncing database:", error)
   }
