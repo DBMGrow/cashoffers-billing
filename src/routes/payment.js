@@ -5,24 +5,12 @@ import { Transaction } from "../database/Transaction"
 
 const router = express.Router()
 
-router.get("/", authMiddleware("payments_read_all"), async (req, res) => {
-  try {
-    //get all transactions with type = payment
-    const payments = await Transaction.findAll({ where: { type: "payment" } })
-    res.json({ success: "success", data: payments?.dataValues })
-  } catch (error) {
-    res.json({ success: "error", error: error.message })
-  }
-})
-
-router.get("/:[user_id]", authMiddleware("payments_read"), async (req, res) => {
+router.get("/:user_id", authMiddleware("payments_read"), async (req, res) => {
   try {
     const { user_id } = req.params
     if (!user_id) throw new Error("user_id is required")
-
-    //get all transactions with type = payment
     const payments = await Transaction.findAll({ where: { type: "payment", user_id } })
-    res.json({ success: "success", data: payments?.dataValues })
+    res.json({ success: "success", data: payments })
   } catch (error) {
     res.json({ success: "error", error: error.message })
   }

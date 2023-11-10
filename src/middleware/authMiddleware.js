@@ -4,8 +4,6 @@ export default function authMiddleware(permissions) {
   if (permissions && !Array.isArray(permissions)) permissions = [permissions]
 
   return async function (req, res, next) {
-    // for permissions, we need to get the person who owns the token, not the person we're charging
-
     let user_id = null
     switch (req.method) {
       case "GET":
@@ -24,7 +22,7 @@ export default function authMiddleware(permissions) {
 
     let authCheck =
       user?.success === "success" && //
-      user?.data?.user_id === user_id
+      user?.data?.user_id == user_id
 
     const tokenOwnerCaps = token_owner?.data?.capabilities
     let permissionsCheck = true
