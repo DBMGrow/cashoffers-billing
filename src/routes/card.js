@@ -48,6 +48,7 @@ router.post("/", authMiddleware(), async (req, res) => {
     if (!exp_year) throw new Error("exp_year is required")
     if (!notification_email) throw new Error("notification_email is required")
     if (!notification_email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) throw new Error("notification_email is not valid")
+    if (!cardholder_name) throw new Error("cardholder_name is required")
 
     //create customer in square
     const customer = await client.customersApi.createCustomer({
@@ -78,6 +79,7 @@ router.post("/", authMiddleware(), async (req, res) => {
       exp_month: card.exp_month,
       exp_year: card.exp_year,
       notification_email,
+      cardholder_name,
       square_customer_id: customerId,
     }
 
