@@ -12,6 +12,7 @@ import paymentRoutes from "./routes/payment"
 import cardRoutes from "./routes/card"
 import subscriptionRoutes from "./routes/subscription"
 import emailRoutes from "./routes/email"
+import statusRoutes from "./routes/status"
 import cronRoutes from "./routes/cron"
 
 app.use(json()) // middleware to parse json data
@@ -22,6 +23,7 @@ app.use("/card", cardRoutes)
 app.use("/subscription", subscriptionRoutes)
 app.use("/email", emailRoutes)
 app.use("/cron", cronRoutes)
+app.use("/status", statusRoutes)
 
 app.use((err, req, res, next) => {
   console.error(err.stack)

@@ -33,6 +33,7 @@ async function handlePaymentOfSubscription(subscription) {
     subscription.update({ renewal_date })
 
     // send email
+    console.log(notification_email)
     sendEmail({
       to: notification_email,
       subject: "Subscription Renewal",

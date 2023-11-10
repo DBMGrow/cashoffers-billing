@@ -68,14 +68,21 @@ router.post("/", authMiddleware(), async (req, res) => {
 
     // Check if user_id already has a card in database
     const userCard = await UserCard.findOne({ where: { user_id } })
-    if (userCard) userCard.update(card_data)
-    else UserCard.create(card_data)
+    let creatingNewCard = true
+    if (userCard) {
+      creatingNewCard = false
+      userCard.update(card_data)
+    } else {
+      UserCard.create(card_data)
+    }
 
     // send email
+    const creatingNewCardMessage = `A Card ending in ${card.last_4} was added to your account`
+    const updatingCardMessage = `The Card linked to your account was updated and now ends in ${card.last_4}`
     sendEmail({
       to: notification_email,
-      subject: "A Card Was Added to Your Account",
-      text: `A Card ending in ${card.last_4} was added to your account`,
+      subject: creatingNewCard ? "A Card Was Added to Your Account" : "The Card on Your Account Was Updated",
+      text: creatingNewCard ? creatingNewCardMessage : updatingCardMessage,
     })
 
     // log transaction
@@ -83,13 +90,13 @@ router.post("/", authMiddleware(), async (req, res) => {
       user_id,
       amount: 0,
       type: "card",
-      memo: "card created",
+      memo: creatingNewCard ? "card created" : "card updated",
       data: JSON.stringify(response),
     })
 
     res.json({ success: "success", data: response })
   } catch (error) {
-    console.log(error?.result?.errors?.[0]?.detail)
+    console.error(error?.result?.errors?.[0]?.detail)
     const errorMessage = error?.result?.errors?.[0]?.detail || error.message
 
     Transaction.create({

@@ -81,7 +81,6 @@ async function paymentCompleted(request, response) {
   try {
     // check if transaction was successful
     const status = JSON.parse(response.body)?.payment?.status
-    console.log(JSON.parse(response.body)?.payment, status)
     if (status !== "COMPLETED") throw new Error("Payment failed")
 
     return true

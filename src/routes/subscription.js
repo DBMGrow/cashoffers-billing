@@ -31,6 +31,7 @@ router.post("/", authMiddleware("payments_create"), async (req, res) => {
     const userCard = await UserCard.findOne({ where: { user_id } })
     if (!userCard) throw new Error("No card found")
     const card_id = userCard?.dataValues?.card_id
+    const notification_email = userCard?.dataValues?.notification_email
 
     // get subscription from database
     const subscription = await Subscription.findOne({ where: { user_id } })
@@ -40,6 +41,7 @@ router.post("/", authMiddleware("payments_create"), async (req, res) => {
       card_id,
       amount,
       duration,
+      notification_email,
       renewal_date: new Date(),
       status: "active",
     }
@@ -51,7 +53,7 @@ router.post("/", authMiddleware("payments_create"), async (req, res) => {
       user_id,
       amount,
       type: "subscription",
-      memo: subscription_name,
+      memo: subscription_name + " created",
     })
 
     res.json({ success: "success", data: updateData })
