@@ -39,7 +39,7 @@ router.get("/:user_id/info", authMiddleware(), async (req, res) => {
 })
 
 router.post("/", authMiddleware(), async (req, res) => {
-  let { user_id, card_token, exp_month, exp_year, notification_email } = req.body
+  let { user_id, card_token, exp_month, exp_year, notification_email, cardholder_name } = req.body
 
   try {
     if (!user_id) throw new Error("user_id is required")
