@@ -15,10 +15,10 @@ export default function authMiddleware(permissions) {
     }
 
     const user = await getUser(req, user_id)
-    if (user?.success !== "success") return res.json({ success: "error", data: user })
+    if (user?.success !== "success") return res.json({ success: "error", data: user, error: "A000" })
 
     const token_owner = await getUser(req, user?.user_id)
-    if (token_owner.success !== "success") return res.json({ success: "error", data: token_owner })
+    if (token_owner.success !== "success") return res.json({ success: "error", data: token_owner, error: "A001" })
 
     let authCheck =
       user?.success === "success" && //
