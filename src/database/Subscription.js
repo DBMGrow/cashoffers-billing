@@ -25,8 +25,9 @@ export const Subscription = sequelize.define("Subscription", {
     allowNull: false,
   },
   duration: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.ENUM,
     allowNull: false,
+    values: ["daily", "weekly", "monthly", "yearly"],
   },
   renewal_date: {
     type: DataTypes.DATE,
@@ -40,8 +41,9 @@ export const Subscription = sequelize.define("Subscription", {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  notification_email: {
-    type: DataTypes.STRING,
+  next_renewal_attempt: {
+    type: DataTypes.DATE,
     allowNull: true,
+    comment: "The date and time when the next renewal attempt should occur after a failed payment",
   },
 })

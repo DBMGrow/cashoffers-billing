@@ -39,21 +39,19 @@ router.get("/:user_id/info", authMiddleware(), async (req, res) => {
 })
 
 router.post("/", authMiddleware(), async (req, res) => {
-  let { user_id, card_token, exp_month, exp_year, notification_email, cardholder_name } = req.body
+  let { user_id, card_token, exp_month, exp_year, cardholder_name } = req.body
 
   try {
     if (!user_id) throw new Error("user_id is required")
     if (!card_token) throw new Error("card_token is required")
     if (!exp_month) throw new Error("exp_month is required")
     if (!exp_year) throw new Error("exp_year is required")
-    if (!notification_email) throw new Error("notification_email is required")
-    if (!notification_email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) throw new Error("notification_email is not valid")
     if (!cardholder_name) throw new Error("cardholder_name is required")
 
     //create customer in square
     const customer = await client.customersApi.createCustomer({
       idempotencyKey: uuidv4(),
-      emailAddress: notification_email,
+      emailAddress: req?.user?.email,
     })
     const customerId = customer?.result?.customer?.id
     if (!customerId) throw new Error("customer creation failed")
@@ -78,7 +76,6 @@ router.post("/", authMiddleware(), async (req, res) => {
       card_brand: card.card_brand,
       exp_month: card.exp_month,
       exp_year: card.exp_year,
-      notification_email,
       cardholder_name,
       square_customer_id: customerId,
     }
@@ -96,8 +93,8 @@ router.post("/", authMiddleware(), async (req, res) => {
     // send email
     const creatingNewCardMessage = `A Card ending in ${card.last_4} was added to your account`
     const updatingCardMessage = `The Card linked to your account was updated and now ends in ${card.last_4}`
-    sendEmail({
-      to: notification_email,
+    await sendEmail({
+      to: req?.user?.email,
       subject: creatingNewCard ? "A Card Was Added to Your Account" : "The Card on Your Account Was Updated",
       text: creatingNewCard ? creatingNewCardMessage : updatingCardMessage,
     })
@@ -107,7 +104,7 @@ router.post("/", authMiddleware(), async (req, res) => {
       user_id,
       amount: 0,
       type: "card",
-      memo: creatingNewCard ? "card created" : "card updated",
+      memo: creatingNewCard ? "Card Created" : "Card Updated",
       data: JSON.stringify(response),
     })
 

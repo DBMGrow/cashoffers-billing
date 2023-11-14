@@ -15,6 +15,41 @@ router.get("/", authMiddleware("payments_read_all"), async (req, res) => {
   }
 })
 
+router.put("/", authMiddleware("payments_create"), async (req, res) => {
+  const { user_id, subscription_name, amount, duration, status } = req.body
+
+  try {
+    const updateBody = {}
+    if (subscription_name) updateBody.subscription_name = subscription_name
+    if (amount) updateBody.amount = amount
+    if (duration) updateBody.duration = duration
+    if (status) updateBody.status = status
+
+    await Subscription.update(updateBody, { where: { user_id } })
+
+    // log transaction
+    await Transaction.create({
+      user_id,
+      amount: 0,
+      type: "subscription",
+      memo: subscription_name + " updated",
+      data: JSON.stringify(updateBody),
+    })
+
+    res.json({ success: "success", data: updateBody })
+  } catch (error) {
+    // log transaction
+    await Transaction.create({
+      user_id,
+      amount: 0,
+      type: "subscription",
+      memo: subscription_name + " failed to update",
+      data: error.message,
+    })
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
 router.post("/", authMiddleware("payments_create"), async (req, res) => {
   // create a new subscription, or update an existing one
   const { subscription_name, user_id, amount, duration } = req.body
@@ -31,7 +66,6 @@ router.post("/", authMiddleware("payments_create"), async (req, res) => {
     const userCard = await UserCard.findOne({ where: { user_id } })
     if (!userCard) throw new Error("No card found")
     const card_id = userCard?.dataValues?.card_id
-    const notification_email = userCard?.dataValues?.notification_email
 
     // get subscription from database
     const subscription = await Subscription.findOne({ where: { user_id } })
@@ -41,7 +75,6 @@ router.post("/", authMiddleware("payments_create"), async (req, res) => {
       card_id,
       amount,
       duration,
-      notification_email,
       renewal_date: new Date(),
       status: "active",
     }

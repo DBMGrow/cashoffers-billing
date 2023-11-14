@@ -28,4 +28,12 @@ export const Transaction = sequelize.define("Transaction", {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  square_transaction_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  status: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 })

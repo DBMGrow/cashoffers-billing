@@ -1,36 +1,46 @@
+import parseEmailTemplate from "./parseEmailTemplate"
 import sgMail from "@sendgrid/mail"
 sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+import fetch from "node-fetch"
 
-export default function sendEmail(msg) {
-  const { to, from = process.env.SYSTEM_EMAIL, subject, text, html } = msg
+export default async function sendEmail(msg) {
+  let { to, from = process.env.SYSTEM_EMAIL, subject, text, html, fields = {}, template = "main.html" } = msg
   msg = {
     to,
     from,
     subject,
     text,
+    fields,
+    template,
   }
 
   try {
     if (process.env.SEND_EMAILS === "false") return console.log("Emails are disabled", to, from, subject, text, html)
 
-    // convert text to html if html is not provided
-    if (!html && text) msg.html = `<p>${text}</p>`
+    let whitelabel = await getWhitelabel(to)
+    if (!whitelabel) whitelabel = "CashOffers.PRO"
+    msg.html = await parseEmailTemplate(template, { text, whitelabel, subject, ...fields })
+    if (!msg.html) msg.html = text
 
-    sgMail
-      .send(msg)
-      .then((response) => {
-        console.log("Email sent to " + to)
-        // console.log(response[0].headers)
-      })
-      .catch((error) => {
-        console.error("Error sending email to " + to + " with subject " + subject)
-        console.error(error)
-        console.log(error.response.body)
-      })
+    await sgMail.send(msg)
+    console.log("Email sent to " + to)
 
     return true
   } catch (error) {
     console.log(msg, error)
     return false // error sending email
   }
+}
+
+async function getWhitelabel(email) {
+  const user = await fetch(`${process.env.API_URL}/users?email=${email}`, {
+    method: "GET",
+    headers: {
+      "x-api-token": process.env.API_MASTER_TOKEN,
+    },
+  })
+
+  const userData = await user.json()
+  if (userData.success === "success") return userData?.data?.[0]?.whitelabel_name
+  return null
 }

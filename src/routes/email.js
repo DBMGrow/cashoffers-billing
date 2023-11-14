@@ -6,7 +6,7 @@ const router = express.Router()
 router.get("/", async (req, res) => {})
 
 router.post("/", async (req, res) => {
-  sendEmail()
+  await sendEmail()
   res.json({ success: "success" })
 })
 

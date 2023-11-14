@@ -27,16 +27,13 @@ router.post("/", async (req, res) => {
 
   //check sendgrid connection
   try {
-    if (
-      !sendEmail({
-        to: process.env.ADMIN_EMAIL,
-        from: process.env.SYSTEM_EMAIL,
-        subject: "Square Payments Service SendGrid Status check",
-        text: "If you've received this email, SendGrid integration is working.",
-      })
-    ) {
-      throw new Error("Error sending email")
-    }
+    const emailSent = await sendEmail({
+      to: process.env.ADMIN_EMAIL,
+      from: process.env.SYSTEM_EMAIL,
+      subject: "Square Payments Service SendGrid Status check",
+      text: "If you've received this email, SendGrid integration is working.",
+    })
+    if (!emailSent) throw new Error("Error sending email")
     status.sendgrid =
       "sendGrid is active and sending emails from " +
       process.env.SYSTEM_EMAIL +

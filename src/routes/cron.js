@@ -4,7 +4,7 @@ import scheduleCron from "../utils/scheduleCron"
 
 const router = express.Router()
 
-scheduleCron("0 * * * *", "/cron")
+scheduleCron("0 * * * *", "/cron") // run cron every hour
 
 router.post("/", async (req, res) => {
   const { secret } = req.body

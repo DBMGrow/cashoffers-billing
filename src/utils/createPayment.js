@@ -1,12 +1,12 @@
 import { UserCard } from "../database/UserCard"
 import { Transaction } from "../database/Transaction"
-import getUser from "./getUser"
 import { client } from "../config/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "./sendEmail"
 
-export default async function createPayment(request) {
-  let { amount, user_id } = request
+export default async function createPayment(req) {
+  let { amount, user_id } = req?.body
+  let { email } = req?.user
 
   try {
     if (!amount) throw new Error("amount is required")
@@ -18,10 +18,12 @@ export default async function createPayment(request) {
     // get card token from database
     const userCard = await UserCard.findOne({ where: { user_id } })
     if (!userCard) throw new Error("No card found")
-    const { card_id, notification_email, square_customer_id } = userCard?.dataValues
+    const { card_id, square_customer_id } = userCard?.dataValues
 
     if (!card_id) throw new Error("No card found")
     if (!square_customer_id) throw new Error("No square customer found for this card")
+
+    console.log("Check these out", amount, user_id, card_id, square_customer_id, email)
 
     const response = await client.paymentsApi.createPayment({
       sourceId: card_id,
@@ -35,48 +37,62 @@ export default async function createPayment(request) {
       acceptPartialAuthorization: false,
     })
 
-    return handlePaymentResults(request, response, notification_email)
+    return handlePaymentResults(req, response, email)
   } catch (error) {
+    console.log("we're in the error state")
+
     //handle failed payment
-    sendEmail({
+    await sendEmail({
       to: process.env.ADMIN_EMAIL,
       subject: "Payment Error",
       text: `There was an error processing a payment: ${error.message}`,
     })
 
-    return { success: "error", error: error.message, body: request }
+    return { success: "error", error: error.message }
   }
 }
 
-async function handlePaymentResults(request, response, notification_email) {
-  const { amount, user_id, memo } = request
+async function handlePaymentResults(req, response, email) {
+  const { amount, user_id, memo } = req.body
+  console.log("Check these out", amount, user_id, memo, email)
 
   try {
-    if (!paymentCompleted(request, response)) throw new Error("Payment failed")
+    if (!paymentCompleted(req, response)) throw new Error("0002B: Payment failed")
     // log transaction
     await Transaction.create({
       user_id,
       amount,
       type: "payment",
       memo,
+      status: "completed",
+      square_transaction_id: response?.result?.payment?.id,
       data: JSON.stringify(response),
     })
 
+    let amountFormatted = amount / 100
+    amountFormatted = `$${amountFormatted.toFixed(2)}`
+
     // send email
-    sendEmail({
-      to: notification_email,
+    await sendEmail({
+      to: email,
       subject: "Payment Successful",
-      text: `Payment of $${amount / 100} was successful`,
+      text: `Payment of ${amountFormatted} was successful`,
+      template: "paymentConfirm.html",
+      fields: {
+        amount: `$${amountFormatted}`,
+        transactionID: response?.result?.payment?.id,
+        date: new Date().toLocaleDateString(),
+      },
     })
 
     return { success: "success", data: JSON.parse(response.body) }
   } catch (error) {
-    return { success: "error", error: error.message, body: request }
+    return { success: "error", error: error.message }
   }
 }
 
-async function paymentCompleted(request, response) {
-  const { user_id, amount } = request
+async function paymentCompleted(req, response) {
+  const { user_id, amount } = req
 
   try {
     // check if transaction was successful
@@ -85,10 +101,10 @@ async function paymentCompleted(request, response) {
 
     return true
   } catch (error) {
-    if (error.message !== "Payment failed") {
+    if (error.message !== "0002B: Payment failed") {
       // this means a syntax error or something else went wrong
       // send email to admin to investigate
-      sendEmail({
+      await sendEmail({
         to: process.env.ADMIN_EMAIL,
         subject: "Payment Error",
         text: `0000A: There was an error processing a payment: ${error.message}`,
@@ -97,17 +113,26 @@ async function paymentCompleted(request, response) {
     }
 
     // need to notify user their card info likely needs to be updated
-    sendEmail({
-      to: notification_email,
+    let amountFormat = amount / 100
+    amountFormat = `$${amountFormat.toFixed(2)}`
+
+    await sendEmail({
+      to: email,
       subject: "Payment Error",
-      text: `A payment of $${amount / 100} failed. Please update your card information.`,
+      text: `A payment of ${amountFormat} failed. Please update your card information.`,
+      template: "paymentError.html",
+      fields: {
+        amount: amountFormat,
+        date: new Date().toLocaleDateString(),
+      },
     })
 
     await Transaction.create({
       user_id,
       amount,
       type: "payment",
-      memo: "Payment failed",
+      memo: "0002C: Payment failed",
+      status: "failed",
       data: JSON.stringify(response),
     })
   }

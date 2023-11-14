@@ -7,9 +7,10 @@ export default function authMiddleware(permissions) {
     let user_id = null
     switch (req.method) {
       case "GET":
-        user_id = req?.params?.user_id
+        user_id = req?.params?.user_id || req?.query?.user_id
         break
       case "POST":
+      case "PUT":
         user_id = req?.body?.user_id
         break
     }
@@ -31,6 +32,10 @@ export default function authMiddleware(permissions) {
 
     if (!authCheck) return res.json({ success: "error", error: "0000E: Unauthorized" })
     if (!permissionsCheck) return res.json({ success: "error", error: "0000F: Unauthorized" })
+
+    req.user = user?.data
+    console.log(req?.user?.email)
+    req.token_owner = token_owner?.data
 
     next()
   }

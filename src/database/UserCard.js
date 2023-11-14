@@ -30,10 +30,6 @@ export const UserCard = sequelize.define("UserCard", {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  notification_email: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
   square_customer_id: {
     type: DataTypes.STRING,
     allowNull: false,
