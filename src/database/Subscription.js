@@ -16,10 +16,6 @@ export const Subscription = sequelize.define("Subscription", {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
-  card_id: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
   amount: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -45,5 +41,25 @@ export const Subscription = sequelize.define("Subscription", {
     type: DataTypes.DATE,
     allowNull: true,
     comment: "The date and time when the next renewal attempt should occur after a failed payment",
+  },
+  product_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    allowNull: true,
+    references: {
+      model: "Products",
+      key: "product_id",
+    },
+    onUpdate: "CASCADE",
+    onDelete: "SET NULL",
+  },
+  data: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+  cancel_on_renewal: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+    defaultValue: false,
   },
 })

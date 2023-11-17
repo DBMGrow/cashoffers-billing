@@ -3,6 +3,7 @@ import authMiddleware from "../middleware/authMiddleware"
 import { Subscription } from "../database/Subscription"
 import { UserCard } from "../database/UserCard"
 import { Transaction } from "../database/Transaction"
+import toggleSubscription from "../utils/toggleSubscription"
 
 const router = express.Router()
 
@@ -10,6 +11,17 @@ router.get("/", authMiddleware("payments_read_all"), async (req, res) => {
   try {
     const subscriptions = await Subscription.findAll()
     res.json({ success: "success", data: subscriptions })
+  } catch (error) {
+    res.json({ success: "error", error: error.message })
+  }
+})
+
+// get your own subscription
+router.get("/single", authMiddleware(null, { allowSelf: true }), async (req, res) => {
+  const { user_id } = req.user
+  try {
+    const subscription = await Subscription.findOne({ where: { user_id } })
+    res.json({ success: "success", data: [subscription] })
   } catch (error) {
     res.json({ success: "error", error: error.message })
   }
@@ -50,6 +62,84 @@ router.put("/", authMiddleware("payments_create"), async (req, res) => {
   }
 })
 
+router.post("/pause/:subscription_id", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
+  // pause a subscription
+  const { subscription_id } = req.params
+
+  try {
+    if (!subscription_id) throw new Error("subscription_id is required")
+
+    // run pause script for the subscription
+    await toggleSubscription(subscription_id)
+
+    res.json({ success: "success", data: { subscription_id } })
+  } catch (error) {
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
+router.post("/resume/:subscription_id", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
+  // resume a subscription
+  const { subscription_id } = req.params
+
+  try {
+    if (!subscription_id) throw new Error("subscription_id is required")
+
+    // run resume script for the subscription
+    await toggleSubscription(subscription_id, {
+      status: "active",
+    })
+
+    res.json({ success: "success", data: { subscription_id } })
+  } catch (error) {
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
+router.post("/cancel/:subscription_id", authMiddleware(null, { allowSelf: true }), async (req, res) => {
+  // cancel a subscription
+  const { subscription_id } = req.params
+
+  try {
+    if (!subscription_id) throw new Error("subscription_id is required")
+
+    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    if (!subscription) throw new Error("subscription not found")
+
+    const userOwnsSub = req.user?.user_id === subscription?.dataValues?.user_id
+    const userHasPermission = req?.user?.capabilities?.includes("payments_create")
+    if (!userOwnsSub && !userHasPermission) throw new Error("0000E: Unauthorized")
+
+    await subscription.update({ cancel_on_renewal: true })
+
+    res.json({ success: "success", data: { subscription_id } })
+  } catch (error) {
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
+router.post("/uncancel/:subscription_id", authMiddleware(null, { allowSelf: true }), async (req, res) => {
+  // cancel a subscription
+  const { subscription_id } = req.params
+
+  try {
+    if (!subscription_id) throw new Error("subscription_id is required")
+
+    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    if (!subscription) throw new Error("subscription not found")
+
+    const userOwnsSub = req.user?.user_id === subscription?.dataValues?.user_id
+    const userHasPermission = req?.user?.capabilities?.includes("payments_create")
+    if (!userOwnsSub && !userHasPermission) throw new Error("0000E: Unauthorized")
+
+    await subscription.update({ cancel_on_renewal: false })
+
+    res.json({ success: "success", data: { subscription_id } })
+  } catch (error) {
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
 router.post("/", authMiddleware("payments_create"), async (req, res) => {
   // create a new subscription, or update an existing one
   const { subscription_name, user_id, amount, duration } = req.body
@@ -72,7 +162,6 @@ router.post("/", authMiddleware("payments_create"), async (req, res) => {
     const updateData = {
       subscription_name,
       user_id,
-      card_id,
       amount,
       duration,
       renewal_date: new Date(),

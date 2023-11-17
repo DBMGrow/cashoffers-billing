@@ -10,11 +10,11 @@ export const Transaction = sequelize.define("Transaction", {
   },
   user_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
   },
   amount: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
   },
   type: {
     type: DataTypes.STRING,

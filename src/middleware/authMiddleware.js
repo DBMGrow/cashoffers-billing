@@ -1,7 +1,8 @@
 import getUser from "../utils/getUser"
 
-export default function authMiddleware(permissions) {
+export default function authMiddleware(permissions, options) {
   if (permissions && !Array.isArray(permissions)) permissions = [permissions]
+  const { allowSelf = false } = options || {}
 
   return async function (req, res, next) {
     let user_id = null
@@ -13,6 +14,12 @@ export default function authMiddleware(permissions) {
       case "PUT":
         user_id = req?.body?.user_id
         break
+    }
+
+    if (allowSelf && !user_id) {
+      let self_user_id = await getUser(req, null, { allowSelf: true })
+      if (self_user_id?.success === "success") user_id = self_user_id?.user_id
+      else return res.json({ success: "error", error: "0000Z: Unauthorized" + JSON.stringify(self_user_id) })
     }
 
     const user = await getUser(req, user_id)

@@ -23,8 +23,6 @@ export default async function createPayment(req) {
     if (!card_id) throw new Error("No card found")
     if (!square_customer_id) throw new Error("No square customer found for this card")
 
-    console.log("Check these out", amount, user_id, card_id, square_customer_id, email)
-
     const response = await client.paymentsApi.createPayment({
       sourceId: card_id,
       idempotencyKey: uuidv4(),

@@ -1,5 +1,6 @@
 import express from "express"
 import subscriptionsCron from "../cron/subscriptionsCron"
+import suspendSubscriptionsCron from "../cron/suspendSubscriptionsCron"
 import scheduleCron from "../utils/scheduleCron"
 
 const router = express.Router()
@@ -12,6 +13,7 @@ router.post("/", async (req, res) => {
     if (secret !== process.env.CRON_SECRET) throw new Error("Unauthorized")
 
     await subscriptionsCron()
+    await suspendSubscriptionsCron()
 
     res.json({ success: "success", message: "Cron job running" })
   } catch (error) {
