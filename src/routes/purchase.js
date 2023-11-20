@@ -1,6 +1,6 @@
 import authMiddleware from "../middleware/authMiddleware"
 import express from "express"
-import fetch from "node-fetch"
+const fetch = require("node-fetch")
 import CodedError from "../config/CodedError"
 import convertToFormata from "../utils/convertToFormdata"
 import handleErrors from "../utils/handleErrors"
