@@ -89,7 +89,9 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         },
         body: convertToFormata({ email, phone, active: 0, name: cardholder_name }),
       })
+
       newUser = await newUserRequest.json()
+      console.log("METHOD", newUser.method)
       if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
       user = { ...newUser?.data }
 

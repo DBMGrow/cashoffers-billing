@@ -12,7 +12,8 @@ export default async function createNewSubscription(product, user) {
 
     console.log("CREATE_NEW_SUBSCRIPTION")
     console.log("PRODUCT", product)
-    console.log("USER", user)
+    console.log("USER METHOD", user.method)
+    console.log("USER LENGTH", user?.data?.length)
     console.log("SUBSCRIPTION_DATA", subscriptionData)
 
     // activate user
