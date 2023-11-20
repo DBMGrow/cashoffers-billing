@@ -18,6 +18,9 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
 
   console.log("ENTERING")
 
+  console.log("EMAIL", email)
+  console.log("PHONE", phone)
+
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
     if (!email) throw new CodedError("email is required", "PUR02")
@@ -82,16 +85,19 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       console.log("CREATING_NEW_USER")
 
       // create new user in system
+      const formData = convertToFormata({ email, phone, active: 0, name: cardholder_name })
       const newUserRequest = await fetch(process.env.API_URL + "/users", {
         method: "POST",
         headers: {
           "x-api-token": process.env.API_MASTER_TOKEN,
+          ...formData.getHeaders(),
         },
-        body: convertToFormata({ email, phone, active: 0, name: cardholder_name }),
+        body: formData,
       })
 
       newUser = await newUserRequest.json()
       console.log("METHOD", newUser.method)
+      console.log(newUser)
       if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
       user = { ...newUser?.data }
 
