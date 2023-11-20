@@ -27,6 +27,23 @@ export default async function toggleSubscription(subscription_id, options) {
   const subscription = await Subscription.findOne({ where: { subscription_id } })
   if (!subscription) throw new CodedError("Subscription not found", "TS01")
 
+  if (active) {
+    // when resuming a subscription, update the renewal based on suspension_date
+    const suspension_date = subscription?.dataValues?.suspension_date
+    if (suspension_date) {
+      // check how many days have passed since suspension
+      const daysSinceSuspension = Math.floor((new Date() - new Date(suspension_date)) / (1000 * 60 * 60 * 24))
+      // update renewal_date based on days since suspension
+      const renewal_date = new Date(
+        new Date(subscription?.dataValues?.renewal_date).getTime() + daysSinceSuspension * 24 * 60 * 60 * 1000
+      )
+      await subscription.update({ renewal_date })
+    }
+  } else {
+    // when suspending a subscription, update the suspension_date
+    await subscription.update({ suspension_date: new Date() })
+  }
+
   // if the subscription has a team id, deactivate the members on the team
   const team_id = subscription?.dataValues?.data?.team_id
   if (team_id) {

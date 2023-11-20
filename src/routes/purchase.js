@@ -28,7 +28,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     const userWithEmailData = await userWithEmail.json()
     const userWithEmailExists = userWithEmailData?.data?.length > 0
 
-    let user = userWithEmailData?.data?.[0]
+    let user = { ...userWithEmailData?.data?.[0] }
     let user_id = user?.user_id
     let userCard
     let newUser
@@ -54,10 +54,15 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       if (!phone) throw new CodedError("phone is required", "PUR10") // required if creating new user
 
       // create new card
-      const newCardData = await createCard(null, card_token, exp_month, exp_year, cardholder_name, email, {
-        allowNullUserId: true,
-        sendEmailOnUpdate: false, // they're gonna get a bunch of emails when they sign up anyway
-      })
+      let newCardData
+      try {
+        newCardData = await createCard(null, card_token, exp_month, exp_year, cardholder_name, email, {
+          allowNullUserId: true,
+          sendEmailOnUpdate: false, // they're gonna get a bunch of emails when they sign up anyway
+        })
+      } catch (error) {
+        throw new CodedError(JSON.stringify(error), "PUR08")
+      }
       userCard = newCardData?.userCard
 
       // create new user in system
@@ -66,11 +71,11 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         headers: {
           "x-api-token": process.env.API_MASTER_TOKEN,
         },
-        body: convertToFormata({ email, phone, active: 0 }),
+        body: convertToFormata({ email, phone, active: 0, name: cardholder_name }),
       })
       newUser = await newUserRequest.json()
       if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
-      user = newUser?.data
+      user = { ...newUser?.data }
 
       // add new card to user
       await userCard.update({ user_id: newUser?.data?.user_id })
@@ -93,7 +98,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         body: {
           user_id,
           amount: product?.dataValues?.price,
-          memo: "Purchase of " + product?.dataValues?.name,
+          memo: "Purchase of " + product?.dataValues?.product_name,
         },
         user: { email },
       })

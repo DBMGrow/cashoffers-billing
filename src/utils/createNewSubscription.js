@@ -27,7 +27,7 @@ export default async function createNewSubscription(product, user) {
         method: "POST",
         headers: { "x-api-token": process.env.API_MASTER_TOKEN },
         body: convertToFormata({
-          teamname: user?.email + "'s Team",
+          teamname: (user?.name || user?.email) + "'s Team",
           max_users: subscriptionData?.team_members,
         }),
       })

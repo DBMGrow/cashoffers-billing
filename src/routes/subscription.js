@@ -7,9 +7,12 @@ import toggleSubscription from "../utils/toggleSubscription"
 
 const router = express.Router()
 
-router.get("/", authMiddleware("payments_read_all"), async (req, res) => {
+router.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async (req, res) => {
   try {
-    const subscriptions = await Subscription.findAll()
+    // sort by most recent
+    const subscriptions = await Subscription.findAll({
+      order: [["createdAt", "DESC"]],
+    })
     res.json({ success: "success", data: subscriptions })
   } catch (error) {
     res.json({ success: "error", error: error.message })

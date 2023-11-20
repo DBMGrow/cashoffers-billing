@@ -17,6 +17,12 @@ export default async function subscriptionsCron() {
             [Op.is]: null,
           },
         },
+        renewal_date: {
+          [Op.or]: {
+            [Op.lte]: new Date(),
+            [Op.is]: null,
+          },
+        },
       },
     })
 

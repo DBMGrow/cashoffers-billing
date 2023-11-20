@@ -62,4 +62,8 @@ export const Subscription = sequelize.define("Subscription", {
     allowNull: true,
     defaultValue: false,
   },
+  suspension_date: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 })
