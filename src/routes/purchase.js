@@ -87,7 +87,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       // create new user in system
       const formData = convertToFormata({ email, phone, active: 0, name: cardholder_name })
       const newUserRequest = await fetch(process.env.API_URL + "/users", {
-        method: "POST",
+        method: "PUT",
         headers: {
           "x-api-token": process.env.API_MASTER_TOKEN,
           ...formData.getHeaders(),
