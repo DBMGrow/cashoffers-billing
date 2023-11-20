@@ -86,15 +86,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
 
       // create new user in system
       const formData = convertToFormata({ email, phone, active: 0, name: cardholder_name })
-      // const newUserRequest = await fetch(process.env.API_URL + "/users", {
-      //   method: "POST",
-      //   headers: {
-      //     "x-api-token": process.env.API_MASTER_TOKEN,
-      //     ...formData.getHeaders(),
-      //   },
-      //   body: formData,
-      // })
-      const newUserRequest = await fetch(process.env.BASE_URL + "/log", {
+      const newUserRequest = await fetch(process.env.API_URL + "/users", {
         method: "POST",
         headers: {
           "x-api-token": process.env.API_MASTER_TOKEN,
@@ -102,6 +94,14 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         },
         body: formData,
       })
+      // const newUserRequest = await fetch(process.env.BASE_URL + "/log", {
+      //   method: "POST",
+      //   headers: {
+      //     "x-api-token": process.env.API_MASTER_TOKEN,
+      //     ...formData.getHeaders(),
+      //   },
+      //   body: formData,
+      // })
 
       newUser = await newUserRequest.json()
 
