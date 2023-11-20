@@ -16,6 +16,7 @@ import purchaseRoutes from "./routes/purchase"
 import emailRoutes from "./routes/email"
 import statusRoutes from "./routes/status"
 import cronRoutes from "./routes/cron"
+import logRoutes from "./routes/log"
 
 app.use(json()) // middleware to parse json data
 
@@ -28,6 +29,7 @@ app.use("/purchase", purchaseRoutes)
 app.use("/email", emailRoutes)
 app.use("/status", statusRoutes)
 app.use("/cron", cronRoutes)
+app.use("/log", logRoutes)
 
 app.use((err, req, res, next) => {
   console.error(err.stack)
