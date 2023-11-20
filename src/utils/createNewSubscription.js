@@ -10,6 +10,11 @@ export default async function createNewSubscription(product, user) {
     if (!subscriptionData?.duration) throw new CodedError("duration is required", "CNS01")
     if (!subscriptionData?.renewal_cost) throw new CodedError("renewal_cost is required", "CNS02")
 
+    console.log("CREATE_NEW_SUBSCRIPTION")
+    console.log("PRODUCT", product)
+    console.log("USER", user)
+    console.log("SUBSCRIPTION_DATA", subscriptionData)
+
     // activate user
     const activateUser = await fetch(process.env.API_URL + "/users/" + user.user_id, {
       method: "PUT",
@@ -34,6 +39,8 @@ export default async function createNewSubscription(product, user) {
       const team = await teamRequest.json()
       if (team?.success !== "success") throw new CodedError(JSON.stringify(team), "CNS05")
 
+      console.log("TEAM", team)
+
       // update user to be team owner and part of new team
       const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
         method: "PUT",
@@ -50,6 +57,8 @@ export default async function createNewSubscription(product, user) {
       subscriptionData.team_id = team?.data?.team_id
     }
 
+    console.log("CREATING_SUBSCRIPTION")
+
     const subscription = await Subscription.create({
       user_id: user.user_id,
       subscription_name: product?.dataValues?.product_name,
@@ -61,6 +70,8 @@ export default async function createNewSubscription(product, user) {
       data: subscriptionData,
     })
     if (!subscription) throw new CodedError("subscription creation failed", "CNS03")
+
+    console.log("CREATED_SUBSCRIPTION", subscription)
 
     // log subscription creation
     await Transaction.create({

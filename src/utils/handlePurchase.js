@@ -4,6 +4,8 @@ import CodedError from "../config/CodedError"
 
 export default async function handlePurchase(product_id, user) {
   try {
+    console.log("HANDLE_PURCHASE", { product_id, user })
+
     const product = await Product.findOne({ where: { product_id } })
     if (!product) throw new CodedError("product not found", "HPUR01")
 
