@@ -37,16 +37,12 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     const userWithEmailData = await userWithEmail.json()
     const userWithEmailExists = userWithEmailData?.data?.length > 0
 
-    console.log("USER_WITH_EMAIL_EXISTS", userWithEmailExists)
-
     let user = { ...userWithEmailData?.data?.[0] }
     let user_id = user?.user_id
     let userCard
     let newUser
 
     if (userWithEmailExists) {
-      console.log("EXISTING_USER_ROUTE")
-
       if (!api_token) throw new CodedError("api_token is required", "PUR04")
       userCard = await UserCard.findOne({ where: { user_id: user?.user_id } })
       const userHasBilling = userCard?.dataValues?.card_id
@@ -63,13 +59,8 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       //       — will require taking data from existing plan and transferring it to the new one
       if (userIsSubscribed) throw new CodedError("user is already subscribed to product", "PUR07")
     } else {
-      console.log("NEW_USER_ROUTE")
-
       if (!card_token) throw new CodedError("card_token is required", "PUR09") // required if creating new user
       if (!phone) throw new CodedError("phone is required", "PUR10") // required if creating new user
-
-      // create new card
-      console.log("CREATING_NEW_CARD")
 
       let newCardData
       try {
@@ -82,8 +73,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       }
       userCard = newCardData?.userCard
 
-      console.log("CREATING_NEW_USER")
-
       // create new user in system
       const formData = convertToFormata({ email, phone, active: 0, name: cardholder_name })
       const newUserRequest = await fetch(process.env.API_URL + "/users", {
@@ -94,14 +83,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         },
         body: formData,
       })
-      // const newUserRequest = await fetch(process.env.BASE_URL + "/log", {
-      //   method: "POST",
-      //   headers: {
-      //     "x-api-token": process.env.API_MASTER_TOKEN,
-      //     ...formData.getHeaders(),
-      //   },
-      //   body: formData,
-      // })
 
       newUser = await newUserRequest.json()
 
@@ -109,10 +90,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       console.log(newUser)
       if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
       user = { ...newUser?.data }
-
-      throw new Error("PURCHASE_ERROR")
-
-      console.log("UPDATING_NEW_CARD")
 
       // add new card to user
       await userCard.update({ user_id: newUser?.data?.user_id })
