@@ -26,7 +26,7 @@ export default async function handleErrors(req, res, error) {
         })
       }
       if (errorIncludesAction("emailUser")) {
-        console.log("emailing user is not set up yet")
+        console.warn("emailing user is not set up yet")
       }
       if (errorIncludesAction("removeNewUser") && error.data?.remove && error.data?.user_id) {
         // used when an error occurred after the user was created, so we need to remove them from the database
@@ -38,7 +38,6 @@ export default async function handleErrors(req, res, error) {
           }), //scrambles the email
         })
         const json = await response.json()
-        console.log("removed new user", json.data?.email)
 
         // remove card from database
         const userCard = await UserCard.findOne({ where: { user_id: error.data.user_id } })

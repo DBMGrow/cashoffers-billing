@@ -55,7 +55,6 @@ router.post("/refund", authMiddleware("payments_create"), async (req, res) => {
       unlinked: false,
     })
 
-    console.log(response)
     const status = response?.result?.refund?.status
     if (status !== "COMPLETED" && status !== "PENDING") throw new Error("0001G refund failed")
 

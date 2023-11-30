@@ -13,7 +13,7 @@ export default async function parseEmailTemplate(templateFile, templateData = {}
     })
     return htmlContent
   } catch (error) {
-    console.log("0003B: ", error)
+    console.error("0003B: ", error)
     return null
   }
 }

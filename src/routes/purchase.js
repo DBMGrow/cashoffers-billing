@@ -10,27 +10,19 @@ import handlePurchase from "../utils/handlePurchase"
 import { Product } from "../database/Product"
 import { UserCard } from "../database/UserCard"
 import { Subscription } from "../database/Subscription"
+import checkProrated from "../utils/checkProrated"
 
 const router = express.Router()
 
 router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
   const { product_id, email, phone, card_token, exp_month, exp_year, cardholder_name, api_token } = req.body
 
-  console.log("ENTERING")
-
-  console.log("EMAIL", email)
-  console.log("PHONE", phone)
-
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
     if (!email) throw new CodedError("email is required", "PUR02")
 
-    console.log("DB_FETCH_PRODUCT")
-
     const product = await Product.findOne({ where: { product_id } })
     if (!product) throw new CodedError("product not found", "PUR03")
-
-    console.log("API_FETCH_USER")
 
     const url = process.env.API_URL + "/users?email=" + encodeURIComponent(email)
     const userWithEmail = await fetch(url, { headers: { "x-api-token": process.env.API_MASTER_TOKEN } })
@@ -41,6 +33,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     let user_id = user?.user_id
     let userCard
     let newUser
+    let userIsSubscribed = false
 
     if (userWithEmailExists) {
       if (!api_token) throw new CodedError("api_token is required", "PUR04")
@@ -51,13 +44,9 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
 
       // check if user is already subscribed to product
       const userSubscriptions = await Subscription.findAll({ where: { user_id: user?.user_id } })
-      const userIsSubscribed = Array.isArray(userSubscriptions) //
+      userIsSubscribed = Array.isArray(userSubscriptions) //
         ? userSubscriptions.some((subscription) => subscription?.dataValues?.status !== "disabled")
         : false
-
-      // TODO: #1 implement logic for handling changing subscription plans
-      //       — will require taking data from existing plan and transferring it to the new one
-      if (userIsSubscribed) throw new CodedError("user is already subscribed to product", "PUR07")
     } else {
       if (!card_token) throw new CodedError("card_token is required", "PUR09") // required if creating new user
       if (!phone) throw new CodedError("phone is required", "PUR10") // required if creating new user
@@ -86,8 +75,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
 
       newUser = await newUserRequest.json()
 
-      console.log("METHOD", newUser.method)
-      console.log(newUser)
       if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
       user = { ...newUser?.data }
 
@@ -96,10 +83,26 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       user_id = newUser?.data?.user_id
     }
 
-    console.log("HANDLING_PURCHASE")
+    // if user already had subscription, handle prorated charge for new subscription
+    if (userIsSubscribed) {
+      const proratedData = await checkProrated({ body: { user_id, product_id } })
+      if (!proratedData) throw new CodedError("error getting prorated charge", "PUR14")
+
+      if (proratedData?.proratedAmount > 0) {
+        const proratedPayment = await createPayment({
+          body: {
+            user_id,
+            amount: proratedData?.proratedAmount,
+            memo: "Prorated charge for " + product?.dataValues?.product_name,
+          },
+          user: { email },
+        })
+        if (proratedPayment?.success !== "success") throw new CodedError(JSON.stringify(proratedPayment), "PUR15")
+      }
+    }
 
     // we create the product first, because if it fails, we don't want to charge the user
-    const purchase = await handlePurchase(product_id, user)
+    const purchase = await handlePurchase(product_id, user, userIsSubscribed) // handle subscription change in here
     if (purchase.success !== "success") {
       throw new CodedError(JSON.stringify(purchase), "PUR13", {
         actions: ["emailAdmin", "removeNewUser"],
@@ -107,8 +110,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         user_id: newUser?.data?.user_id,
       })
     }
-
-    console.log("CREATING_PAYMENT")
 
     // if price is greater than 0, create new payment charge
     if (product?.dataValues?.price > 0) {
@@ -128,8 +129,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         })
       }
     }
-
-    console.log("PURCHASE_SUCCESSFUL")
 
     res.json({ success: "success", data: { product, user, userCard } })
   } catch (error) {

@@ -1,6 +1,7 @@
 import express from "express"
 import { Product } from "../database/Product"
 import authMiddleware from "../middleware/authMiddleware"
+import checkProrated from "../utils/checkProrated"
 
 const router = express.Router()
 
@@ -48,6 +49,15 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     })
 
     res.json({ success: "success", data: product })
+  } catch (error) {
+    res.json({ success: "error", error: error.message })
+  }
+})
+
+router.post("/checkprorated", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
+  try {
+    const data = await checkProrated(req)
+    res.json({ success: "success", data })
   } catch (error) {
     res.json({ success: "error", error: error.message })
   }

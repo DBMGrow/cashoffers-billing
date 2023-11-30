@@ -15,7 +15,7 @@ export default async function sendEmail(msg) {
   }
 
   try {
-    if (process.env.SEND_EMAILS === "false") return console.log("Emails are disabled", to, from, subject, text, html)
+    if (process.env.SEND_EMAILS === "false") return console.info("Emails are disabled", to, from, subject, text, html)
 
     let whitelabel = await getWhitelabel(to)
     if (!whitelabel) whitelabel = "CashOffers.PRO"
@@ -23,11 +23,11 @@ export default async function sendEmail(msg) {
     if (!msg.html) msg.html = text
 
     await sgMail.send(msg)
-    console.log("Email sent to " + to)
+    console.info("Email sent to " + to)
 
     return true
   } catch (error) {
-    console.log(msg, error)
+    console.error(msg, error)
     return false // error sending email
   }
 }

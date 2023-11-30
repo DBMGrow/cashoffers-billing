@@ -15,13 +15,13 @@ export async function getPayments() {
   } catch (error) {
     if (error instanceof ApiError) {
       error.result.errors.forEach(function (e) {
-        console.log(e.category)
-        console.log(e.code)
-        console.log(e.detail)
+        console.error(e.category)
+        console.error(e.code)
+        console.error(e.detail)
       })
       return error.result.errors
     } else {
-      console.log("Unexpected error occurred: ", error)
+      console.error("Unexpected error occurred: ", error)
       return error
     }
   }

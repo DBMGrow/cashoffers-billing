@@ -56,7 +56,6 @@ export default async function createCard(user_id, card_token, exp_month, exp_yea
   let creatingNewCard = true
 
   if (user_id) userCard = await UserCard.findOne({ where: { user_id } })
-  console.log("userCard", userCard)
   if (userCard && user_id) {
     userCard = await userCard.update(card_data)
     creatingNewCard = false

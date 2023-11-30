@@ -48,7 +48,6 @@ router.post("/", async (req, res) => {
   try {
     const payments = await client.paymentsApi.listPayments()
     if (!payments) throw new Error("Error getting payments")
-    console.log("Square payments:", payments)
     status.square = "success"
   } catch (error) {
     status.square = { error: error.message }

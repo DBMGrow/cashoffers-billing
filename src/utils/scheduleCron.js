@@ -20,7 +20,7 @@ export default function scheduleCron(time, route) {
         body: JSON.stringify({ secret: process.env.CRON_SECRET }),
       }).then((res) => res.json())
     } catch (error) {
-      console.log("Error running cron:", error)
+      console.error("Error running cron:", error)
     }
   })
 }

@@ -52,7 +52,6 @@ export default async function toggleSubscription(subscription_id, options) {
       headers: { "x-api-token": process.env.API_MASTER_TOKEN },
     })
     const teamMembersResponse = await teamMembers.json()
-    console.log(teamMembersResponse)
     if (teamMembersResponse?.success !== "success") throw new CodedError("TS02: Error fetching team members", "TS02")
 
     teamMembersResponse?.data?.forEach(async (member) => {

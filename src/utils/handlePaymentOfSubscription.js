@@ -69,7 +69,6 @@ export function updateNextRenewalAttempt(subscription) {
   }
   let nextAttempt = new Date()
   const today = new Date()
-  console.log("Days waited", daysWaited)
 
   if (daysWaited <= 1) {
     nextAttempt.setDate(today.getDate() + 1)

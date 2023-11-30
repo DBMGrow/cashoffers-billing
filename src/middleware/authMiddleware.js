@@ -41,7 +41,6 @@ export default function authMiddleware(permissions, options) {
     if (!permissionsCheck) return res.json({ success: "error", error: "0000F: Unauthorized" })
 
     req.user = user?.data
-    console.log(req?.user?.email)
     req.token_owner = token_owner?.data
 
     next()

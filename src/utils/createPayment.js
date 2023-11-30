@@ -37,8 +37,6 @@ export default async function createPayment(req) {
 
     return handlePaymentResults(req, response, email)
   } catch (error) {
-    console.log("we're in the error state")
-
     //handle failed payment
     await sendEmail({
       to: process.env.ADMIN_EMAIL,
@@ -52,7 +50,6 @@ export default async function createPayment(req) {
 
 async function handlePaymentResults(req, response, email) {
   const { amount, user_id, memo } = req.body
-  console.log("Check these out", amount, user_id, memo, email)
 
   try {
     if (!paymentCompleted(req, response)) throw new Error("0002B: Payment failed")

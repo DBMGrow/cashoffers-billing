@@ -37,10 +37,10 @@ app.use((err, req, res, next) => {
 })
 
 app.listen(PORT, async () => {
-  console.log(`App listening at port ${PORT}`)
+  console.info(`App listening at port ${PORT}`)
   try {
     await sequelize.sync()
-    console.log("Database synced")
+    console.info("Database synced")
   } catch (error) {
     console.error("Error syncing database:", error)
   }
