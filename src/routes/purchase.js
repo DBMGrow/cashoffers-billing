@@ -39,8 +39,22 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       if (!api_token) throw new CodedError("api_token is required", "PUR04")
       userCard = await UserCard.findOne({ where: { user_id: user?.user_id } })
       const userHasBilling = userCard?.dataValues?.card_id
-      if (!userHasBilling) throw new CodedError("email is linked to another billing account", "PUR05")
+      if (!userHasBilling && (!card_token || !exp_month || !exp_year || !cardholder_name))
+        throw new CodedError("email is linked to another billing account", "PUR05")
       if (api_token !== user?.api_token) throw new CodedError("invalid credentials for email", "PUR06")
+
+      // update card if card_token is provided
+      if (card_token) {
+        try {
+          const newCardData = await createCard(user_id, card_token, exp_month, exp_year, cardholder_name, email, {
+            allowNullUserId: false,
+            sendEmailOnUpdate: true,
+          })
+          userCard = newCardData?.userCard
+        } catch (error) {
+          throw new CodedError(JSON.stringify(error), "PUR08")
+        }
+      }
 
       // check if user is already subscribed to product
       const userSubscriptions = await Subscription.findAll({ where: { user_id: user?.user_id } })

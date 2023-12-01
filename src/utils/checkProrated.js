@@ -37,7 +37,9 @@ export default async function checkProrated(req) {
   const totalDuration = Math.abs(renewalDate - startDate) / 1000 / 60 / 60 / 24
   const timeRemaining = Math.abs(renewalDate - new Date()) / 1000 / 60 / 60 / 24
 
-  const percentOfTimeRemaining = timeRemaining / totalDuration
+  let percentOfTimeRemaining = timeRemaining / totalDuration
+  if (renewalDate < new Date()) percentOfTimeRemaining = 0
+
   const totalSubscriptionCostDifference = newPlanCost - currentPlanCost
 
   // we're not setting a negative prorated amount
