@@ -7,7 +7,10 @@ export default async function sendEmail(msg) {
   let { to, from = process.env.SYSTEM_EMAIL, subject, text, html, fields = {}, template = "main.html" } = msg
   msg = {
     to,
-    from,
+    from: {
+      email: from,
+      name: process.env.SYSTEM_FROM_NAME,
+    },
     subject,
     text,
     fields,

@@ -7,6 +7,8 @@ import handlePaymentOfSubscription from "../utils/handlePaymentOfSubscription"
 import toggleSubscription from "../utils/toggleSubscription"
 
 export default async function subscriptionsCron() {
+  console.log("Running subscriptions cron")
+
   try {
     const subscriptions = await Subscription.findAll({
       where: {

@@ -4,7 +4,7 @@ import { client } from "../config/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "./sendEmail"
 
-export default async function createPayment(req) {
+export default async function createPayment(req, options) {
   let { amount, user_id } = req?.body
   let { email } = req?.user
 
@@ -35,7 +35,7 @@ export default async function createPayment(req) {
       acceptPartialAuthorization: false,
     })
 
-    return handlePaymentResults(req, response, email)
+    return handlePaymentResults(req, response, email, options)
   } catch (error) {
     //handle failed payment
     await sendEmail({
@@ -48,8 +48,9 @@ export default async function createPayment(req) {
   }
 }
 
-async function handlePaymentResults(req, response, email) {
+async function handlePaymentResults(req, response, email, options) {
   const { amount, user_id, memo } = req.body
+  let { sendEmailOnCharge = true } = options || {}
 
   try {
     if (!paymentCompleted(req, response)) throw new Error("0002B: Payment failed")
@@ -68,17 +69,19 @@ async function handlePaymentResults(req, response, email) {
     amountFormatted = `$${amountFormatted.toFixed(2)}`
 
     // send email
-    await sendEmail({
-      to: email,
-      subject: "Payment Successful",
-      text: `Payment of ${amountFormatted} was successful`,
-      template: "paymentConfirm.html",
-      fields: {
-        amount: `$${amountFormatted}`,
-        transactionID: response?.result?.payment?.id,
-        date: new Date().toLocaleDateString(),
-      },
-    })
+    if (sendEmailOnCharge) {
+      await sendEmail({
+        to: email,
+        subject: "Payment Successful",
+        text: `Payment of ${amountFormatted} was successful`,
+        template: "paymentConfirm.html",
+        fields: {
+          amount: `$${amountFormatted}`,
+          transactionID: response?.result?.payment?.id,
+          date: new Date().toLocaleDateString(),
+        },
+      })
+    }
 
     return { success: "success", data: JSON.parse(response.body) }
   } catch (error) {

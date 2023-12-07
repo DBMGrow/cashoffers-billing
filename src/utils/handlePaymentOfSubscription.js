@@ -4,13 +4,16 @@ import toggleSubscription from "./toggleSubscription"
 import sendEmail from "./sendEmail"
 import { Transaction } from "../database/Transaction"
 
-export default async function handlePaymentOfSubscription(subscription, email) {
+export default async function handlePaymentOfSubscription(subscription, email, options) {
   const { user_id, amount, subscription_name: memo, status } = subscription.dataValues
+  const { sendCreationEmail } = options || {}
 
   try {
     let req = { body: { amount, user_id, memo }, user: { email } }
     if (!email) throw new Error("No email found for this subscription")
-    const response = await createPayment(req)
+    const response = await createPayment(req, {
+      sendEmailOnCharge: false,
+    })
     if (response?.data?.payment?.status !== "COMPLETED")
       throw new Error("0002A: Payment failed |" + JSON.stringify(response))
 
@@ -23,11 +26,31 @@ export default async function handlePaymentOfSubscription(subscription, email) {
     }
 
     // send email
-    await sendEmail({
-      to: email,
-      subject: "Subscription Renewal",
-      text: `Subscription ${memo} was renewed`,
-    })
+    if (sendCreationEmail) {
+      await sendEmail({
+        to: email,
+        subject: "Subscription Created",
+        text: `You have been subscribed to ${memo}`,
+        template: "subscriptionCreated.html",
+        fields: {
+          amount: `$${(amount / 100).toFixed(2)}`,
+          date: new Date().toLocaleDateString(),
+          subscription: memo,
+        },
+      })
+    } else {
+      await sendEmail({
+        to: email,
+        subject: "Subscription Renewal",
+        text: `Subscription ${memo} was renewed`,
+        template: "subscriptionRenewal.html",
+        fields: {
+          amount: `$${(amount / 100).toFixed(2)}`,
+          date: new Date(renewal_date).toLocaleDateString(),
+          subscription: memo,
+        },
+      })
+    }
 
     // log transaction
     Transaction.create({
@@ -43,6 +66,12 @@ export default async function handlePaymentOfSubscription(subscription, email) {
       to: email || process.env.ADMIN_EMAIL,
       subject: "Subscription Renewal Failed",
       text: `Subscription ${memo} failed to renew`,
+      template: "subscriptionRenewalFailed.html",
+      fields: {
+        subscription: memo,
+        date: new Date().toLocaleDateString(),
+        link: process.env.FRONTEND_URL + "/manage?email=" + email,
+      },
     })
 
     // update subscription next_renewal_attempt

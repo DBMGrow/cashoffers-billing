@@ -3,6 +3,7 @@ import { Subscription } from "../database/Subscription"
 import CodedError from "../config/CodedError"
 import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
+import sendEmail from "./sendEmail"
 
 export default async function updateExistingSubscription(product, user) {
   try {
@@ -107,6 +108,19 @@ export default async function updateExistingSubscription(product, user) {
       data: JSON.stringify(updatedSubscription),
       memo: "Subscription updated",
       status: "completed",
+    })
+
+    // send email to user
+    await sendEmail({
+      to: user?.email,
+      subject: "Subscription Plan Updated",
+      text: `Your subscription has been updated to ${product?.dataValues?.product_name}`,
+      template: "subscriptionPlanUpdated.html",
+      fields: {
+        subscription: product?.dataValues?.product_name,
+        amount: `$${(newSubscriptionData?.renewal_cost / 100).toFixed(2)}`,
+        date: new Date().toLocaleDateString(),
+      },
     })
 
     return { success: "success", data: subscription }

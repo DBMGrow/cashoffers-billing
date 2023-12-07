@@ -9,7 +9,7 @@ import { Subscription } from "../database/Subscription"
 import handlePaymentOfSubscription from "./handlePaymentOfSubscription"
 
 export default async function createCard(user_id, card_token, exp_month, exp_year, cardholder_name, email, options) {
-  const { allowNullUserId, sendEmailOnUpdate = true } = options || {}
+  const { allowNullUserId, sendEmailOnUpdate = true, attemptRenewal = true } = options || {}
 
   if (!user_id && !allowNullUserId) throw new CodedError("user_id is required", "CAR01")
   if (!card_token) throw new CodedError("card_token is required", "CAR02")
@@ -63,22 +63,25 @@ export default async function createCard(user_id, card_token, exp_month, exp_yea
     userCard = await UserCard.create(card_data)
   }
 
-  // find all subscriptions where
-  const subscriptions = await Subscription.findAll({
-    where: {
-      [Op.or]: [{ status: "active" }, { status: "suspend" }],
-      renewal_date: {
-        [Op.or]: {
-          [Op.lte]: new Date(),
-          [Op.is]: null,
+  if (attemptRenewal) {
+    // find all subscriptions where
+    const subscriptions = await Subscription.findAll({
+      where: {
+        [Op.or]: [{ status: "active" }, { status: "suspend" }],
+        renewal_date: {
+          [Op.or]: {
+            [Op.lte]: new Date(),
+            [Op.is]: null,
+          },
         },
+        user_id,
       },
-    },
-  })
-  // loop through subscriptions and attempt to pay them with the new card
-  subscriptions.forEach(async (subscription) => {
-    await handlePaymentOfSubscription(subscription, email)
-  })
+    })
+    // loop through subscriptions and attempt to pay them with the new card
+    subscriptions.forEach(async (subscription) => {
+      await handlePaymentOfSubscription(subscription, email)
+    })
+  }
 
   // send email
   if (sendEmailOnUpdate) {
@@ -88,6 +91,12 @@ export default async function createCard(user_id, card_token, exp_month, exp_yea
       to: email,
       subject: creatingNewCard ? "A Card Was Added to Your Account" : "The Card on Your Account Was Updated",
       text: creatingNewCard ? creatingNewCardMessage : updatingCardMessage,
+      template: "cardUpdated.html",
+      fields: {
+        message: creatingNewCard ? creatingNewCardMessage : updatingCardMessage,
+        card: `**** **** **** ${card.last_4}`,
+        date: new Date().toLocaleDateString(),
+      },
     })
   }
 

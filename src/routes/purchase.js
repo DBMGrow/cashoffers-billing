@@ -49,6 +49,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
           const newCardData = await createCard(user_id, card_token, exp_month, exp_year, cardholder_name, email, {
             allowNullUserId: false,
             sendEmailOnUpdate: true,
+            attemptRenewal: false,
           })
           userCard = newCardData?.userCard
         } catch (error) {
@@ -70,6 +71,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         newCardData = await createCard(null, card_token, exp_month, exp_year, cardholder_name, email, {
           allowNullUserId: true,
           sendEmailOnUpdate: false, // they're gonna get a bunch of emails when they sign up anyway
+          attemptRenewal: false,
         })
       } catch (error) {
         throw new CodedError(JSON.stringify(error), "PUR08")

@@ -7,6 +7,7 @@ import { Sequelize } from "sequelize"
 import { client } from "../config/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "../utils/sendEmail"
+import axios from "axios"
 
 const router = express.Router()
 const Op = Sequelize.Op
@@ -60,6 +61,13 @@ router.post("/refund", authMiddleware("payments_create"), async (req, res) => {
 
     // if status is completed, the transaction worked, so log as completed
     try {
+      const refundedUser = await axios.get(`${process.env.API_URL}/users/${user_id}`, {
+        headers: {
+          "x-api-token": process.env.API_MASTER_TOKEN,
+        },
+      })
+      const email = refundedUser?.data?.data?.email
+
       Transaction.create({
         user_id,
         amount,
@@ -74,9 +82,14 @@ router.post("/refund", authMiddleware("payments_create"), async (req, res) => {
       transaction.update({ status: "refunded" })
 
       await sendEmail({
-        to: req?.user?.email,
+        to: email,
         subject: "Payment Refunded",
         text: `Payment of $${amount / 100} was refunded`,
+        template: "refund.html",
+        fields: {
+          amount: `$${(amount / 100).toFixed(2)}`,
+          date: new Date().toLocaleDateString(),
+        },
       })
 
       res.json({ success: "success", data: response })

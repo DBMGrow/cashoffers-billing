@@ -2,6 +2,8 @@ import { Subscription } from "../database/Subscription"
 import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
 import CodedError from "../config/CodedError"
+import axios from "axios"
+import sendEmail from "./sendEmail"
 
 export default async function toggleSubscription(subscription_id, options) {
   const { scramble = false, status = "pause" } = options || {}
@@ -9,9 +11,11 @@ export default async function toggleSubscription(subscription_id, options) {
   let active
   switch (status) {
     case "pause":
-    case "suspend":
     case "cancel":
       active = 0
+      break
+    case "suspend":
+      active = -1
       break
     case "active":
       active = 1
@@ -86,6 +90,57 @@ export default async function toggleSubscription(subscription_id, options) {
     })
     const deactivateUserResponse = await deactivateUser.json()
     if (deactivateUserResponse?.success !== "success") throw new CodedError("Error deactivating user", "TS04")
+  }
+
+  // get user email
+  const user = await axios.get(`${process.env.API_URL}/users/${subscription.user_id}`, {
+    headers: {
+      "x-api-token": process.env.API_MASTER_TOKEN,
+    },
+  })
+  const email = user?.data?.data?.email
+  if (!email) {
+    await sendEmail({
+      to: process.env.ADMIN_EMAIL,
+      subject: "Subscription Toggle Error",
+      text: `Subscription ${subscription.subscription_name} was toggled, but no user email was found`,
+    })
+  } else {
+    let msg
+    switch (status) {
+      case "pause":
+        msg = {
+          subject: "Subscription Paused",
+          text: `Your CashOffers.PRO Subscription (${subscription.subscription_name}) has been paused`,
+          template: "subscriptionPaused.html",
+          fields: {
+            subscription: subscription.subscription_name,
+          },
+        }
+        break
+      case "suspend":
+        msg = {
+          subject: "Subscription Suspended",
+          text: `Your CashOffers.PRO Subscription (${subscription.subscription_name}) has been suspended`,
+          template: "subscriptionSuspended.html",
+          fields: {
+            subscription: subscription.subscription_name,
+            link: process.env.FRONTEND_URL + "/manage?email=" + email,
+          },
+        }
+        break
+      case "active":
+        msg = {
+          subject: "Subscription Resumed",
+          text: `Your CashOffers.PRO Subscription (${subscription.subscription_name}) has been resumed`,
+        }
+        break
+    }
+
+    await sendEmail({
+      to: email,
+      ...msg,
+    })
   }
 
   await subscription.update({ status })

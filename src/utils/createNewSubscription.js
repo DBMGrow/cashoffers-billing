@@ -3,6 +3,7 @@ import { Transaction } from "../database/Transaction"
 import CodedError from "../config/CodedError"
 import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
+import handlePaymentOfSubscription from "./handlePaymentOfSubscription"
 
 export default async function createNewSubscription(product, user) {
   try {
@@ -75,6 +76,11 @@ export default async function createNewSubscription(product, user) {
       data: subscriptionData,
     })
     if (!subscription) throw new CodedError("subscription creation failed", "CNS03")
+
+    // charge the subscription for the first time right away
+    await handlePaymentOfSubscription(subscription, user.email, {
+      sendCreationEmail: true,
+    })
 
     // log subscription creation
     await Transaction.create({

@@ -31,7 +31,7 @@ export default async function suspendSubscriptionsCron() {
     await sendEmail({
       to: process.env.ADMIN_EMAIL,
       subject: "Subscription Cron Error",
-      text: `There was an error processing subscriptions: ${error.message}`,
+      text: `There was an error suspending subscriptions: ${error.message}`,
     })
     Transaction.create({
       user_id: 0,
