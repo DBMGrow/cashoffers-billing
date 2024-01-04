@@ -23,6 +23,9 @@ export default async function sendEmail(msg) {
 
     let whitelabel = await getWhitelabel(to)
     if (!whitelabel) whitelabel = "CashOffers.PRO"
+    if (process.env.NODE_ENV !== "production") {
+      text += `<strong><br/><br/>This email was sent from the ${process.env.NODE_ENV} environment at ${process.env.BASE_URL}</strong>`
+    }
     msg.html = await parseEmailTemplate(template, { text, whitelabel, subject, ...fields })
     if (!msg.html) msg.html = text
 
