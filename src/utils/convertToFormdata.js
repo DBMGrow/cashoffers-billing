@@ -1,12 +1,30 @@
 import FormData from "form-data"
+import CodedError from "../config/CodedError"
 
 export default function convertToFormata(json) {
-  const formData = new FormData()
+  try {
+    const formData = new FormData()
 
-  for (const key in json) {
-    if (typeof key !== "undefined" && typeof json?.[key] !== "undefined") {
+    console.log(json)
+
+    const append = (key, value) => {
+      const keyIsUndefined = typeof value === "undefined"
+      const valueIsUndefined = typeof value === "undefined"
+      const valueIsNull = value === null || value === "null"
+
+      if (keyIsUndefined || valueIsUndefined || valueIsNull) return
+
       formData.append(key, json?.[key])
     }
+
+    for (const key in json) {
+      console.log("key", key)
+      console.log("value", json?.[key])
+
+      append(key, json?.[key])
+    }
+    return formData
+  } catch (error) {
+    throw new CodedError(error, "CON1")
   }
-  return formData
 }
