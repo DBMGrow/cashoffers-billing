@@ -5,10 +5,15 @@ import sendEmail from "./sendEmail"
 import { Transaction } from "../database/Transaction"
 
 export default async function handlePaymentOfSubscription(subscription, email, options) {
-  const { user_id, amount, subscription_name: memo, status } = subscription.dataValues
-  const { sendCreationEmail } = options || {}
+  let { user_id, amount, subscription_name: memo, status } = subscription.dataValues
+  const { sendCreationEmail, signupFee } = options || {}
 
   try {
+    if (signupFee) {
+      if (typeof signupFee !== "number") throw new Error("0002B: signupFee must be a number")
+      amount += signupFee
+    }
+
     let req = { body: { amount, user_id, memo }, user: { email } }
     if (!email) throw new Error("No email found for this subscription")
     const response = await createPayment(req, {

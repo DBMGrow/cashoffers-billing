@@ -80,6 +80,7 @@ export default async function createNewSubscription(product, user) {
     // charge the subscription for the first time right away
     await handlePaymentOfSubscription(subscription, user.email, {
       sendCreationEmail: true,
+      signupFee: product?.dataValues?.price || null,
     })
 
     // log subscription creation
