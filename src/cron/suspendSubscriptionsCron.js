@@ -19,14 +19,6 @@ export default async function suspendSubscriptionsCron() {
     subscriptions.forEach(async (subscription) => {
       await toggleSubscription(subscription.subscription_id, { status: "suspend" })
     })
-
-    Transaction.create({
-      user_id: 0,
-      type: "cron",
-      memo: "Suspend Subscriptions cron ran successfully",
-      status: "success",
-      data: JSON.stringify(subscriptions),
-    })
   } catch (error) {
     await sendEmail({
       to: process.env.ADMIN_EMAIL,

@@ -47,14 +47,6 @@ export default async function subscriptionsCron() {
       const email = users?.data?.find((user) => user.user_id === subscription.user_id).email
       await handlePaymentOfSubscription(subscription, email)
     })
-
-    Transaction.create({
-      user_id: 0,
-      amount: 0,
-      type: "cron",
-      memo: "Subscriptions cron ran successfully",
-      status: "completed",
-    })
   } catch (error) {
     await sendEmail({
       to: process.env.ADMIN_EMAIL,
