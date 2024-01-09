@@ -135,7 +135,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     }
 
     // we create the product first, because if it fails, we don't want to charge the user
-    const purchase = await handlePurchase(product_id, user, userIsSubscribed) // handle subscription change in here
+    const purchase = await handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists) // handle subscription change in here
     if (purchase.success !== "success") {
       throw new CodedError(JSON.stringify(purchase), "PUR13", {
         actions: ["emailAdmin", "removeNewUser"],
