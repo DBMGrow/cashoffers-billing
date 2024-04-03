@@ -15,8 +15,19 @@ import checkProrated from "../utils/checkProrated"
 const router = express.Router()
 
 router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
-  const { product_id, email, phone, card_token, exp_month, exp_year, cardholder_name, api_token, whitelabel, slug } =
-    req.body
+  const {
+    product_id,
+    email,
+    coupon,
+    phone,
+    card_token,
+    exp_month,
+    exp_year,
+    cardholder_name,
+    api_token,
+    whitelabel,
+    slug,
+  } = req.body
 
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
@@ -134,8 +145,10 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       }
     }
 
+    const waiveSignupFee = coupon === "CPStart"
+
     // we create the product first, because if it fails, we don't want to charge the user
-    const purchase = await handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists) // handle subscription change in here
+    const purchase = await handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists, waiveSignupFee) // handle subscription change in here
     if (purchase.success !== "success") {
       throw new CodedError(JSON.stringify(purchase), "PUR13", {
         actions: ["emailAdmin", "removeNewUser"],

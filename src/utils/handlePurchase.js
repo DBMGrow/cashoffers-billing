@@ -3,7 +3,7 @@ import createNewSubscription from "./createNewSubscription"
 import updateExistingSubscription from "./updateExistingSubscription"
 import CodedError from "../config/CodedError"
 
-export default async function handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists) {
+export default async function handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists, waiveSignupFee) {
   try {
     const product = await Product.findOne({ where: { product_id } })
     if (!product) throw new CodedError("product not found", "HPUR01")
@@ -11,7 +11,7 @@ export default async function handlePurchase(product_id, user, userIsSubscribed,
     switch (product.product_type) {
       case "subscription":
         if (userIsSubscribed) return await updateExistingSubscription(product, user)
-        return await createNewSubscription(product, user, userWithEmailExists)
+        return await createNewSubscription(product, user, userWithEmailExists, waiveSignupFee)
     }
 
     throw new CodedError("invalid product_type", "HPUR02")
