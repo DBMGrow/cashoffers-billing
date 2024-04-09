@@ -119,7 +119,8 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
 
       newUser = await newUserRequest.json()
 
-      if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
+      if (newUser?.success !== "success" && newUser?.success !== "warning")
+        throw new CodedError(JSON.stringify(newUser), "PUR11")
       user = { ...newUser?.data }
 
       // add new card to user
