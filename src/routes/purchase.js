@@ -27,6 +27,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     api_token,
     whitelabel,
     slug,
+    url,
   } = req.body
 
   console.log(req.body)
