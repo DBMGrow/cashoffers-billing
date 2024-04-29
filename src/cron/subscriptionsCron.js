@@ -44,7 +44,8 @@ export default async function subscriptionsCron() {
         return
       }
 
-      const email = users?.data?.find((user) => user.user_id === subscription.user_id).email
+      const email = users?.data?.find((user) => user.user_id === subscription.user_id)?.email || ""
+      if (!email) return console.log("No email found for user_id: ", subscription.user_id)
       await handlePaymentOfSubscription(subscription, email)
     })
   } catch (error) {
