@@ -8,12 +8,17 @@ import toggleSubscription from "../utils/toggleSubscription"
 const router = express.Router()
 
 router.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async (req, res) => {
+  const { page = 1, limit = 20 } = req.query
+
   try {
     // sort by most recent
     const subscriptions = await Subscription.findAll({
       order: [["createdAt", "DESC"]],
+      limit,
+      offset: page * limit,
     })
-    res.json({ success: "success", data: subscriptions })
+    const total = await Transaction.count({ where })
+    res.json({ success: "success", data: subscriptions, page, limit, total })
   } catch (error) {
     res.json({ success: "error", error: error.message })
   }
