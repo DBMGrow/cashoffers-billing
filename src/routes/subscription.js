@@ -17,7 +17,7 @@ router.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async 
       limit,
       offset: page * limit,
     })
-    const total = await Transaction.count({ where })
+    const total = await Subscription.count()
     res.json({ success: "success", data: subscriptions, page, limit, total })
   } catch (error) {
     res.json({ success: "error", error: error.message })
