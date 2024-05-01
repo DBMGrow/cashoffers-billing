@@ -15,7 +15,7 @@ router.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async 
     const subscriptions = await Subscription.findAll({
       order: [["createdAt", "DESC"]],
       limit,
-      offset: page * limit,
+      offset: (page - 1) * limit,
     })
     const total = await Subscription.count()
     res.json({ success: "success", data: subscriptions, page, limit, total })

@@ -24,7 +24,7 @@ router.get("/:user_id", authMiddleware("payments_read"), async (req, res) => {
 
     if (all && userCan(req, "payments_read_all")) delete where.user_id
 
-    const payments = await Transaction.findAll({ where, order, limit, offset: page * limit })
+    const payments = await Transaction.findAll({ where, order, limit, offset: (page - 1) * limit })
     const total = await Transaction.count({ where })
     res.json({ success: "success", data: payments, page: Number(page), limit: Number(limit), total })
   } catch (error) {
