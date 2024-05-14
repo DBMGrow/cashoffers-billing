@@ -13,7 +13,7 @@ router.post("/", async (req, res) => {
     if (secret !== process.env.CRON_SECRET) throw new Error("Unauthorized")
 
     await subscriptionsCron()
-    // await suspendSubscriptionsCron()
+    await suspendSubscriptionsCron()
 
     res.json({ success: "success", message: "Cron job running" })
   } catch (error) {

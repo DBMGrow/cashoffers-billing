@@ -18,9 +18,9 @@ export default async function sendEmail(msg) {
     template,
   }
 
-  // for testing, we will send all emails to the admin
-  msg.to = process.env.ADMIN_EMAIL
-  msg.bcc = null
+  // // for testing, we will send all emails to the admin
+  // msg.to = process.env.ADMIN_EMAIL
+  // msg.bcc = null
 
   try {
     if (process.env.SEND_EMAILS === "false") return console.info("Emails are disabled", to, from, subject, text, html)
