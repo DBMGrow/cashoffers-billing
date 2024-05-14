@@ -28,7 +28,7 @@ export default async function subscriptionsCron() {
       },
     })
 
-    const usersResponse = await fetch(process.env.API_URL + "/users", {
+    const usersResponse = await fetch(process.env.API_URL + "/users/mini?page=1&limit=10000", {
       headers: {
         "x-api-token": process.env.API_MASTER_TOKEN,
       },
