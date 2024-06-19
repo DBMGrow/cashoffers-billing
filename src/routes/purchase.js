@@ -15,8 +15,19 @@ import checkProrated from "../utils/checkProrated"
 const router = express.Router()
 
 router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
-  const { product_id, email, phone, card_token, exp_month, exp_year, cardholder_name, api_token, whitelabel, slug } =
-    req.body
+  const {
+    product_id,
+    email,
+    phone,
+    card_token,
+    exp_month,
+    exp_year,
+    cardholder_name,
+    api_token,
+    whitelabel,
+    slug,
+    isInvestor,
+  } = req.body
 
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
@@ -95,6 +106,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         active: 0,
         name: cardholder_name,
         whitelabel_id: whitelabelID,
+        role: isInvestor ? "INVESTOR" : "AGENT",
         slug,
       })
       const newUserRequest = await fetch(process.env.API_URL + "/users", {
