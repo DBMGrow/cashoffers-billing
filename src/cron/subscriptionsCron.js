@@ -28,7 +28,7 @@ export default async function subscriptionsCron() {
       },
     })
 
-    const usersResponse = await fetch(process.env.API_URL + "/users", {
+    const usersResponse = await fetch(process.env.API_URL + "/users/mini?page=1&limit=10000", {
       headers: {
         "x-api-token": process.env.API_MASTER_TOKEN,
       },
@@ -44,7 +44,8 @@ export default async function subscriptionsCron() {
         return
       }
 
-      const email = users?.data?.find((user) => user.user_id === subscription.user_id).email
+      const email = users?.data?.find((user) => user.user_id === subscription.user_id)?.email || ""
+      if (!email) return console.log("No email found for user_id: ", subscription.user_id)
       await handlePaymentOfSubscription(subscription, email)
     })
   } catch (error) {

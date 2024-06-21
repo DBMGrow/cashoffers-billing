@@ -5,7 +5,7 @@ import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
 import handlePaymentOfSubscription from "./handlePaymentOfSubscription"
 
-export default async function createNewSubscription(product, user) {
+export default async function createNewSubscription(product, user, userWithEmailExists, waiveSignupFee) {
   try {
     const subscriptionData = { ...product?.dataValues?.data }
     if (!subscriptionData?.duration) throw new CodedError("duration is required", "CNS01")
@@ -78,9 +78,11 @@ export default async function createNewSubscription(product, user) {
     if (!subscription) throw new CodedError("subscription creation failed", "CNS03")
 
     // charge the subscription for the first time right away
+    const signupFee = userWithEmailExists || waiveSignupFee ? null : product?.dataValues?.price || null
+    console.log("signupFee", signupFee)
     await handlePaymentOfSubscription(subscription, user.email, {
       sendCreationEmail: true,
-      signupFee: product?.dataValues?.price || null,
+      signupFee,
     })
 
     // log subscription creation

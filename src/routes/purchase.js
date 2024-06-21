@@ -18,6 +18,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
   const {
     product_id,
     email,
+    coupon,
     phone,
     card_token,
     exp_month,
@@ -26,8 +27,11 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     api_token,
     whitelabel,
     slug,
+    url,
     isInvestor,
   } = req.body
+
+  console.log(req.body)
 
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
@@ -120,7 +124,8 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
 
       newUser = await newUserRequest.json()
 
-      if (newUser?.success !== "success") throw new CodedError(JSON.stringify(newUser), "PUR11")
+      if (newUser?.success !== "success" && newUser?.success !== "warning")
+        throw new CodedError(JSON.stringify(newUser), "PUR11")
       user = { ...newUser?.data }
 
       // add new card to user
@@ -146,8 +151,10 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       }
     }
 
+    const waiveSignupFee = coupon === "CPStart"
+
     // we create the product first, because if it fails, we don't want to charge the user
-    const purchase = await handlePurchase(product_id, user, userIsSubscribed) // handle subscription change in here
+    const purchase = await handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists, waiveSignupFee) // handle subscription change in here
     if (purchase.success !== "success") {
       throw new CodedError(JSON.stringify(purchase), "PUR13", {
         actions: ["emailAdmin", "removeNewUser"],

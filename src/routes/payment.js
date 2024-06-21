@@ -13,7 +13,7 @@ const router = express.Router()
 const Op = Sequelize.Op
 
 router.get("/:user_id", authMiddleware("payments_read"), async (req, res) => {
-  const { all } = req.query
+  const { all, page = 1, limit = 20 } = req.query
 
   try {
     const { user_id } = req.params
@@ -21,10 +21,12 @@ router.get("/:user_id", authMiddleware("payments_read"), async (req, res) => {
 
     const order = [["createdAt", "DESC"]]
     const where = { type: { [Op.or]: ["payment", "card"] }, user_id }
+
     if (all && userCan(req, "payments_read_all")) delete where.user_id
 
-    const payments = await Transaction.findAll({ where, order })
-    res.json({ success: "success", data: payments })
+    const payments = await Transaction.findAll({ where, order, limit, offset: (page - 1) * limit })
+    const total = await Transaction.count({ where })
+    res.json({ success: "success", data: payments, page: Number(page), limit: Number(limit), total })
   } catch (error) {
     res.json({ success: "error", error: error.message })
   }
