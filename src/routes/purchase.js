@@ -112,6 +112,8 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         whitelabel_id: whitelabelID,
         role: isInvestor ? "INVESTOR" : "AGENT",
         slug,
+        name_broker: req.body?.name_broker,
+        name_team: req.body?.name_team,
       })
       const newUserRequest = await fetch(process.env.API_URL + "/users", {
         method: "POST",
