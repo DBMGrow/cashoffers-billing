@@ -12,7 +12,7 @@ export default async function subscriptionsCron() {
   try {
     const subscriptions = await Subscription.findAll({
       where: {
-        [Op.or]: [{ status: "active" }, { status: "suspended" }],
+        [Op.or]: [{ status: "active" }, { status: "suspend" }],
         next_renewal_attempt: {
           [Op.or]: {
             [Op.lte]: new Date(),

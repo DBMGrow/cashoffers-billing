@@ -15,6 +15,7 @@ export default async function toggleSubscription(subscription_id, options) {
       active = 0
       break
     case "suspend":
+    case "suspended":
       active = -1
       break
     case "active":
@@ -31,7 +32,7 @@ export default async function toggleSubscription(subscription_id, options) {
   const subscription = await Subscription.findOne({ where: { subscription_id } })
   if (!subscription) throw new CodedError("Subscription not found", "TS01")
 
-  if (active) {
+  if (active === 1) {
     // when resuming a subscription, update the renewal based on suspension_date
     const suspension_date = subscription?.dataValues?.suspension_date
     if (suspension_date) {

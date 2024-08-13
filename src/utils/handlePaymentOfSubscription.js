@@ -24,7 +24,8 @@ export default async function handlePaymentOfSubscription(subscription, email, o
 
     // update subscription renewal_date
     const renewal_date = createNewRenewalDate(subscription)
-    subscription.update({ renewal_date, next_renewal_attempt: renewal_date })
+    console.log("updating renewal date", renewal_date)
+    await subscription.update({ renewal_date, next_renewal_attempt: renewal_date })
 
     if (status === "suspend") {
       await toggleSubscription(subscription.subscription_id, { status: "active" })
@@ -58,7 +59,7 @@ export default async function handlePaymentOfSubscription(subscription, email, o
     }
 
     // log transaction
-    Transaction.create({
+    await Transaction.create({
       user_id,
       amount,
       type: "subscription",
@@ -80,7 +81,7 @@ export default async function handlePaymentOfSubscription(subscription, email, o
     })
 
     // update subscription next_renewal_attempt
-    updateNextRenewalAttempt(subscription)
+    await updateNextRenewalAttempt(subscription)
 
     // log transaction
     Transaction.create({
@@ -93,7 +94,7 @@ export default async function handlePaymentOfSubscription(subscription, email, o
   }
 }
 
-export function updateNextRenewalAttempt(subscription) {
+export async function updateNextRenewalAttempt(subscription) {
   // update subscription next_renewal_attempt
   // logic of days waited: 1, 3, then keep attempting at 7
   const { next_renewal_attempt } = subscription.dataValues
@@ -112,5 +113,5 @@ export function updateNextRenewalAttempt(subscription) {
     nextAttempt.setDate(today.getDate() + 7)
   }
 
-  subscription.update({ next_renewal_attempt: nextAttempt })
+  await subscription.update({ next_renewal_attempt: nextAttempt })
 }
