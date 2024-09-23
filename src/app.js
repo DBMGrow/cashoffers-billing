@@ -3,9 +3,13 @@ import "./config/startup"
 
 import Express, { json } from "express"
 import sequelize from "./database/database"
+import cookieParser from "cookie-parser"
 
 const app = Express()
 const PORT = process.env.PORT || 3000
+
+app.use(json())
+app.use(cookieParser())
 
 import baseRoutes from "./routes/base"
 import paymentRoutes from "./routes/payment"
@@ -17,8 +21,6 @@ import emailRoutes from "./routes/email"
 import statusRoutes from "./routes/status"
 import cronRoutes from "./routes/cron"
 import logRoutes from "./routes/log"
-
-app.use(json()) // middleware to parse json data
 
 app.use("/", baseRoutes)
 app.use("/payment", paymentRoutes)

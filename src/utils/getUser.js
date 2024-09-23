@@ -1,7 +1,7 @@
 import fetch from "node-fetch"
 
 export default async function getUser(req, user_id, options) {
-  const api_token = req.headers["x-api-token"]
+  const api_token = req.headers["x-api-token"] || req?.cookies?._api_token
   const { allowSelf = false } = options || {}
 
   try {
