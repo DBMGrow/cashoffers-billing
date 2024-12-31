@@ -12,7 +12,7 @@ export default async function sendEmail(msg) {
       name: process.env.SYSTEM_FROM_NAME,
     },
     subject,
-    bcc: process.env.SYSTEM_EMAIL,
+    // bcc: process.env.SYSTEM_EMAIL,
     text,
     fields,
     template,
