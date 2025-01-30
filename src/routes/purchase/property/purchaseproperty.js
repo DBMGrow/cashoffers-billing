@@ -12,7 +12,7 @@ router.post("/:property_token", authMiddleware("payments_create", { allowSelf: t
   const { property_token } = req.params
 
   try {
-    if (!property_token) throw new CodedError("product_id is required", "PURP01")
+    if (!property_token) throw new CodedError("property_token is required", "PURP01")
     if (!email) throw new CodedError("email is required", "PURP02")
 
     const url = process.env.API_URL + "/properties/" + property_token

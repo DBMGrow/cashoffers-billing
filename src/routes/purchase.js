@@ -11,8 +11,11 @@ import { Product } from "../database/Product"
 import { UserCard } from "../database/UserCard"
 import { Subscription } from "../database/Subscription"
 import checkProrated from "../utils/checkProrated"
+import purchasePropertyRoutes from "./purchase/property/purchaseproperty"
 
 const router = express.Router()
+
+router.use("/property", purchasePropertyRoutes)
 
 router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
   const {
