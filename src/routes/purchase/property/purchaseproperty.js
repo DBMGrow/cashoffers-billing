@@ -7,7 +7,7 @@ import chargeCardSingle from "../../../utils/chargeCardSingle"
 
 const router = express.Router()
 
-router.post("/:property_token", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
+router.post("/:property_token", authMiddleware("properties_unlock", { allowSelf: true }), async (req, res) => {
   const { card_token } = req.body
   const { property_token } = req.params
 
