@@ -14,9 +14,7 @@ export default async function chargeCardSingle(req, options) {
     if (isNaN(amount)) throw new Error("amount must be a number")
     if (amount < 1) throw new Error("amount must be at least 1 cent")
     if (!user_id) throw new Error("user_id is required")
-
-    if (!card_id) throw new Error("No card found")
-    if (!square_customer_id) throw new Error("No square customer found for this card")
+    if (!card_token) throw new Error("No card found")
 
     const response = await client.paymentsApi.createPayment({
       sourceId: card_token,

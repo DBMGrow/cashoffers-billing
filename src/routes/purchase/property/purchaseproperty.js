@@ -4,6 +4,7 @@ const fetch = require("node-fetch")
 import CodedError from "../../../config/CodedError"
 import handleErrors from "../../../utils/handleErrors"
 import chargeCardSingle from "../../../utils/chargeCardSingle"
+import convertToFormata from "../../../utils/convertToFormdata"
 
 const router = express.Router()
 
@@ -13,20 +14,20 @@ router.post("/:property_token", authMiddleware("properties_unlock", { allowSelf:
 
   try {
     if (!property_token) throw new CodedError("property_token is required", "PURP01")
-    if (!email) throw new CodedError("email is required", "PURP02")
 
-    const url = process.env.API_URL + "/properties/" + property_token
+    const url = process.env.API_URL + "/properties/" + property_token + "/full"
     const propertyReq = await fetch(url, { headers: { "x-api-token": process.env.API_MASTER_TOKEN } })
     const property = await propertyReq.json()
-    if (!property?.data?.success) throw new CodedError("property not found", "PURP03")
+
+    if (!property?.success) throw new CodedError("property not found", "PURP03")
 
     const payment = await chargeCardSingle({
       body: {
         amount: 5000, // $50
-        memo: "Purchase of " + product?.dataValues?.product_name,
+        memo: "Unlocking property " + property_token,
         card_token,
       },
-      user: { email },
+      user: req.user,
     })
     if (payment?.success !== "success") throw new CodedError(JSON.stringify(payment), "PURP12")
 

@@ -34,8 +34,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     isInvestor,
   } = req.body
 
-  console.log(req.body)
-
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
     if (!email) throw new CodedError("email is required", "PUR02")
