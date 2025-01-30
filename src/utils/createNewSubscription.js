@@ -55,7 +55,7 @@ export default async function createNewSubscription(product, user, userWithEmail
           body: convertToFormata({
             team_id: team?.data?.team_id,
             role: "TEAMOWNER",
-            // is_premium: 1,
+            is_premium: 1,
           }),
         })
         const userUpdate = await userRequest.json()
@@ -64,17 +64,16 @@ export default async function createNewSubscription(product, user, userWithEmail
         // update subscription.data.team_id to be team_id of new team
         subscriptionData.team_id = team?.data?.team_id
       }
+    } else {
+      // update user to be premium
+      const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
+        method: "PUT",
+        headers: { "x-api-token": process.env.API_MASTER_TOKEN },
+        body: convertToFormata({ is_premium: 1 }),
+      })
+      const userUpdate = await userRequest.json()
+      if (userUpdate?.success !== "success") throw new CodedError(JSON.stringify(userUpdate), "CNS06")
     }
-    // else {
-    //   // update user to be premium
-    //   const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
-    //     method: "PUT",
-    //     headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-    //     body: convertToFormata({ is_premium: 1 }),
-    //   })
-    //   const userUpdate = await userRequest.json()
-    //   if (userUpdate?.success !== "success") throw new CodedError(JSON.stringify(userUpdate), "CNS06")
-    // }
 
     const subscription = await Subscription.create({
       user_id: user.user_id,
