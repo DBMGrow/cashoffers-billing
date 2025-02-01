@@ -24,7 +24,7 @@ router.post("/:property_token", authMiddleware("properties_unlock", { allowSelf:
     const payment = await chargeCardSingle({
       body: {
         amount: 5000, // $50
-        memo: "Unlocking property " + property_token,
+        memo: `Unlocking property ${property_token} | ${property?.data?.address1} - ${property?.data?.city}, ${property?.data?.state}`,
         card_token,
       },
       user: req.user,
