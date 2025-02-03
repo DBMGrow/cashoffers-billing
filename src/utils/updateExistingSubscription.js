@@ -43,6 +43,7 @@ export default async function updateExistingSubscription(product, user) {
           body: convertToFormata({
             team_id: team?.data?.team_id,
             role: "TEAMOWNER",
+            is_premium: 1,
           }),
         })
         const userUpdate = await userRequest.json()
@@ -73,6 +74,7 @@ export default async function updateExistingSubscription(product, user) {
           headers: { "x-api-token": process.env.API_MASTER_TOKEN },
           body: convertToFormata({
             role: "AGENT",
+            is_premium: 1,
           }),
         })
         const userUpdate = await userRequest.json()

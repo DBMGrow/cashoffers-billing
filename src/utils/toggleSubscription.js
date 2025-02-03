@@ -11,15 +11,21 @@ export default async function toggleSubscription(subscription_id, options) {
   let active
   switch (status) {
     case "pause":
-    case "cancel":
       active = 0
+      is_premium = 0
+      break
+    case "cancel":
+      active = 1
+      is_premium = 0
       break
     case "suspend":
     case "suspended":
-      active = -1
+      is_premium = 0
+      active = 1
       break
     case "active":
       active = 1
+      is_premium = 1
       break
   }
 
@@ -32,7 +38,7 @@ export default async function toggleSubscription(subscription_id, options) {
   const subscription = await Subscription.findOne({ where: { subscription_id } })
   if (!subscription) throw new CodedError("Subscription not found", "TS01")
 
-  if (active === 1) {
+  if (is_premium === 1) {
     // when resuming a subscription, update the renewal based on suspension_date
     const suspension_date = subscription?.dataValues?.suspension_date
     if (suspension_date) {
@@ -60,16 +66,16 @@ export default async function toggleSubscription(subscription_id, options) {
     if (teamMembersResponse?.success !== "success") throw new CodedError("TS02: Error fetching team members", "TS02")
 
     teamMembersResponse?.data?.forEach(async (member) => {
-      const body = { active }
-      if (scramble) body.email = scrambleEmail(member?.email)
+      const body = { active, is_premium }
       const deactivateMember = await fetch(process.env.API_URL + "/users/" + member?.user_id, {
         method: "PUT",
         headers: { "x-api-token": process.env.API_MASTER_TOKEN },
         body: convertToFormata(body),
       })
       const deactivateMemberResponse = await deactivateMember.json()
-      if (deactivateMemberResponse?.success !== "success")
+      if (deactivateMemberResponse?.success !== "success") {
         throw new CodedError("Error deactivating team member", "TS03")
+      }
     })
   } else {
     // fetch the user
@@ -79,10 +85,7 @@ export default async function toggleSubscription(subscription_id, options) {
     })
     const userResponse = await user.json()
 
-    // check for scramble
-    const body = { active }
-    if (scramble) body.email = scrambleEmail(userResponse?.data?.email)
-
+    const body = { active, is_premium }
     // deactivate the user
     const deactivateUser = await fetch(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
       method: "PUT",
