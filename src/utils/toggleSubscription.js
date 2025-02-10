@@ -9,6 +9,7 @@ export default async function toggleSubscription(subscription_id, options) {
   const { scramble = false, status = "pause" } = options || {}
 
   let active
+  let is_premium = 0
   switch (status) {
     case "pause":
       active = 0
