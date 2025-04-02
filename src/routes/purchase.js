@@ -58,7 +58,11 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       const userHasBilling = userCard?.dataValues?.card_id
       if (!userHasBilling && (!card_token || !exp_month || !exp_year || !cardholder_name))
         throw new CodedError("email is linked to another billing account", "PUR05")
-      if (api_token !== user?.api_token) throw new CodedError("invalid credentials for email", "PUR06")
+
+      if (api_token !== user?.api_token) {
+        console.log("api_token mismatch", api_token, user?.api_token)
+        throw new CodedError("invalid credentials for email", "PUR06")
+      }
 
       // update card if card_token is provided
       if (card_token) {
