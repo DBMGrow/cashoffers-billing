@@ -5,6 +5,7 @@ import CodedError from "../../../config/CodedError"
 import handleErrors from "../../../utils/handleErrors"
 import chargeCardSingle from "../../../utils/chargeCardSingle"
 import convertToFormata from "../../../utils/convertToFormdata"
+import { Product } from "../../../database/Product"
 
 const router = express.Router()
 
@@ -21,11 +22,20 @@ router.post("/:property_token", authMiddleware("properties_unlock", { allowSelf:
 
     if (!property?.success) throw new CodedError("property not found", "PURP03")
 
+    const productQuery = await Product.findOne({
+      where: {
+        product_name: "Property Unlock",
+      },
+    })
+
+    const product = productQuery.get()
+
     const payment = await chargeCardSingle({
       body: {
         amount: 5000, // $50
         memo: `Unlocking property ${property_token} | ${property?.data?.address1} - ${property?.data?.city}, ${property?.data?.state}`,
         card_token,
+        product_id: product?.product_id,
       },
       user: req.user,
     })

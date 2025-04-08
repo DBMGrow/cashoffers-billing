@@ -8,6 +8,16 @@ export const Transaction = sequelize.define("Transaction", {
     primaryKey: true,
     autoIncrement: true,
   },
+  product_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: "Products",
+      key: "product_id",
+    },
+    onUpdate: "CASCADE",
+    onDelete: "SET NULL",
+  },
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

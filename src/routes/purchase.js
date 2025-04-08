@@ -151,6 +151,7 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
           body: {
             user_id,
             amount: proratedData?.proratedAmount,
+            product_id,
             memo: "Prorated charge for " + product?.dataValues?.product_name,
           },
           user: { email },
