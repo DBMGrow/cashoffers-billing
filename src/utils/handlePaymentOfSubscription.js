@@ -19,8 +19,9 @@ export default async function handlePaymentOfSubscription(subscription, email, o
     const response = await createPayment(req, {
       sendEmailOnCharge: false,
     })
-    if (response?.data?.payment?.status !== "COMPLETED")
+    if (response?.data?.payment?.status !== "COMPLETED") {
       throw new Error("0002A: Payment failed |" + JSON.stringify(response))
+    }
 
     // update subscription renewal_date
     const renewal_date = createNewRenewalDate(subscription)

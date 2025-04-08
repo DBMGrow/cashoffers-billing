@@ -28,6 +28,7 @@ router.post("/:property_token", authMiddleware("properties_unlock", { allowSelf:
       },
     })
 
+    if (!productQuery) throw new CodedError("`Property Unlock` product not found", "PURP04")
     const product = productQuery.get()
 
     const payment = await chargeCardSingle({
