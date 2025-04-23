@@ -46,7 +46,7 @@ router.post("/:property_token", authMiddleware("properties_unlock", { allowSelf:
     const propertyUpdateReq = await fetch(url, {
       method: "PUT",
       headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-      body: convertToFormata({ is_unlocked: 1 }),
+      body: convertToFormata({ is_unlocked: 2 }),
     })
     const propertyUpdate = await propertyUpdateReq.json()
     if (propertyUpdate?.success !== "success") throw new CodedError(JSON.stringify(propertyUpdate), "PURP13")
