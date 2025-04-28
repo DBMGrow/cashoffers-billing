@@ -11,11 +11,15 @@ export default async function createNewSubscription(product, user, userWithEmail
     if (!subscriptionData?.duration) throw new CodedError("duration is required", "CNS01")
     if (!subscriptionData?.renewal_cost) throw new CodedError("renewal_cost is required", "CNS02")
 
+    let newRole = undefined
+    if (user?.role === "INVITEDINVESTOR") newRole = "INVESTOR"
+
     // activate user
+    const body = { active: 1, role: newRole }
     const activateUser = await fetch(process.env.API_URL + "/users/" + user.user_id, {
       method: "PUT",
       headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-      body: convertToFormata({ active: 1 }),
+      body: convertToFormata(body),
     })
     const activateUserResponse = await activateUser.json()
     if (activateUserResponse?.success !== "success") throw new CodedError("user activation failed", "CNS03")
@@ -69,9 +73,11 @@ export default async function createNewSubscription(product, user, userWithEmail
       const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
         method: "PUT",
         headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-        body: convertToFormata({ is_premium: 1 }),
+        body: convertToFormata({ is_premium: 1, role: newRole }),
       })
+
       const userUpdate = await userRequest.json()
+
       if (userUpdate?.success !== "success") throw new CodedError(JSON.stringify(userUpdate), "CNS06")
     }
 
@@ -89,7 +95,6 @@ export default async function createNewSubscription(product, user, userWithEmail
 
     // charge the subscription for the first time right away
     const signupFee = userWithEmailExists || waiveSignupFee ? null : product?.dataValues?.price || null
-    console.log("signupFee", signupFee)
     await handlePaymentOfSubscription(subscription, user.email, {
       sendCreationEmail: true,
       signupFee,
