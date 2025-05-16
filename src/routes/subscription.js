@@ -120,6 +120,30 @@ router.post("/cancel/:subscription_id", authMiddleware(null, { allowSelf: true }
 
     await subscription.update({ cancel_on_renewal: true })
 
+    res.on("finish", async () => {
+      try {
+        const user = await fetch(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
+          method: "GET",
+          headers: { "x-api-token": process.env.API_MASTER_TOKEN },
+        })
+        const userResponse = await user.json()
+
+        // send email to annette
+        await sendEmail({
+          to: email,
+          subject: "Subscription Set to Cancel",
+          text: ``,
+          template: "subscriptionCancelled.html",
+          fields: {
+            name: userResponse?.data?.name,
+            email: userResponse?.data.email,
+          },
+        })
+      } catch (error) {
+        console.error("Error sending email: ", error)
+      }
+    })
+
     res.json({ success: "success", data: { subscription_id } })
   } catch (error) {
     res.json({ success: "error", error: error.message, body: req.body })
