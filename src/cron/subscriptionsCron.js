@@ -39,7 +39,7 @@ export default async function subscriptionsCron() {
 
     // loop through subscriptions
     subscriptions.forEach(async (subscription) => {
-      if (subscription.dataValues?.cancel_on_renewal) {
+      if (subscription?.cancel_on_renewal) {
         await toggleSubscription(subscription.subscription_id, { status: "cancel", scramble: true })
         return
       }
