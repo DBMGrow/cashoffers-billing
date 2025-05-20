@@ -44,17 +44,16 @@ export default async function subscriptionsCron() {
     if (users?.success !== "success") throw new Error("Error fetching users")
 
     for (const subscription of subscriptions) {
-      if (subscription?.cancel_on_renewal) {
-        await toggleSubscription(subscription.subscription_id, { status: "cancel", scramble: true })
+      console.log("Processing subscription", subscription.subscription_id)
+
+      if (subscription?.dataValues?.cancel_on_renewal || subscription?.cancel_on_renewal) {
+        await toggleSubscription(subscription.subscription_id, { status: "cancel" })
         return
       }
 
       const email = users?.data?.find((user) => user.user_id === subscription.user_id)?.email || ""
       if (!email) return console.log("No email found for user_id: ", subscription.user_id)
-      // await handlePaymentOfSubscription(subscription, email)
-
-      // dry run of subsciption
-      console.log("Would've charged Subscription: ", subscription.subscription_id)
+      await handlePaymentOfSubscription(subscription, email)
     }
   } catch (error) {
     await sendEmail({
