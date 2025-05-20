@@ -28,6 +28,12 @@ export default async function subscriptionsCron() {
       },
     })
 
+    console.log("Subscriptions to process: ", subscriptions.length)
+    console.log(
+      "Subscriptions: ",
+      subscriptions.map((sub) => sub.subscription_id)
+    )
+
     const usersResponse = await fetch(process.env.API_URL + "/users/mini?page=1&limit=10000", {
       headers: {
         "x-api-token": process.env.API_MASTER_TOKEN,
