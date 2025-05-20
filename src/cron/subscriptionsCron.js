@@ -37,8 +37,7 @@ export default async function subscriptionsCron() {
 
     if (users?.success !== "success") throw new Error("Error fetching users")
 
-    // loop through subscriptions
-    subscriptions.forEach(async (subscription) => {
+    for (const subscription of subscriptions) {
       if (subscription?.cancel_on_renewal) {
         await toggleSubscription(subscription.subscription_id, { status: "cancel", scramble: true })
         return
@@ -46,8 +45,11 @@ export default async function subscriptionsCron() {
 
       const email = users?.data?.find((user) => user.user_id === subscription.user_id)?.email || ""
       if (!email) return console.log("No email found for user_id: ", subscription.user_id)
-      await handlePaymentOfSubscription(subscription, email)
-    })
+      // await handlePaymentOfSubscription(subscription, email)
+
+      // dry run of subsciption
+      console.log("Would've charged Subscription: ", subscription.subscription_id)
+    }
   } catch (error) {
     await sendEmail({
       to: process.env.ADMIN_EMAIL,
