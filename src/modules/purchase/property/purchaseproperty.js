@@ -1,11 +1,11 @@
-import authMiddleware from "../../../middleware/authMiddleware"
+import authMiddleware from "@/middleware/authMiddleware"
 import express from "express"
 const fetch = require("node-fetch")
-import CodedError from "../../../config/CodedError"
-import handleErrors from "../../../utils/handleErrors"
-import chargeCardSingle from "../../../utils/chargeCardSingle"
-import convertToFormata from "../../../utils/convertToFormdata"
-import { Product } from "../../../database/Product"
+import CodedError from "@/lib/CodedError"
+import handleErrors from "@/utils/handleErrors"
+import chargeCardSingle from "@/utils/chargeCardSingle"
+import convertToFormata from "@/utils/convertToFormdata"
+import { Product } from "@/database/Product"
 
 const router = express.Router()
 

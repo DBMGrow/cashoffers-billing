@@ -1,38 +1,43 @@
-import authMiddleware from "../middleware/authMiddleware"
-import express from "express"
+import authMiddleware from "@/middleware/authMiddleware"
+import Router from "@/lib/router"
 const fetch = require("node-fetch")
-import CodedError from "../config/CodedError"
-import convertToFormata from "../utils/convertToFormdata"
-import handleErrors from "../utils/handleErrors"
-import createCard from "../utils/createCard"
-import createPayment from "../utils/createPayment"
-import handlePurchase from "../utils/handlePurchase"
-import { Product } from "../database/Product"
-import { UserCard } from "../database/UserCard"
-import { Subscription } from "../database/Subscription"
-import checkProrated from "../utils/checkProrated"
-import purchasePropertyRoutes from "./purchase/property/purchaseproperty"
+import CodedError from "@/lib/CodedError"
+import convertToFormata from "@/utils/convertToFormdata"
+import handleErrors from "@/utils/handleErrors"
+import createCard from "@/utils/createCard"
+import createPayment from "@/utils/createPayment"
+import handlePurchase from "@/utils/handlePurchase"
+import { Product } from "@/database/Product"
+import { UserCard } from "@/database/UserCard"
+import { Subscription } from "@/database/Subscription"
+import checkProrated from "@/utils/checkProrated"
+import purchasePropertyRoutes from "./property/purchaseproperty"
 
-const router = express.Router()
+const purchaseRouter = new Router()
 
-router.use("/property", purchasePropertyRoutes)
+purchaseRouter.router.use("/property", purchasePropertyRoutes)
 
-router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (req, res) => {
-  const {
-    product_id,
-    email,
-    coupon,
-    phone,
-    card_token,
-    exp_month,
-    exp_year,
-    cardholder_name,
-    api_token,
-    whitelabel,
-    slug,
-    url,
-    isInvestor,
-  } = req.body
+interface PurchaseRequestBody {
+  product_id: string
+  email: string
+  coupon?: string
+  phone?: string
+  card_token?: string
+  exp_month?: string
+  exp_year?: string
+  cardholder_name?: string
+  api_token?: string
+  whitelabel?: string
+  slug?: string
+  url?: string
+  isInvestor?: boolean
+}
+
+purchaseRouter.post("/", {}, async (req, res) => {
+  const userCanPurchase = await req.userCan("payments_create")
+  if (!userCanPurchase) throw new CodedError("Unauthorized", 401)
+
+  const body: PurchaseRequestBody = req.body
 
   try {
     if (!product_id) throw new CodedError("product_id is required", "PUR01")
@@ -171,28 +176,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
         user_id: newUser?.data?.user_id,
       })
     }
-
-    // if price is greater than 0, create new payment charge
-
-    // removed this because we're handling the signup fee in the first subscription charge
-
-    // if (product?.dataValues?.price > 0) {
-    //   const payment = await createPayment({
-    //     body: {
-    //       user_id,
-    //       amount: product?.dataValues?.price,
-    //       memo: "Purchase of " + product?.dataValues?.product_name,
-    //     },
-    //     user: { email },
-    //   })
-    //   if (payment?.success !== "success") {
-    //     throw new CodedError(JSON.stringify(payment), "PUR12", {
-    //       actions: "removeNewUser",
-    //       remove: !userWithEmailExists,
-    //       user_id: newUser?.data?.user_id,
-    //     })
-    //   }
-    // }
 
     res.json({ success: "success", data: { product, user, userCard } })
   } catch (error) {

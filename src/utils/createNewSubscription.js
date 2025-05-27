@@ -1,6 +1,6 @@
 import { Subscription } from "../database/Subscription"
 import { Transaction } from "../database/Transaction"
-import CodedError from "../config/CodedError"
+import CodedError from "../lib/CodedError"
 import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
 import handlePaymentOfSubscription from "./handlePaymentOfSubscription"

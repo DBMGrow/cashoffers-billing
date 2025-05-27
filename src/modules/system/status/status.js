@@ -1,7 +1,7 @@
 import express from "express"
-import sequelize from "../database/database"
-import sendEmail from "../utils/sendEmail"
-import { client } from "../config/square"
+import sequelize from "../../../database/database"
+import sendEmail from "../../../utils/sendEmail"
+import { client } from "../../../lib/square"
 
 const router = express.Router()
 

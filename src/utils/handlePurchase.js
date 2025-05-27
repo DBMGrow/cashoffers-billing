@@ -1,7 +1,7 @@
 import { Product } from "../database/Product"
 import createNewSubscription from "./createNewSubscription"
 import updateExistingSubscription from "./updateExistingSubscription"
-import CodedError from "../config/CodedError"
+import CodedError from "../lib/CodedError"
 
 export default async function handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists, waiveSignupFee) {
   try {

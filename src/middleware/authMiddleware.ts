@@ -1,10 +1,15 @@
 import getUser from "../utils/getUser"
+import { NextFunction, Req, Res } from "../lib/types"
 
-export default function authMiddleware(permissions, options) {
+interface Options {
+  allowSelf?: boolean
+}
+
+export default function authMiddleware(permissions: string[] | string, options?: Options) {
   if (permissions && !Array.isArray(permissions)) permissions = [permissions]
   const { allowSelf = false } = options || {}
 
-  return async function (req, res, next) {
+  return async function (req: Req, res: Res, next: NextFunction) {
     let user_id = null
     switch (req.method) {
       case "GET":

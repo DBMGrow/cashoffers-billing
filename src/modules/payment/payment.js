@@ -1,12 +1,12 @@
 import express from "express"
-import authMiddleware from "../middleware/authMiddleware"
-import createPayment from "../utils/createPayment"
-import { Transaction } from "../database/Transaction"
-import userCan from "../utils/userCan"
+import authMiddleware from "../../middleware/authMiddleware"
+import createPayment from "../../utils/createPayment"
+import { Transaction } from "../../database/Transaction"
+import userCan from "../../utils/userCan"
 import { Sequelize } from "sequelize"
-import { client } from "../config/square"
+import { client } from "../../lib/square"
 import { v4 as uuidv4 } from "uuid"
-import sendEmail from "../utils/sendEmail"
+import sendEmail from "../../utils/sendEmail"
 import axios from "axios"
 
 const router = express.Router()

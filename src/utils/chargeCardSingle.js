@@ -1,6 +1,6 @@
 import { UserCard } from "../database/UserCard"
 import { Transaction } from "../database/Transaction"
-import { client } from "../config/square"
+import { client } from "../lib/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "./sendEmail"
 
