@@ -120,6 +120,7 @@ export default async function toggleSubscription(subscription_id, options) {
     text = text.substring(text.indexOf("{"))
     // parse the text as json
     try {
+      console.log("Before parse", text)
       text = JSON.parse(text)
     } catch (error) {
       console.log("Error parsing JSON", error)
