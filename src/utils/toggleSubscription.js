@@ -106,8 +106,11 @@ export default async function toggleSubscription(subscription_id, options) {
 
     const deactivateUser = await fetch(process.env.API_URL_V2 + "/users/" + subscription?.dataValues?.user_id, {
       method: "PUT",
-      headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-      body: convertToFormata(body),
+      headers: {
+        "x-api-token": process.env.API_MASTER_TOKEN,
+        "Content-Type": "application/json",
+      },
+      body: body,
     })
 
     console.log(114)
