@@ -111,7 +111,7 @@ export default async function toggleSubscription(subscription_id, options) {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body,
+      body: JSON.stringify(body),
     })
 
     console.log(114)
