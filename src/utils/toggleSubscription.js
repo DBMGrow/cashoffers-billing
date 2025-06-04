@@ -108,8 +108,10 @@ export default async function toggleSubscription(subscription_id, options) {
       method: "PUT",
       headers: {
         "x-api-token": process.env.API_MASTER_TOKEN,
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      body: body,
+      body,
     })
 
     console.log(114)
