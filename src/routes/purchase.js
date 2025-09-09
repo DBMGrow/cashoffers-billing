@@ -172,28 +172,6 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
       })
     }
 
-    // if price is greater than 0, create new payment charge
-
-    // removed this because we're handling the signup fee in the first subscription charge
-
-    // if (product?.dataValues?.price > 0) {
-    //   const payment = await createPayment({
-    //     body: {
-    //       user_id,
-    //       amount: product?.dataValues?.price,
-    //       memo: "Purchase of " + product?.dataValues?.product_name,
-    //     },
-    //     user: { email },
-    //   })
-    //   if (payment?.success !== "success") {
-    //     throw new CodedError(JSON.stringify(payment), "PUR12", {
-    //       actions: "removeNewUser",
-    //       remove: !userWithEmailExists,
-    //       user_id: newUser?.data?.user_id,
-    //     })
-    //   }
-    // }
-
     // send welcome email
     if (!userWithEmailExists) {
       await fetch(process.env.API_URL_V2 + "/webhook/internal/user/welcome", {
