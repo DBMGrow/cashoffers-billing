@@ -194,6 +194,20 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
     //   }
     // }
 
+    // send welcome email
+    if (!userWithEmailExists) {
+      await fetch(process.env.API_URL_V2 + "/webhook/internal/user/welcome", {
+        method: "POST",
+        headers: {
+          "x-api-token": process.env.API_MASTER_TOKEN,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+        }),
+      })
+    }
+
     res.json({ success: "success", data: { product, user, userCard } })
   } catch (error) {
     return handleErrors(req, res, error)
