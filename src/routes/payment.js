@@ -3,33 +3,31 @@ import authMiddleware from "../middleware/authMiddleware"
 import createPayment from "../utils/createPayment"
 import { Transaction } from "../database/Transaction"
 import userCan from "../utils/userCan"
-import { Sequelize } from "sequelize"
+import { Op } from "sequelize"
 import { client } from "../config/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "../utils/sendEmail"
 import axios from "axios"
 
 const router = express.Router()
-const Op = Sequelize.Op
+// const Op = Sequelize.Op
 
 router.get("/:user_id", authMiddleware("payments_read"), async (req, res) => {
   const { all, page = 1, limit = 20 } = req.query
 
-  try {
-    const { user_id } = req.params
-    if (!user_id) throw new Error("user_id is required")
+  const { user_id } = req.params
+  if (!user_id) throw new Error("user_id is required")
 
-    const order = [["createdAt", "DESC"]]
-    const where = { type: { [Op.or]: ["payment", "card"] }, user_id }
+  const order = [["createdAt", "DESC"]]
+  const where = { type: { [Op.or]: ["payment", "card"] }, user_id }
 
-    if (all && userCan(req, "payments_read_all")) delete where.user_id
+  // @ts-ignore
+  if (all && userCan(req, "payments_read_all")) delete where.user_id
 
-    const payments = await Transaction.findAll({ where, order, limit, offset: (page - 1) * limit })
-    const total = await Transaction.count({ where })
-    res.json({ success: "success", data: payments, page: Number(page), limit: Number(limit), total })
-  } catch (error) {
-    res.json({ success: "error", error: error.message })
-  }
+  // @ts-ignore
+  const payments = await Transaction.findAll({ where, order, limit, offset: (page - 1) * limit })
+  const total = await Transaction.count({ where })
+  res.json({ success: "success", data: payments, page: Number(page), limit: Number(limit), total })
 })
 
 router.post("/", authMiddleware("payments_create"), async (req, res) => {
@@ -99,6 +97,7 @@ router.post("/refund", authMiddleware("payments_create"), async (req, res) => {
       await sendEmail({
         to: process.env.ADMIN_EMAIL,
         subject: "Payment Refund Logging Error",
+        // @ts-ignore
         text: `There was an error logging a refund: ${error.message}`,
       })
 
@@ -114,6 +113,7 @@ router.post("/refund", authMiddleware("payments_create"), async (req, res) => {
       data: JSON.stringify(error),
     })
 
+    // @ts-ignore
     res.json({ success: "error", error: error.message })
   }
 })
