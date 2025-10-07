@@ -8,7 +8,8 @@
     "build": "rimraf dist && babel src --out-dir dist  --copy-files",
     "start": "node dist/app.js",
     "dev": "nodemon --exec babel-node src/app.js",
-    "migrate": "sequelize db:migrate --config dist/database/database.js"
+    "migrate": "sequelize db:migrate --config dist/database/database.js",
+    "codegen": "kysely-codegen --out-file src/lib/db.d.ts"
   },
   "keywords": [],
   "author": "",
@@ -35,13 +36,16 @@
     "rimraf": "^5.0.5",
     "sequelize": "^6.33.0",
     "square": "^32.0.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "kysely": "0.28.7"
   },
   "devDependencies": {
+    "vitest": "3.2.4",
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^5.0.3",
     "@types/node-fetch": "^2.6.13",
     "@types/uuid": "^10.0.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "kysely-codegen": "0.19.0"
   }
 }
