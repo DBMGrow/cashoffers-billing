@@ -19,7 +19,7 @@ import productRoutes from "./routes/product"
 import purchaseRoutes from "./routes/purchase"
 import statusRoutes from "./routes/status"
 import cronRoutes from "./routes/cron"
-import errorHandler from "@/middleware/errorHandler"
+import errorHandler from "./middleware/errorHandler"
 
 app.use("/payment", paymentRoutes)
 app.use("/card", cardRoutes)
