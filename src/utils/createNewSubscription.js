@@ -9,7 +9,7 @@ export default async function createNewSubscription(product, user, userWithEmail
   try {
     const subscriptionData = { ...product?.dataValues?.data }
     if (!subscriptionData?.duration) throw new CodedError("duration is required", "CNS01")
-    if (!subscriptionData?.renewal_cost) throw new CodedError("renewal_cost is required", "CNS02")
+    // if (!subscriptionData?.renewal_cost) throw new CodedError("renewal_cost is required", "CNS02")
 
     let newRole = undefined
     if (user?.role === "INVITEDINVESTOR") newRole = "INVESTOR"
@@ -85,7 +85,7 @@ export default async function createNewSubscription(product, user, userWithEmail
       user_id: user.user_id,
       subscription_name: product?.dataValues?.product_name,
       product_id: product?.dataValues?.product_id,
-      amount: subscriptionData?.renewal_cost,
+      amount: subscriptionData?.renewal_cost ?? 0,
       duration: subscriptionData?.duration,
       renewal_date: new Date(),
       status: "active",
