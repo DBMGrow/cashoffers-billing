@@ -3,18 +3,35 @@ import createPayment from "../utils/createPayment"
 import toggleSubscription from "./toggleSubscription"
 import sendEmail from "./sendEmail"
 import { Transaction } from "../database/Transaction"
+import { db } from "@/lib/database"
+import getHomeUptickSubscription from "@/utils/getHomeUptickSubscription"
 
 export default async function handlePaymentOfSubscription(subscription, email, options) {
   let { user_id, amount, subscription_name: memo, status, product_id } = subscription.dataValues
   const { sendCreationEmail, signupFee } = options || {}
 
   try {
+    /**
+     * { item: "Signup Fee", price: 10000 }
+     * { item: "CashOffers.PRO", price: 25000 }
+     * { item: "HomeUptick", price: 10000 }
+     */
+    let lineItems = [{ item: "CashOffers.PRO", price: amount }]
+
     if (signupFee) {
       if (typeof signupFee !== "number") throw new Error("0002B: signupFee must be a number")
       amount += signupFee
+      lineItems = [{ item: "Signup Fee", price: signupFee }, ...lineItems]
     }
 
-    let req = { body: { amount, user_id, memo, product_id }, user: { email } }
+    // Check for HomeUptick addon
+    const homeUptickAddon = await getHomeUptickSubscription(user_id)
+    if (homeUptickAddon) {
+      lineItems.push({ item: `HomeUptick (Tier ${homeUptickAddon.tier})`, price: homeUptickAddon.amount })
+      amount += homeUptickAddon.amount
+    }
+
+    let req = { body: { amount, user_id, memo, product_id, lineItems }, user: { email } }
     if (!email) throw new Error("No email found for this subscription")
     const response = await createPayment(req, {
       sendEmailOnCharge: false,
