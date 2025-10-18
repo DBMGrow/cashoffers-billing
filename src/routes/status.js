@@ -64,11 +64,6 @@ router.post("/", async (req, res) => {
 
   status.main_api_url = `This service is integrated into the ${process.env.API_URL || "[Warning: NO API_URL]"} system`
 
-  status.cron =
-    process.env.CRON_ACTIVE === "true"
-      ? "Cron system is active"
-      : "The cron system is inactive and will only run when triggered manually."
-
   res.json(status)
 })
 

@@ -3,7 +3,6 @@ import "./config/startup"
 import "express-async-errors"
 
 import Express, { json } from "express"
-import sequelize from "./database/database"
 import cookieParser from "cookie-parser"
 
 const app = Express()
@@ -33,10 +32,4 @@ app.use(errorHandler)
 
 app.listen(PORT, async () => {
   console.info(`App listening at port ${PORT}`)
-  try {
-    await sequelize.sync()
-    console.info("Database synced")
-  } catch (error) {
-    console.error("Error syncing database:", error)
-  }
 })

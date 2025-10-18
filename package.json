@@ -4,15 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rimraf dist && babel src --out-dir dist  --copy-files",
-    "start": "node dist/app.js",
-    "dev": "nodemon --exec babel-node src/app.js",
-    "migrate": "sequelize db:migrate --config dist/database/database.js",
+    "build": "tsc",
+    "start": "tsx src/app.js",
+    "dev": "tsx --watch src/app.js",
     "codegen": "kysely-codegen --out-file src/lib/db.d.ts"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
   "dependencies": {
     "@babel/cli": "^7.23.0",
@@ -30,14 +26,14 @@
     "express-async-handler": "^1.2.0",
     "form-data": "^4.0.0",
     "mysql2": "^3.6.2",
-    "node-cron": "^3.0.2",
     "node-fetch": "^2.7.0",
     "nodemon": "^3.0.1",
     "rimraf": "^5.0.5",
     "sequelize": "^6.33.0",
     "square": "^32.0.0",
     "uuid": "^9.0.1",
-    "kysely": "0.28.7"
+    "kysely": "0.28.7",
+    "tsx": "4.20.6"
   },
   "devDependencies": {
     "vitest": "3.2.4",
