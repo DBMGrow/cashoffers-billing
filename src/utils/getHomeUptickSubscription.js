@@ -21,13 +21,11 @@ import { getClientsCount, getSubscriptionFromDB, getUserFromDB } from "@/utils/g
 const getHomeUptickSubscription = async (user_id) => {
   const user = await getUserFromDB(user_id)
   if (!user?.active) {
-    console.log("User not found or inactive:", user_id)
     return null // if user is inactive, we're not gonna charge them
   }
 
   const subscription = await getSubscriptionFromDB(user_id)
   if (!subscription) {
-    console.log("No active subscription found for user:", user_id)
     return null
   }
 
@@ -35,7 +33,6 @@ const getHomeUptickSubscription = async (user_id) => {
   const count = clientsCount?.data?.count || 0
 
   if (!count) {
-    console.log("No clients found for user:", user_id)
     return null // if they have no clients, we're not gonna charge them
   }
 

@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
     "start": "tsx src/app.js",
+    "build": "tsc --noEmit",
     "dev": "tsx --watch src/app.js",
     "codegen": "kysely-codegen --out-file src/lib/db.d.ts",
     "test": "vitest"

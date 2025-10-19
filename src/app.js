@@ -4,12 +4,16 @@ import "express-async-errors"
 
 import Express, { json } from "express"
 import cookieParser from "cookie-parser"
+import digest from "@/middleware/digestMiddleware"
+import { resMethods } from "@/utils/resMehods"
 
 const app = Express()
 const PORT = process.env.PORT || 3000
 
 app.use(json())
 app.use(cookieParser())
+app.use(digest)
+app.use(resMethods)
 
 import paymentRoutes from "./routes/payment"
 import cardRoutes from "./routes/card"

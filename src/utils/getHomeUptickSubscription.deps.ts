@@ -1,5 +1,7 @@
 import { db } from "@/lib/database"
 import axios from "axios"
+import { Selectable } from "kysely"
+import { HomeuptickSubscriptions, Users } from "@/lib/db"
 
 /**
  * Retrieves a user from the database by their user ID.
@@ -7,19 +9,18 @@ import axios from "axios"
  * @param {string|number} user_id - The unique identifier of the user to fetch.
  * @returns {Promise<Object|null>} A promise that resolves to the user object if found, or null if not found.
  */
-export const getUserFromDB = async (user_id) => {
+export const getUserFromDB = async (user_id: number): Promise<Selectable<Users> | undefined> => {
   const user = await db.selectFrom("Users").where("user_id", "=", user_id).selectAll().executeTakeFirst()
 
-  return user || null
+  return user
 }
 
 /**
  * Retrieves the active Homeuptick subscription for a given user from the database.
- *
- * @param {string|number} user_id - The unique identifier of the user.
- * @returns {Promise<null | import { HomeuptickSubscriptions } from "./lib/db.d">} A promise that resolves to the subscription object if found, or null if not found.
  */
-export const getSubscriptionFromDB = async (user_id) => {
+export const getSubscriptionFromDB = async (
+  user_id: number
+): Promise<Selectable<HomeuptickSubscriptions> | undefined> => {
   const subscription = await db
     .selectFrom("Homeuptick_Subscriptions")
     .where("user_id", "=", user_id)
@@ -27,16 +28,15 @@ export const getSubscriptionFromDB = async (user_id) => {
     .selectAll()
     .executeTakeFirst()
 
-  return subscription || null
+  return subscription
 }
 
 /**
  * Retrieves the total number of clients from the HomeUptick API.
  *
  * @param {string} apiKey - The API key used for authentication.
- * @returns {Promise<Object>} A promise that resolves to the response containing the clients count.
  */
-export const getClientsCount = async (apiKey) => {
+export const getClientsCount = async (apiKey: string): Promise<{ data: { count: number } }> => {
   const clientsCount = await axios.get(`${process.env.HOMEUPTICK_URL}/api/clients/count`, {
     headers: {
       "x-api-key": apiKey,
