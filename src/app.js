@@ -19,6 +19,7 @@ import purchaseRoutes from "./routes/purchase"
 import statusRoutes from "./routes/status"
 import cronRoutes from "./routes/cron"
 import errorHandler from "./middleware/errorHandler"
+import emailsRouter from "@/routes/emails"
 
 app.use("/payment", paymentRoutes)
 app.use("/card", cardRoutes)
@@ -26,6 +27,7 @@ app.use("/subscription", subscriptionRoutes)
 app.use("/product", productRoutes)
 app.use("/purchase", purchaseRoutes)
 app.use("/status", statusRoutes)
+app.use("/emails", emailsRouter)
 app.use("/cron", cronRoutes)
 
 app.use(errorHandler)

@@ -3,7 +3,6 @@ import createPayment from "../utils/createPayment"
 import toggleSubscription from "./toggleSubscription"
 import sendEmail from "./sendEmail"
 import { Transaction } from "../database/Transaction"
-import { db } from "@/lib/database"
 import getHomeUptickSubscription from "@/utils/getHomeUptickSubscription"
 
 export default async function handlePaymentOfSubscription(subscription, email, options) {
@@ -26,8 +25,11 @@ export default async function handlePaymentOfSubscription(subscription, email, o
 
     // Check for HomeUptick addon
     const homeUptickAddon = await getHomeUptickSubscription(user_id)
-    if (homeUptickAddon) {
-      lineItems.push({ item: `HomeUptick (Tier ${homeUptickAddon.tier})`, price: homeUptickAddon.amount })
+    if (homeUptickAddon && homeUptickAddon.amount > 0) {
+      lineItems.push({
+        item: `HomeUptick (${homeUptickAddon.contactsOnThisTier} Contacts)`,
+        price: homeUptickAddon.amount,
+      })
       amount += homeUptickAddon.amount
     }
 
@@ -49,6 +51,8 @@ export default async function handlePaymentOfSubscription(subscription, email, o
       await toggleSubscription(subscription.subscription_id, { status: "active" })
     }
 
+    const lineItemsHtml = lineItems.map((item) => `<li>${item.item}: $${(item.price / 100).toFixed(2)}</li>`).join("")
+
     // send email
     if (sendCreationEmail) {
       await sendEmail({
@@ -60,6 +64,7 @@ export default async function handlePaymentOfSubscription(subscription, email, o
           amount: `$${(amount / 100).toFixed(2)}`,
           date: new Date().toLocaleDateString(),
           subscription: memo,
+          lineItems: `<ul>${lineItemsHtml}</ul>`,
         },
       })
     } else {
@@ -72,6 +77,7 @@ export default async function handlePaymentOfSubscription(subscription, email, o
           amount: `$${(amount / 100).toFixed(2)}`,
           date: new Date(renewal_date).toLocaleDateString(),
           subscription: memo,
+          lineItems: `<ul>${lineItemsHtml}</ul>`,
         },
       })
     }
