@@ -1,6 +1,6 @@
 import { UserCard } from "../database/UserCard"
 import { Transaction } from "../database/Transaction"
-import { client } from "../config/square"
+import square from "../config/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "./sendEmail"
 
@@ -23,7 +23,7 @@ export default async function createPayment(req, options) {
     if (!card_id) throw new Error("No card found")
     if (!square_customer_id) throw new Error("No square customer found for this card")
 
-    const response = await client.paymentsApi.createPayment({
+    const response = await square.paymentsApi.createPayment({
       sourceId: card_id,
       idempotencyKey: uuidv4(),
       amountMoney: {
