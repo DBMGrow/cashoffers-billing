@@ -1,7 +1,7 @@
 import { Subscription } from "../database/Subscription"
 import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
-import CodedError from "../config/CodedError"
+import CodedError from "./CodedError"
 import axios from "axios"
 import sendEmail from "./sendEmail"
 

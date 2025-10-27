@@ -1,5 +1,5 @@
 import FormData from "form-data"
-import CodedError from "../config/CodedError"
+import CodedError from "./CodedError"
 
 export default function convertToFormata(json) {
   try {

@@ -8,7 +8,8 @@
     "build": "tsc --noEmit",
     "dev": "tsx --watch src/app.js",
     "codegen": "kysely-codegen --out-file src/lib/db.d.ts",
-    "test": "vitest"
+    "test": "vitest run src/tests/unit --watch",
+    "test:full": "vitest run src/tests"
   },
   "license": "ISC",
   "dependencies": {
@@ -19,7 +20,6 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-async-errors": "^3.1.1",
-    "express-async-handler": "^1.2.0",
     "form-data": "^4.0.0",
     "kysely": "0.28.7",
     "module-alias": "2.2.3",
@@ -28,7 +28,7 @@
     "nodemon": "^3.0.1",
     "rimraf": "^5.0.5",
     "sequelize": "^6.33.0",
-    "square": "^32.0.0",
+    "square": "^43.2.0",
     "tsx": "4.20.6",
     "uuid": "^9.0.1",
     "@types/cookie-parser": "^1.4.9",

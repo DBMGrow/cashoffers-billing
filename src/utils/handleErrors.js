@@ -1,7 +1,7 @@
 import sendEmail from "./sendEmail"
 import fetch from "node-fetch"
 import convertToFormata from "./convertToFormdata"
-import CodedError from "../config/CodedError"
+import CodedError from "./CodedError"
 import { Transaction } from "../database/Transaction"
 import { UserCard } from "../database/UserCard"
 

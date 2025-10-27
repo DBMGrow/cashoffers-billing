@@ -1,4 +1,4 @@
-import CodedError from "../config/CodedError"
+import CodedError from "./CodedError"
 import sendEmail from "../utils/sendEmail"
 import { Op } from "sequelize"
 import { client } from "../config/square"

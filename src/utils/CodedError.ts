@@ -1,5 +1,8 @@
 class CodedError extends Error {
-  constructor(message, code, data) {
+  code: number
+  data: any
+
+  constructor(message: string, code: number, data?: any) {
     super(message) // Human-readable message
     this.name = this.constructor?.name || "Unnamed Error"
     this.code = code // Machine-readable details
