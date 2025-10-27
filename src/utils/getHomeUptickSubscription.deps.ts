@@ -39,7 +39,7 @@ export const getSubscriptionFromDB = async (
 export const getClientsCount = async (apiKey: string): Promise<{ data: { count: number } }> => {
   const clientsCount = await axios.get(`${process.env.HOMEUPTICK_URL}/api/clients/count`, {
     headers: {
-      "x-api-key": apiKey,
+      "x-api-token": apiKey,
     },
   })
 

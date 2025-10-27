@@ -29,7 +29,7 @@ const getHomeUptickSubscription = async (user_id) => {
     return null
   }
 
-  const clientsCount = await getClientsCount(user.homeuptick_api_key)
+  const clientsCount = await getClientsCount(user.api_token)
   const count = clientsCount?.data?.count || 0
 
   if (!count) {

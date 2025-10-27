@@ -35,11 +35,25 @@ export default async function handlePaymentOfSubscription(subscription, email, o
 
     let req = { body: { amount, user_id, memo, product_id, lineItems }, user: { email } }
     if (!email) throw new Error("No email found for this subscription")
-    const response = await createPayment(req, {
-      sendEmailOnCharge: false,
-    })
-    if (response?.data?.payment?.status !== "COMPLETED") {
-      throw new Error("0002A: Payment failed |" + JSON.stringify(response))
+    let response
+
+    if (amount > 0) {
+      response = await createPayment(req, {
+        sendEmailOnCharge: false,
+      })
+      if (response?.data?.payment?.status !== "COMPLETED") {
+        throw new Error("0002A: Payment failed |" + JSON.stringify(response))
+      }
+    } else {
+      // Handle zero amount subscriptions (free trials, discounts, etc.)
+      response = {
+        data: {
+          payment: {
+            id: "FREE-SUBSCRIPTION",
+            status: "COMPLETED",
+          },
+        },
+      }
     }
 
     // update subscription renewal_date
@@ -91,6 +105,8 @@ export default async function handlePaymentOfSubscription(subscription, email, o
       data: JSON.stringify(response),
     })
   } catch (error) {
+    console.error("Error handling payment of subscription:", error)
+
     // send email
     await sendEmail({
       to: email || process.env.ADMIN_EMAIL,
