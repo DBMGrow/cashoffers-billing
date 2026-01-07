@@ -8,8 +8,6 @@ import sendEmail from "./sendEmail"
 export default async function toggleSubscription(subscription_id, options) {
   const { scramble = false, status = "pause" } = options || {}
 
-  console.log(11)
-
   let active
   let is_premium = 0
   switch (status) {
@@ -32,8 +30,6 @@ export default async function toggleSubscription(subscription_id, options) {
       break
   }
 
-  console.log(12)
-
   if (typeof active === "undefined") throw new CodedError("Invalid status", "TS00")
 
   function scrambleEmail(email) {
@@ -42,8 +38,6 @@ export default async function toggleSubscription(subscription_id, options) {
 
   const subscription = await Subscription.findOne({ where: { subscription_id } })
   if (!subscription) throw new CodedError("Subscription not found", "TS01")
-
-  console.log(13)
 
   if (is_premium === 1) {
     // when resuming a subscription, update the renewal based on suspension_date
@@ -62,8 +56,6 @@ export default async function toggleSubscription(subscription_id, options) {
     await subscription.update({ suspension_date: new Date() })
   }
 
-  console.log(14)
-
   // if the subscription has a team id, deactivate the members on the team
   const team_id = subscription?.dataValues?.data?.team_id
   if (team_id) {
@@ -76,6 +68,8 @@ export default async function toggleSubscription(subscription_id, options) {
 
     teamMembersResponse?.data?.forEach(async (member) => {
       const body = { active, is_premium }
+      if (!member?.active) return // skip changing state for inactive users
+
       const deactivateMember = await fetch(process.env.API_URL + "/users/" + member?.user_id, {
         method: "PUT",
         headers: { "x-api-token": process.env.API_MASTER_TOKEN },
@@ -87,8 +81,6 @@ export default async function toggleSubscription(subscription_id, options) {
       }
     })
   } else {
-    console.log(111)
-
     // fetch the user
     const user = await fetch(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
       method: "GET",
@@ -96,13 +88,9 @@ export default async function toggleSubscription(subscription_id, options) {
     })
     const userResponse = await user.json()
 
-    console.log(112)
-
     const body = { active, is_premium }
     // deactivate the user
-
-    console.log(113)
-    console.log(process.env.API_URL_V2 + "/users/" + subscription?.dataValues?.user_id)
+    console.info(process.env.API_URL_V2 + "/users/" + subscription?.dataValues?.user_id)
 
     const deactivateUser = await fetch(process.env.API_URL_V2 + "/users/" + subscription?.dataValues?.user_id, {
       method: "PUT",
@@ -113,8 +101,6 @@ export default async function toggleSubscription(subscription_id, options) {
       },
       body: JSON.stringify(body),
     })
-
-    console.log(114)
 
     let text = await deactivateUser.text()
     // cut out anything before the first {
@@ -129,11 +115,7 @@ export default async function toggleSubscription(subscription_id, options) {
     console.log("text", text)
 
     if (text?.success !== "success") throw new CodedError("Error deactivating user", "TS04")
-
-    console.log(115)
   }
-
-  console.log(15)
 
   // get user email
   const user = await axios.get(`${process.env.API_URL}/users/${subscription.user_id}`, {
@@ -141,8 +123,6 @@ export default async function toggleSubscription(subscription_id, options) {
       "x-api-token": process.env.API_MASTER_TOKEN,
     },
   })
-
-  console.log(16)
 
   const email = user?.data?.data?.email
   if (!email) {
@@ -189,9 +169,5 @@ export default async function toggleSubscription(subscription_id, options) {
     })
   }
 
-  console.log(17)
-
   await subscription.update({ status })
-
-  console.log(18)
 }
