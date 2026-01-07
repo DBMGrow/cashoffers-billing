@@ -36,7 +36,7 @@ export default async function chargeCardSingle(req, options) {
       text: `There was an error processing a payment: ${error.message}`,
     })
 
-    return { success: "error", error: error.message }
+    return { success: "error", error: error.message, details: error }
   }
 }
 
@@ -73,6 +73,7 @@ async function handlePaymentResults(req, response, email, options) {
           amount: `$${amountFormatted}`,
           transactionID: response?.result?.payment?.id,
           date: new Date().toLocaleDateString(),
+          memo: memo || "",
         },
       })
     }
