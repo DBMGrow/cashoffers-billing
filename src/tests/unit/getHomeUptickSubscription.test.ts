@@ -52,21 +52,21 @@ describe("getHomeUptickSubscription", () => {
       contacts_per_tier,
       price_per_tier,
     } as any)
-    mGetClientsCount.mockResolvedValue({ data: { count: 0 } })
+    mGetClientsCount.mockResolvedValue({ count: 0 })
     const result = await getHomeUptickSubscription(user_id)
 
     expect(result).toBeNull()
   })
 
   it("calculates tier and amount correctly for base tier", async () => {
-    mGetUserFromDB.mockResolvedValue({ active: 1 } as any)
+    mGetUserFromDB.mockResolvedValue({ active: 1, api_token: "12345" } as any)
     mGetSubscriptionFromDB.mockResolvedValue({
       user_id,
       base_contacts,
       contacts_per_tier,
       price_per_tier,
     } as any)
-    mGetClientsCount.mockResolvedValue({ data: { count: 100 } })
+    mGetClientsCount.mockResolvedValue({ count: 100 })
     const result = await getHomeUptickSubscription(user_id)
 
     expect(result).toEqual({
@@ -79,7 +79,7 @@ describe("getHomeUptickSubscription", () => {
   })
 
   it("calculates tier and amount correctly for higher tier", async () => {
-    mGetUserFromDB.mockResolvedValue({ active: 1 } as any)
+    mGetUserFromDB.mockResolvedValue({ active: 1, api_token: "12345" } as any)
     mGetSubscriptionFromDB.mockResolvedValue({
       user_id,
       base_contacts,
@@ -87,7 +87,7 @@ describe("getHomeUptickSubscription", () => {
       price_per_tier,
     } as any)
 
-    mGetClientsCount.mockResolvedValue({ data: { count: 3479 } })
+    mGetClientsCount.mockResolvedValue({ count: 3479 })
     const result = await getHomeUptickSubscription(user_id)
 
     expect(result).toEqual({
@@ -97,7 +97,7 @@ describe("getHomeUptickSubscription", () => {
       contactsOnThisTier: 3500,
       tier: 4,
     })
-    mGetClientsCount.mockResolvedValue({ data: { count: 1000 } })
+    mGetClientsCount.mockResolvedValue({ count: 1000 })
     const result2 = await getHomeUptickSubscription(user_id)
 
     expect(result2).toEqual({
@@ -107,7 +107,7 @@ describe("getHomeUptickSubscription", () => {
       contactsOnThisTier: 1500,
       tier: 2,
     })
-    mGetClientsCount.mockResolvedValue({ data: { count: 501 } })
+    mGetClientsCount.mockResolvedValue({ count: 501 })
     const result3 = await getHomeUptickSubscription(user_id)
 
     expect(result3).toEqual({
@@ -117,7 +117,7 @@ describe("getHomeUptickSubscription", () => {
       contactsOnThisTier: 1500,
       tier: 2,
     })
-    mGetClientsCount.mockResolvedValue({ data: { count: 5000 } })
+    mGetClientsCount.mockResolvedValue({ count: 5000 })
     const result4 = await getHomeUptickSubscription(user_id)
 
     expect(result4).toEqual({
