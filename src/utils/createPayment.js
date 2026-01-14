@@ -79,6 +79,7 @@ async function handlePaymentResults(req, response, email, options) {
           amount: `$${amountFormatted}`,
           transactionID: response?.result?.payment?.id,
           date: new Date().toLocaleDateString(),
+          memo,
         },
       })
     }
