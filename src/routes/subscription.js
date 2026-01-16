@@ -173,6 +173,74 @@ router.post("/uncancel/:subscription_id", authMiddleware(null, { allowSelf: true
   }
 })
 
+router.post("/downgrade/:subscription_id", authMiddleware(null, { allowSelf: true }), async (req, res) => {
+  // set a subscription to downgrade at renewal
+  const { subscription_id } = req.params
+
+  try {
+    if (!subscription_id) throw new Error("subscription_id is required")
+
+    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    if (!subscription) throw new Error("subscription not found")
+
+    const userOwnsSub = req.user?.user_id === subscription?.dataValues?.user_id
+    const userHasPermission = req?.user?.capabilities?.includes("payments_create")
+    if (!userOwnsSub && !userHasPermission) throw new Error("0000E: Unauthorized")
+
+    await subscription.update({ downgrade_on_renewal: true })
+
+    res.on("finish", async () => {
+      try {
+        const user = await fetch(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
+          method: "GET",
+          headers: { "x-api-token": process.env.API_MASTER_TOKEN },
+        })
+        const userResponse = await user.json()
+
+        // send email to annette
+        await sendEmail({
+          to: "annette@remrktco.com",
+          subject: "Subscription Set to Downgrade",
+          text: ``,
+          template: "subscriptionDowngraded.html",
+          fields: {
+            name: userResponse?.data?.name,
+            email: userResponse?.data.email,
+          },
+        })
+      } catch (error) {
+        console.error("Error sending email: ", error)
+      }
+    })
+
+    res.json({ success: "success", data: { subscription_id } })
+  } catch (error) {
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
+router.post("/undowngrade/:subscription_id", authMiddleware(null, { allowSelf: true }), async (req, res) => {
+  // unset a subscription to downgrade at renewal
+  const { subscription_id } = req.params
+
+  try {
+    if (!subscription_id) throw new Error("subscription_id is required")
+
+    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    if (!subscription) throw new Error("subscription not found")
+
+    const userOwnsSub = req.user?.user_id === subscription?.dataValues?.user_id
+    const userHasPermission = req?.user?.capabilities?.includes("payments_create")
+    if (!userOwnsSub && !userHasPermission) throw new Error("0000E: Unauthorized")
+
+    await subscription.update({ downgrade_on_renewal: false })
+
+    res.json({ success: "success", data: { subscription_id } })
+  } catch (error) {
+    res.json({ success: "error", error: error.message, body: req.body })
+  }
+})
+
 router.post("/", authMiddleware("payments_create"), async (req, res) => {
   // create a new subscription, or update an existing one
   const { subscription_name, user_id, amount, duration } = req.body

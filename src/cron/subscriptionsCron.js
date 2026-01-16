@@ -52,6 +52,9 @@ export default async function subscriptionsCron() {
       if (subscription?.dataValues?.cancel_on_renewal || subscription?.cancel_on_renewal) {
         await toggleSubscription(subscription.subscription_id, { status: "cancel" })
         return
+      } else if (subscription?.dataValues?.downgrade_on_renewal || subscription?.downgrade_on_renewal) {
+        await toggleSubscription(subscription.subscription_id, { status: "downgrade" })
+        return
       }
 
       const email = users?.data?.find((user) => user.user_id === subscription.user_id)?.email || ""

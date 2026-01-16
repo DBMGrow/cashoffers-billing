@@ -16,7 +16,7 @@ export default async function toggleSubscription(subscription_id, options) {
       is_premium = 0
       break
     case "cancel":
-      active = 1
+      active = 0
       is_premium = 0
       break
     case "suspend":
@@ -27,6 +27,10 @@ export default async function toggleSubscription(subscription_id, options) {
     case "active":
       active = 1
       is_premium = 1
+      break
+    case "downgrade":
+      active = 1
+      is_premium = 0
       break
   }
 
