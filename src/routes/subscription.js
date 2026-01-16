@@ -5,6 +5,7 @@ import { UserCard } from "../database/UserCard"
 import { Transaction } from "../database/Transaction"
 import toggleSubscription from "../utils/toggleSubscription"
 import sendEmail from "@/utils/sendEmail"
+import axios from "axios"
 
 const router = express.Router()
 
@@ -123,12 +124,10 @@ router.post("/cancel/:subscription_id", authMiddleware(null, { allowSelf: true }
 
     res.on("finish", async () => {
       try {
-        const user = await fetch(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
-          method: "GET",
+        const user = await axios.get(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
           headers: { "x-api-token": process.env.API_MASTER_TOKEN },
         })
-        const userResponse = await user.json()
-
+        const userResponse = user.data
         // send email to annette
         await sendEmail({
           to: "annette@remrktco.com",
@@ -137,7 +136,7 @@ router.post("/cancel/:subscription_id", authMiddleware(null, { allowSelf: true }
           template: "subscriptionCancelled.html",
           fields: {
             name: userResponse?.data?.name,
-            email: userResponse?.data.email,
+            email: userResponse?.data?.email,
           },
         })
       } catch (error) {
@@ -191,12 +190,10 @@ router.post("/downgrade/:subscription_id", authMiddleware(null, { allowSelf: tru
 
     res.on("finish", async () => {
       try {
-        const user = await fetch(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
-          method: "GET",
+        const user = await axios.get(process.env.API_URL + "/users/" + subscription?.dataValues?.user_id, {
           headers: { "x-api-token": process.env.API_MASTER_TOKEN },
         })
-        const userResponse = await user.json()
-
+        const userResponse = user.data
         // send email to annette
         await sendEmail({
           to: "annette@remrktco.com",
