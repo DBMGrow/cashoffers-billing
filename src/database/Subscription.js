@@ -62,6 +62,11 @@ export const Subscription = sequelize.define("Subscription", {
     allowNull: true,
     defaultValue: false,
   },
+  downgrade_on_renewal: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+    defaultValue: false,
+  },
   suspension_date: {
     type: DataTypes.DATE,
     allowNull: true,
