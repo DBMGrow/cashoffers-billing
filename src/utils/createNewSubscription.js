@@ -7,6 +7,7 @@ import handlePaymentOfSubscription from "./handlePaymentOfSubscription"
 
 export default async function createNewSubscription(product, user, userWithEmailExists, waiveSignupFee) {
   try {
+    // TODO: add field to product in database so we don't have to check by name
     const is_premium = product?.dataValues?.product_name !== "KW Subscribe"
 
     const subscriptionData = { ...product?.dataValues?.data }
