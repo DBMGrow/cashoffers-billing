@@ -59,6 +59,14 @@ export default async function subscriptionsCron() {
 
       const email = users?.data?.find((user) => user.user_id === subscription.user_id)?.email || ""
       if (!email) return console.log("No email found for user_id: ", subscription.user_id)
+
+      // if user active = 0, skip subscription renewal attempt
+      const userIsActive = users?.data?.find((user) => user.user_id === subscription.user_id)?.active
+      if (userIsActive === 0) {
+        console.log("User is inactive, skipping subscription renewal attempt for user_id: ", subscription.user_id)
+        continue
+      }
+
       await handlePaymentOfSubscription(subscription, email)
     }
   } catch (error) {
