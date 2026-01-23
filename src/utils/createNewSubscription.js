@@ -7,6 +7,8 @@ import handlePaymentOfSubscription from "./handlePaymentOfSubscription"
 
 export default async function createNewSubscription(product, user, userWithEmailExists, waiveSignupFee) {
   try {
+    const is_premium = product?.dataValues?.product_name !== "KW Subscribe"
+
     const subscriptionData = { ...product?.dataValues?.data }
     if (!subscriptionData?.duration) throw new CodedError("duration is required", "CNS01")
     // if (!subscriptionData?.renewal_cost) throw new CodedError("renewal_cost is required", "CNS02")
@@ -59,7 +61,7 @@ export default async function createNewSubscription(product, user, userWithEmail
           body: convertToFormata({
             team_id: team?.data?.team_id,
             role: "TEAMOWNER",
-            is_premium: 1,
+            is_premium,
           }),
         })
         const userUpdate = await userRequest.json()
@@ -73,7 +75,7 @@ export default async function createNewSubscription(product, user, userWithEmail
       const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
         method: "PUT",
         headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-        body: convertToFormata({ is_premium: 1, role: newRole }),
+        body: convertToFormata({ is_premium, role: newRole }),
       })
 
       const userUpdate = await userRequest.json()
