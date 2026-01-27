@@ -8,7 +8,7 @@ import handlePaymentOfSubscription from "./handlePaymentOfSubscription"
 export default async function createNewSubscription(product, user, userWithEmailExists, waiveSignupFee) {
   try {
     // TODO: add field to product in database so we don't have to check by name
-    const is_premium = product?.dataValues?.product_name !== "KW Subscribe"
+    const is_premium = product?.dataValues?.product_name !== "KW Subscribe" ? 1 : 0
 
     const subscriptionData = { ...product?.dataValues?.data }
     if (!subscriptionData?.duration) throw new CodedError("duration is required", "CNS01")
