@@ -3,6 +3,9 @@ import { RenewSubscriptionUseCase } from "./renew-subscription.use-case"
 import { ConsoleLogger } from "@/infrastructure/logging/console.logger"
 import { MockPaymentProvider } from "@/infrastructure/payment/mock/mock-payment.provider"
 import { MockEmailService } from "@/infrastructure/email/mock/mock-email.service"
+import { ITransactionManager } from "@/infrastructure/database/transaction/transaction-manager.interface"
+import { Kysely } from "kysely"
+import { DB } from "@/lib/db"
 
 // Mock repositories (reusing from create-subscription tests)
 class MockSubscriptionRepository {
@@ -161,6 +164,15 @@ class MockConfigService {
   }
 }
 
+// Mock Transaction Manager - just executes callback without actual transaction
+class MockTransactionManager implements ITransactionManager {
+  async runInTransaction<T>(callback: (trx: Kysely<DB>) => Promise<T>): Promise<T> {
+    // For tests, just execute the callback without actual transaction
+    // Pass undefined as trx, which will cause repositories to use their default db
+    return await callback(undefined as any)
+  }
+}
+
 describe("RenewSubscriptionUseCase", () => {
   let useCase: RenewSubscriptionUseCase
   let logger: ConsoleLogger
@@ -170,6 +182,7 @@ describe("RenewSubscriptionUseCase", () => {
   let transactionRepo: MockTransactionRepository
   let userCardRepo: MockUserCardRepository
   let config: MockConfigService
+  let transactionManager: MockTransactionManager
 
   beforeEach(() => {
     logger = new ConsoleLogger()
@@ -179,6 +192,7 @@ describe("RenewSubscriptionUseCase", () => {
     transactionRepo = new MockTransactionRepository()
     userCardRepo = new MockUserCardRepository()
     config = new MockConfigService()
+    transactionManager = new MockTransactionManager()
 
     useCase = new RenewSubscriptionUseCase({
       logger,
@@ -188,6 +202,7 @@ describe("RenewSubscriptionUseCase", () => {
       transactionRepository: transactionRepo as any,
       userCardRepository: userCardRepo as any,
       config: config as any,
+      transactionManager,
     })
   })
 
@@ -367,6 +382,7 @@ describe("RenewSubscriptionUseCase", () => {
         subscription_id: 2,
         user_id: 1,
         subscription_name: "Daily Plan",
+        product_id: 1,
         amount: 100,
         duration: "daily",
         renewal_date: new Date("2024-01-01"),
@@ -407,6 +423,7 @@ describe("RenewSubscriptionUseCase", () => {
         subscription_id: 3,
         user_id: 1,
         subscription_name: "Weekly Plan",
+        product_id: 1,
         amount: 500,
         duration: "weekly",
         renewal_date: new Date("2024-01-01"),
@@ -447,6 +464,7 @@ describe("RenewSubscriptionUseCase", () => {
         subscription_id: 4,
         user_id: 1,
         subscription_name: "Yearly Plan",
+        product_id: 1,
         amount: 100000,
         duration: "yearly",
         renewal_date: new Date("2024-01-01"),
@@ -489,6 +507,7 @@ describe("RenewSubscriptionUseCase", () => {
         subscription_id: 1,
         user_id: 1,
         subscription_name: "CashOffers.PRO",
+        product_id: 1,
         amount: 25000,
         duration: "monthly",
         renewal_date: new Date("2024-01-01"),
@@ -582,6 +601,7 @@ describe("RenewSubscriptionUseCase", () => {
         subscription_id: 5,
         user_id: 1,
         subscription_name: "Free Trial",
+        product_id: 1,
         amount: 0,
         duration: "monthly",
         renewal_date: new Date("2024-01-01"),

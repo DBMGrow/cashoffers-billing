@@ -1,16 +1,22 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, Subscriptions } from '@/lib/db'
 import { ISubscriptionRepository } from './subscription.repository.interface'
+import { TransactionContext } from './repository.interface'
 
 /**
  * Subscription Repository Implementation
  * Handles subscription records using Kysely
+ *
+ * Supports optional transaction context for all operations.
+ * When a transaction context is provided, operations will be part of that transaction.
  */
 export class SubscriptionRepository implements ISubscriptionRepository {
   constructor(private db: Kysely<DB>) {}
 
-  async findById(id: number | bigint): Promise<Selectable<Subscriptions> | null> {
-    const result = await this.db
+  async findById(id: number | bigint, trx?: TransactionContext): Promise<Selectable<Subscriptions> | null> {
+    const db = trx ?? this.db
+
+    const result = await db
       .selectFrom('Subscriptions')
       .where('subscription_id', '=', Number(id))
       .selectAll()
@@ -19,8 +25,9 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return result || null
   }
 
-  async findAll(criteria?: Partial<Selectable<Subscriptions>>): Promise<Selectable<Subscriptions>[]> {
-    let query = this.db.selectFrom('Subscriptions').selectAll()
+  async findAll(criteria?: Partial<Selectable<Subscriptions>>, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    let query = db.selectFrom('Subscriptions').selectAll()
 
     if (criteria) {
       Object.entries(criteria).forEach(([key, value]) => {
@@ -33,8 +40,9 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return await query.execute()
   }
 
-  async findOne(criteria: Partial<Selectable<Subscriptions>>): Promise<Selectable<Subscriptions> | null> {
-    let query = this.db.selectFrom('Subscriptions').selectAll()
+  async findOne(criteria: Partial<Selectable<Subscriptions>>, trx?: TransactionContext): Promise<Selectable<Subscriptions> | null> {
+    const db = trx ?? this.db
+    let query = db.selectFrom('Subscriptions').selectAll()
 
     Object.entries(criteria).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -46,13 +54,15 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return result || null
   }
 
-  async create(data: Insertable<Subscriptions>): Promise<Selectable<Subscriptions>> {
-    const result = await this.db
+  async create(data: Insertable<Subscriptions>, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
+    const db = trx ?? this.db
+
+    const result = await db
       .insertInto('Subscriptions')
       .values(data)
       .executeTakeFirstOrThrow()
 
-    const created = await this.findById(Number(result.insertId))
+    const created = await this.findById(Number(result.insertId), trx)
     if (!created) {
       throw new Error('Failed to retrieve created subscription')
     }
@@ -62,15 +72,18 @@ export class SubscriptionRepository implements ISubscriptionRepository {
 
   async update(
     id: number | bigint,
-    data: Updateable<Subscriptions>
+    data: Updateable<Subscriptions>,
+    trx?: TransactionContext
   ): Promise<Selectable<Subscriptions>> {
-    await this.db
+    const db = trx ?? this.db
+
+    await db
       .updateTable('Subscriptions')
       .set(data)
       .where('subscription_id', '=', Number(id))
       .executeTakeFirstOrThrow()
 
-    const updated = await this.findById(id)
+    const updated = await this.findById(id, trx)
     if (!updated) {
       throw new Error('Failed to retrieve updated subscription')
     }
@@ -78,8 +91,10 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return updated
   }
 
-  async delete(id: number | bigint): Promise<void> {
-    await this.db
+  async delete(id: number | bigint, trx?: TransactionContext): Promise<void> {
+    const db = trx ?? this.db
+
+    await db
       .deleteFrom('Subscriptions')
       .where('subscription_id', '=', Number(id))
       .executeTakeFirstOrThrow()
@@ -87,8 +102,10 @@ export class SubscriptionRepository implements ISubscriptionRepository {
 
   // Custom methods specific to SubscriptionRepository
 
-  async findByUserId(userId: number): Promise<Selectable<Subscriptions>[]> {
-    return await this.db
+  async findByUserId(userId: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+
+    return await db
       .selectFrom('Subscriptions')
       .where('user_id', '=', userId)
       .selectAll()
@@ -96,8 +113,10 @@ export class SubscriptionRepository implements ISubscriptionRepository {
       .execute()
   }
 
-  async findActiveByUserId(userId: number): Promise<Selectable<Subscriptions>[]> {
-    return await this.db
+  async findActiveByUserId(userId: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+
+    return await db
       .selectFrom('Subscriptions')
       .where('user_id', '=', userId)
       .where('status', '=', 'active')
@@ -106,8 +125,10 @@ export class SubscriptionRepository implements ISubscriptionRepository {
       .execute()
   }
 
-  async findDueForRenewal(date: Date): Promise<Selectable<Subscriptions>[]> {
-    return await this.db
+  async findDueForRenewal(date: Date, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+
+    return await db
       .selectFrom('Subscriptions')
       .where('status', '=', 'active')
       .where('renewal_date', '<=', date)
@@ -117,8 +138,10 @@ export class SubscriptionRepository implements ISubscriptionRepository {
       .execute()
   }
 
-  async findByProductId(productId: number): Promise<Selectable<Subscriptions>[]> {
-    return await this.db
+  async findByProductId(productId: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+
+    return await db
       .selectFrom('Subscriptions')
       .where('product_id', '=', productId)
       .selectAll()
@@ -126,33 +149,33 @@ export class SubscriptionRepository implements ISubscriptionRepository {
       .execute()
   }
 
-  async updateRenewalDate(id: number, date: Date): Promise<Selectable<Subscriptions>> {
+  async updateRenewalDate(id: number, date: Date, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
     return await this.update(id, {
       renewal_date: date,
       updatedAt: new Date(),
-    })
+    }, trx)
   }
 
-  async markForCancellation(id: number): Promise<Selectable<Subscriptions>> {
+  async markForCancellation(id: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
     return await this.update(id, {
       cancel_on_renewal: 1,
       updatedAt: new Date(),
-    })
+    }, trx)
   }
 
-  async markForDowngrade(id: number, downgradeToProductId: number): Promise<Selectable<Subscriptions>> {
+  async markForDowngrade(id: number, downgradeToProductId: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
     return await this.update(id, {
       downgrade_on_renewal: 1,
       // Note: downgrade_to_product_id doesn't exist in schema, storing in meta or data
       updatedAt: new Date(),
-    })
+    }, trx)
   }
 
-  async cancel(id: number): Promise<Selectable<Subscriptions>> {
+  async cancel(id: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
     return await this.update(id, {
       status: 'cancelled',
       updatedAt: new Date(),
-    })
+    }, trx)
   }
 }
 

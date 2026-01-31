@@ -288,10 +288,140 @@ Move to Phase 5: Domain Layer (add domain entities with business rules)
 
 ---
 
-## Phase 5: Domain Layer (Weeks 9-10) ⏳ PENDING
+## Phase 5: Domain Layer (Weeks 9-10) ✅ COMPLETED
 
 ### Goal
 Add domain entities with business rules
+
+### Completed Tasks
+- ✅ Created domain foundation (Entity and ValueObject base classes)
+- ✅ Implemented Money value object with arithmetic operations (18 tests)
+- ✅ Implemented Email value object with validation (12 tests)
+- ✅ Implemented SubscriptionStatus value object with business rules
+- ✅ Implemented PaymentStatus value object with state transitions (24 tests)
+- ✅ Implemented Duration value object with date calculations
+- ✅ Implemented Subscription domain entity with full business rules (37 tests)
+- ✅ Implemented Payment domain entity with state management (33 tests)
+- ✅ Created domain-to-database mappers
+- ✅ Integrated Subscription entity into RenewSubscriptionUseCase
+- ✅ All tests passing (187 total)
+
+### Files Created
+1. **Domain Foundation**
+   - `src/domain/base/entity.interface.ts` - Base entity interface and abstract class
+   - `src/domain/base/value-object.interface.ts` - Base value object for immutable types
+
+2. **Value Objects**
+   - `src/domain/value-objects/money.ts` - Money handling with cents precision
+   - `src/domain/value-objects/money.test.ts` - 18 comprehensive tests
+   - `src/domain/value-objects/email.ts` - Email validation and normalization
+   - `src/domain/value-objects/email.test.ts` - 12 comprehensive tests
+   - `src/domain/value-objects/subscription-status.ts` - Subscription state management
+   - `src/domain/value-objects/payment-status.ts` - Payment state transitions
+   - `src/domain/value-objects/payment-status.test.ts` - 24 comprehensive tests
+   - `src/domain/value-objects/duration.ts` - Billing period calculations
+
+3. **Domain Entities**
+   - `src/domain/entities/subscription.ts` - Subscription with business rules
+   - `src/domain/entities/subscription.test.ts` - 37 comprehensive tests
+   - `src/domain/entities/payment.ts` - Payment with state management
+   - `src/domain/entities/payment.test.ts` - 33 comprehensive tests
+
+4. **Mappers**
+   - `src/domain/mappers/subscription.mapper.ts` - Database ↔ Domain conversion
+
+5. **Domain Exports**
+   - `src/domain/index.ts` - Central export point for domain layer
+
+### Domain Entities Implemented
+
+#### Subscription Entity
+Business rules enforced:
+- Can only cancel if active or suspended
+- Can only suspend if active
+- Can only reactivate if suspended
+- Can only renew if active/suspended and due for renewal
+- Handles cancel_on_renewal and downgrade_on_renewal flags
+- Immutable - all operations return new instances
+- Automatic renewal date calculation via Duration value object
+
+Methods:
+- `cancel()`, `suspend()`, `reactivate()`, `renew()`
+- `markForCancellationOnRenewal()`, `markForDowngradeOnRenewal()`
+- `updateAmount()`, `updateProduct()`
+- `isDueForRenewal()`, `canRenew()`, `canCancel()`
+
+#### Payment Entity
+Business rules enforced:
+- Can only complete pending payments
+- Can only fail pending payments
+- Can only refund completed payments
+- Cannot transition from terminal states (failed/completed/refunded)
+- Immutable - all operations return new instances
+
+Methods:
+- `complete()`, `fail()`, `refund()`
+- `updateMetadata()`
+- `isPending()`, `isCompleted()`, `isFailed()`, `isRefunded()`
+
+### Value Objects Implemented
+
+#### Money Value Object
+- Stores amounts in cents to avoid floating-point errors
+- Arithmetic operations (add, subtract, multiply)
+- Formatting as currency ($50.99)
+- Creation from cents or dollars
+- Immutable
+
+#### Duration Value Object
+- Supports daily, weekly, monthly, yearly billing
+- Calculates next renewal date from current date
+- Used by Subscription entity for renewal logic
+- Immutable
+
+#### Status Value Objects
+- SubscriptionStatus: active, suspended, cancelled, disabled
+- PaymentStatus: pending, completed, failed, refunded
+- Business rule predicates (canRenew, canCancel, canRefund, etc.)
+- Immutable
+
+### Use Case Integration
+- **RenewSubscriptionUseCase**: Now uses Subscription entity
+  - Entity handles renewal logic with business rules
+  - Entity manages cancel_on_renewal flag
+  - Entity reactivates suspended subscriptions
+  - Entity calculates renewal dates via Duration value object
+  - Removed duplicate date calculation logic from use case
+
+### Test Results
+- ✅ Domain entity tests: 70 passing (37 Subscription + 33 Payment)
+- ✅ Value object tests: 54 passing (18 Money + 12 Email + 24 PaymentStatus)
+- ✅ Use case tests: 46 passing (integrated with domain entities)
+- ✅ Container tests: 10 passing
+- ✅ Existing tests: 7 passing
+- ✅ Total: 187 tests passing
+- ✅ TypeScript compilation successful
+- ✅ Zero breaking changes to existing code
+
+### Technical Features
+- **Domain-Driven Design**: Rich domain model with business logic
+- **Immutability**: All entities and value objects are immutable
+- **Type Safety**: Full TypeScript with value objects preventing primitive obsession
+- **Business Rules**: Enforced at domain level, not in use cases
+- **Testability**: Pure domain logic, easy to test
+- **Separation of Concerns**: Domain layer independent of infrastructure
+
+### Architecture Improvements
+- Business rules centralized in domain entities
+- Value objects prevent primitive obsession (Money instead of number, Email instead of string)
+- Immutable operations ensure predictable behavior
+- Domain layer has zero dependencies on infrastructure
+- Use cases now orchestrate domain objects instead of manipulating data directly
+
+### Next Steps
+- Consider integrating Payment entity into CreatePaymentUseCase
+- Consider integrating Subscription entity into CreateSubscriptionUseCase
+- Move to Phase 6: Transaction Management
 
 ---
 
@@ -319,22 +449,25 @@ Comprehensive testing, cleanup, documentation
 ## Current Metrics
 
 ### Code Quality
-- Test coverage: ~2% → Significant improvement with 46 use case tests ✅
-- Testable functions: Infrastructure + Use Cases 100% testable with mocks
-- TypeScript interfaces defined: 24+ → 35+
+- Test coverage: ~2% → Significant improvement with domain + use case tests ✅
+- Testable functions: Infrastructure + Use Cases + Domain 100% testable with mocks
+- TypeScript interfaces defined: 24+ → 35+ → 45+
 - Container tests: 7 → 10 passing ✅
+- Domain tests: 124 passing (70 entity + 54 value object) ✅
 - Use case tests: 46 passing ✅
-- Total tests: 14 → 63 passing ✅
+- Total tests: 14 → 63 → 187 passing ✅
 
 ### Architecture
 - Direct Square imports: 6 → Phase 3: Now abstracted behind interface ✅
 - Direct SendGrid imports: 11 → Phase 3: Now abstracted behind interface ✅
 - Direct Sequelize imports: 40+ (Phase 2: Kysely alternative available)
 - `process.env` references: 106 → Centralized in config service ✅
-- TypeScript files: ~5 → Phase 4: +50 new files
+- TypeScript files: ~5 → Phase 4: +50 → Phase 5: +70 new files
 - Repository pattern: ✅ Fully implemented (4 repositories)
 - Service abstractions: ✅ Fully implemented (3 services + mocks)
 - Use case pattern: ✅ Fully implemented (3 use cases + tests)
+- Domain entities: ✅ Fully implemented (2 entities: Subscription, Payment)
+- Value objects: ✅ Fully implemented (5 value objects with business rules)
 - Zod validation: ✅ Implemented for all use case inputs
 
 ### Operational
@@ -357,4 +490,4 @@ Comprehensive testing, cleanup, documentation
 
 ---
 
-Last updated: 2026-01-31 (Phases 1-4 completed)
+Last updated: 2026-01-31 (Phases 1-5 completed)

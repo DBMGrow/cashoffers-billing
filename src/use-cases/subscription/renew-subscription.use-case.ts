@@ -5,11 +5,13 @@ import { ISubscriptionRepository } from "@/infrastructure/database/repositories/
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
 import { IConfigService } from "@/config/config.interface"
+import { ITransactionManager } from "@/infrastructure/database/transaction/transaction-manager.interface"
 import { IRenewSubscriptionUseCase } from "./renew-subscription.use-case.interface"
 import { RenewSubscriptionInput, RenewSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { RenewSubscriptionInputSchema } from "../types/validation.schemas"
 import { v4 as uuidv4 } from "uuid"
+import { SubscriptionMapper } from "@/domain"
 
 interface Dependencies {
   logger: ILogger
@@ -19,6 +21,7 @@ interface Dependencies {
   transactionRepository: ITransactionRepository
   userCardRepository: IUserCardRepository
   config: IConfigService
+  transactionManager: ITransactionManager
 }
 
 interface LineItem {
@@ -80,6 +83,29 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       // TODO: Add HomeUptick addon support when we have the service abstraction
       // For now, we'll just use the base subscription amount
 
+      // Convert to domain entity
+      const subscriptionEntity = SubscriptionMapper.toDomain(subscription as any)
+
+      // Check if subscription should be cancelled on renewal
+      if (subscriptionEntity.cancelOnRenewal) {
+        const cancelledEntity = subscriptionEntity.cancel()
+        await this.deps.subscriptionRepository.update(
+          validatedInput.subscriptionId,
+          SubscriptionMapper.toDatabase(cancelledEntity) as any
+        )
+
+        logger.info("Subscription cancelled on renewal", {
+          subscriptionId: validatedInput.subscriptionId,
+        })
+
+        return success({
+          subscriptionId: validatedInput.subscriptionId,
+          transactionId: "",
+          nextRenewalDate: cancelledEntity.renewalDate,
+          amount: 0,
+        })
+      }
+
       // Process payment if amount > 0
       if (totalAmount > 0) {
         await this.processRenewalPayment(
@@ -91,29 +117,34 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         )
       }
 
-      // Calculate new renewal date
-      const newRenewalDate = this.calculateNextRenewalDate(
-        subscription.renewal_date!,
-        subscription.duration!
-      )
+      // Use domain entity to handle renewal logic
+      const renewedEntity = subscriptionEntity.renew()
+      const newRenewalDate = renewedEntity.renewalDate
 
-      // Update subscription
-      const now = new Date()
-      await this.deps.subscriptionRepository.update(validatedInput.subscriptionId, {
-        renewal_date: newRenewalDate,
-        next_renewal_attempt: newRenewalDate,
-        updatedAt: now,
+      // Update subscription and log transaction atomically
+      await this.deps.transactionManager.runInTransaction(async (trx) => {
+        // Update subscription with renewed entity data
+        await this.deps.subscriptionRepository.update(
+          validatedInput.subscriptionId,
+          SubscriptionMapper.toDatabase(renewedEntity) as any,
+          trx
+        )
+
+        // Log transaction
+        const now = new Date()
+        await this.deps.transactionRepository.create({
+          user_id: subscription.user_id!,
+          amount: totalAmount,
+          type: "subscription",
+          memo: subscription.subscription_name || "Subscription renewal",
+          status: "completed",
+          data: JSON.stringify({ renewalDate: newRenewalDate }),
+          createdAt: now,
+          updatedAt: now,
+        }, trx)
       })
 
-      // Reactivate if suspended
-      if (subscription.status === "suspend") {
-        await this.deps.subscriptionRepository.update(validatedInput.subscriptionId, {
-          status: "active",
-          updatedAt: now,
-        })
-      }
-
-      // Send renewal email
+      // Send renewal email (outside transaction - external service)
       await this.sendRenewalEmail(
         validatedInput.email,
         subscription.subscription_name || "Subscription",
@@ -121,18 +152,6 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         newRenewalDate,
         lineItems
       )
-
-      // Log transaction
-      await this.deps.transactionRepository.create({
-        user_id: subscription.user_id!,
-        amount: totalAmount,
-        type: "subscription",
-        memo: subscription.subscription_name || "Subscription renewal",
-        status: "completed",
-        data: JSON.stringify({ renewalDate: newRenewalDate }),
-        createdAt: now,
-        updatedAt: now,
-      })
 
       logger.info("Subscription renewal completed", {
         subscriptionId: validatedInput.subscriptionId,
@@ -205,29 +224,6 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     })
   }
 
-  private calculateNextRenewalDate(currentRenewalDate: Date, duration: string): Date {
-    const newDate = new Date(currentRenewalDate)
-    const durationLower = duration.toLowerCase()
-
-    switch (durationLower) {
-      case "daily":
-        newDate.setDate(newDate.getDate() + 1)
-        break
-      case "weekly":
-        newDate.setDate(newDate.getDate() + 7)
-        break
-      case "monthly":
-        newDate.setMonth(newDate.getMonth() + 1)
-        break
-      case "yearly":
-        newDate.setFullYear(newDate.getFullYear() + 1)
-        break
-      default:
-        throw new Error(`Invalid duration: ${duration}`)
-    }
-
-    return newDate
-  }
 
   private async sendRenewalEmail(
     email: string,

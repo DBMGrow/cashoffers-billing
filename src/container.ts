@@ -7,6 +7,7 @@ import type { DB } from '@/lib/db'
 import { createConfig } from '@/config/config.service'
 import { createLogger } from '@/infrastructure/logging/structured.logger'
 import { createKyselyDatabase } from '@/infrastructure/database/kysely.factory'
+import { KyselyTransactionManager } from '@/infrastructure/database/transaction/kysely-transaction-manager'
 import { createTransactionRepository } from '@/infrastructure/database/repositories/transaction.repository'
 import { createSubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository'
 import { createUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository'
@@ -19,6 +20,7 @@ import { CreateSubscriptionUseCase } from '@/use-cases/subscription/create-subsc
 import { RenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case'
 import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
+import type { ITransactionManager } from '@/infrastructure/database/transaction/transaction-manager.interface'
 import type { ITransactionRepository } from '@/infrastructure/database/repositories/transaction.repository.interface'
 import type { ISubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository.interface'
 import type { IUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository.interface'
@@ -38,6 +40,7 @@ export interface IContainer {
   config: IConfig
   logger: ILogger
   db: Kysely<DB>
+  transactionManager: ITransactionManager
   repositories: {
     transaction: ITransactionRepository
     subscription: ISubscriptionRepository
@@ -71,6 +74,9 @@ export const createContainer = (): IContainer => {
 
   // Create database connection
   const db = createKyselyDatabase(config)
+
+  // Create transaction manager
+  const transactionManager = new KyselyTransactionManager(db, logger)
 
   // Create repositories
   const repositories = {
@@ -131,6 +137,7 @@ export const createContainer = (): IContainer => {
       transactionRepository: repositories.transaction,
       userCardRepository: repositories.userCard,
       config: configService,
+      transactionManager,
     }),
   }
 
@@ -145,6 +152,7 @@ export const createContainer = (): IContainer => {
     config,
     logger,
     db,
+    transactionManager,
     repositories,
     services,
     useCases,
