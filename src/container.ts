@@ -13,6 +13,8 @@ import { createSubscriptionRepository } from '@/infrastructure/database/reposito
 import { createUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository'
 import { createProductRepository } from '@/infrastructure/database/repositories/product.repository'
 import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
+import { createSquareErrorTranslator } from '@/infrastructure/payment/error/square-error-translator'
+import { createMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler'
 import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/sendgrid.service'
 import { createUserApiClient } from '@/infrastructure/external-api/user-api/user-api.client'
 import { CreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case'
@@ -26,6 +28,8 @@ import type { ISubscriptionRepository } from '@/infrastructure/database/reposito
 import type { IUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository.interface'
 import type { IProductRepository } from '@/infrastructure/database/repositories/product.repository.interface'
 import type { IPaymentProvider } from '@/infrastructure/payment/payment-provider.interface'
+import type { IPaymentErrorTranslator } from '@/infrastructure/payment/error/payment-error-translator.interface'
+import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
 import type { IEmailService } from '@/infrastructure/email/email-service.interface'
 import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
 import type { ICreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case.interface'
@@ -49,6 +53,8 @@ export interface IContainer {
   }
   services: {
     payment: IPaymentProvider
+    paymentErrorTranslator: IPaymentErrorTranslator
+    mjmlCompiler: IMjmlCompiler
     email: IEmailService
     userApi: IUserApiClient
   }
@@ -87,9 +93,13 @@ export const createContainer = (): IContainer => {
   }
 
   // Create services
+  const mjmlCompiler = createMjmlCompiler(logger)
+
   const services = {
     payment: createSquarePaymentProvider(config, logger),
-    email: createSendGridEmailService(config, logger),
+    paymentErrorTranslator: createSquareErrorTranslator(),
+    mjmlCompiler,
+    email: createSendGridEmailService(config, logger, mjmlCompiler),
     userApi: createUserApiClient(config, logger),
   }
 

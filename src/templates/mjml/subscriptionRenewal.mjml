@@ -1,0 +1,101 @@
+<mjml>
+  <mj-head>
+    <mj-title>Subscription Renewed</mj-title>
+    <mj-preview>Your subscription has been renewed for {{amount}}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="1.6" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f3f4f6">
+    <!-- Header -->
+    <mj-section background-color="#1e40af" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="bold">
+          CashOffers
+        </mj-text>
+        <mj-text align="center" color="#93c5fd" font-size="14px">
+          Billing & Subscriptions
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Success Icon -->
+    <mj-section background-color="#ffffff" padding="40px 20px 20px">
+      <mj-column>
+        <mj-text align="center" font-size="48px">
+          🔄
+        </mj-text>
+        <mj-text align="center" font-size="24px" font-weight="bold" color="#059669">
+          Subscription Renewed
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Renewal Details -->
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-column>
+        <mj-text font-size="16px" padding-bottom="20px">
+          Your subscription has been renewed, and your card has been charged for the amount of <strong>{{amount}}</strong>.
+        </mj-text>
+
+        <!-- Details Box -->
+        <mj-table>
+          <tr style="background-color: #f9fafb; border: 1px solid #e5e7eb;">
+            <td style="padding: 20px;">
+              <table width="100%">
+                <tr>
+                  <td colspan="2" style="font-weight: bold; font-size: 16px; padding-bottom: 15px; color: #111827;">
+                    Transaction Details
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; font-size: 14px; padding: 8px 0;">Subscription</td>
+                  <td style="text-align: right; font-size: 14px; color: #111827; padding: 8px 0;">
+                    {{subscription}}
+                  </td>
+                </tr>
+                <tr style="border-top: 1px solid #e5e7eb;">
+                  <td style="color: #6b7280; font-size: 14px; padding: 8px 0;">Amount Charged</td>
+                  <td style="text-align: right; font-size: 18px; font-weight: bold; color: #059669; padding: 8px 0;">
+                    {{amount}}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; font-size: 14px; padding: 8px 0;">Transaction Date</td>
+                  <td style="text-align: right; font-size: 14px; color: #111827; padding: 8px 0;">
+                    {{date}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </mj-table>
+
+        <!-- Line Items -->
+        <mj-text font-size="14px" font-weight="bold" padding-top="20px" padding-bottom="10px">
+          Line Items:
+        </mj-text>
+        <mj-text font-size="14px" color="#374151" padding-left="10px">
+          {{lineItems}}
+        </mj-text>
+
+        <mj-text font-size="14px" color="#6b7280" padding-top="20px">
+          Thank you for continuing your subscription with CashOffers!
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#f9fafb" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#6b7280" font-size="12px">
+          Questions? Contact us at support@cashoffers.com
+        </mj-text>
+        <mj-text align="center" color="#9ca3af" font-size="11px" padding-top="10px">
+          © 2024 CashOffers. All rights reserved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

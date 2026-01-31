@@ -1,0 +1,87 @@
+<mjml>
+  <mj-head>
+    <mj-title>Transaction Refunded</mj-title>
+    <mj-preview>Your transaction has been refunded</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="1.6" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f3f4f6">
+    <!-- Header -->
+    <mj-section background-color="#1e40af" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="bold">
+          CashOffers
+        </mj-text>
+        <mj-text align="center" color="#93c5fd" font-size="14px">
+          Billing & Subscriptions
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Icon -->
+    <mj-section background-color="#ffffff" padding="40px 20px 20px">
+      <mj-column>
+        <mj-text align="center" font-size="48px">
+          ↩️
+        </mj-text>
+        <mj-text align="center" font-size="24px" font-weight="bold" color="#059669">
+          Transaction Refunded
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Refund Details -->
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-column>
+        <mj-text font-size="16px" padding-bottom="20px">
+          Your transaction has been refunded.
+        </mj-text>
+
+        <!-- Details Box -->
+        <mj-table>
+          <tr style="background-color: #f0fdf4; border: 1px solid #86efac;">
+            <td style="padding: 20px;">
+              <table width="100%">
+                <tr>
+                  <td colspan="2" style="font-weight: bold; font-size: 16px; padding-bottom: 15px; color: #065f46;">
+                    Transaction Details
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; font-size: 14px; padding: 8px 0;">Amount Refunded</td>
+                  <td style="text-align: right; font-size: 18px; font-weight: bold; color: #059669; padding: 8px 0;">
+                    {{amount}}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; font-size: 14px; padding: 8px 0;">Transaction Date</td>
+                  <td style="text-align: right; font-size: 14px; color: #111827; padding: 8px 0;">
+                    {{date}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </mj-table>
+
+        <mj-text font-size="14px" color="#6b7280" padding-top="20px">
+          The refund will appear on your statement within 5-10 business days.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#f9fafb" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#6b7280" font-size="12px">
+          Questions? Contact us at support@cashoffers.com
+        </mj-text>
+        <mj-text align="center" color="#9ca3af" font-size="11px" padding-top="10px">
+          © 2024 CashOffers. All rights reserved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

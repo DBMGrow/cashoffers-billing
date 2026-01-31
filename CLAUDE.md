@@ -25,6 +25,13 @@ npm test             # Run test suite with Vitest
 npm run codegen      # Generate Kysely types from database schema to src/lib/db.d.ts
 ```
 
+### Email Templates
+```bash
+npm run preview:emails   # Generate HTML previews of all MJML email templates
+```
+
+After generating previews, open `email-previews/index.html` in your browser to view all templates with desktop/mobile toggle.
+
 ## Architecture
 
 ### Core Payment Flow

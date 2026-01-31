@@ -1,6 +1,7 @@
 import sgMail from '@sendgrid/mail'
 import type { IConfig } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
+import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
 import type {
   IEmailService,
   SendEmailRequest,
@@ -10,15 +11,18 @@ import { parseEmailTemplate } from './template-parser'
 
 /**
  * SendGrid Email Service Implementation
- * Handles email sending via SendGrid API
+ * Handles email sending via SendGrid API with MJML template support
  */
 export class SendGridEmailService implements IEmailService {
   constructor(
     private config: IConfig,
-    private logger: ILogger
+    private logger: ILogger,
+    private mjmlCompiler?: IMjmlCompiler
   ) {
     sgMail.setApiKey(config.sendgrid.apiKey)
-    this.logger.debug('SendGrid email service initialized')
+    this.logger.debug('SendGrid email service initialized', {
+      mjmlEnabled: !!mjmlCompiler,
+    })
   }
 
   async sendEmail(request: SendEmailRequest): Promise<void> {
@@ -31,11 +35,15 @@ export class SendGridEmailService implements IEmailService {
         subject: request.subject,
       })
 
-      // Parse template with fields
-      const html = await parseEmailTemplate(request.template, {
-        subject: request.subject,
-        ...request.fields,
-      })
+      // Parse template with fields (MJML or HTML)
+      const html = await parseEmailTemplate(
+        request.template,
+        {
+          subject: request.subject,
+          ...request.fields,
+        },
+        this.mjmlCompiler
+      )
 
       await this.sendPlainEmail({
         to: request.to,
@@ -105,7 +113,8 @@ export class SendGridEmailService implements IEmailService {
  */
 export const createSendGridEmailService = (
   config: IConfig,
-  logger: ILogger
+  logger: ILogger,
+  mjmlCompiler?: IMjmlCompiler
 ): IEmailService => {
-  return new SendGridEmailService(config, logger)
+  return new SendGridEmailService(config, logger, mjmlCompiler)
 }

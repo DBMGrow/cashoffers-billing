@@ -1,0 +1,57 @@
+<mjml>
+  <mj-head>
+    <mj-title>Subscription Downgrade Scheduled</mj-title>
+    <mj-preview>A user has set their subscription to downgrade on renewal</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="1.6" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f3f4f6">
+    <!-- Header -->
+    <mj-section background-color="#1e40af" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="bold">
+          CashOffers
+        </mj-text>
+        <mj-text align="center" color="#93c5fd" font-size="14px">
+          Admin Notification
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Icon -->
+    <mj-section background-color="#ffffff" padding="40px 20px 20px">
+      <mj-column>
+        <mj-text align="center" font-size="48px">
+          ⬇️
+        </mj-text>
+        <mj-text align="center" font-size="24px" font-weight="bold" color="#f59e0b">
+          Subscription Downgrade
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Details -->
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-column>
+        <mj-text font-size="16px" padding-bottom="20px">
+          The user <strong>{{name}}</strong> ({{email}}) has set their subscription to downgrade on renewal.
+        </mj-text>
+
+        <mj-text font-size="14px" color="#6b7280">
+          The downgrade will take effect at the end of the current billing period.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#f9fafb" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#9ca3af" font-size="11px">
+          © 2024 CashOffers. All rights reserved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
