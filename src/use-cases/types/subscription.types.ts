@@ -77,3 +77,95 @@ export interface CancelSubscriptionOutput {
   status: string
   effectiveDate: Date
 }
+
+/**
+ * Input for pausing a subscription
+ */
+export interface PauseSubscriptionInput {
+  subscriptionId: number
+}
+
+/**
+ * Output from pausing a subscription
+ */
+export interface PauseSubscriptionOutput {
+  subscriptionId: number
+  status: string
+}
+
+/**
+ * Input for resuming a subscription
+ */
+export interface ResumeSubscriptionInput {
+  subscriptionId: number
+}
+
+/**
+ * Output from resuming a subscription
+ */
+export interface ResumeSubscriptionOutput {
+  subscriptionId: number
+  status: string
+}
+
+/**
+ * Input for marking subscription for downgrade
+ */
+export interface MarkForDowngradeInput {
+  subscriptionId: number
+  downgrade: boolean // true to mark, false to unmark
+}
+
+/**
+ * Output from marking subscription for downgrade
+ */
+export interface MarkForDowngradeOutput {
+  subscriptionId: number
+  downgradeOnRenewal: boolean
+}
+
+/**
+ * Input for marking subscription for cancellation on renewal
+ */
+export interface CancelOnRenewalInput {
+  subscriptionId: number
+  cancel: boolean // true to mark, false to unmark
+}
+
+/**
+ * Output from marking subscription for cancellation on renewal
+ */
+export interface CancelOnRenewalOutput {
+  subscriptionId: number
+  cancelOnRenewal: boolean
+}
+
+/**
+ * Input for getting subscriptions
+ */
+export interface GetSubscriptionsInput {
+  userId?: number
+  page?: number
+  limit?: number
+}
+
+/**
+ * Output from getting subscriptions
+ */
+export interface GetSubscriptionsOutput {
+  subscriptions: Array<{
+    subscriptionId: number
+    userId: number
+    subscriptionName: string
+    amount: number
+    duration: string
+    status: string
+    renewalDate: Date | null
+    cancelOnRenewal: boolean
+    downgradeOnRenewal: boolean
+    createdAt: Date
+  }>
+  total: number
+  page: number
+  limit: number
+}

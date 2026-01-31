@@ -1,14 +1,7 @@
 import { Hono } from "hono"
 import type { HonoVariables } from "../../types/hono"
 import { authMiddleware } from "../../middleware/hono/authMiddleware"
-import createPayment from "../../utils/createPayment"
-import { Transaction } from "../../database/Transaction"
 import userCan from "../../utils/userCan"
-import { Op } from "sequelize"
-import { client } from "../../config/square"
-import { v4 as uuidv4 } from "uuid"
-import sendEmail from "../../utils/sendEmail"
-import axios from "axios"
 import { getContainer } from "@/container"
 
 const app = new Hono<{ Variables: HonoVariables }>()
@@ -21,36 +14,39 @@ app.get("/:user_id", authMiddleware("payments_read"), async (c) => {
   const { user_id } = c.req.param()
   if (!user_id) throw new Error("user_id is required")
 
-  const order: any = [["createdAt", "DESC"]]
-  const where: any = { type: { [Op.or]: ["payment", "card"] }, user_id }
-
   // Create mock request for userCan compatibility
   const mockReq = { user: c.get("user"), token_owner: c.get("token_owner") }
 
+  // Check if user has read_all permission
   // @ts-ignore
-  if (all && userCan(mockReq, "payments_read_all")) {
-    delete where.user_id
-  }
+  const readAll = all && userCan(mockReq, "payments_read_all")
 
-  const pageNum = Number(page)
-  const limitNum = Number(limit)
+  // Get use case from container
+  const container = getContainer()
+  const getPaymentsUseCase = container.useCases.getPayments
 
-  // @ts-ignore
-  const payments = await Transaction.findAll({
-    where,
-    order,
-    limit: limitNum,
-    offset: (pageNum - 1) * limitNum,
+  // Execute use case
+  const result = await getPaymentsUseCase.execute({
+    userId: readAll ? undefined : Number(user_id),
+    page: Number(page),
+    limit: Number(limit),
+    readAll: readAll ? true : false,
   })
 
-  const total = await Transaction.count({ where })
+  if (!result.success) {
+    return c.json({
+      success: "error",
+      error: result.error,
+      code: result.code
+    }, 400)
+  }
 
   return c.json({
     success: "success",
-    data: payments,
-    page: pageNum,
-    limit: limitNum,
-    total,
+    data: result.data.payments,
+    page: result.data.page,
+    limit: result.data.limit,
+    total: result.data.total,
   })
 })
 
@@ -96,95 +92,40 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
 // Refund payment
 app.post("/refund", authMiddleware("payments_create"), async (c) => {
   const body = await c.req.json()
-  let { user_id, transaction_id } = body
+  const { user_id, transaction_id, email } = body
 
   try {
-    if (!user_id) throw new Error("0001D user_id is required")
-    if (!transaction_id) throw new Error("0001E transaction_id is required")
+    if (!user_id) throw new Error("user_id is required")
+    if (!transaction_id) throw new Error("transaction_id is required")
 
-    const transaction = await Transaction.findOne({
-      where: { type: "payment", square_transaction_id: transaction_id },
-    })
-    if (!transaction) throw new Error("0001F transaction not found")
+    // Get use case from container
+    const container = getContainer()
+    const refundPaymentUseCase = container.useCases.refundPayment
 
-    const { amount, db_transaction_id } = transaction.dataValues
-
-    const response = await client.refundsApi.refundPayment({
-      idempotencyKey: uuidv4(),
-      paymentId: transaction_id,
-      amountMoney: {
-        amount,
-        currency: "USD",
-      },
-      unlinked: false,
+    // Execute use case
+    const result = await refundPaymentUseCase.execute({
+      userId: Number(user_id),
+      squareTransactionId: transaction_id,
+      email: email || c.get("user")?.email,
     })
 
-    const status = response?.result?.refund?.status
-    if (status !== "COMPLETED" && status !== "PENDING") {
-      throw new Error("0001G refund failed")
-    }
-
-    // Log refund and send email
-    try {
-      const refundedUser = await axios.get(
-        `${process.env.API_URL}/users/${user_id}`,
-        {
-          headers: {
-            "x-api-token": process.env.API_MASTER_TOKEN,
-          },
-        }
-      )
-      const email = refundedUser?.data?.data?.email
-
-      Transaction.create({
-        user_id,
-        amount,
-        type: "refund",
-        memo: "Refund completed",
-        status: "completed",
-        data: JSON.stringify(response),
-        db_transaction_id,
-      })
-
-      // Update the original transaction to refunded
-      transaction.update({ status: "refunded" })
-
-      await sendEmail({
-        to: email,
-        subject: "Payment Refunded",
-        text: `Payment of $${amount / 100} was refunded`,
-        template: "refund.html",
-        fields: {
-          amount: `$${(amount / 100).toFixed(2)}`,
-          date: new Date().toLocaleDateString(),
-        },
-      })
-
-      return c.json({ success: "success", data: response })
-    } catch (error: any) {
-      await sendEmail({
-        to: process.env.ADMIN_EMAIL!,
-        subject: "Payment Refund Logging Error",
-        text: `There was an error logging a refund: ${error.message}`,
-      })
-
+    if (!result.success) {
       return c.json({
-        success: "success",
-        data: response,
-        warning: "Refund completed, but failed to log",
-      })
+        success: "error",
+        error: result.error,
+        code: result.code
+      }, 400)
     }
-  } catch (error: any) {
-    Transaction.create({
-      user_id,
-      amount: 0,
-      type: "refund",
-      memo: "Refund failed",
-      status: "failed",
-      data: JSON.stringify(error),
-    })
 
-    return c.json({ success: "error", error: error.message })
+    return c.json({
+      success: "success",
+      data: result.data
+    })
+  } catch (error: any) {
+    return c.json({
+      success: "error",
+      error: error.message || 'Refund failed'
+    }, 500)
   }
 })
 

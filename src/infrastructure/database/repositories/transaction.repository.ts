@@ -90,14 +90,12 @@ export class TransactionRepository implements ITransactionRepository {
 
   async findBySquareTransactionId(
     squareTransactionId: string
-  ): Promise<Selectable<Transactions> | null> {
-    const result = await this.db
+  ): Promise<Selectable<Transactions>[]> {
+    return await this.db
       .selectFrom('Transactions')
       .where('square_transaction_id', '=', squareTransactionId)
       .selectAll()
-      .executeTakeFirst()
-
-    return result || null
+      .execute()
   }
 
   async findByUserId(userId: number): Promise<Selectable<Transactions>[]> {
@@ -134,6 +132,54 @@ export class TransactionRepository implements ITransactionRepository {
       .executeTakeFirst()
 
     return result?.total ? BigInt(result.total) : BigInt(0)
+  }
+
+  async findByType(
+    types: string[],
+    options?: {
+      userId?: number
+      limit?: number
+      offset?: number
+    }
+  ): Promise<Selectable<Transactions>[]> {
+    let query = this.db
+      .selectFrom('Transactions')
+      .where('type', 'in', types)
+      .selectAll()
+      .orderBy('createdAt', 'desc')
+
+    if (options?.userId !== undefined) {
+      query = query.where('user_id', '=', options.userId)
+    }
+
+    if (options?.limit !== undefined) {
+      query = query.limit(options.limit)
+    }
+
+    if (options?.offset !== undefined) {
+      query = query.offset(options.offset)
+    }
+
+    return await query.execute()
+  }
+
+  async countByType(
+    types: string[],
+    options?: {
+      userId?: number
+    }
+  ): Promise<number> {
+    let query = this.db
+      .selectFrom('Transactions')
+      .where('type', 'in', types)
+      .select(({ fn }) => [fn.countAll<string>().as('count')])
+
+    if (options?.userId !== undefined) {
+      query = query.where('user_id', '=', options.userId)
+    }
+
+    const result = await query.executeTakeFirst()
+    return result?.count ? Number(result.count) : 0
   }
 }
 

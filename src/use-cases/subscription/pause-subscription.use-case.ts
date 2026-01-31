@@ -1,0 +1,121 @@
+import { ILogger } from "@/infrastructure/logging/logger.interface"
+import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
+import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
+import { IEmailService } from "@/infrastructure/email/email-service.interface"
+import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
+import { IPauseSubscriptionUseCase } from "./pause-subscription.use-case.interface"
+import { PauseSubscriptionInput, PauseSubscriptionOutput } from "../types/subscription.types"
+import { UseCaseResult, success, failure } from "../base/use-case.interface"
+import { PauseSubscriptionInputSchema } from "../types/validation.schemas"
+
+interface Dependencies {
+  logger: ILogger
+  subscriptionRepository: ISubscriptionRepository
+  transactionRepository: ITransactionRepository
+  emailService: IEmailService
+  userApiClient: IUserApiClient
+}
+
+/**
+ * PauseSubscriptionUseCase
+ *
+ * Pauses (suspends) a subscription with:
+ * - Input validation
+ * - Subscription lookup and validation
+ * - Status update to "suspended"
+ * - Transaction logging
+ * - Email notification
+ */
+export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
+  constructor(private readonly deps: Dependencies) {}
+
+  async execute(input: PauseSubscriptionInput): Promise<UseCaseResult<PauseSubscriptionOutput>> {
+    const { logger, subscriptionRepository, transactionRepository, emailService, userApiClient } = this.deps
+    const startTime = Date.now()
+
+    try {
+      // Validate input
+      const validationResult = PauseSubscriptionInputSchema.safeParse(input)
+      if (!validationResult.success) {
+        const errors = validationResult.error.issues.map((issue) => issue.message).join(", ")
+        logger.error("Pause subscription validation failed", { errors, input })
+        return failure(errors, "PAUSE_VALIDATION_ERROR")
+      }
+
+      const validatedInput = validationResult.data
+      logger.info("Pausing subscription", { subscriptionId: validatedInput.subscriptionId })
+
+      // Find subscription
+      const subscription = await subscriptionRepository.findById(validatedInput.subscriptionId)
+      if (!subscription) {
+        logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
+        return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
+      }
+
+      // Check if subscription can be paused
+      if (subscription.status !== "active") {
+        logger.warn("Cannot pause non-active subscription", {
+          subscriptionId: validatedInput.subscriptionId,
+          status: subscription.status,
+        })
+        return failure("Only active subscriptions can be paused", "INVALID_STATUS")
+      }
+
+      // Update subscription status
+      const now = new Date()
+      const updated = await subscriptionRepository.update(validatedInput.subscriptionId, {
+        status: "suspended",
+        updatedAt: now,
+      })
+
+      // Log transaction
+      await transactionRepository.create({
+        user_id: subscription.user_id,
+        amount: 0,
+        type: "subscription",
+        memo: "Subscription paused",
+        status: "completed",
+        data: JSON.stringify({ subscriptionId: validatedInput.subscriptionId }),
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      // Send email notification
+      try {
+        const user = await userApiClient.getUser(subscription.user_id)
+        if (user?.email) {
+          await emailService.sendEmail({
+            to: user.email,
+            subject: "Subscription Paused",
+            template: "subscriptionPaused.html",
+            fields: {
+              subscriptionName: subscription.subscription_name,
+              date: new Date().toLocaleDateString(),
+            },
+          })
+        }
+      } catch (emailError) {
+        // Don't fail if email fails
+        logger.warn("Failed to send pause email", { error: emailError })
+      }
+
+      logger.info("Subscription paused successfully", {
+        subscriptionId: validatedInput.subscriptionId,
+        duration: Date.now() - startTime,
+      })
+
+      return success({
+        subscriptionId: updated.subscription_id,
+        status: updated.status || "suspended",
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      logger.error("Pause subscription error", {
+        error: errorMessage,
+        duration: Date.now() - startTime,
+      })
+
+      return failure(errorMessage, "PAUSE_SUBSCRIPTION_ERROR")
+    }
+  }
+}

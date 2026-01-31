@@ -8,9 +8,9 @@ import type { Transactions } from '@/lib/db'
  */
 export interface ITransactionRepository extends IRepository<Transactions> {
   /**
-   * Find transaction by Square transaction ID
+   * Find transactions by Square transaction ID (returns array for consistency)
    */
-  findBySquareTransactionId(squareTransactionId: string): Promise<Selectable<Transactions> | null>
+  findBySquareTransactionId(squareTransactionId: string): Promise<Selectable<Transactions>[]>
 
   /**
    * Find all transactions for a user
@@ -31,4 +31,26 @@ export interface ITransactionRepository extends IRepository<Transactions> {
    * Get total transaction amount for a user
    */
   getTotalAmountByUserId(userId: number): Promise<bigint>
+
+  /**
+   * Find transactions by type with pagination
+   */
+  findByType(
+    types: string[],
+    options?: {
+      userId?: number
+      limit?: number
+      offset?: number
+    }
+  ): Promise<Selectable<Transactions>[]>
+
+  /**
+   * Count transactions by type
+   */
+  countByType(
+    types: string[],
+    options?: {
+      userId?: number
+    }
+  ): Promise<number>
 }

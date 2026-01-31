@@ -18,8 +18,15 @@ import { createMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler'
 import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/sendgrid.service'
 import { createUserApiClient } from '@/infrastructure/external-api/user-api/user-api.client'
 import { CreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case'
+import { RefundPaymentUseCase } from '@/use-cases/payment/refund-payment.use-case'
+import { GetPaymentsUseCase } from '@/use-cases/payment/get-payments.use-case'
 import { CreateSubscriptionUseCase } from '@/use-cases/subscription/create-subscription.use-case'
 import { RenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case'
+import { PauseSubscriptionUseCase } from '@/use-cases/subscription/pause-subscription.use-case'
+import { ResumeSubscriptionUseCase } from '@/use-cases/subscription/resume-subscription.use-case'
+import { CancelOnRenewalUseCase } from '@/use-cases/subscription/cancel-on-renewal.use-case'
+import { MarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downgrade.use-case'
+import { GetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case'
 import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionManager } from '@/infrastructure/database/transaction/transaction-manager.interface'
@@ -33,8 +40,15 @@ import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.in
 import type { IEmailService } from '@/infrastructure/email/email-service.interface'
 import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
 import type { ICreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case.interface'
+import type { IRefundPaymentUseCase } from '@/use-cases/payment/refund-payment.use-case.interface'
+import type { IGetPaymentsUseCase } from '@/use-cases/payment/get-payments.use-case.interface'
 import type { ICreateSubscriptionUseCase } from '@/use-cases/subscription/create-subscription.use-case.interface'
 import type { IRenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case.interface'
+import type { IPauseSubscriptionUseCase } from '@/use-cases/subscription/pause-subscription.use-case.interface'
+import type { IResumeSubscriptionUseCase } from '@/use-cases/subscription/resume-subscription.use-case.interface'
+import type { ICancelOnRenewalUseCase } from '@/use-cases/subscription/cancel-on-renewal.use-case.interface'
+import type { IMarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downgrade.use-case.interface'
+import type { IGetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case.interface'
 
 /**
  * Application container
@@ -59,9 +73,18 @@ export interface IContainer {
     userApi: IUserApiClient
   }
   useCases: {
+    // Payment use cases
     createPayment: ICreatePaymentUseCase
+    refundPayment: IRefundPaymentUseCase
+    getPayments: IGetPaymentsUseCase
+    // Subscription use cases
     createSubscription: ICreateSubscriptionUseCase
     renewSubscription: IRenewSubscriptionUseCase
+    pauseSubscription: IPauseSubscriptionUseCase
+    resumeSubscription: IResumeSubscriptionUseCase
+    cancelOnRenewal: ICancelOnRenewalUseCase
+    markForDowngrade: IMarkForDowngradeUseCase
+    getSubscriptions: IGetSubscriptionsUseCase
   }
 }
 
@@ -121,6 +144,7 @@ export const createContainer = (): IContainer => {
 
   // Create use cases
   const useCases = {
+    // Payment use cases
     createPayment: new CreatePaymentUseCase({
       logger,
       paymentProvider: services.payment,
@@ -129,6 +153,19 @@ export const createContainer = (): IContainer => {
       transactionRepository: repositories.transaction,
       config: configService,
     }),
+    refundPayment: new RefundPaymentUseCase({
+      logger,
+      paymentProvider: services.payment,
+      emailService: services.email,
+      transactionRepository: repositories.transaction,
+      userApiClient: services.userApi,
+      config: configService,
+    }),
+    getPayments: new GetPaymentsUseCase({
+      logger,
+      transactionRepository: repositories.transaction,
+    }),
+    // Subscription use cases
     createSubscription: new CreateSubscriptionUseCase({
       logger,
       paymentProvider: services.payment,
@@ -148,6 +185,34 @@ export const createContainer = (): IContainer => {
       userCardRepository: repositories.userCard,
       config: configService,
       transactionManager,
+    }),
+    pauseSubscription: new PauseSubscriptionUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
+      transactionRepository: repositories.transaction,
+      emailService: services.email,
+      userApiClient: services.userApi,
+    }),
+    resumeSubscription: new ResumeSubscriptionUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
+      transactionRepository: repositories.transaction,
+    }),
+    cancelOnRenewal: new CancelOnRenewalUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
+      emailService: services.email,
+      userApiClient: services.userApi,
+    }),
+    markForDowngrade: new MarkForDowngradeUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
+      emailService: services.email,
+      userApiClient: services.userApi,
+    }),
+    getSubscriptions: new GetSubscriptionsUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
     }),
   }
 

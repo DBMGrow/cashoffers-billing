@@ -50,3 +50,51 @@ export interface CreateCardOutput {
   expMonth: number
   expYear: number
 }
+
+/**
+ * Input for refunding a payment
+ */
+export interface RefundPaymentInput {
+  userId: number
+  squareTransactionId: string
+  email?: string // Optional, will fetch from user API if not provided
+}
+
+/**
+ * Output from refunding a payment
+ */
+export interface RefundPaymentOutput {
+  refundId: string
+  amount: number
+  status: "completed" | "pending"
+  originalTransactionId: string
+}
+
+/**
+ * Input for getting payments
+ */
+export interface GetPaymentsInput {
+  userId?: number // Optional - if not provided and readAll permission, gets all
+  page?: number
+  limit?: number
+  readAll?: boolean // Whether user has read_all permission
+}
+
+/**
+ * Output from getting payments
+ */
+export interface GetPaymentsOutput {
+  payments: Array<{
+    id: number
+    userId: number
+    amount: number
+    type: string
+    memo: string
+    status: string
+    createdAt: Date
+    squareTransactionId?: string
+  }>
+  total: number
+  page: number
+  limit: number
+}

@@ -1,12 +1,6 @@
 import { Hono } from "hono"
 import type { HonoVariables } from "../../types/hono"
 import { authMiddleware } from "../../middleware/hono/authMiddleware"
-import { Subscription } from "../../database/Subscription"
-import { UserCard } from "../../database/UserCard"
-import { Transaction } from "../../database/Transaction"
-import toggleSubscription from "../../utils/toggleSubscription"
-import sendEmail from "@/utils/sendEmail"
-import axios from "axios"
 import { getContainer } from "@/container"
 
 const app = new Hono<{ Variables: HonoVariables }>()
@@ -17,22 +11,24 @@ app.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async (c)
   const { page = "1", limit = "20" } = query
 
   try {
-    const pageNum = Number(page)
-    const limitNum = Number(limit)
+    const container = getContainer()
+    const getSubscriptionsUseCase = container.useCases.getSubscriptions
 
-    const subscriptions = await Subscription.findAll({
-      order: [["createdAt", "DESC"]],
-      limit: limitNum,
-      offset: (pageNum - 1) * limitNum,
+    const result = await getSubscriptionsUseCase.execute({
+      page: Number(page),
+      limit: Number(limit),
     })
-    const total = await Subscription.count()
+
+    if (!result.success) {
+      return c.json({ success: "error", error: result.error }, 400)
+    }
 
     return c.json({
       success: "success",
-      data: subscriptions,
-      page: pageNum,
-      limit: limitNum,
-      total,
+      data: result.data.subscriptions,
+      page: result.data.page,
+      limit: result.data.limit,
+      total: result.data.total,
     })
   } catch (error: any) {
     return c.json({ success: "error", error: error.message })
@@ -45,8 +41,20 @@ app.get("/single", authMiddleware(null, { allowSelf: true }), async (c) => {
   const { user_id } = user
 
   try {
-    const subscription = await Subscription.findOne({ where: { user_id } })
-    return c.json({ success: "success", data: [subscription] })
+    const container = getContainer()
+    const getSubscriptionsUseCase = container.useCases.getSubscriptions
+
+    const result = await getSubscriptionsUseCase.execute({
+      userId: user_id,
+      page: 1,
+      limit: 1,
+    })
+
+    if (!result.success) {
+      return c.json({ success: "error", error: result.error }, 400)
+    }
+
+    return c.json({ success: "success", data: result.data.subscriptions })
   } catch (error: any) {
     return c.json({ success: "error", error: error.message })
   }
@@ -59,42 +67,52 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
 
   try {
     if (!user_id) throw new Error("user_id is required")
-    if (!subscription_name) throw new Error("subscription_name is required")
-    if (!amount) throw new Error("amount is required")
-    if (!duration) throw new Error("duration is required")
 
-    // Check if user has a card
-    const userCard = await UserCard.findOne({ where: { user_id } })
-    if (!userCard) throw new Error("User does not have a card on file")
+    const container = getContainer()
+    const getSubscriptionsUseCase = container.useCases.getSubscriptions
+    const createSubscriptionUseCase = container.useCases.createSubscription
 
     // Check if subscription exists
-    const existingSubscription = await Subscription.findOne({ where: { user_id } })
+    const existingResult = await getSubscriptionsUseCase.execute({
+      userId: user_id,
+    })
+
+    const existingSubscription =
+      existingResult.success && existingResult.data.subscriptions.length > 0
+        ? existingResult.data.subscriptions[0]
+        : null
 
     if (existingSubscription) {
-      // Update existing subscription (keep old implementation for now)
-      await existingSubscription.update({
-        subscription_name,
-        amount,
-        duration,
+      // Update existing subscription (keep direct update for now as UpdateSubscriptionUseCase is not fully implemented)
+      const subscriptionRepository = container.repositories.subscription
+      const transactionRepository = container.repositories.transaction
+
+      const updates: any = {}
+      if (subscription_name) updates.subscription_name = subscription_name
+      if (amount) updates.amount = amount
+      if (duration) updates.duration = duration
+
+      await subscriptionRepository.update(existingSubscription.subscriptionId, {
+        ...updates,
+        updatedAt: new Date(),
       })
 
-      await Transaction.create({
+      const now = new Date()
+      await transactionRepository.create({
         user_id,
         amount: 0,
         type: "subscription",
         memo: subscription_name + " updated",
-        data: JSON.stringify({ subscription_name, amount, duration }),
+        data: JSON.stringify(updates),
+        createdAt: now,
+        updatedAt: now,
       })
 
       return c.json({ success: "success", data: existingSubscription })
     } else {
       // Create new subscription using use case
-      const container = getContainer()
-      const createSubscriptionUseCase = container.useCases.createSubscription
-
-      // Get user email
       const user = c.get("user")
-      const email = user?.email || body.email || ''
+      const email = user?.email || body.email || ""
 
       const result = await createSubscriptionUseCase.execute({
         userId: user_id,
@@ -108,19 +126,25 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
         return c.json({
           success: "error",
           error: result.error,
-          code: result.code
+          code: result.code,
         }, 400)
       }
 
       return c.json({ success: "success", data: result.data })
     }
   } catch (error: any) {
-    await Transaction.create({
-      user_id: body.user_id,
+    const container = getContainer()
+    const transactionRepository = container.repositories.transaction
+
+    const now = new Date()
+    await transactionRepository.create({
+      user_id: body.user_id || 0,
       amount: 0,
       type: "subscription",
       memo: "subscription operation failed",
       data: error.message,
+      createdAt: now,
+      updatedAt: now,
     })
     return c.json({ success: "error", error: error.message, body })
   }
@@ -132,30 +156,54 @@ app.put("/", authMiddleware("payments_create"), async (c) => {
   const { user_id, subscription_name, amount, duration, status } = body
 
   try {
+    const container = getContainer()
+    const subscriptionRepository = container.repositories.subscription
+    const transactionRepository = container.repositories.transaction
+
+    // Find user's subscription
+    const subscriptions = await subscriptionRepository.findByUserId(user_id)
+    if (subscriptions.length === 0) {
+      throw new Error("No subscription found for user")
+    }
+
+    const subscription = subscriptions[0]
+
     const updateBody: any = {}
     if (subscription_name) updateBody.subscription_name = subscription_name
     if (amount) updateBody.amount = amount
     if (duration) updateBody.duration = duration
     if (status) updateBody.status = status
 
-    await Subscription.update(updateBody, { where: { user_id } })
+    await subscriptionRepository.update(subscription.subscription_id, {
+      ...updateBody,
+      updatedAt: new Date(),
+    })
 
-    await Transaction.create({
+    const now = new Date()
+    await transactionRepository.create({
       user_id,
       amount: 0,
       type: "subscription",
       memo: subscription_name + " updated",
       data: JSON.stringify(updateBody),
+      createdAt: now,
+      updatedAt: now,
     })
 
     return c.json({ success: "success", data: updateBody })
   } catch (error: any) {
-    await Transaction.create({
+    const container = getContainer()
+    const transactionRepository = container.repositories.transaction
+
+    const now = new Date()
+    await transactionRepository.create({
       user_id,
       amount: 0,
       type: "subscription",
-      memo: subscription_name + " failed to update",
+      memo: body.subscription_name + " failed to update",
       data: error.message,
+      createdAt: now,
+      updatedAt: now,
     })
     return c.json({ success: "error", error: error.message, body })
   }
@@ -169,7 +217,21 @@ app.delete("/", authMiddleware("payments_delete"), async (c) => {
   try {
     if (!user_id) throw new Error("user_id is required")
 
-    await Subscription.update({ status: "inactive" }, { where: { user_id } })
+    const container = getContainer()
+    const subscriptionRepository = container.repositories.subscription
+
+    // Find user's subscription
+    const subscriptions = await subscriptionRepository.findByUserId(user_id)
+    if (subscriptions.length === 0) {
+      throw new Error("No subscription found for user")
+    }
+
+    const subscription = subscriptions[0]
+
+    await subscriptionRepository.update(subscription.subscription_id, {
+      status: "inactive",
+      updatedAt: new Date(),
+    })
 
     return c.json({ success: "success", data: { user_id, status: "inactive" } })
   } catch (error: any) {
@@ -187,11 +249,18 @@ app.post(
     try {
       if (!subscription_id) throw new Error("subscription_id is required")
 
-      // Create mock request for toggleSubscription compatibility
-      const mockReq = { params: { subscription_id } }
-      const result = await toggleSubscription(mockReq as any, "pause")
+      const container = getContainer()
+      const pauseSubscriptionUseCase = container.useCases.pauseSubscription
 
-      return c.json(result)
+      const result = await pauseSubscriptionUseCase.execute({
+        subscriptionId: Number(subscription_id),
+      })
+
+      if (!result.success) {
+        return c.json({ success: "error", error: result.error }, 400)
+      }
+
+      return c.json({ success: "success", data: result.data })
     } catch (error: any) {
       return c.json({ success: "error", error: error.message })
     }
@@ -208,9 +277,18 @@ app.post(
     try {
       if (!subscription_id) throw new Error("subscription_id is required")
 
-      await Subscription.update({ status: "active" }, { where: { subscription_id } })
+      const container = getContainer()
+      const resumeSubscriptionUseCase = container.useCases.resumeSubscription
 
-      return c.json({ success: "success", data: { subscription_id, status: "active" } })
+      const result = await resumeSubscriptionUseCase.execute({
+        subscriptionId: Number(subscription_id),
+      })
+
+      if (!result.success) {
+        return c.json({ success: "error", error: result.error }, 400)
+      }
+
+      return c.json({ success: "success", data: result.data })
     } catch (error: any) {
       return c.json({ success: "error", error: error.message })
     }
@@ -224,7 +302,10 @@ app.post("/cancel/:subscription_id", async (c) => {
   try {
     if (!subscription_id) throw new Error("subscription_id is required")
 
-    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    const container = getContainer()
+    const subscriptionRepository = container.repositories.subscription
+    const subscription = await subscriptionRepository.findById(Number(subscription_id))
+
     if (!subscription) throw new Error("Subscription not found")
 
     // Custom auth: check if user owns subscription or has payments_create permission
@@ -232,34 +313,25 @@ app.post("/cancel/:subscription_id", async (c) => {
     const tokenOwner = c.get("token_owner")
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
-    const isOwner = user?.user_id === subscription.dataValues.user_id
+    const isOwner = user?.user_id === subscription.user_id
     const hasPermission = tokenOwnerCaps.includes("payments_create")
 
     if (!isOwner && !hasPermission) {
       return c.json({ success: "error", error: "Unauthorized" })
     }
 
-    await subscription.update({ cancel_on_renewal: true })
+    const cancelOnRenewalUseCase = container.useCases.cancelOnRenewal
 
-    // Send email notification (async, don't wait)
-    const userResponse = await axios.get(
-      `${process.env.API_URL}/users/${subscription.dataValues.user_id}`,
-      {
-        headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-      }
-    )
+    const result = await cancelOnRenewalUseCase.execute({
+      subscriptionId: Number(subscription_id),
+      cancel: true,
+    })
 
-    sendEmail({
-      to: "annette@remrktco.com",
-      subject: "User Subscription Cancellation",
-      template: "subscriptionCancelled.html",
-      fields: {
-        name: userResponse.data?.data?.name || "Unknown",
-        email: userResponse.data?.data?.email || "Unknown",
-      },
-    }).catch((err) => console.error("Email send error:", err))
+    if (!result.success) {
+      return c.json({ success: "error", error: result.error }, 400)
+    }
 
-    return c.json({ success: "success", data: subscription })
+    return c.json({ success: "success", data: result.data })
   } catch (error: any) {
     return c.json({ success: "error", error: error.message })
   }
@@ -272,24 +344,36 @@ app.post("/uncancel/:subscription_id", async (c) => {
   try {
     if (!subscription_id) throw new Error("subscription_id is required")
 
-    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    const container = getContainer()
+    const subscriptionRepository = container.repositories.subscription
+    const subscription = await subscriptionRepository.findById(Number(subscription_id))
+
     if (!subscription) throw new Error("Subscription not found")
 
-    // Same auth check as cancel
+    // Custom auth: check if user owns subscription or has payments_create permission
     const user = c.get("user")
     const tokenOwner = c.get("token_owner")
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
-    const isOwner = user?.user_id === subscription.dataValues.user_id
+    const isOwner = user?.user_id === subscription.user_id
     const hasPermission = tokenOwnerCaps.includes("payments_create")
 
     if (!isOwner && !hasPermission) {
       return c.json({ success: "error", error: "Unauthorized" })
     }
 
-    await subscription.update({ cancel_on_renewal: false })
+    const cancelOnRenewalUseCase = container.useCases.cancelOnRenewal
 
-    return c.json({ success: "success", data: subscription })
+    const result = await cancelOnRenewalUseCase.execute({
+      subscriptionId: Number(subscription_id),
+      cancel: false,
+    })
+
+    if (!result.success) {
+      return c.json({ success: "error", error: result.error }, 400)
+    }
+
+    return c.json({ success: "success", data: result.data })
   } catch (error: any) {
     return c.json({ success: "error", error: error.message })
   }
@@ -302,42 +386,36 @@ app.post("/downgrade/:subscription_id", async (c) => {
   try {
     if (!subscription_id) throw new Error("subscription_id is required")
 
-    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    const container = getContainer()
+    const subscriptionRepository = container.repositories.subscription
+    const subscription = await subscriptionRepository.findById(Number(subscription_id))
+
     if (!subscription) throw new Error("Subscription not found")
 
-    // Custom auth check
+    // Custom auth: check if user owns subscription or has payments_create permission
     const user = c.get("user")
     const tokenOwner = c.get("token_owner")
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
-    const isOwner = user?.user_id === subscription.dataValues.user_id
+    const isOwner = user?.user_id === subscription.user_id
     const hasPermission = tokenOwnerCaps.includes("payments_create")
 
     if (!isOwner && !hasPermission) {
       return c.json({ success: "error", error: "Unauthorized" })
     }
 
-    await subscription.update({ downgrade_on_renewal: true })
+    const markForDowngradeUseCase = container.useCases.markForDowngrade
 
-    // Send email notification
-    const userResponse = await axios.get(
-      `${process.env.API_URL}/users/${subscription.dataValues.user_id}`,
-      {
-        headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-      }
-    )
+    const result = await markForDowngradeUseCase.execute({
+      subscriptionId: Number(subscription_id),
+      downgrade: true,
+    })
 
-    sendEmail({
-      to: "annette@remrktco.com",
-      subject: "User Subscription Downgrade",
-      template: "subscriptionDowngraded.html",
-      fields: {
-        name: userResponse.data?.data?.name || "Unknown",
-        email: userResponse.data?.data?.email || "Unknown",
-      },
-    }).catch((err) => console.error("Email send error:", err))
+    if (!result.success) {
+      return c.json({ success: "error", error: result.error }, 400)
+    }
 
-    return c.json({ success: "success", data: subscription })
+    return c.json({ success: "success", data: result.data })
   } catch (error: any) {
     return c.json({ success: "error", error: error.message })
   }
@@ -350,24 +428,36 @@ app.post("/undowngrade/:subscription_id", async (c) => {
   try {
     if (!subscription_id) throw new Error("subscription_id is required")
 
-    const subscription = await Subscription.findOne({ where: { subscription_id } })
+    const container = getContainer()
+    const subscriptionRepository = container.repositories.subscription
+    const subscription = await subscriptionRepository.findById(Number(subscription_id))
+
     if (!subscription) throw new Error("Subscription not found")
 
-    // Same auth check
+    // Custom auth: check if user owns subscription or has payments_create permission
     const user = c.get("user")
     const tokenOwner = c.get("token_owner")
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
-    const isOwner = user?.user_id === subscription.dataValues.user_id
+    const isOwner = user?.user_id === subscription.user_id
     const hasPermission = tokenOwnerCaps.includes("payments_create")
 
     if (!isOwner && !hasPermission) {
       return c.json({ success: "error", error: "Unauthorized" })
     }
 
-    await subscription.update({ downgrade_on_renewal: false })
+    const markForDowngradeUseCase = container.useCases.markForDowngrade
 
-    return c.json({ success: "success", data: subscription })
+    const result = await markForDowngradeUseCase.execute({
+      subscriptionId: Number(subscription_id),
+      downgrade: false,
+    })
+
+    if (!result.success) {
+      return c.json({ success: "error", error: result.error }, 400)
+    }
+
+    return c.json({ success: "success", data: result.data })
   } catch (error: any) {
     return c.json({ success: "error", error: error.message })
   }
