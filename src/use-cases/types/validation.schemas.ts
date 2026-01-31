@@ -133,3 +133,27 @@ export const CancelOnRenewalInputSchema = z.object({
 })
 
 export type CancelOnRenewalInputValidated = z.infer<typeof CancelOnRenewalInputSchema>
+
+/**
+ * Purchase subscription validation schema
+ */
+export const PurchaseSubscriptionInputSchema = z.object({
+  productId: z.union([z.number(), z.string().transform((val) => {
+    const num = parseInt(val, 10)
+    return isNaN(num) ? val : num
+  })]),
+  email: z.string().email({ message: "Invalid email address" }),
+  cardToken: z.string().optional(),
+  expMonth: z.number().int().min(1).max(12).optional(),
+  expYear: z.number().int().optional(),
+  cardholderName: z.string().optional(),
+  apiToken: z.string().optional(),
+  phone: z.string().optional(),
+  whitelabel: z.string().optional(),
+  slug: z.string().optional(),
+  url: z.string().optional(),
+  isInvestor: z.boolean().optional(),
+  coupon: z.string().optional(),
+})
+
+export type PurchaseSubscriptionInputValidated = z.infer<typeof PurchaseSubscriptionInputSchema>

@@ -169,3 +169,44 @@ export interface GetSubscriptionsOutput {
   page: number
   limit: number
 }
+
+/**
+ * Input for purchasing a subscription (comprehensive flow)
+ */
+export interface PurchaseSubscriptionInput {
+  // Product & User Info
+  productId: string | number
+  email: string
+
+  // Card Info (optional for existing users with cards)
+  cardToken?: string
+  expMonth?: number
+  expYear?: number
+  cardholderName?: string
+
+  // Existing User Auth
+  apiToken?: string
+
+  // New User Info
+  phone?: string
+  whitelabel?: string
+  slug?: string
+  url?: string
+  isInvestor?: boolean
+
+  // Optional
+  coupon?: string
+}
+
+/**
+ * Output from purchasing a subscription
+ */
+export interface PurchaseSubscriptionOutput {
+  subscriptionId: number
+  userId: number
+  cardId: string
+  productId: string | number
+  amount: number
+  proratedCharge?: number
+  userCreated: boolean
+}

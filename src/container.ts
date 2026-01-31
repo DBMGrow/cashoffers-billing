@@ -27,6 +27,7 @@ import { ResumeSubscriptionUseCase } from '@/use-cases/subscription/resume-subsc
 import { CancelOnRenewalUseCase } from '@/use-cases/subscription/cancel-on-renewal.use-case'
 import { MarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downgrade.use-case'
 import { GetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case'
+import { PurchaseSubscriptionUseCase } from '@/use-cases/subscription/purchase-subscription.use-case'
 import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionManager } from '@/infrastructure/database/transaction/transaction-manager.interface'
@@ -49,6 +50,7 @@ import type { IResumeSubscriptionUseCase } from '@/use-cases/subscription/resume
 import type { ICancelOnRenewalUseCase } from '@/use-cases/subscription/cancel-on-renewal.use-case.interface'
 import type { IMarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downgrade.use-case.interface'
 import type { IGetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case.interface'
+import type { IPurchaseSubscriptionUseCase } from '@/use-cases/subscription/purchase-subscription.use-case.interface'
 
 /**
  * Application container
@@ -85,6 +87,7 @@ export interface IContainer {
     cancelOnRenewal: ICancelOnRenewalUseCase
     markForDowngrade: IMarkForDowngradeUseCase
     getSubscriptions: IGetSubscriptionsUseCase
+    purchaseSubscription: IPurchaseSubscriptionUseCase
   }
 }
 
@@ -213,6 +216,16 @@ export const createContainer = (): IContainer => {
     getSubscriptions: new GetSubscriptionsUseCase({
       logger,
       subscriptionRepository: repositories.subscription,
+    }),
+    purchaseSubscription: new PurchaseSubscriptionUseCase({
+      logger,
+      paymentProvider: services.payment,
+      emailService: services.email,
+      userApiClient: services.userApi,
+      productRepository: repositories.product,
+      subscriptionRepository: repositories.subscription,
+      userCardRepository: repositories.userCard,
+      transactionRepository: repositories.transaction,
     }),
   }
 
