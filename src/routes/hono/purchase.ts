@@ -2,6 +2,7 @@ import { Hono } from "hono"
 import type { HonoVariables } from "../../types/hono"
 import { authMiddleware } from "../../middleware/hono/authMiddleware"
 import { getContainer } from "@/container"
+import { executeUseCase } from "./helpers/use-case-handler"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
@@ -24,13 +25,11 @@ app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) 
     isInvestor,
   } = body
 
-  try {
-    // Get use case from container
-    const container = getContainer()
-    const purchaseSubscriptionUseCase = container.useCases.purchaseSubscription
+  const container = getContainer()
 
-    // Execute use case
-    const result = await purchaseSubscriptionUseCase.execute({
+  // Execute use case with clean error handling
+  const result = await executeUseCase(c, async () => {
+    return container.useCases.purchaseSubscription.execute({
       productId: product_id,
       email,
       cardToken: card_token,
@@ -45,51 +44,40 @@ app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) 
       isInvestor,
       coupon,
     })
+  })
 
-    if (!result.success) {
-      return c.json({
-        success: "error",
-        error: result.error,
-        code: result.code,
-      }, 400)
-    }
+  // If the use case succeeded, enhance the response with additional data
+  if (result && typeof result === "object" && "success" in result && result.success === "success") {
+    const data = (result as any).data
 
-    // Get product details for response
-    const productRepository = container.repositories.product
-    const product = await productRepository.findById(
-      typeof product_id === "number" ? product_id : parseInt(product_id, 10)
-    )
-
-    // Get user and card for response
-    const userApiClient = container.services.userApi
-    const user = await userApiClient.getUser(result.data.userId)
-
-    const userCardRepository = container.repositories.userCard
-    const userCards = await userCardRepository.findByUserId(result.data.userId)
-    const userCard = userCards.length > 0 ? userCards[0] : null
+    // Fetch additional data for response
+    const [product, user, userCards] = await Promise.all([
+      container.repositories.product.findById(
+        typeof product_id === "number" ? product_id : parseInt(product_id, 10)
+      ),
+      container.services.userApi.getUser(data.userId),
+      container.repositories.userCard.findByUserId(data.userId),
+    ])
 
     return c.json({
       success: "success",
       data: {
         subscription: {
-          subscriptionId: result.data.subscriptionId,
-          userId: result.data.userId,
-          productId: result.data.productId,
-          amount: result.data.amount,
+          subscriptionId: data.subscriptionId,
+          userId: data.userId,
+          productId: data.productId,
+          amount: data.amount,
         },
         product,
         user,
-        userCard,
-        userCreated: result.data.userCreated,
-        proratedCharge: result.data.proratedCharge,
+        userCard: userCards.length > 0 ? userCards[0] : null,
+        userCreated: data.userCreated,
+        proratedCharge: data.proratedCharge,
       },
     })
-  } catch (error: any) {
-    return c.json({
-      success: "error",
-      error: error.message || "Purchase failed",
-    }, 500)
   }
+
+  return result
 })
 
 export const purchaseRoutes = app
