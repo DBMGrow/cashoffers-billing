@@ -7,6 +7,7 @@ import { Transaction } from "../../database/Transaction"
 import toggleSubscription from "../../utils/toggleSubscription"
 import sendEmail from "@/utils/sendEmail"
 import axios from "axios"
+import { getContainer } from "@/container"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
@@ -54,7 +55,7 @@ app.get("/single", authMiddleware(null, { allowSelf: true }), async (c) => {
 // Create or update subscription
 app.post("/", authMiddleware("payments_create"), async (c) => {
   const body = await c.req.json()
-  const { user_id, subscription_name, amount, duration } = body
+  const { user_id, subscription_name, amount, duration, product_id, signup_fee } = body
 
   try {
     if (!user_id) throw new Error("user_id is required")
@@ -70,7 +71,7 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
     const existingSubscription = await Subscription.findOne({ where: { user_id } })
 
     if (existingSubscription) {
-      // Update existing subscription
+      // Update existing subscription (keep old implementation for now)
       await existingSubscription.update({
         subscription_name,
         amount,
@@ -87,24 +88,31 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
 
       return c.json({ success: "success", data: existingSubscription })
     } else {
-      // Create new subscription
-      const subscription = await Subscription.create({
-        user_id,
-        subscription_name,
-        amount,
-        duration,
-        status: "active",
+      // Create new subscription using use case
+      const container = getContainer()
+      const createSubscriptionUseCase = container.useCases.createSubscription
+
+      // Get user email
+      const user = c.get("user")
+      const email = user?.email || body.email || ''
+
+      const result = await createSubscriptionUseCase.execute({
+        userId: user_id,
+        productId: product_id || subscription_name,
+        email,
+        userAlreadyExists: true,
+        waiveSignupFee: signup_fee === 0,
       })
 
-      await Transaction.create({
-        user_id,
-        amount: 0,
-        type: "subscription",
-        memo: subscription_name + " created",
-        data: JSON.stringify({ subscription_name, amount, duration }),
-      })
+      if (!result.success) {
+        return c.json({
+          success: "error",
+          error: result.error,
+          code: result.code
+        }, 400)
+      }
 
-      return c.json({ success: "success", data: subscription })
+      return c.json({ success: "success", data: result.data })
     }
   } catch (error: any) {
     await Transaction.create({

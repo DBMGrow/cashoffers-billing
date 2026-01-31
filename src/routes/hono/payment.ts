@@ -9,6 +9,7 @@ import { client } from "../../config/square"
 import { v4 as uuidv4 } from "uuid"
 import sendEmail from "../../utils/sendEmail"
 import axios from "axios"
+import { getContainer } from "@/container"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
@@ -56,15 +57,40 @@ app.get("/:user_id", authMiddleware("payments_read"), async (c) => {
 // Create payment
 app.post("/", authMiddleware("payments_create"), async (c) => {
   const body = await c.req.json()
-  // Create mock request for createPayment compatibility
-  const mockReq = {
-    body,
-    user: c.get("user"),
-    headers: Object.fromEntries(c.req.raw.headers.entries()),
-  }
+  const { user_id, amount, memo, email } = body
 
-  const response = await createPayment(mockReq as any)
-  return c.json(response)
+  try {
+    // Get use case from container
+    const container = getContainer()
+    const createPaymentUseCase = container.useCases.createPayment
+
+    // Execute use case
+    const result = await createPaymentUseCase.execute({
+      userId: Number(user_id),
+      amount: Number(amount),
+      email: email || c.get("user")?.email || '',
+      memo: memo || 'Payment',
+      sendEmailOnCharge: true,
+    })
+
+    if (!result.success) {
+      return c.json({
+        success: "error",
+        error: result.error,
+        code: result.code
+      }, 400)
+    }
+
+    return c.json({
+      success: "success",
+      data: result.data
+    })
+  } catch (error: any) {
+    return c.json({
+      success: "error",
+      error: error.message || 'Payment failed'
+    }, 500)
+  }
 })
 
 // Refund payment
