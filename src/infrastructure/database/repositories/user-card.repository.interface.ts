@@ -1,3 +1,4 @@
+import { Selectable } from 'kysely'
 import { IRepository } from './repository.interface'
 import type { UserCards } from '@/lib/db'
 
@@ -9,17 +10,17 @@ export interface IUserCardRepository extends IRepository<UserCards> {
   /**
    * Find all cards for a user
    */
-  findByUserId(userId: number): Promise<UserCards[]>
+  findByUserId(userId: number): Promise<Selectable<UserCards>[]>
 
   /**
    * Find active cards for a user
    */
-  findActiveByUserId(userId: number): Promise<UserCards[]>
+  findActiveByUserId(userId: number): Promise<Selectable<UserCards>[]>
 
   /**
    * Find card by Square card ID
    */
-  findBySquareCardId(squareCardId: string): Promise<UserCards | null>
+  findBySquareCardId(squareCardId: string): Promise<Selectable<UserCards> | null>
 
   /**
    * Deactivate all cards for a user
@@ -29,5 +30,5 @@ export interface IUserCardRepository extends IRepository<UserCards> {
   /**
    * Mark card as default
    */
-  setAsDefault(userId: number, cardId: number): Promise<UserCards>
+  setAsDefault(userId: number, cardId: number): Promise<Selectable<UserCards>>
 }

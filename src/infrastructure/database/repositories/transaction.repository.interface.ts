@@ -1,3 +1,4 @@
+import { Selectable } from 'kysely'
 import { IRepository } from './repository.interface'
 import type { Transactions } from '@/lib/db'
 
@@ -9,22 +10,22 @@ export interface ITransactionRepository extends IRepository<Transactions> {
   /**
    * Find transaction by Square transaction ID
    */
-  findBySquareTransactionId(squareTransactionId: string): Promise<Transactions | null>
+  findBySquareTransactionId(squareTransactionId: string): Promise<Selectable<Transactions> | null>
 
   /**
    * Find all transactions for a user
    */
-  findByUserId(userId: number): Promise<Transactions[]>
+  findByUserId(userId: number): Promise<Selectable<Transactions>[]>
 
   /**
    * Find all transactions for a subscription
    */
-  findBySubscriptionId(subscriptionId: number): Promise<Transactions[]>
+  findBySubscriptionId(subscriptionId: number): Promise<Selectable<Transactions>[]>
 
   /**
    * Find transactions by date range
    */
-  findByDateRange(startDate: Date, endDate: Date): Promise<Transactions[]>
+  findByDateRange(startDate: Date, endDate: Date): Promise<Selectable<Transactions>[]>
 
   /**
    * Get total transaction amount for a user

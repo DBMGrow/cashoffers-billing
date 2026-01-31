@@ -33,6 +33,8 @@ describe('Container', () => {
       expect(container).toBeDefined()
       expect(container.config).toBeDefined()
       expect(container.logger).toBeDefined()
+      expect(container.db).toBeDefined()
+      expect(container.repositories).toBeDefined()
     })
 
     it('should have valid configuration', () => {
@@ -43,6 +45,15 @@ describe('Container', () => {
       expect(container.config.database).toBeDefined()
       expect(container.config.square).toBeDefined()
       expect(container.config.api).toBeDefined()
+    })
+
+    it('should have all repositories initialized', () => {
+      const container = createContainer()
+
+      expect(container.repositories.transaction).toBeDefined()
+      expect(container.repositories.subscription).toBeDefined()
+      expect(container.repositories.userCard).toBeDefined()
+      expect(container.repositories.product).toBeDefined()
     })
 
     it('should have a working logger', () => {
