@@ -1,0 +1,33 @@
+import { IRepository } from './repository.interface'
+import type { UserCards } from '@/lib/db'
+
+/**
+ * UserCard Repository Interface
+ * Handles user payment card records
+ */
+export interface IUserCardRepository extends IRepository<UserCards> {
+  /**
+   * Find all cards for a user
+   */
+  findByUserId(userId: number): Promise<UserCards[]>
+
+  /**
+   * Find active cards for a user
+   */
+  findActiveByUserId(userId: number): Promise<UserCards[]>
+
+  /**
+   * Find card by Square card ID
+   */
+  findBySquareCardId(squareCardId: string): Promise<UserCards | null>
+
+  /**
+   * Deactivate all cards for a user
+   */
+  deactivateAllForUser(userId: number): Promise<void>
+
+  /**
+   * Mark card as default
+   */
+  setAsDefault(userId: number, cardId: number): Promise<UserCards>
+}
