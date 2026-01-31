@@ -11,12 +11,18 @@ import { createTransactionRepository } from '@/infrastructure/database/repositor
 import { createSubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository'
 import { createUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository'
 import { createProductRepository } from '@/infrastructure/database/repositories/product.repository'
+import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
+import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/sendgrid.service'
+import { createUserApiClient } from '@/infrastructure/external-api/user-api/user-api.client'
 import type { IConfig } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionRepository } from '@/infrastructure/database/repositories/transaction.repository.interface'
 import type { ISubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository.interface'
 import type { IUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository.interface'
 import type { IProductRepository } from '@/infrastructure/database/repositories/product.repository.interface'
+import type { IPaymentProvider } from '@/infrastructure/payment/payment-provider.interface'
+import type { IEmailService } from '@/infrastructure/email/email-service.interface'
+import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
 
 /**
  * Application container
@@ -32,7 +38,12 @@ export interface IContainer {
     userCard: IUserCardRepository
     product: IProductRepository
   }
-  // TODO: Add services, use cases as we build them
+  services: {
+    payment: IPaymentProvider
+    email: IEmailService
+    userApi: IUserApiClient
+  }
+  // TODO: Add use cases as we build them (Phase 4)
 }
 
 /**
@@ -59,9 +70,17 @@ export const createContainer = (): IContainer => {
     product: createProductRepository(db),
   }
 
+  // Create services
+  const services = {
+    payment: createSquarePaymentProvider(config, logger),
+    email: createSendGridEmailService(config, logger),
+    userApi: createUserApiClient(config, logger),
+  }
+
   logger.info('Application container initialized', {
     environment: config.nodeEnv,
     port: config.port,
+    servicesInitialized: Object.keys(services).length,
   })
 
   return {
@@ -69,6 +88,7 @@ export const createContainer = (): IContainer => {
     logger,
     db,
     repositories,
+    services,
   }
 }
 

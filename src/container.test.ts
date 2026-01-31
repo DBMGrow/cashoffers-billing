@@ -56,6 +56,15 @@ describe('Container', () => {
       expect(container.repositories.product).toBeDefined()
     })
 
+    it('should have all services initialized', () => {
+      const container = createContainer()
+
+      expect(container.services).toBeDefined()
+      expect(container.services.payment).toBeDefined()
+      expect(container.services.email).toBeDefined()
+      expect(container.services.userApi).toBeDefined()
+    })
+
     it('should have a working logger', () => {
       const container = createContainer()
 

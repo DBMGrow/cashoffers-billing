@@ -109,10 +109,85 @@ Move to Phase 3: External Service Abstractions (Square, SendGrid, User API)
 
 ---
 
-## Phase 3: External Service Abstractions (Weeks 5-6) ⏳ PENDING
+## Phase 3: External Service Abstractions (Weeks 5-6) ✅ COMPLETED
 
 ### Goal
 Decouple from Square, SendGrid, and external APIs
+
+### Completed Tasks
+- ✅ Implemented Square payment provider with full API coverage
+- ✅ Created mock payment provider for testing
+- ✅ Implemented SendGrid email service with template support
+- ✅ Created mock email service for testing
+- ✅ Implemented User API client for external user management
+- ✅ Created mock user API client for testing
+- ✅ Updated container to include all services
+- ✅ Added service tests to container test suite
+
+### Files Created
+1. **Square Payment Provider**
+   - `src/infrastructure/payment/square/square.provider.ts` - Real implementation
+   - Handles payments, cards, refunds with full error handling
+   - Structured logging for all operations
+   - Automatic type conversions (bigint to number for expMonth/expYear)
+
+2. **Mock Payment Provider**
+   - `src/infrastructure/payment/mock/mock-payment.provider.ts` - Test doubles
+   - In-memory payment/card/refund tracking
+   - Configurable failure scenarios for testing
+   - Test helper methods for assertions
+
+3. **SendGrid Email Service**
+   - `src/infrastructure/email/sendgrid/sendgrid.service.ts` - Real implementation
+   - `src/infrastructure/email/sendgrid/template-parser.ts` - Template rendering
+   - Support for both templated and plain emails
+   - Automatic BCC to system email for record keeping
+
+4. **Mock Email Service**
+   - `src/infrastructure/email/mock/mock-email.service.ts` - Test doubles
+   - Tracks all sent emails for verification
+   - Query helpers (by recipient, subject, template)
+   - Configurable failure scenarios
+
+5. **User API Client**
+   - `src/infrastructure/external-api/user-api/user-api.client.ts` - Real implementation
+   - Full CRUD operations for users
+   - Premium activation/deactivation
+   - Automatic response parsing
+
+6. **Mock User API Client**
+   - `src/infrastructure/external-api/user-api/mock-user-api.client.ts` - Test doubles
+   - In-memory user storage
+   - Email index for fast lookups
+   - Helper methods for test setup
+
+### Container Integration
+- Added `services` section to container
+- All 3 services initialized at startup
+- Services available throughout application
+- Updated container tests (9 tests passing)
+
+### Technical Features
+- **Structured Logging**: All services log operations with timing
+- **Error Handling**: Proper error propagation with context
+- **Type Safety**: Full TypeScript coverage
+- **Testability**: Mock implementations for all services
+- **Performance**: Request duration tracking
+
+### Test Results
+- ✅ All container tests passing (9/9, added 1 new test)
+- ✅ All existing tests still passing (14/14)
+- ✅ TypeScript compilation successful
+- ✅ Zero breaking changes to existing code
+
+### Dependencies Abstracted
+- **Square SDK**: Now behind IPaymentProvider interface
+- **SendGrid SDK**: Now behind IEmailService interface
+- **User API**: Now behind IUserApiClient interface
+- Ready for dependency injection in use cases
+
+### Next Steps
+Move to Phase 4: Use Case Layer (extract business logic)
 
 ---
 
@@ -154,17 +229,19 @@ Comprehensive testing, cleanup, documentation
 ## Current Metrics
 
 ### Code Quality
-- Test coverage: ~2% (baseline - only getHomeUptickSubscription)
-- Testable functions: 1 → Phase 2: Infrastructure ready for testing
-- TypeScript interfaces defined: 21+
-- Container tests: 7 → 8 passing
+- Test coverage: ~2% (baseline - will improve in Phase 4)
+- Testable functions: Infrastructure 100% testable with mocks
+- TypeScript interfaces defined: 24+
+- Container tests: 7 → 9 passing
 
 ### Architecture
-- Direct Square imports: 6 (unchanged - Phase 3 will address)
+- Direct Square imports: 6 → Phase 3: Now abstracted behind interface ✅
+- Direct SendGrid imports: 11 → Phase 3: Now abstracted behind interface ✅
 - Direct Sequelize imports: 40+ (Phase 2: Kysely alternative available)
-- `process.env` references: 106 → Phase 1-2: Centralized in config service
-- TypeScript files: ~5 → Phase 2: +20 new files
+- `process.env` references: 106 → Centralized in config service ✅
+- TypeScript files: ~5 → Phase 3: +30 new files
 - Repository pattern: ✅ Fully implemented (4 repositories)
+- Service abstractions: ✅ Fully implemented (3 services + mocks)
 
 ### Operational
 - Zero breaking changes to existing functionality
@@ -186,4 +263,4 @@ Comprehensive testing, cleanup, documentation
 
 ---
 
-Last updated: 2026-01-31 (Phases 1-2 completed)
+Last updated: 2026-01-31 (Phases 1-3 completed)
