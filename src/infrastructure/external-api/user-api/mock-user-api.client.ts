@@ -130,6 +130,13 @@ export class MockUserApiClient implements IUserApiClient {
   getUsers(): User[] {
     return Array.from(this.users.values())
   }
+
+  /**
+   * Set whether the next request should fail
+   */
+  setNextRequestShouldFail(shouldFail: boolean): void {
+    this.shouldFail = shouldFail
+  }
 }
 
 /**

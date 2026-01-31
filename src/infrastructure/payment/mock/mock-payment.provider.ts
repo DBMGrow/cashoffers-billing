@@ -22,16 +22,28 @@ export class MockPaymentProvider implements IPaymentProvider {
   // Configuration for testing different scenarios
   public shouldFail = false
   public failureReason = 'Mock payment failed'
+  private nextPaymentStatus: 'COMPLETED' | 'FAILED' | 'PENDING' = 'COMPLETED'
 
   async createPayment(request: CreatePaymentRequest): Promise<PaymentResult> {
     if (this.shouldFail) {
       throw new Error(this.failureReason)
     }
 
+    // Check if the card exists in our mock store
+    const cardExists = request.sourceId && this.cards.has(request.sourceId)
+    if (request.sourceId && !cardExists) {
+      throw new Error(`Card ${request.sourceId} not found`)
+    }
+
     const paymentId = `mock_payment_${uuidv4()}`
+    const status = this.nextPaymentStatus
+
+    // Reset to COMPLETED after use
+    this.nextPaymentStatus = 'COMPLETED'
+
     const payment: PaymentResult = {
       id: paymentId,
-      status: 'COMPLETED',
+      status,
       amountMoney: {
         amount: request.amountMoney.amount,
         currency: request.amountMoney.currency,
@@ -121,6 +133,7 @@ export class MockPaymentProvider implements IPaymentProvider {
     this.refunds.clear()
     this.shouldFail = false
     this.failureReason = 'Mock payment failed'
+    this.nextPaymentStatus = 'COMPLETED'
   }
 
   getPayments(): PaymentResult[] {
@@ -133,6 +146,24 @@ export class MockPaymentProvider implements IPaymentProvider {
 
   getRefunds(): RefundResult[] {
     return Array.from(this.refunds.values())
+  }
+
+  /**
+   * Set the status that the next payment will have
+   * Useful for testing failed payments
+   */
+  setNextPaymentStatus(status: 'COMPLETED' | 'FAILED' | 'PENDING'): void {
+    this.nextPaymentStatus = status
+  }
+
+  /**
+   * Add a card to the mock store for testing
+   */
+  addTestCard(card: { id: string; customerId?: string; last4: string; cardBrand: string; expMonth: number; expYear: number }): void {
+    this.cards.set(card.id, {
+      ...card,
+      enabled: true,
+    })
   }
 }
 

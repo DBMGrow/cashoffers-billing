@@ -1,0 +1,208 @@
+import { ILogger } from "@/infrastructure/logging/logger.interface"
+import { IPaymentProvider } from "@/infrastructure/payment/payment-provider.interface"
+import { IEmailService } from "@/infrastructure/email/email-service.interface"
+import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
+import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
+import { IConfigService } from "@/config/config.interface"
+import { ICreatePaymentUseCase } from "./create-payment.use-case.interface"
+import { CreatePaymentInput, CreatePaymentOutput } from "../types/payment.types"
+import { UseCaseResult, success, failure } from "../base/use-case.interface"
+import { CreatePaymentInputSchema } from "../types/validation.schemas"
+import { v4 as uuidv4 } from "uuid"
+
+interface Dependencies {
+  logger: ILogger
+  paymentProvider: IPaymentProvider
+  emailService: IEmailService
+  userCardRepository: IUserCardRepository
+  transactionRepository: ITransactionRepository
+  config: IConfigService
+}
+
+/**
+ * CreatePaymentUseCase
+ *
+ * Handles one-time payment processing with:
+ * - Input validation
+ * - Card lookup from database
+ * - Payment processing via Square
+ * - Transaction logging
+ * - Email notifications (success/failure)
+ * - Admin error notifications
+ */
+export class CreatePaymentUseCase implements ICreatePaymentUseCase {
+  constructor(private readonly deps: Dependencies) {}
+
+  async execute(input: CreatePaymentInput): Promise<UseCaseResult<CreatePaymentOutput>> {
+    const { logger } = this.deps
+    const startTime = Date.now()
+
+    try {
+      // Validate input with Zod
+      const validationResult = CreatePaymentInputSchema.safeParse(input)
+      if (!validationResult.success) {
+        const errors = validationResult.error.issues.map((issue) => issue.message).join(", ")
+        logger.error("Payment validation failed", { errors, input })
+        return failure(errors, "PAYMENT_VALIDATION_ERROR")
+      }
+
+      const validatedInput = validationResult.data
+      logger.info("Processing payment", {
+        userId: validatedInput.userId,
+        amount: validatedInput.amount,
+      })
+
+      // Get user's card
+      const userCards = await this.deps.userCardRepository.findByUserId(validatedInput.userId)
+      if (!userCards || userCards.length === 0) {
+        logger.warn("No card found for user", { userId: validatedInput.userId })
+        return failure("No card found", "NO_CARD_FOUND")
+      }
+
+      const userCard = userCards[0] // Use first card
+      if (!userCard.card_id || !userCard.square_customer_id) {
+        logger.warn("Incomplete card data", { userId: validatedInput.userId })
+        return failure("Card information incomplete", "INCOMPLETE_CARD_DATA")
+      }
+
+      // Create payment via Square
+      const payment = await this.deps.paymentProvider.createPayment({
+        sourceId: userCard.card_id,
+        idempotencyKey: uuidv4(),
+        amountMoney: {
+          amount: BigInt(validatedInput.amount),
+          currency: "USD",
+        },
+        customerId: userCard.square_customer_id,
+      })
+
+      // Check payment status
+      if (payment.status !== "COMPLETED") {
+        await this.handleFailedPayment(validatedInput, payment.id || "unknown")
+        return failure("Payment failed", "PAYMENT_FAILED")
+      }
+
+      // Log successful transaction
+      const now = new Date()
+      const transaction = await this.deps.transactionRepository.create({
+        user_id: validatedInput.userId,
+        amount: validatedInput.amount,
+        type: "payment",
+        memo: validatedInput.memo,
+        status: "completed",
+        square_transaction_id: payment.id,
+        data: this.serializePayment(payment),
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      logger.info("Payment completed successfully", {
+        userId: validatedInput.userId,
+        amount: validatedInput.amount,
+        transactionId: transaction.transaction_id,
+        squarePaymentId: payment.id,
+        duration: Date.now() - startTime,
+      })
+
+      // Send success email
+      if (validatedInput.sendEmailOnCharge !== false) {
+        await this.sendSuccessEmail(validatedInput, payment.id || "")
+      }
+
+      return success({
+        transactionId: transaction.transaction_id.toString(),
+        squarePaymentId: payment.id || "",
+        amount: validatedInput.amount,
+        status: "completed",
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      logger.error("Payment processing error", {
+        error: errorMessage,
+        duration: Date.now() - startTime,
+      })
+
+      // Notify admin
+      await this.sendAdminErrorEmail(errorMessage)
+
+      return failure(errorMessage, "PAYMENT_ERROR")
+    }
+  }
+
+  private async handleFailedPayment(input: CreatePaymentInput, paymentId: string): Promise<void> {
+    const { logger, transactionRepository, emailService } = this.deps
+
+    // Log failed transaction
+    const now = new Date()
+    await transactionRepository.create({
+      user_id: input.userId,
+      amount: input.amount,
+      type: "payment",
+      memo: "Payment failed",
+      status: "failed",
+      square_transaction_id: paymentId,
+      data: JSON.stringify({ error: "Payment not completed", paymentId }),
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    // Send failure email to user
+    const amountFormatted = this.formatAmount(input.amount)
+    await emailService.sendEmail({
+      to: input.email,
+      subject: "Payment Error",
+      template: "paymentError.html",
+      fields: {
+        amount: amountFormatted,
+        date: new Date().toLocaleDateString(),
+      },
+    })
+
+    logger.warn("Payment failed, user notified", {
+      userId: input.userId,
+      amount: input.amount,
+      paymentId,
+    })
+  }
+
+  private async sendSuccessEmail(input: CreatePaymentInput, paymentId: string): Promise<void> {
+    const amountFormatted = this.formatAmount(input.amount)
+
+    await this.deps.emailService.sendEmail({
+      to: input.email,
+      subject: "Payment Successful",
+      template: "paymentConfirm.html",
+      fields: {
+        amount: amountFormatted,
+        transactionID: paymentId,
+        date: new Date().toLocaleDateString(),
+        memo: input.memo || "",
+      },
+    })
+  }
+
+  private async sendAdminErrorEmail(error: string): Promise<void> {
+    try {
+      await this.deps.emailService.sendPlainEmail({
+        to: this.deps.config.get("ADMIN_EMAIL"),
+        subject: "Payment Error",
+        text: `There was an error processing a payment: ${error}`,
+      })
+    } catch (emailError) {
+      // Don't throw if admin email fails
+      this.deps.logger.error("Failed to send admin error email", { error: emailError })
+    }
+  }
+
+  private formatAmount(cents: number): string {
+    const dollars = cents / 100
+    return `$${dollars.toFixed(2)}`
+  }
+
+  private serializePayment(payment: any): string {
+    // Convert BigInt values to strings for JSON serialization
+    return JSON.stringify(payment, (key, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    )
+  }
+}

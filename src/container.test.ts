@@ -65,6 +65,15 @@ describe('Container', () => {
       expect(container.services.userApi).toBeDefined()
     })
 
+    it('should have all use cases initialized', () => {
+      const container = createContainer()
+
+      expect(container.useCases).toBeDefined()
+      expect(container.useCases.createPayment).toBeDefined()
+      expect(container.useCases.createSubscription).toBeDefined()
+      expect(container.useCases.renewSubscription).toBeDefined()
+    })
+
     it('should have a working logger', () => {
       const container = createContainer()
 

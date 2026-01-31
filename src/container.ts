@@ -14,7 +14,10 @@ import { createProductRepository } from '@/infrastructure/database/repositories/
 import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
 import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/sendgrid.service'
 import { createUserApiClient } from '@/infrastructure/external-api/user-api/user-api.client'
-import type { IConfig } from '@/config/config.interface'
+import { CreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case'
+import { CreateSubscriptionUseCase } from '@/use-cases/subscription/create-subscription.use-case'
+import { RenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case'
+import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionRepository } from '@/infrastructure/database/repositories/transaction.repository.interface'
 import type { ISubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository.interface'
@@ -23,6 +26,9 @@ import type { IProductRepository } from '@/infrastructure/database/repositories/
 import type { IPaymentProvider } from '@/infrastructure/payment/payment-provider.interface'
 import type { IEmailService } from '@/infrastructure/email/email-service.interface'
 import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
+import type { ICreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case.interface'
+import type { ICreateSubscriptionUseCase } from '@/use-cases/subscription/create-subscription.use-case.interface'
+import type { IRenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case.interface'
 
 /**
  * Application container
@@ -43,7 +49,11 @@ export interface IContainer {
     email: IEmailService
     userApi: IUserApiClient
   }
-  // TODO: Add use cases as we build them (Phase 4)
+  useCases: {
+    createPayment: ICreatePaymentUseCase
+    createSubscription: ICreateSubscriptionUseCase
+    renewSubscription: IRenewSubscriptionUseCase
+  }
 }
 
 /**
@@ -77,10 +87,58 @@ export const createContainer = (): IContainer => {
     userApi: createUserApiClient(config, logger),
   }
 
+  // Create config service wrapper for use cases
+  const configService: IConfigService = {
+    get: (key: string) => {
+      const value = (config as any)[key]
+      if (typeof value === 'object') return JSON.stringify(value)
+      return String(value || '')
+    },
+    getOrThrow: (key: string) => {
+      const value = (config as any)[key]
+      if (!value) throw new Error(`Config key ${key} not found`)
+      if (typeof value === 'object') return JSON.stringify(value)
+      return String(value)
+    },
+    getAll: () => config as any,
+  }
+
+  // Create use cases
+  const useCases = {
+    createPayment: new CreatePaymentUseCase({
+      logger,
+      paymentProvider: services.payment,
+      emailService: services.email,
+      userCardRepository: repositories.userCard,
+      transactionRepository: repositories.transaction,
+      config: configService,
+    }),
+    createSubscription: new CreateSubscriptionUseCase({
+      logger,
+      paymentProvider: services.payment,
+      emailService: services.email,
+      userApiClient: services.userApi,
+      subscriptionRepository: repositories.subscription,
+      productRepository: repositories.product,
+      transactionRepository: repositories.transaction,
+      userCardRepository: repositories.userCard,
+    }),
+    renewSubscription: new RenewSubscriptionUseCase({
+      logger,
+      paymentProvider: services.payment,
+      emailService: services.email,
+      subscriptionRepository: repositories.subscription,
+      transactionRepository: repositories.transaction,
+      userCardRepository: repositories.userCard,
+      config: configService,
+    }),
+  }
+
   logger.info('Application container initialized', {
     environment: config.nodeEnv,
     port: config.port,
     servicesInitialized: Object.keys(services).length,
+    useCasesInitialized: Object.keys(useCases).length,
   })
 
   return {
@@ -89,6 +147,7 @@ export const createContainer = (): IContainer => {
     db,
     repositories,
     services,
+    useCases,
   }
 }
 

@@ -191,10 +191,100 @@ Move to Phase 4: Use Case Layer (extract business logic)
 
 ---
 
-## Phase 4: Use Case Layer (Weeks 7-8) ⏳ PENDING
+## Phase 4: Use Case Layer (Weeks 7-8) ✅ COMPLETED
 
 ### Goal
 Extract business logic into testable use cases
+
+### Completed Tasks
+- ✅ Created use case foundation with base interfaces and DTOs
+- ✅ Integrated Zod for runtime input validation
+- ✅ Implemented CreatePaymentUseCase with 15 tests
+- ✅ Implemented CreateSubscriptionUseCase with 13 tests
+- ✅ Implemented RenewSubscriptionUseCase with 18 tests
+- ✅ Updated DI container to include use cases
+- ✅ All TypeScript types validated
+- ✅ All tests passing (63 tests total)
+
+### Files Created
+1. **Use Case Foundation**
+   - `src/use-cases/base/use-case.interface.ts` - Base interfaces and result types
+   - `src/use-cases/types/payment.types.ts` - Payment DTOs
+   - `src/use-cases/types/subscription.types.ts` - Subscription DTOs
+   - `src/use-cases/types/validation.schemas.ts` - Zod validation schemas
+   - `src/use-cases/index.ts` - Central export point
+
+2. **Payment Use Cases**
+   - `src/use-cases/payment/create-payment.use-case.interface.ts`
+   - `src/use-cases/payment/create-payment.use-case.ts` - Full implementation
+   - `src/use-cases/payment/create-payment.use-case.test.ts` - 15 comprehensive tests
+
+3. **Subscription Use Cases**
+   - `src/use-cases/subscription/create-subscription.use-case.interface.ts`
+   - `src/use-cases/subscription/create-subscription.use-case.ts` - Full implementation
+   - `src/use-cases/subscription/create-subscription.use-case.test.ts` - 13 comprehensive tests
+   - `src/use-cases/subscription/renew-subscription.use-case.interface.ts`
+   - `src/use-cases/subscription/renew-subscription.use-case.ts` - Full implementation
+   - `src/use-cases/subscription/renew-subscription.use-case.test.ts` - 18 comprehensive tests
+
+4. **Container Integration**
+   - Updated `src/container.ts` to include useCases section
+   - Added IConfigService wrapper for use case dependencies
+   - Updated `src/container.test.ts` with use case initialization test
+
+### Technical Features
+- **Zod Validation**: Runtime type checking with descriptive error messages
+- **Clean Architecture**: Business logic completely separated from infrastructure
+- **Full Dependency Injection**: All dependencies injected via constructor
+- **Comprehensive Testing**: 46 use case tests covering success/failure scenarios
+- **Type Safety**: Full TypeScript + Zod validation
+- **Error Handling**: Structured errors with error codes
+- **Logging**: Structured logging with timing and context
+
+### Use Cases Implemented
+1. **CreatePaymentUseCase**
+   - One-time payment processing
+   - Card validation and lookup
+   - Square payment processing
+   - Transaction logging
+   - Email notifications (success/failure/admin)
+   - 15 tests covering all scenarios
+
+2. **CreateSubscriptionUseCase**
+   - New subscription creation
+   - User activation via external API
+   - Initial payment with optional signup fee
+   - Renewal date calculation
+   - Email notifications
+   - 13 tests covering all scenarios
+
+3. **RenewSubscriptionUseCase**
+   - Subscription renewal processing
+   - Payment processing with retry logic
+   - Renewal date calculation (daily/weekly/monthly/yearly)
+   - Retry scheduling (1, 3, 7 day intervals)
+   - Email notifications (success/failure)
+   - Subscription reactivation
+   - 18 tests covering all scenarios
+
+### Test Results
+- ✅ All use case tests passing (46/46)
+- ✅ All container tests passing (10/10)
+- ✅ All existing tests passing (7/7)
+- ✅ Total: 63 tests passing
+- ✅ TypeScript compilation successful
+- ✅ Zero breaking changes to existing code
+
+### Architecture Improvements
+- Business logic extracted from route handlers
+- Dependencies abstracted behind interfaces
+- 100% testable with mock implementations
+- Clear separation of concerns
+- Standardized error handling
+- Consistent logging patterns
+
+### Next Steps
+Move to Phase 5: Domain Layer (add domain entities with business rules)
 
 ---
 
@@ -229,19 +319,23 @@ Comprehensive testing, cleanup, documentation
 ## Current Metrics
 
 ### Code Quality
-- Test coverage: ~2% (baseline - will improve in Phase 4)
-- Testable functions: Infrastructure 100% testable with mocks
-- TypeScript interfaces defined: 24+
-- Container tests: 7 → 9 passing
+- Test coverage: ~2% → Significant improvement with 46 use case tests ✅
+- Testable functions: Infrastructure + Use Cases 100% testable with mocks
+- TypeScript interfaces defined: 24+ → 35+
+- Container tests: 7 → 10 passing ✅
+- Use case tests: 46 passing ✅
+- Total tests: 14 → 63 passing ✅
 
 ### Architecture
 - Direct Square imports: 6 → Phase 3: Now abstracted behind interface ✅
 - Direct SendGrid imports: 11 → Phase 3: Now abstracted behind interface ✅
 - Direct Sequelize imports: 40+ (Phase 2: Kysely alternative available)
 - `process.env` references: 106 → Centralized in config service ✅
-- TypeScript files: ~5 → Phase 3: +30 new files
+- TypeScript files: ~5 → Phase 4: +50 new files
 - Repository pattern: ✅ Fully implemented (4 repositories)
 - Service abstractions: ✅ Fully implemented (3 services + mocks)
+- Use case pattern: ✅ Fully implemented (3 use cases + tests)
+- Zod validation: ✅ Implemented for all use case inputs
 
 ### Operational
 - Zero breaking changes to existing functionality
@@ -263,4 +357,4 @@ Comprehensive testing, cleanup, documentation
 
 ---
 
-Last updated: 2026-01-31 (Phases 1-3 completed)
+Last updated: 2026-01-31 (Phases 1-4 completed)

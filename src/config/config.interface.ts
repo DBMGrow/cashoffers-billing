@@ -45,3 +45,24 @@ export interface IConfig {
   // Session
   sessionSecret: string
 }
+
+/**
+ * Configuration Service Interface
+ * For accessing configuration values
+ */
+export interface IConfigService {
+  /**
+   * Get a configuration value
+   */
+  get(key: string): string
+
+  /**
+   * Get a configuration value or throw if not found
+   */
+  getOrThrow(key: string): string
+
+  /**
+   * Get all configuration values
+   */
+  getAll(): Record<string, unknown>
+}
