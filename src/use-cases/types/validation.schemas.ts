@@ -19,6 +19,41 @@ export const CreatePaymentInputSchema = z.object({
 export type CreatePaymentInputValidated = z.infer<typeof CreatePaymentInputSchema>
 
 /**
+ * Card validation schemas
+ */
+export const CreateCardInputSchema = z.object({
+  userId: z.number().int().positive("User ID must be a positive integer").nullable(),
+  cardToken: z.string().min(1, "Card token is required"),
+  expMonth: z.number().int().min(1).max(12, "Month must be between 1 and 12"),
+  expYear: z.number().int().min(2020, "Year must be valid"),
+  cardholderName: z.string().min(1, "Cardholder name is required"),
+  email: z.string().email("Invalid email address"),
+  allowNullUserId: z.boolean().optional(),
+  sendEmailOnUpdate: z.boolean().optional(),
+  attemptRenewal: z.boolean().optional(),
+})
+
+export type CreateCardInputValidated = z.infer<typeof CreateCardInputSchema>
+
+/**
+ * Get user card validation schema
+ */
+export const GetUserCardInputSchema = z.object({
+  userId: z.number().int().positive("User ID must be a positive integer"),
+})
+
+export type GetUserCardInputValidated = z.infer<typeof GetUserCardInputSchema>
+
+/**
+ * Check user card info validation schema
+ */
+export const CheckUserCardInfoInputSchema = z.object({
+  userId: z.number().int().positive("User ID must be a positive integer"),
+})
+
+export type CheckUserCardInfoInputValidated = z.infer<typeof CheckUserCardInfoInputSchema>
+
+/**
  * Subscription validation schemas
  */
 export const CreateSubscriptionInputSchema = z.object({
@@ -135,6 +170,28 @@ export const CancelOnRenewalInputSchema = z.object({
 export type CancelOnRenewalInputValidated = z.infer<typeof CancelOnRenewalInputSchema>
 
 /**
+ * Update subscription fields validation schema
+ */
+export const UpdateSubscriptionFieldsInputSchema = z.object({
+  subscriptionId: z.number().int().positive("Subscription ID must be a positive integer"),
+  subscriptionName: z.string().optional(),
+  amount: z.number().int().min(1).optional(),
+  duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+  status: z.string().optional(),
+})
+
+export type UpdateSubscriptionFieldsInputValidated = z.infer<typeof UpdateSubscriptionFieldsInputSchema>
+
+/**
+ * Deactivate subscription validation schema
+ */
+export const DeactivateSubscriptionInputSchema = z.object({
+  userId: z.number().int().positive("User ID must be a positive integer"),
+})
+
+export type DeactivateSubscriptionInputValidated = z.infer<typeof DeactivateSubscriptionInputSchema>
+
+/**
  * Purchase subscription validation schema
  */
 export const PurchaseSubscriptionInputSchema = z.object({
@@ -157,3 +214,28 @@ export const PurchaseSubscriptionInputSchema = z.object({
 })
 
 export type PurchaseSubscriptionInputValidated = z.infer<typeof PurchaseSubscriptionInputSchema>
+
+/**
+ * Create product validation schema
+ */
+export const CreateProductInputSchema = z.object({
+  productName: z.string().min(1, "Product name is required"),
+  productDescription: z.string().optional(),
+  productType: z.enum(["none", "one-time", "subscription"] as const),
+  price: z.number().int().min(0, "Price must be a non-negative integer"),
+  data: z.any().optional(),
+})
+
+export type CreateProductInputValidated = z.infer<typeof CreateProductInputSchema>
+
+/**
+ * Unlock property validation schema
+ */
+export const UnlockPropertyInputSchema = z.object({
+  propertyToken: z.string().min(1, "Property token is required"),
+  cardToken: z.string().min(1, "Card token is required"),
+  userId: z.number().int().positive("User ID must be a positive integer"),
+  email: z.string().email("Invalid email address"),
+})
+
+export type UnlockPropertyInputValidated = z.infer<typeof UnlockPropertyInputSchema>

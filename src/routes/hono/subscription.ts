@@ -3,6 +3,7 @@ import type { HonoVariables } from "../../types/hono"
 import { authMiddleware } from "../../middleware/hono/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
+import { checkSubscriptionAuthorization } from "./helpers/subscription-auth"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
@@ -57,29 +58,15 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
       : null
 
   if (existingSubscription) {
-    // Update existing subscription (direct repository update for now)
-    const updates: any = {}
-    if (subscription_name) updates.subscription_name = subscription_name
-    if (amount) updates.amount = amount
-    if (duration) updates.duration = duration
-
-    await container.repositories.subscription.update(existingSubscription.subscriptionId, {
-      ...updates,
-      updatedAt: new Date(),
-    })
-
-    const now = new Date()
-    await container.repositories.transaction.create({
-      user_id,
-      amount: 0,
-      type: "subscription",
-      memo: subscription_name + " updated",
-      data: JSON.stringify(updates),
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    return c.json({ success: "success", data: existingSubscription })
+    // Update existing subscription using use case
+    return executeUseCase(c, () =>
+      container.useCases.updateSubscriptionFields.execute({
+        subscriptionId: existingSubscription.subscriptionId,
+        subscriptionName: subscription_name,
+        amount: amount ? Number(amount) : undefined,
+        duration,
+      })
+    )
   }
 
   // Create new subscription using use case
@@ -100,41 +87,23 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
 // Update subscription
 app.put("/", authMiddleware("payments_create"), async (c) => {
   const body = await c.req.json()
-  const { user_id, subscription_name, amount, duration, status } = body
+  const { subscription_id, subscription_name, amount, duration, status } = body
+
+  if (!subscription_id) {
+    return c.json({ success: "error", error: "subscription_id is required" }, 400)
+  }
 
   const container = getContainer()
 
-  // Find user's subscription
-  const subscriptions = await container.repositories.subscription.findByUserId(user_id)
-  if (subscriptions.length === 0) {
-    return c.json({ success: "error", error: "No subscription found for user" }, 404)
-  }
-
-  const subscription = subscriptions[0]
-
-  const updateBody: any = {}
-  if (subscription_name) updateBody.subscription_name = subscription_name
-  if (amount) updateBody.amount = amount
-  if (duration) updateBody.duration = duration
-  if (status) updateBody.status = status
-
-  await container.repositories.subscription.update(subscription.subscription_id, {
-    ...updateBody,
-    updatedAt: new Date(),
-  })
-
-  const now = new Date()
-  await container.repositories.transaction.create({
-    user_id,
-    amount: 0,
-    type: "subscription",
-    memo: subscription_name + " updated",
-    data: JSON.stringify(updateBody),
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  return c.json({ success: "success", data: updateBody })
+  return executeUseCase(c, () =>
+    container.useCases.updateSubscriptionFields.execute({
+      subscriptionId: Number(subscription_id),
+      subscriptionName: subscription_name,
+      amount: amount ? Number(amount) : undefined,
+      duration,
+      status,
+    })
+  )
 })
 
 // Delete (deactivate) subscription
@@ -148,20 +117,11 @@ app.delete("/", authMiddleware("payments_delete"), async (c) => {
 
   const container = getContainer()
 
-  // Find user's subscription
-  const subscriptions = await container.repositories.subscription.findByUserId(user_id)
-  if (subscriptions.length === 0) {
-    return c.json({ success: "error", error: "No subscription found for user" }, 404)
-  }
-
-  const subscription = subscriptions[0]
-
-  await container.repositories.subscription.update(subscription.subscription_id, {
-    status: "inactive",
-    updatedAt: new Date(),
-  })
-
-  return c.json({ success: "success", data: { user_id, status: "inactive" } })
+  return executeUseCase(c, () =>
+    container.useCases.deactivateSubscription.execute({
+      userId: user_id,
+    })
+  )
 })
 
 // Pause subscription
@@ -215,22 +175,10 @@ app.post("/cancel/:subscription_id", async (c) => {
   }
 
   const container = getContainer()
+  const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
-  // Check authorization
-  const subscription = await container.repositories.subscription.findById(Number(subscription_id))
-  if (!subscription) {
-    return c.json({ success: "error", error: "Subscription not found" }, 404)
-  }
-
-  const user = c.get("user")
-  const tokenOwner = c.get("token_owner")
-  const tokenOwnerCaps = tokenOwner?.capabilities || []
-
-  const isOwner = user?.user_id === subscription.user_id
-  const hasPermission = tokenOwnerCaps.includes("payments_create")
-
-  if (!isOwner && !hasPermission) {
-    return c.json({ success: "error", error: "Unauthorized" }, 403)
+  if (!authResult.authorized) {
+    return authResult.errorResponse
   }
 
   return executeUseCase(c, () =>
@@ -250,22 +198,10 @@ app.post("/uncancel/:subscription_id", async (c) => {
   }
 
   const container = getContainer()
+  const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
-  // Check authorization
-  const subscription = await container.repositories.subscription.findById(Number(subscription_id))
-  if (!subscription) {
-    return c.json({ success: "error", error: "Subscription not found" }, 404)
-  }
-
-  const user = c.get("user")
-  const tokenOwner = c.get("token_owner")
-  const tokenOwnerCaps = tokenOwner?.capabilities || []
-
-  const isOwner = user?.user_id === subscription.user_id
-  const hasPermission = tokenOwnerCaps.includes("payments_create")
-
-  if (!isOwner && !hasPermission) {
-    return c.json({ success: "error", error: "Unauthorized" }, 403)
+  if (!authResult.authorized) {
+    return authResult.errorResponse
   }
 
   return executeUseCase(c, () =>
@@ -285,22 +221,10 @@ app.post("/downgrade/:subscription_id", async (c) => {
   }
 
   const container = getContainer()
+  const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
-  // Check authorization
-  const subscription = await container.repositories.subscription.findById(Number(subscription_id))
-  if (!subscription) {
-    return c.json({ success: "error", error: "Subscription not found" }, 404)
-  }
-
-  const user = c.get("user")
-  const tokenOwner = c.get("token_owner")
-  const tokenOwnerCaps = tokenOwner?.capabilities || []
-
-  const isOwner = user?.user_id === subscription.user_id
-  const hasPermission = tokenOwnerCaps.includes("payments_create")
-
-  if (!isOwner && !hasPermission) {
-    return c.json({ success: "error", error: "Unauthorized" }, 403)
+  if (!authResult.authorized) {
+    return authResult.errorResponse
   }
 
   return executeUseCase(c, () =>
@@ -320,22 +244,10 @@ app.post("/undowngrade/:subscription_id", async (c) => {
   }
 
   const container = getContainer()
+  const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
-  // Check authorization
-  const subscription = await container.repositories.subscription.findById(Number(subscription_id))
-  if (!subscription) {
-    return c.json({ success: "error", error: "Subscription not found" }, 404)
-  }
-
-  const user = c.get("user")
-  const tokenOwner = c.get("token_owner")
-  const tokenOwnerCaps = tokenOwner?.capabilities || []
-
-  const isOwner = user?.user_id === subscription.user_id
-  const hasPermission = tokenOwnerCaps.includes("payments_create")
-
-  if (!isOwner && !hasPermission) {
-    return c.json({ success: "error", error: "Unauthorized" }, 403)
+  if (!authResult.authorized) {
+    return authResult.errorResponse
   }
 
   return executeUseCase(c, () =>

@@ -19,6 +19,7 @@ import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/send
 import { createUserApiClient } from '@/infrastructure/external-api/user-api/user-api.client'
 import { CreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case'
 import { RefundPaymentUseCase } from '@/use-cases/payment/refund-payment.use-case'
+import { CreateCardUseCase } from '@/use-cases/payment/create-card.use-case'
 import { GetPaymentsUseCase } from '@/use-cases/payment/get-payments.use-case'
 import { CreateSubscriptionUseCase } from '@/use-cases/subscription/create-subscription.use-case'
 import { RenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case'
@@ -26,8 +27,14 @@ import { PauseSubscriptionUseCase } from '@/use-cases/subscription/pause-subscri
 import { ResumeSubscriptionUseCase } from '@/use-cases/subscription/resume-subscription.use-case'
 import { CancelOnRenewalUseCase } from '@/use-cases/subscription/cancel-on-renewal.use-case'
 import { MarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downgrade.use-case'
+import { UpdateSubscriptionFieldsUseCase } from '@/use-cases/subscription/update-subscription-fields.use-case'
 import { GetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case'
 import { PurchaseSubscriptionUseCase } from '@/use-cases/subscription/purchase-subscription.use-case'
+import { CreateProductUseCase } from '@/use-cases/product/create-product.use-case'
+import { GetUserCardUseCase } from '@/use-cases/card/get-user-card.use-case'
+import { CheckUserCardInfoUseCase } from '@/use-cases/card/check-user-card-info.use-case'
+import { DeactivateSubscriptionUseCase } from '@/use-cases/subscription/deactivate-subscription.use-case'
+import { UnlockPropertyUseCase } from '@/use-cases/property/unlock-property.use-case'
 import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionManager } from '@/infrastructure/database/transaction/transaction-manager.interface'
@@ -42,6 +49,7 @@ import type { IEmailService } from '@/infrastructure/email/email-service.interfa
 import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
 import type { ICreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case.interface'
 import type { IRefundPaymentUseCase } from '@/use-cases/payment/refund-payment.use-case.interface'
+import type { ICreateCardUseCase } from '@/use-cases/payment/create-card.use-case.interface'
 import type { IGetPaymentsUseCase } from '@/use-cases/payment/get-payments.use-case.interface'
 import type { ICreateSubscriptionUseCase } from '@/use-cases/subscription/create-subscription.use-case.interface'
 import type { IRenewSubscriptionUseCase } from '@/use-cases/subscription/renew-subscription.use-case.interface'
@@ -49,8 +57,14 @@ import type { IPauseSubscriptionUseCase } from '@/use-cases/subscription/pause-s
 import type { IResumeSubscriptionUseCase } from '@/use-cases/subscription/resume-subscription.use-case.interface'
 import type { ICancelOnRenewalUseCase } from '@/use-cases/subscription/cancel-on-renewal.use-case.interface'
 import type { IMarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downgrade.use-case.interface'
+import type { IUpdateSubscriptionFieldsUseCase } from '@/use-cases/subscription/update-subscription-fields.use-case.interface'
 import type { IGetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case.interface'
 import type { IPurchaseSubscriptionUseCase } from '@/use-cases/subscription/purchase-subscription.use-case.interface'
+import type { ICreateProductUseCase } from '@/use-cases/product/create-product.use-case.interface'
+import type { IGetUserCardUseCase } from '@/use-cases/card/get-user-card.use-case.interface'
+import type { ICheckUserCardInfoUseCase } from '@/use-cases/card/check-user-card-info.use-case.interface'
+import type { IDeactivateSubscriptionUseCase } from '@/use-cases/subscription/deactivate-subscription.use-case.interface'
+import type { IUnlockPropertyUseCase } from '@/use-cases/property/unlock-property.use-case.interface'
 
 /**
  * Application container
@@ -78,7 +92,11 @@ export interface IContainer {
     // Payment use cases
     createPayment: ICreatePaymentUseCase
     refundPayment: IRefundPaymentUseCase
+    createCard: ICreateCardUseCase
     getPayments: IGetPaymentsUseCase
+    // Card use cases
+    getUserCard: IGetUserCardUseCase
+    checkUserCardInfo: ICheckUserCardInfoUseCase
     // Subscription use cases
     createSubscription: ICreateSubscriptionUseCase
     renewSubscription: IRenewSubscriptionUseCase
@@ -86,8 +104,14 @@ export interface IContainer {
     resumeSubscription: IResumeSubscriptionUseCase
     cancelOnRenewal: ICancelOnRenewalUseCase
     markForDowngrade: IMarkForDowngradeUseCase
+    updateSubscriptionFields: IUpdateSubscriptionFieldsUseCase
     getSubscriptions: IGetSubscriptionsUseCase
     purchaseSubscription: IPurchaseSubscriptionUseCase
+    deactivateSubscription: IDeactivateSubscriptionUseCase
+    // Product use cases
+    createProduct: ICreateProductUseCase
+    // Property use cases
+    unlockProperty: IUnlockPropertyUseCase
   }
 }
 
@@ -164,9 +188,26 @@ export const createContainer = (): IContainer => {
       userApiClient: services.userApi,
       config: configService,
     }),
+    createCard: new CreateCardUseCase({
+      logger,
+      paymentProvider: services.payment,
+      userCardRepository: repositories.userCard,
+      transactionRepository: repositories.transaction,
+      subscriptionRepository: repositories.subscription,
+      emailService: services.email,
+    }),
     getPayments: new GetPaymentsUseCase({
       logger,
       transactionRepository: repositories.transaction,
+    }),
+    // Card use cases
+    getUserCard: new GetUserCardUseCase({
+      logger,
+      userCardRepository: repositories.userCard,
+    }),
+    checkUserCardInfo: new CheckUserCardInfoUseCase({
+      logger,
+      userCardRepository: repositories.userCard,
     }),
     // Subscription use cases
     createSubscription: new CreateSubscriptionUseCase({
@@ -213,6 +254,11 @@ export const createContainer = (): IContainer => {
       emailService: services.email,
       userApiClient: services.userApi,
     }),
+    updateSubscriptionFields: new UpdateSubscriptionFieldsUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
+      transactionRepository: repositories.transaction,
+    }),
     getSubscriptions: new GetSubscriptionsUseCase({
       logger,
       subscriptionRepository: repositories.subscription,
@@ -226,6 +272,23 @@ export const createContainer = (): IContainer => {
       subscriptionRepository: repositories.subscription,
       userCardRepository: repositories.userCard,
       transactionRepository: repositories.transaction,
+    }),
+    deactivateSubscription: new DeactivateSubscriptionUseCase({
+      logger,
+      subscriptionRepository: repositories.subscription,
+    }),
+    createProduct: new CreateProductUseCase({
+      logger,
+      productRepository: repositories.product,
+    }),
+    // Property use cases
+    unlockProperty: new UnlockPropertyUseCase({
+      logger,
+      paymentProvider: services.payment,
+      emailService: services.email,
+      transactionRepository: repositories.transaction,
+      productRepository: repositories.product,
+      config: configService,
     }),
   }
 

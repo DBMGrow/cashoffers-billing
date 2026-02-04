@@ -43,6 +43,25 @@ export interface UpdateSubscriptionOutput {
 }
 
 /**
+ * Input for updating subscription fields (generic fields update)
+ */
+export interface UpdateSubscriptionFieldsInput {
+  subscriptionId: number
+  subscriptionName?: string
+  amount?: number
+  duration?: "daily" | "weekly" | "monthly" | "yearly"
+  status?: string
+}
+
+/**
+ * Output from updating subscription fields
+ */
+export interface UpdateSubscriptionFieldsOutput {
+  subscriptionId: number
+  updated: boolean
+}
+
+/**
  * Input for renewing a subscription
  */
 export interface RenewSubscriptionInput {
@@ -209,4 +228,19 @@ export interface PurchaseSubscriptionOutput {
   amount: number
   proratedCharge?: number
   userCreated: boolean
+}
+
+/**
+ * Input for deactivating/deleting a subscription
+ */
+export interface DeactivateSubscriptionInput {
+  userId: number
+}
+
+/**
+ * Output from deactivating a subscription
+ */
+export interface DeactivateSubscriptionOutput {
+  userId: number
+  status: string
 }

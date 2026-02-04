@@ -14,6 +14,7 @@ import { cardRoutes } from "./routes/hono/card"
 import { paymentRoutes } from "./routes/hono/payment"
 import { subscriptionRoutes } from "./routes/hono/subscription"
 import { purchaseRoutes } from "./routes/hono/purchase"
+import { propertyRoutes } from "./routes/hono/property"
 import { cronRoutes } from "./routes/hono/cron"
 import { emailsRoutes } from "./routes/hono/emails"
 
@@ -36,6 +37,7 @@ app.route("/card", cardRoutes)
 app.route("/payment", paymentRoutes)
 app.route("/subscription", subscriptionRoutes)
 app.route("/purchase", purchaseRoutes)
+app.route("/property", propertyRoutes)
 app.route("/cron", cronRoutes)
 app.route("/emails", emailsRoutes)
 
