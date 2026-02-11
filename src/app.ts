@@ -8,18 +8,18 @@ import { cors } from "hono/cors"
 import type { HonoVariables } from "./types/hono"
 
 // Import routes (we'll create these next)
-import { productRoutes } from "./routes/hono/product"
-import { cardRoutes } from "./routes/hono/card"
-import { paymentRoutes } from "./routes/hono/payment"
-import { subscriptionRoutes } from "./routes/hono/subscription"
-import { purchaseRoutes } from "./routes/hono/purchase"
-import { propertyRoutes } from "./routes/hono/property"
-import { cronRoutes } from "./routes/hono/cron"
-import { emailsRoutes } from "./routes/hono/emails"
+import { productRoutes } from "./routes/product"
+import { cardRoutes } from "./routes/card"
+import { paymentRoutes } from "./routes/payment"
+import { subscriptionRoutes } from "./routes/subscription"
+import { purchaseRoutes } from "./routes/purchase"
+import { propertyRoutes } from "./routes/property"
+import { cronRoutes } from "./routes/cron"
+import { emailsRoutes } from "./routes/emails"
 
 // Import middleware
-import { errorHandler } from "./middleware/hono/errorHandler"
-import { digestMiddleware } from "./middleware/hono/digestMiddleware"
+import { errorHandler } from "./middleware/errorHandler"
+import { digestMiddleware } from "./middleware/digestMiddleware"
 
 // Create Hono app with typed variables
 const app = new Hono<{ Variables: HonoVariables }>()

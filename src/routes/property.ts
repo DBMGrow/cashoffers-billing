@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import type { HonoVariables } from "../../types/hono"
-import { authMiddleware } from "../../middleware/hono/authMiddleware"
+import { authMiddleware } from "../../middleware/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 
@@ -23,7 +23,7 @@ const app = new Hono<{ Variables: HonoVariables }>()
  */
 app.post(
   "/:property_token",
-  authMiddleware("properties_unlock", { allowSelf: true }),
+  authMiddleware("properties_unlock"),
   async (c) => {
     const { property_token } = c.req.param()
     const body = await c.req.json()

@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import type { HonoVariables } from "../../types/hono"
-import { authMiddleware } from "../../middleware/hono/authMiddleware"
+import { authMiddleware } from "../../middleware/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 import { checkSubscriptionAuthorization } from "./helpers/subscription-auth"
@@ -8,7 +8,7 @@ import { checkSubscriptionAuthorization } from "./helpers/subscription-auth"
 const app = new Hono<{ Variables: HonoVariables }>()
 
 // Get all subscriptions with pagination
-app.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async (c) => {
+app.get("/", authMiddleware("payments_read_all"), async (c) => {
   const query = c.req.query()
   const { page = "1", limit = "20" } = query
 
@@ -23,7 +23,7 @@ app.get("/", authMiddleware("payments_read_all", { allowSelf: true }), async (c)
 })
 
 // Get your own subscription
-app.get("/single", authMiddleware(null, { allowSelf: true }), async (c) => {
+app.get("/single", authMiddleware(null), async (c) => {
   const user = c.get("user")
   const { user_id } = user
 
@@ -127,7 +127,7 @@ app.delete("/", authMiddleware("payments_delete"), async (c) => {
 // Pause subscription
 app.post(
   "/pause/:subscription_id",
-  authMiddleware("payments_create", { allowSelf: true }),
+  authMiddleware("payments_create"),
   async (c) => {
     const { subscription_id } = c.req.param()
 
@@ -148,7 +148,7 @@ app.post(
 // Resume subscription
 app.post(
   "/resume/:subscription_id",
-  authMiddleware("payments_create", { allowSelf: true }),
+  authMiddleware("payments_create"),
   async (c) => {
     const { subscription_id } = c.req.param()
 

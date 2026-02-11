@@ -1,13 +1,13 @@
 import { Hono } from "hono"
 import type { HonoVariables } from "../../types/hono"
-import { authMiddleware } from "../../middleware/hono/authMiddleware"
+import { authMiddleware } from "../../middleware/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
 // Main purchase endpoint
-app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) => {
+app.post("/", authMiddleware("payments_create"), async (c) => {
   const body = await c.req.json()
   const {
     product_id,
