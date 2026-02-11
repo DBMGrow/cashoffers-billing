@@ -24,19 +24,25 @@ export interface IUserApiClient {
   updateUser(userId: number, userData: Partial<User>): Promise<User>
 
   /**
-   * Activate user premium status
+   * Activate user premium status (sets is_premium = true only)
    */
   activateUserPremium(userId: number): Promise<void>
 
   /**
-   * Deactivate user premium status
+   * Deactivate user premium status (sets is_premium = false only)
    */
   deactivateUserPremium(userId: number): Promise<void>
 
   /**
-   * Deactivate user (sets active = false)
+   * Deactivate user (sets active = false only)
    */
   deactivateUser(userId: number): Promise<void>
+
+  /**
+   * Fully activate user (sets both active = true AND is_premium = true)
+   * Use this for subscription renewals to ensure users are both active and premium
+   */
+  activateUser(userId: number): Promise<void>
 }
 
 /**

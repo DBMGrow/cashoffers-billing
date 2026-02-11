@@ -209,6 +209,23 @@ export class UserApiClient implements IUserApiClient {
     }
   }
 
+  async activateUser(userId: number): Promise<void> {
+    const startTime = Date.now()
+
+    try {
+      this.logger.info('Fully activating user (setting active = true AND is_premium = true)', { userId })
+
+      await this.updateUser(userId, { active: true, is_premium: true })
+
+      const duration = Date.now() - startTime
+      this.logger.info('User fully activated successfully', { userId, duration })
+    } catch (error) {
+      const duration = Date.now() - startTime
+      this.logger.error('Failed to fully activate user', error, { userId, duration })
+      throw error
+    }
+  }
+
   private parseUserResponse(data: any): User {
     if (data.success === 'success' && data.data) {
       return this.parseUser(data.data)
