@@ -4,14 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "tsx src/app.ts",
-    "start:old": "tsx src/app.js",
+    "start": "tsx api/app.ts",
+    "start:old": "tsx api/app.js",
     "build": "tsc --noEmit",
-    "dev": "tsx --watch src/app.ts",
-    "dev:old": "tsx --watch src/app.js",
-    "codegen": "kysely-codegen --out-file src/lib/db.d.ts",
+    "dev": "tsx --watch api/app.ts",
+    "dev:old": "tsx --watch api/app.js",
+    "codegen": "kysely-codegen --out-file api/lib/db.d.ts",
     "test": "vitest",
-    "preview:emails": "tsx src/preview/generate-previews.ts"
+    "preview:emails": "tsx api/preview/generate-previews.ts"
   },
   "license": "ISC",
   "dependencies": {

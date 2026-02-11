@@ -30,7 +30,7 @@ Route Handler
 - **Unclear ownership** - who's responsible for what operation?
 - **Context passing** - `req` and `user` objects passed through multiple layers
 
-**Example from [handlePurchase.js](../src/utils/handlePurchase.js:6-21):**
+**Example from [handlePurchase.js](../api/utils/handlePurchase.js:6-21):**
 ```javascript
 export default async function handlePurchase(product_id, user, userIsSubscribed, userWithEmailExists, waiveSignupFee) {
   const product = await Product.findOne({ where: { product_id } })
@@ -52,7 +52,7 @@ Different error handling approaches across the codebase:
 - **Throwing Error:** `throw new Error("amount is required")`
 - **Silent failures:** Some functions catch and swallow errors
 
-**Example from [createPayment.js](../src/utils/createPayment.js:7-48):**
+**Example from [createPayment.js](../api/utils/createPayment.js:7-48):**
 ```javascript
 export default async function createPayment(req, options) {
   try {
@@ -77,7 +77,7 @@ export default async function createPayment(req, options) {
 
 Functions do too many things at once:
 
-**[createNewSubscription.js](../src/utils/createNewSubscription.js:8-118)** performs:
+**[createNewSubscription.js](../api/utils/createNewSubscription.js:8-118)** performs:
 1. ✅ Business logic (subscription creation)
 2. ❌ External API calls (user activation, team creation)
 3. ❌ Database operations (direct Sequelize queries)
@@ -85,7 +85,7 @@ Functions do too many things at once:
 5. ❌ Email notifications
 6. ❌ Transaction logging
 
-**[handlePaymentOfSubscription.js](../src/utils/handlePaymentOfSubscription.js:8-135)** performs:
+**[handlePaymentOfSubscription.js](../api/utils/handlePaymentOfSubscription.js:8-135)** performs:
 1. ✅ Payment orchestration
 2. ❌ Addon detection (HomeUptick)
 3. ❌ Payment execution
@@ -115,7 +115,7 @@ await handlePaymentOfSubscription(subscription, user.email, {
 - No transaction boundaries
 - External API calls can fail leaving partial state
 
-**Example from [updateExistingSubscription.js](../src/utils/updateExistingSubscription.js:22-73):**
+**Example from [updateExistingSubscription.js](../api/utils/updateExistingSubscription.js:22-73):**
 ```javascript
 // Create team
 const team = await fetch(process.env.API_URL + "/teams", {...})
@@ -196,7 +196,7 @@ const updatedSubscription = await subscription.update({...})
 
 **Similar Logic Duplicated:**
 
-Compare [createPayment.js:87-138](../src/utils/createPayment.js:87-138) and [chargeCardSingle.js:87-133](../src/utils/chargeCardSingle.js:87-133):
+Compare [createPayment.js:87-138](../api/utils/createPayment.js:87-138) and [chargeCardSingle.js:87-133](../api/utils/chargeCardSingle.js:87-133):
 
 Both implement `paymentCompleted()` with:
 - Same validation logic
@@ -267,7 +267,7 @@ The new architecture addresses ALL these problems through clean architecture pri
 
 Each use case does ONE thing well:
 
-**[PurchaseSubscriptionUseCase](../src/use-cases/subscription/purchase-subscription.use-case.ts:38-361)**
+**[PurchaseSubscriptionUseCase](../api/use-cases/subscription/purchase-subscription.use-case.ts:38-361)**
 - ✅ Clear inputs and outputs
 - ✅ Dependency injection
 - ✅ Single business operation
@@ -356,7 +356,7 @@ export interface PurchaseSubscriptionOutput {
 
 #### 5. **Clear Separation of Concerns**
 
-**Route Handler** ([purchase.ts](../src/routes/hono/purchase.ts:10-81)):
+**Route Handler** ([purchase.ts](../api/routes/hono/purchase.ts:10-81)):
 ```typescript
 app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) => {
   const body = await c.req.json()

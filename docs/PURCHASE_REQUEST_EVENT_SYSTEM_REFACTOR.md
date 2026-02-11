@@ -112,25 +112,25 @@ CREATE TABLE PurchaseRequests (
 
 Create domain entity following existing patterns from `Subscription` entity:
 
-**File**: `src/domain/entities/purchase-request.ts`
+**File**: `api/domain/entities/purchase-request.ts`
 
 - Factory method: `PurchaseRequest.create()`
 - Reconstitution: `PurchaseRequest.from()`
 - Business methods: `markAsProcessing()`, `markAsCompleted()`, `markAsFailed()`, `scheduleRetry()`
 
-**File**: `src/domain/value-objects/purchase-request-status.ts`
+**File**: `api/domain/value-objects/purchase-request-status.ts`
 
 - Value object for status with validation
 - Status transition rules
 
-**File**: `src/domain/mappers/purchase-request.mapper.ts`
+**File**: `api/domain/mappers/purchase-request.mapper.ts`
 
 - `toDomain()`: Database row → Domain entity
 - `toDatabase()`: Domain entity → Database row
 
 #### 1.3 Repository Layer
 
-**File**: `src/infrastructure/database/repositories/purchase-request.repository.interface.ts`
+**File**: `api/infrastructure/database/repositories/purchase-request.repository.interface.ts`
 
 ```typescript
 interface IPurchaseRequestRepository extends IRepository<PurchaseRequest> {
@@ -145,13 +145,13 @@ interface IPurchaseRequestRepository extends IRepository<PurchaseRequest> {
 }
 ```
 
-**File**: `src/infrastructure/database/repositories/purchase-request.repository.ts`
+**File**: `api/infrastructure/database/repositories/purchase-request.repository.ts`
 
 - Implement using Kysely following the pattern in `subscription.repository.ts`
 
 #### 1.4 Integrate Into Use Cases
 
-**Modify**: `src/use-cases/subscription/purchase-subscription.use-case.ts`
+**Modify**: `api/use-cases/subscription/purchase-subscription.use-case.ts`
 
 ```typescript
 async execute(input: PurchaseSubscriptionInput): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
@@ -220,18 +220,18 @@ async execute(input: PurchaseSubscriptionInput): Promise<UseCaseResult<PurchaseS
 }
 ```
 
-**Modify**: `src/use-cases/subscription/renew-subscription.use-case.ts`
+**Modify**: `api/use-cases/subscription/renew-subscription.use-case.ts`
 
 - Similar integration pattern
 - Create PurchaseRequest with `request_type: 'RENEWAL'` and `source: 'CRON'`
 - Track status through renewal workflow
 - **Hybrid retry approach**: Keep existing retry logic (`calculateNextRetryAttempt`) for backward compatibility during transition. PurchaseRequest tracks attempts but doesn't replace existing retry mechanism yet.
 
-**Modify**: `src/cron/subscriptionsCron.ts`
+**Modify**: `api/cron/subscriptionsCron.ts`
 
 - Each renewal should create a PurchaseRequest before calling `RenewSubscriptionUseCase`
 
-**Register in Container**: `src/container.ts`
+**Register in Container**: `api/container.ts`
 
 - Add `purchaseRequest: IPurchaseRequestRepository` to repositories
 - Add to use case dependencies
@@ -244,7 +244,7 @@ After creating the table:
 npm run codegen
 ```
 
-This generates TypeScript types in `src/lib/db.d.ts` for the new table.
+This generates TypeScript types in `api/lib/db.d.ts` for the new table.
 
 ---
 
@@ -254,7 +254,7 @@ This generates TypeScript types in `src/lib/db.d.ts` for the new table.
 
 #### 2.1 Event Infrastructure
 
-**File**: `src/infrastructure/events/event-bus.interface.ts`
+**File**: `api/infrastructure/events/event-bus.interface.ts`
 
 ```typescript
 interface IDomainEvent {
@@ -278,21 +278,21 @@ interface IEventHandler<T extends IDomainEvent> {
 }
 ```
 
-**File**: `src/infrastructure/events/in-memory-event-bus.ts`
+**File**: `api/infrastructure/events/in-memory-event-bus.ts`
 
 - Simple implementation using Map<eventType, handlers[]>
 - Synchronous handler execution with error catching
 - Log errors for non-critical handlers (emails)
 - Throw errors for critical handlers (transaction logging)
 
-**File**: `src/infrastructure/events/base-event-handler.ts`
+**File**: `api/infrastructure/events/base-event-handler.ts`
 
 - Abstract base class for handlers
 - Built-in error handling and logging
 
 #### 2.2 Domain Events
 
-Create event classes in `src/domain/events/`:
+Create event classes in `api/domain/events/`:
 
 - `subscription-created.event.ts`: Published when subscription is created
 - `subscription-renewed.event.ts`: Published when subscription is renewed
@@ -307,7 +307,7 @@ Each event includes relevant data in the payload (userId, subscriptionId, amount
 
 #### 2.3 Event Handlers
 
-**File**: `src/application/event-handlers/email-notification.handler.ts`
+**File**: `api/application/event-handlers/email-notification.handler.ts`
 
 ```typescript
 class EmailNotificationHandler implements IEventHandler<SubscriptionCreatedEvent> {
@@ -332,19 +332,19 @@ class EmailNotificationHandler implements IEventHandler<SubscriptionCreatedEvent
 }
 ```
 
-**File**: `src/application/event-handlers/transaction-logging.handler.ts`
+**File**: `api/application/event-handlers/transaction-logging.handler.ts`
 
 - Critical handler - must succeed
 - Logs successful payments to Transaction table
 
-**File**: `src/application/event-handlers/premium-activation.handler.ts`
+**File**: `api/application/event-handlers/premium-activation.handler.ts`
 
 - Activates user premium status via UserApiClient
 - Critical but retryable
 
 #### 2.4 Integrate Into Use Cases
 
-**Modify**: `src/use-cases/subscription/purchase-subscription.use-case.ts`
+**Modify**: `api/use-cases/subscription/purchase-subscription.use-case.ts`
 
 Replace direct calls with event publishing:
 
@@ -363,7 +363,7 @@ await this.deps.eventBus.publish(new SubscriptionCreatedEvent({
 }))
 ```
 
-**Register in Container**: `src/container.ts`
+**Register in Container**: `api/container.ts`
 
 ```typescript
 // Create event bus
@@ -415,7 +415,7 @@ CREATE TABLE BillingEventOutbox (
 
 #### 3.2 Outbox Repository
 
-**File**: `src/infrastructure/database/repositories/event-outbox.repository.ts`
+**File**: `api/infrastructure/database/repositories/event-outbox.repository.ts`
 
 - `create()`: Insert events into outbox
 - `findPending()`: Get events ready to process
@@ -424,7 +424,7 @@ CREATE TABLE BillingEventOutbox (
 
 #### 3.3 Outbox Event Bus
 
-**File**: `src/infrastructure/events/outbox-event-bus.ts`
+**File**: `api/infrastructure/events/outbox-event-bus.ts`
 
 ```typescript
 class OutboxEventBus implements IEventBus {
@@ -445,21 +445,21 @@ class OutboxEventBus implements IEventBus {
 
 #### 3.4 Outbox Processor
 
-**File**: `src/infrastructure/events/event-outbox-processor.ts`
+**File**: `api/infrastructure/events/event-outbox-processor.ts`
 
 - Background worker that polls EventOutbox for PENDING events
 - Publishes events to registered handlers
 - Updates status to PUBLISHED on success
 - Implements retry logic with exponential backoff on failure
 
-**File**: `src/cron/eventOutboxProcessor.ts`
+**File**: `api/cron/eventOutboxProcessor.ts`
 
 - Entry point for outbox processing
 - Can be triggered by cron or run continuously
 
 #### 3.5 Update Container
 
-**Modify**: `src/container.ts`
+**Modify**: `api/container.ts`
 
 - Swap `InMemoryEventBus` for `OutboxEventBus`
 - Start `EventOutboxProcessor` on app startup
@@ -489,7 +489,7 @@ CREATE TABLE BillingWebhookSubscriptions (
 
 #### 4.2 Webhook Delivery Handler
 
-**File**: `src/infrastructure/webhooks/webhook-delivery.handler.ts`
+**File**: `api/infrastructure/webhooks/webhook-delivery.handler.ts`
 
 - Listens to all domain events
 - Looks up active webhook subscriptions
@@ -497,13 +497,13 @@ CREATE TABLE BillingWebhookSubscriptions (
 - Signs payload with HMAC for security
 - Implements retry logic
 
-**File**: `src/infrastructure/webhooks/webhook-signature.ts`
+**File**: `api/infrastructure/webhooks/webhook-signature.ts`
 
 - HMAC signature generation/verification
 
 #### 4.3 Webhook Management Routes
 
-**File**: `src/routes/hono/webhooks.ts`
+**File**: `api/routes/hono/webhooks.ts`
 
 - POST /webhooks - Create subscription
 - GET /webhooks - List subscriptions
@@ -513,7 +513,7 @@ CREATE TABLE BillingWebhookSubscriptions (
 
 #### 4.4 Register Webhook Handler
 
-**Modify**: `src/container.ts`
+**Modify**: `api/container.ts`
 
 - Create `WebhookDeliveryHandler`
 - Subscribe to all event types: `eventBus.subscribe('*', webhookHandler)`
@@ -524,45 +524,45 @@ CREATE TABLE BillingWebhookSubscriptions (
 
 ### Phase 1
 
-- **NEW**: `src/database/migrations/001_create_purchase_requests.sql`
-- **NEW**: `src/domain/entities/purchase-request.ts`
-- **NEW**: `src/domain/value-objects/purchase-request-status.ts`
-- **NEW**: `src/domain/mappers/purchase-request.mapper.ts`
-- **NEW**: `src/infrastructure/database/repositories/purchase-request.repository.interface.ts`
-- **NEW**: `src/infrastructure/database/repositories/purchase-request.repository.ts`
-- **MODIFY**: `src/use-cases/subscription/purchase-subscription.use-case.ts`
-- **MODIFY**: `src/use-cases/subscription/renew-subscription.use-case.ts`
-- **MODIFY**: `src/cron/subscriptionsCron.ts`
-- **MODIFY**: `src/container.ts`
+- **NEW**: `api/database/migrations/001_create_purchase_requests.sql`
+- **NEW**: `api/domain/entities/purchase-request.ts`
+- **NEW**: `api/domain/value-objects/purchase-request-status.ts`
+- **NEW**: `api/domain/mappers/purchase-request.mapper.ts`
+- **NEW**: `api/infrastructure/database/repositories/purchase-request.repository.interface.ts`
+- **NEW**: `api/infrastructure/database/repositories/purchase-request.repository.ts`
+- **MODIFY**: `api/use-cases/subscription/purchase-subscription.use-case.ts`
+- **MODIFY**: `api/use-cases/subscription/renew-subscription.use-case.ts`
+- **MODIFY**: `api/cron/subscriptionsCron.ts`
+- **MODIFY**: `api/container.ts`
 
 ### Phase 2
 
-- **NEW**: `src/infrastructure/events/event-bus.interface.ts`
-- **NEW**: `src/infrastructure/events/in-memory-event-bus.ts`
-- **NEW**: `src/infrastructure/events/base-event-handler.ts`
-- **NEW**: `src/domain/events/` (multiple event classes)
-- **NEW**: `src/application/event-handlers/` (multiple handler classes)
-- **MODIFY**: `src/use-cases/subscription/purchase-subscription.use-case.ts`
-- **MODIFY**: `src/use-cases/subscription/renew-subscription.use-case.ts`
-- **MODIFY**: `src/container.ts`
+- **NEW**: `api/infrastructure/events/event-bus.interface.ts`
+- **NEW**: `api/infrastructure/events/in-memory-event-bus.ts`
+- **NEW**: `api/infrastructure/events/base-event-handler.ts`
+- **NEW**: `api/domain/events/` (multiple event classes)
+- **NEW**: `api/application/event-handlers/` (multiple handler classes)
+- **MODIFY**: `api/use-cases/subscription/purchase-subscription.use-case.ts`
+- **MODIFY**: `api/use-cases/subscription/renew-subscription.use-case.ts`
+- **MODIFY**: `api/container.ts`
 
 ### Phase 3
 
-- **NEW**: `src/database/migrations/002_create_event_outbox.sql`
-- **NEW**: `src/infrastructure/database/repositories/event-outbox.repository.ts`
-- **NEW**: `src/infrastructure/events/outbox-event-bus.ts`
-- **NEW**: `src/infrastructure/events/event-outbox-processor.ts`
-- **NEW**: `src/cron/eventOutboxProcessor.ts`
-- **MODIFY**: `src/container.ts`
+- **NEW**: `api/database/migrations/002_create_event_outbox.sql`
+- **NEW**: `api/infrastructure/database/repositories/event-outbox.repository.ts`
+- **NEW**: `api/infrastructure/events/outbox-event-bus.ts`
+- **NEW**: `api/infrastructure/events/event-outbox-processor.ts`
+- **NEW**: `api/cron/eventOutboxProcessor.ts`
+- **MODIFY**: `api/container.ts`
 
 ### Phase 4
 
-- **NEW**: `src/database/migrations/003_create_webhook_subscriptions.sql`
-- **NEW**: `src/infrastructure/webhooks/webhook-delivery.handler.ts`
-- **NEW**: `src/infrastructure/webhooks/webhook-signature.ts`
-- **NEW**: `src/routes/hono/webhooks.ts`
-- **NEW**: `src/use-cases/webhook/create-webhook-subscription.use-case.ts`
-- **MODIFY**: `src/container.ts`
+- **NEW**: `api/database/migrations/003_create_webhook_subscriptions.sql`
+- **NEW**: `api/infrastructure/webhooks/webhook-delivery.handler.ts`
+- **NEW**: `api/infrastructure/webhooks/webhook-signature.ts`
+- **NEW**: `api/routes/hono/webhooks.ts`
+- **NEW**: `api/use-cases/webhook/create-webhook-subscription.use-case.ts`
+- **MODIFY**: `api/container.ts`
 
 ---
 

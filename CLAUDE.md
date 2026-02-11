@@ -25,7 +25,7 @@ npm test             # Run test suite with Vitest
 ### Database
 
 ```bash
-npm run codegen      # Generate Kysely types from database schema to src/lib/db.d.ts
+npm run codegen      # Generate Kysely types from database schema to api/lib/db.d.ts
 ```
 
 ### Email Templates
@@ -42,20 +42,20 @@ After generating previews, open `email-previews/index.html` in your browser to v
 
 The service orchestrates complex payment workflows involving user creation, card management, and subscription handling:
 
-1. **New User Purchase** (`src/routes/purchase.js`):
+1. **New User Purchase** (`api/routes/purchase.js`):
    - Validates product and user existence
    - Creates card via Square API if needed
    - Creates new user in main API if they don't exist
    - Handles prorated charges for subscription upgrades
    - Creates subscription via `handlePurchase`
 
-2. **Subscription Management** (`src/routes/subscription.js`):
+2. **Subscription Management** (`api/routes/subscription.js`):
    - CRUD operations for subscriptions
    - Pause/resume functionality
    - Cancel/downgrade on renewal flags
    - Self-service actions with permission checks
 
-3. **Payment Processing** (`src/utils/createPayment.js`):
+3. **Payment Processing** (`api/utils/createPayment.js`):
    - Square API integration for charges
    - Transaction logging
    - Email notifications
@@ -63,7 +63,7 @@ The service orchestrates complex payment workflows involving user creation, card
 
 ### Subscription Renewal System
 
-Subscription renewals are handled by a cron job (`src/cron/subscriptionsCron.js`) that:
+Subscription renewals are handled by a cron job (`api/cron/subscriptionsCron.js`) that:
 
 - Finds subscriptions due for renewal
 - Fetches user data from main API
@@ -81,7 +81,7 @@ Key behaviors:
 
 ### Authentication & Authorization
 
-`src/middleware/authMiddleware.js` implements a capability-based permission system:
+`api/middleware/authMiddleware.js` implements a capability-based permission system:
 
 - Validates requests against main API's user data
 - Supports permission strings (e.g., `"payments_create"`)
@@ -90,13 +90,13 @@ Key behaviors:
 
 ### External Dependencies
 
-- **Square API** (`src/config/square.js`): Payment processing
+- **Square API** (`api/config/square.js`): Payment processing
 - **Main API**: User management, fetched via `process.env.API_URL`
-- **SendGrid** (`src/utils/sendEmail.js`): Email notifications with HTML templates in `src/templates/`
+- **SendGrid** (`api/utils/sendEmail.js`): Email notifications with HTML templates in `api/templates/`
 
 ### Module Aliases
 
-TypeScript and runtime both use `@/` alias for `src/` directory:
+TypeScript and runtime both use `@/` alias for `api/` directory:
 
 - Import with `@/utils/foo` instead of relative paths
 - Configured in `tsconfig.json` and `vitest.config.ts`
@@ -142,12 +142,12 @@ Required environment variables (see `.env`):
 
 ## Testing
 
-Tests located in `src/tests/unit/` using Vitest. Current coverage focuses on utility functions like `getHomeUptickSubscription`.
+Tests located in `api/tests/unit/` using Vitest. Current coverage focuses on utility functions like `getHomeUptickSubscription`.
 
 To run a single test file:
 
 ```bash
-npx vitest run src/tests/unit/getHomeUptickSubscription.test.ts
+npx vitest run api/tests/unit/getHomeUptickSubscription.test.ts
 ```
 
 ## Important Notes

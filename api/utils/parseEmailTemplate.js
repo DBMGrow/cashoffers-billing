@@ -3,8 +3,8 @@ const promises = fs.promises
 
 export default async function parseEmailTemplate(templateFile, templateData = {}) {
   try {
-    let shell = await promises.readFile("./src/templates/shell.html", "utf-8")
-    let htmlContent = await promises.readFile("./src/templates/" + templateFile, "utf-8")
+    let shell = await promises.readFile("./api/templates/shell.html", "utf-8")
+    let htmlContent = await promises.readFile("./api/templates/" + templateFile, "utf-8")
 
     //replace {{content}} with htmlContent
     htmlContent = shell.replace("{{content}}", htmlContent)

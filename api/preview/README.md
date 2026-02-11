@@ -64,7 +64,7 @@ The preview generator script. Features:
 
 ## Adding New Templates
 
-1. Create your MJML template in `src/templates/mjml/`
+1. Create your MJML template in `api/templates/mjml/`
 2. Add sample data to `email-preview-data.ts`:
 
 ```typescript
@@ -110,7 +110,7 @@ The `email-previews/` directory is:
 
 ## Development Workflow
 
-1. **Design**: Edit MJML templates in `src/templates/mjml/`
+1. **Design**: Edit MJML templates in `api/templates/mjml/`
 2. **Preview**: Run `npm run preview:emails`
 3. **Review**: Open `email-previews/index.html` in browser
 4. **Test**: Toggle desktop/mobile views
@@ -141,7 +141,7 @@ Use the view toggle buttons in each preview to test both layouts.
 npm run build
 
 # Check MJML templates are valid
-ls src/templates/mjml/*.mjml
+ls api/templates/mjml/*.mjml
 ```
 
 ### Variables Not Replacing
@@ -160,7 +160,7 @@ variables: { userName: "John" }
 
 If a template doesn't appear in previews:
 1. Check it's added to `emailPreviews` array in `email-preview-data.ts`
-2. Verify the template file exists in `src/templates/mjml/`
+2. Verify the template file exists in `api/templates/mjml/`
 3. Check the filename matches exactly (case-sensitive)
 
 ## Future Enhancements

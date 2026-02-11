@@ -20,33 +20,33 @@ Set up infrastructure without breaking existing code
 
 ### Files Created
 1. **Configuration**
-   - `src/config/config.interface.ts` - Configuration type definitions
-   - `src/config/config.service.ts` - Centralized environment variable management
+   - `api/config/config.interface.ts` - Configuration type definitions
+   - `api/config/config.service.ts` - Centralized environment variable management
 
 2. **Logging**
-   - `src/infrastructure/logging/logger.interface.ts` - Logger abstraction
-   - `src/infrastructure/logging/structured.logger.ts` - Structured JSON logger
-   - `src/infrastructure/logging/console.logger.ts` - Console logger for development
+   - `api/infrastructure/logging/logger.interface.ts` - Logger abstraction
+   - `api/infrastructure/logging/structured.logger.ts` - Structured JSON logger
+   - `api/infrastructure/logging/console.logger.ts` - Console logger for development
 
 3. **Payment Provider Interface**
-   - `src/infrastructure/payment/payment-provider.interface.ts` - Square API abstraction
+   - `api/infrastructure/payment/payment-provider.interface.ts` - Square API abstraction
 
 4. **Email Service Interface**
-   - `src/infrastructure/email/email-service.interface.ts` - SendGrid abstraction
+   - `api/infrastructure/email/email-service.interface.ts` - SendGrid abstraction
 
 5. **Repository Interfaces**
-   - `src/infrastructure/database/repositories/repository.interface.ts` - Base repository
-   - `src/infrastructure/database/repositories/transaction.repository.interface.ts`
-   - `src/infrastructure/database/repositories/subscription.repository.interface.ts`
-   - `src/infrastructure/database/repositories/user-card.repository.interface.ts`
-   - `src/infrastructure/database/repositories/product.repository.interface.ts`
+   - `api/infrastructure/database/repositories/repository.interface.ts` - Base repository
+   - `api/infrastructure/database/repositories/transaction.repository.interface.ts`
+   - `api/infrastructure/database/repositories/subscription.repository.interface.ts`
+   - `api/infrastructure/database/repositories/user-card.repository.interface.ts`
+   - `api/infrastructure/database/repositories/product.repository.interface.ts`
 
 6. **External API Interface**
-   - `src/infrastructure/external-api/user-api.interface.ts` - User API client abstraction
+   - `api/infrastructure/external-api/user-api.interface.ts` - User API client abstraction
 
 7. **DI Container**
-   - `src/container.ts` - Dependency injection container
-   - `src/container.test.ts` - Container tests (7 tests passing)
+   - `api/container.ts` - Dependency injection container
+   - `api/container.test.ts` - Container tests (7 tests passing)
 
 ### Test Results
 - ✅ All container tests passing (7/7)
@@ -72,16 +72,16 @@ Abstract database access behind repository pattern, migrate to Kysely
 
 ### Files Created
 1. **Database Factory**
-   - `src/infrastructure/database/kysely.factory.ts` - Kysely database creation with config
+   - `api/infrastructure/database/kysely.factory.ts` - Kysely database creation with config
 
 2. **Repository Implementations**
-   - `src/infrastructure/database/repositories/transaction.repository.ts`
-   - `src/infrastructure/database/repositories/subscription.repository.ts`
-   - `src/infrastructure/database/repositories/user-card.repository.ts`
-   - `src/infrastructure/database/repositories/product.repository.ts`
+   - `api/infrastructure/database/repositories/transaction.repository.ts`
+   - `api/infrastructure/database/repositories/subscription.repository.ts`
+   - `api/infrastructure/database/repositories/user-card.repository.ts`
+   - `api/infrastructure/database/repositories/product.repository.ts`
 
 3. **Container Updates**
-   - Updated `src/container.ts` to include database and repositories
+   - Updated `api/container.ts` to include database and repositories
    - Added repository initialization tests (8 tests passing)
 
 ### Technical Details
@@ -126,37 +126,37 @@ Decouple from Square, SendGrid, and external APIs
 
 ### Files Created
 1. **Square Payment Provider**
-   - `src/infrastructure/payment/square/square.provider.ts` - Real implementation
+   - `api/infrastructure/payment/square/square.provider.ts` - Real implementation
    - Handles payments, cards, refunds with full error handling
    - Structured logging for all operations
    - Automatic type conversions (bigint to number for expMonth/expYear)
 
 2. **Mock Payment Provider**
-   - `src/infrastructure/payment/mock/mock-payment.provider.ts` - Test doubles
+   - `api/infrastructure/payment/mock/mock-payment.provider.ts` - Test doubles
    - In-memory payment/card/refund tracking
    - Configurable failure scenarios for testing
    - Test helper methods for assertions
 
 3. **SendGrid Email Service**
-   - `src/infrastructure/email/sendgrid/sendgrid.service.ts` - Real implementation
-   - `src/infrastructure/email/sendgrid/template-parser.ts` - Template rendering
+   - `api/infrastructure/email/sendgrid/sendgrid.service.ts` - Real implementation
+   - `api/infrastructure/email/sendgrid/template-parser.ts` - Template rendering
    - Support for both templated and plain emails
    - Automatic BCC to system email for record keeping
 
 4. **Mock Email Service**
-   - `src/infrastructure/email/mock/mock-email.service.ts` - Test doubles
+   - `api/infrastructure/email/mock/mock-email.service.ts` - Test doubles
    - Tracks all sent emails for verification
    - Query helpers (by recipient, subject, template)
    - Configurable failure scenarios
 
 5. **User API Client**
-   - `src/infrastructure/external-api/user-api/user-api.client.ts` - Real implementation
+   - `api/infrastructure/external-api/user-api/user-api.client.ts` - Real implementation
    - Full CRUD operations for users
    - Premium activation/deactivation
    - Automatic response parsing
 
 6. **Mock User API Client**
-   - `src/infrastructure/external-api/user-api/mock-user-api.client.ts` - Test doubles
+   - `api/infrastructure/external-api/user-api/mock-user-api.client.ts` - Test doubles
    - In-memory user storage
    - Email index for fast lookups
    - Helper methods for test setup
@@ -208,29 +208,29 @@ Extract business logic into testable use cases
 
 ### Files Created
 1. **Use Case Foundation**
-   - `src/use-cases/base/use-case.interface.ts` - Base interfaces and result types
-   - `src/use-cases/types/payment.types.ts` - Payment DTOs
-   - `src/use-cases/types/subscription.types.ts` - Subscription DTOs
-   - `src/use-cases/types/validation.schemas.ts` - Zod validation schemas
-   - `src/use-cases/index.ts` - Central export point
+   - `api/use-cases/base/use-case.interface.ts` - Base interfaces and result types
+   - `api/use-cases/types/payment.types.ts` - Payment DTOs
+   - `api/use-cases/types/subscription.types.ts` - Subscription DTOs
+   - `api/use-cases/types/validation.schemas.ts` - Zod validation schemas
+   - `api/use-cases/index.ts` - Central export point
 
 2. **Payment Use Cases**
-   - `src/use-cases/payment/create-payment.use-case.interface.ts`
-   - `src/use-cases/payment/create-payment.use-case.ts` - Full implementation
-   - `src/use-cases/payment/create-payment.use-case.test.ts` - 15 comprehensive tests
+   - `api/use-cases/payment/create-payment.use-case.interface.ts`
+   - `api/use-cases/payment/create-payment.use-case.ts` - Full implementation
+   - `api/use-cases/payment/create-payment.use-case.test.ts` - 15 comprehensive tests
 
 3. **Subscription Use Cases**
-   - `src/use-cases/subscription/create-subscription.use-case.interface.ts`
-   - `src/use-cases/subscription/create-subscription.use-case.ts` - Full implementation
-   - `src/use-cases/subscription/create-subscription.use-case.test.ts` - 13 comprehensive tests
-   - `src/use-cases/subscription/renew-subscription.use-case.interface.ts`
-   - `src/use-cases/subscription/renew-subscription.use-case.ts` - Full implementation
-   - `src/use-cases/subscription/renew-subscription.use-case.test.ts` - 18 comprehensive tests
+   - `api/use-cases/subscription/create-subscription.use-case.interface.ts`
+   - `api/use-cases/subscription/create-subscription.use-case.ts` - Full implementation
+   - `api/use-cases/subscription/create-subscription.use-case.test.ts` - 13 comprehensive tests
+   - `api/use-cases/subscription/renew-subscription.use-case.interface.ts`
+   - `api/use-cases/subscription/renew-subscription.use-case.ts` - Full implementation
+   - `api/use-cases/subscription/renew-subscription.use-case.test.ts` - 18 comprehensive tests
 
 4. **Container Integration**
-   - Updated `src/container.ts` to include useCases section
+   - Updated `api/container.ts` to include useCases section
    - Added IConfigService wrapper for use case dependencies
-   - Updated `src/container.test.ts` with use case initialization test
+   - Updated `api/container.test.ts` with use case initialization test
 
 ### Technical Features
 - **Zod Validation**: Runtime type checking with descriptive error messages
@@ -308,30 +308,30 @@ Add domain entities with business rules
 
 ### Files Created
 1. **Domain Foundation**
-   - `src/domain/base/entity.interface.ts` - Base entity interface and abstract class
-   - `src/domain/base/value-object.interface.ts` - Base value object for immutable types
+   - `api/domain/base/entity.interface.ts` - Base entity interface and abstract class
+   - `api/domain/base/value-object.interface.ts` - Base value object for immutable types
 
 2. **Value Objects**
-   - `src/domain/value-objects/money.ts` - Money handling with cents precision
-   - `src/domain/value-objects/money.test.ts` - 18 comprehensive tests
-   - `src/domain/value-objects/email.ts` - Email validation and normalization
-   - `src/domain/value-objects/email.test.ts` - 12 comprehensive tests
-   - `src/domain/value-objects/subscription-status.ts` - Subscription state management
-   - `src/domain/value-objects/payment-status.ts` - Payment state transitions
-   - `src/domain/value-objects/payment-status.test.ts` - 24 comprehensive tests
-   - `src/domain/value-objects/duration.ts` - Billing period calculations
+   - `api/domain/value-objects/money.ts` - Money handling with cents precision
+   - `api/domain/value-objects/money.test.ts` - 18 comprehensive tests
+   - `api/domain/value-objects/email.ts` - Email validation and normalization
+   - `api/domain/value-objects/email.test.ts` - 12 comprehensive tests
+   - `api/domain/value-objects/subscription-status.ts` - Subscription state management
+   - `api/domain/value-objects/payment-status.ts` - Payment state transitions
+   - `api/domain/value-objects/payment-status.test.ts` - 24 comprehensive tests
+   - `api/domain/value-objects/duration.ts` - Billing period calculations
 
 3. **Domain Entities**
-   - `src/domain/entities/subscription.ts` - Subscription with business rules
-   - `src/domain/entities/subscription.test.ts` - 37 comprehensive tests
-   - `src/domain/entities/payment.ts` - Payment with state management
-   - `src/domain/entities/payment.test.ts` - 33 comprehensive tests
+   - `api/domain/entities/subscription.ts` - Subscription with business rules
+   - `api/domain/entities/subscription.test.ts` - 37 comprehensive tests
+   - `api/domain/entities/payment.ts` - Payment with state management
+   - `api/domain/entities/payment.test.ts` - 33 comprehensive tests
 
 4. **Mappers**
-   - `src/domain/mappers/subscription.mapper.ts` - Database ↔ Domain conversion
+   - `api/domain/mappers/subscription.mapper.ts` - Database ↔ Domain conversion
 
 5. **Domain Exports**
-   - `src/domain/index.ts` - Central export point for domain layer
+   - `api/domain/index.ts` - Central export point for domain layer
 
 ### Domain Entities Implemented
 
@@ -443,35 +443,35 @@ Add proper transaction boundaries and error handling
 
 ### Files Created
 1. **Transaction Management**
-   - `src/infrastructure/database/transaction/transaction-manager.interface.ts` - Transaction manager interface
-   - `src/infrastructure/database/transaction/kysely-transaction-manager.ts` - Kysely implementation
+   - `api/infrastructure/database/transaction/transaction-manager.interface.ts` - Transaction manager interface
+   - `api/infrastructure/database/transaction/kysely-transaction-manager.ts` - Kysely implementation
 
 2. **Payment Error Handling**
-   - `src/infrastructure/payment/error/payment-error-translator.interface.ts` - Error translator interface
-   - `src/infrastructure/payment/error/payment-error.types.ts` - Error types and categories
-   - `src/infrastructure/payment/error/square-error-translator.ts` - Square error translator
-   - `src/infrastructure/payment/error/square-error-translator.test.ts` - 23 comprehensive tests
+   - `api/infrastructure/payment/error/payment-error-translator.interface.ts` - Error translator interface
+   - `api/infrastructure/payment/error/payment-error.types.ts` - Error types and categories
+   - `api/infrastructure/payment/error/square-error-translator.ts` - Square error translator
+   - `api/infrastructure/payment/error/square-error-translator.test.ts` - 23 comprehensive tests
    - `docs/PAYMENT_ERROR_HANDLING.md` - Error handling documentation
 
 3. **MJML Email System**
-   - `src/infrastructure/email/mjml/mjml-compiler.interface.ts` - MJML compiler interface
-   - `src/infrastructure/email/mjml/mjml-compiler.ts` - MJML compiler implementation
-   - `src/infrastructure/email/mjml/mjml-compiler.test.ts` - 15 comprehensive tests
+   - `api/infrastructure/email/mjml/mjml-compiler.interface.ts` - MJML compiler interface
+   - `api/infrastructure/email/mjml/mjml-compiler.ts` - MJML compiler implementation
+   - `api/infrastructure/email/mjml/mjml-compiler.test.ts` - 15 comprehensive tests
 
 4. **MJML Email Templates** (12 templates)
-   - `src/templates/mjml/base-layout.mjml` - Base layout template
-   - `src/templates/mjml/payment-confirmation.mjml` - Payment confirmation
-   - `src/templates/mjml/payment-error.mjml` - Payment error notification
-   - `src/templates/mjml/subscriptionRenewal.mjml` - Subscription renewed
-   - `src/templates/mjml/subscriptionRenewalFailed.mjml` - Renewal failed
-   - `src/templates/mjml/subscriptionCreated.mjml` - New subscription
-   - `src/templates/mjml/subscriptionCancelled.mjml` - Cancellation notice
-   - `src/templates/mjml/subscriptionDowngraded.mjml` - Downgrade notice
-   - `src/templates/mjml/subscriptionPaused.mjml` - Subscription paused
-   - `src/templates/mjml/subscriptionPlanUpdated.mjml` - Plan change
-   - `src/templates/mjml/subscriptionSuspended.mjml` - Suspension notice
-   - `src/templates/mjml/cardUpdated.mjml` - Card updated
-   - `src/templates/mjml/refund.mjml` - Refund confirmation
+   - `api/templates/mjml/base-layout.mjml` - Base layout template
+   - `api/templates/mjml/payment-confirmation.mjml` - Payment confirmation
+   - `api/templates/mjml/payment-error.mjml` - Payment error notification
+   - `api/templates/mjml/subscriptionRenewal.mjml` - Subscription renewed
+   - `api/templates/mjml/subscriptionRenewalFailed.mjml` - Renewal failed
+   - `api/templates/mjml/subscriptionCreated.mjml` - New subscription
+   - `api/templates/mjml/subscriptionCancelled.mjml` - Cancellation notice
+   - `api/templates/mjml/subscriptionDowngraded.mjml` - Downgrade notice
+   - `api/templates/mjml/subscriptionPaused.mjml` - Subscription paused
+   - `api/templates/mjml/subscriptionPlanUpdated.mjml` - Plan change
+   - `api/templates/mjml/subscriptionSuspended.mjml` - Suspension notice
+   - `api/templates/mjml/cardUpdated.mjml` - Card updated
+   - `api/templates/mjml/refund.mjml` - Refund confirmation
 
 5. **Container Updates**
    - Added transaction manager to container
@@ -522,7 +522,7 @@ Migrate from Express to Hono, clean up API layer
 
 ### Completed Tasks
 - ✅ Installed Hono v4.11.7 and @hono/node-server
-- ✅ Created new Hono application in src/app.ts
+- ✅ Created new Hono application in api/app.ts
 - ✅ Migrated all middleware to Hono (errorHandler, digestMiddleware, authMiddleware)
 - ✅ Migrated all 8 route modules to Hono (status, product, card, payment, subscription, purchase, cron, emails)
 - ✅ Created HonoVariables type system for context typing
@@ -534,28 +534,28 @@ Migrate from Express to Hono, clean up API layer
 
 ### Files Created/Migrated
 1. **Hono Application**
-   - `src/app.ts` - New Hono application with @hono/node-server
-   - `src/types/hono.ts` - HonoVariables type definitions
+   - `api/app.ts` - New Hono application with @hono/node-server
+   - `api/types/hono.ts` - HonoVariables type definitions
 
 2. **Hono Middleware**
-   - `src/middleware/hono/errorHandler.ts` - Global error handler
-   - `src/middleware/hono/digestMiddleware.ts` - Request ID generator
-   - `src/middleware/hono/authMiddleware.ts` - Authentication with permissions
+   - `api/middleware/hono/errorHandler.ts` - Global error handler
+   - `api/middleware/hono/digestMiddleware.ts` - Request ID generator
+   - `api/middleware/hono/authMiddleware.ts` - Authentication with permissions
 
 3. **Hono Routes** (8 modules, 30+ endpoints)
-   - `src/routes/hono/status.ts` - Health check and service status
-   - `src/routes/hono/product.ts` - Product CRUD operations
-   - `src/routes/hono/card.ts` - Card management
-   - `src/routes/hono/payment.ts` - Payment processing and refunds
-   - `src/routes/hono/subscription.ts` - Subscription management (11 endpoints)
-   - `src/routes/hono/purchase.ts` - Purchase flow with user creation
-   - `src/routes/hono/cron.ts` - Cron job trigger
-   - `src/routes/hono/emails.ts` - Email template preview
+   - `api/routes/hono/status.ts` - Health check and service status
+   - `api/routes/hono/product.ts` - Product CRUD operations
+   - `api/routes/hono/card.ts` - Card management
+   - `api/routes/hono/payment.ts` - Payment processing and refunds
+   - `api/routes/hono/subscription.ts` - Subscription management (11 endpoints)
+   - `api/routes/hono/purchase.ts` - Purchase flow with user creation
+   - `api/routes/hono/cron.ts` - Cron job trigger
+   - `api/routes/hono/emails.ts` - Email template preview
 
 ### Files Removed
-- `src/app.js` - Old Express application
-- `src/routes/*.js` - 8 old Express route files
-- `src/middleware/*.js` - 3 old Express middleware files
+- `api/app.js` - Old Express application
+- `api/routes/*.js` - 8 old Express route files
+- `api/middleware/*.js` - 3 old Express middleware files
 
 ### Technical Features
 - **Type Safety**: Full TypeScript with HonoVariables context typing
@@ -627,22 +627,22 @@ Comprehensive testing, cleanup, documentation, and use case implementation
 ### Files Created
 
 1. **Payment Use Cases**
-   - `src/use-cases/payment/refund-payment.use-case.interface.ts` - Refund interface
-   - `src/use-cases/payment/refund-payment.use-case.ts` - Refund implementation
-   - `src/use-cases/payment/get-payments.use-case.interface.ts` - Get payments interface
-   - `src/use-cases/payment/get-payments.use-case.ts` - Get payments implementation
+   - `api/use-cases/payment/refund-payment.use-case.interface.ts` - Refund interface
+   - `api/use-cases/payment/refund-payment.use-case.ts` - Refund implementation
+   - `api/use-cases/payment/get-payments.use-case.interface.ts` - Get payments interface
+   - `api/use-cases/payment/get-payments.use-case.ts` - Get payments implementation
 
 2. **Subscription Use Cases**
-   - `src/use-cases/subscription/pause-subscription.use-case.interface.ts`
-   - `src/use-cases/subscription/pause-subscription.use-case.ts`
-   - `src/use-cases/subscription/resume-subscription.use-case.interface.ts`
-   - `src/use-cases/subscription/resume-subscription.use-case.ts`
-   - `src/use-cases/subscription/cancel-on-renewal.use-case.interface.ts`
-   - `src/use-cases/subscription/cancel-on-renewal.use-case.ts`
-   - `src/use-cases/subscription/mark-for-downgrade.use-case.interface.ts`
-   - `src/use-cases/subscription/mark-for-downgrade.use-case.ts`
-   - `src/use-cases/subscription/get-subscriptions.use-case.interface.ts`
-   - `src/use-cases/subscription/get-subscriptions.use-case.ts`
+   - `api/use-cases/subscription/pause-subscription.use-case.interface.ts`
+   - `api/use-cases/subscription/pause-subscription.use-case.ts`
+   - `api/use-cases/subscription/resume-subscription.use-case.interface.ts`
+   - `api/use-cases/subscription/resume-subscription.use-case.ts`
+   - `api/use-cases/subscription/cancel-on-renewal.use-case.interface.ts`
+   - `api/use-cases/subscription/cancel-on-renewal.use-case.ts`
+   - `api/use-cases/subscription/mark-for-downgrade.use-case.interface.ts`
+   - `api/use-cases/subscription/mark-for-downgrade.use-case.ts`
+   - `api/use-cases/subscription/get-subscriptions.use-case.interface.ts`
+   - `api/use-cases/subscription/get-subscriptions.use-case.ts`
 
 3. **Repository Enhancements**
    - Updated `transaction.repository.interface.ts` - Added findByType, countByType methods
@@ -654,12 +654,12 @@ Comprehensive testing, cleanup, documentation, and use case implementation
    - Updated `validation.schemas.ts` - Added 8 new Zod validation schemas
 
 5. **Routes Updated**
-   - `src/routes/hono/payment.ts` - Fully migrated to use cases
-   - `src/routes/hono/subscription.ts` - Completely rewritten to use new use cases
+   - `api/routes/hono/payment.ts` - Fully migrated to use cases
+   - `api/routes/hono/subscription.ts` - Completely rewritten to use new use cases
 
 6. **Container Updates**
-   - `src/container.ts` - Added 7 new use cases with dependency injection
-   - Updated `src/use-cases/index.ts` - Export all new use cases
+   - `api/container.ts` - Added 7 new use cases with dependency injection
+   - Updated `api/use-cases/index.ts` - Export all new use cases
 
 ### Use Cases Implemented
 

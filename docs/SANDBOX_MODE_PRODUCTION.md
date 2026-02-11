@@ -45,7 +45,7 @@ The implementation uses a **Dual-Client Provider Pattern**:
 ### Phase 1: Configuration & Database
 
 #### 1.1 Update Configuration Interface
-**File:** [src/config/config.interface.ts](src/config/config.interface.ts)
+**File:** [api/config/config.interface.ts](api/config/config.interface.ts)
 
 Add payment context interface and expand Square config:
 ```typescript
@@ -73,7 +73,7 @@ export interface IConfig {
 ```
 
 #### 1.2 Update Configuration Service
-**File:** [src/config/config.service.ts](src/config/config.service.ts)
+**File:** [api/config/config.service.ts](api/config/config.service.ts)
 
 - Load both `SQUARE_ACCESS_TOKEN` (production) and `SQUARE_SANDBOX_ACCESS_TOKEN`
 - Load both `SQUARE_LOCATION_ID` and `SQUARE_SANDBOX_LOCATION_ID`
@@ -82,7 +82,7 @@ export interface IConfig {
 - If only production credentials exist, sandbox is disabled
 
 #### 1.3 Database Migration
-**File:** `src/database/migrations/002_add_square_environment_tracking.sql` (NEW)
+**File:** `api/database/migrations/002_add_square_environment_tracking.sql` (NEW)
 
 ```sql
 -- Add environment tracking to Transactions
@@ -115,12 +115,12 @@ UPDATE Subscriptions SET square_environment = 'production' WHERE square_environm
 ```
 
 #### 1.4 Regenerate Database Types
-Run `npm run codegen` to update [src/lib/db.d.ts](src/lib/db.d.ts) with new columns.
+Run `npm run codegen` to update [api/lib/db.d.ts](api/lib/db.d.ts) with new columns.
 
 ### Phase 2: Payment Provider Layer
 
 #### 2.1 Extend Payment Provider Interface
-**File:** [src/infrastructure/payment/payment-provider.interface.ts](src/infrastructure/payment/payment-provider.interface.ts)
+**File:** [api/infrastructure/payment/payment-provider.interface.ts](api/infrastructure/payment/payment-provider.interface.ts)
 
 Add optional `context` parameter to all methods and `environment` to all results:
 ```typescript
@@ -143,7 +143,7 @@ export interface CardResult {
 ```
 
 #### 2.2 Create Dual Environment Provider
-**File:** `src/infrastructure/payment/dual-environment-provider.ts` (NEW)
+**File:** `api/infrastructure/payment/dual-environment-provider.ts` (NEW)
 
 Core routing logic:
 ```typescript
@@ -179,7 +179,7 @@ export class DualEnvironmentPaymentProvider implements IPaymentProvider {
 ```
 
 #### 2.3 Update Square Provider for Environment Awareness
-**File:** [src/infrastructure/payment/square/square.provider.ts](src/infrastructure/payment/square/square.provider.ts)
+**File:** [api/infrastructure/payment/square/square.provider.ts](api/infrastructure/payment/square/square.provider.ts)
 
 - Accept environment-specific config (production or sandbox)
 - Add environment to log messages
@@ -188,7 +188,7 @@ export class DualEnvironmentPaymentProvider implements IPaymentProvider {
 ### Phase 3: Test Mode Detection
 
 #### 3.1 Create Test Mode Detector Service
-**File:** `src/infrastructure/payment/test-mode-detector.ts` (NEW)
+**File:** `api/infrastructure/payment/test-mode-detector.ts` (NEW)
 
 ```typescript
 export interface ITestModeDetector {
@@ -215,7 +215,7 @@ export class TestModeDetector implements ITestModeDetector {
 ```
 
 #### 3.2 Create Test Mode Authorization
-**File:** `src/infrastructure/payment/test-mode-authorizer.ts` (NEW)
+**File:** `api/infrastructure/payment/test-mode-authorizer.ts` (NEW)
 
 ```typescript
 export interface ITestModeAuthorizer {
@@ -236,7 +236,7 @@ export class TestModeAuthorizer implements ITestModeAuthorizer {
 ```
 
 #### 3.3 Update Auth Middleware
-**File:** [src/middleware/hono/authMiddleware.ts](src/middleware/hono/authMiddleware.ts)
+**File:** [api/middleware/hono/authMiddleware.ts](api/middleware/hono/authMiddleware.ts)
 
 - Inject test mode detector and authorizer
 - Detect test mode from request
@@ -247,21 +247,21 @@ export class TestModeAuthorizer implements ITestModeAuthorizer {
 ### Phase 4: Repository Updates
 
 #### 4.1 Update Transaction Repository
-**File:** [src/infrastructure/database/repositories/transaction.repository.ts](src/infrastructure/database/repositories/transaction.repository.ts)
+**File:** [api/infrastructure/database/repositories/transaction.repository.ts](api/infrastructure/database/repositories/transaction.repository.ts)
 
 - Add `square_environment` to `create()` method interface
 - Add `findByEnvironment(environment: 'production' | 'sandbox')` method
 - Add environment parameter to existing query methods (optional, defaults to all)
 
 #### 4.2 Update UserCard Repository
-**File:** [src/infrastructure/database/repositories/user-card.repository.ts](src/infrastructure/database/repositories/user-card.repository.ts)
+**File:** [api/infrastructure/database/repositories/user-card.repository.ts](api/infrastructure/database/repositories/user-card.repository.ts)
 
 - Add `square_environment` to `create()` and `update()` methods
 - Update `findByUserId()` to optionally filter by environment
 - Handle multiple cards per user (one per environment)
 
 #### 4.3 Update Subscription Repository
-**File:** [src/infrastructure/database/repositories/subscription.repository.ts](src/infrastructure/database/repositories/subscription.repository.ts)
+**File:** [api/infrastructure/database/repositories/subscription.repository.ts](api/infrastructure/database/repositories/subscription.repository.ts)
 
 - Add `square_environment` to `create()` and `update()` methods
 - Add `findByEnvironment(environment: 'production' | 'sandbox')` method
@@ -272,11 +272,11 @@ export class TestModeAuthorizer implements ITestModeAuthorizer {
 Update these use cases to pass context through to providers and include environment in database operations:
 
 **Files to update:**
-- [src/use-cases/payment/create-payment.use-case.ts](src/use-cases/payment/create-payment.use-case.ts)
-- [src/use-cases/payment/create-card.use-case.ts](src/use-cases/payment/create-card.use-case.ts)
-- [src/use-cases/payment/refund-payment.use-case.ts](src/use-cases/payment/refund-payment.use-case.ts)
-- [src/use-cases/subscription/purchase-subscription.use-case.ts](src/use-cases/subscription/purchase-subscription.use-case.ts)
-- [src/use-cases/subscription/renew-subscription.use-case.ts](src/use-cases/subscription/renew-subscription.use-case.ts)
+- [api/use-cases/payment/create-payment.use-case.ts](api/use-cases/payment/create-payment.use-case.ts)
+- [api/use-cases/payment/create-card.use-case.ts](api/use-cases/payment/create-card.use-case.ts)
+- [api/use-cases/payment/refund-payment.use-case.ts](api/use-cases/payment/refund-payment.use-case.ts)
+- [api/use-cases/subscription/purchase-subscription.use-case.ts](api/use-cases/subscription/purchase-subscription.use-case.ts)
+- [api/use-cases/subscription/renew-subscription.use-case.ts](api/use-cases/subscription/renew-subscription.use-case.ts)
 
 **Pattern:**
 1. Add `context?: PaymentContext` to input types
@@ -301,7 +301,7 @@ await this.deps.transactionRepository.create({
 ```
 
 #### 5.1 CRITICAL: Subscription Renewal Environment Logic
-**File:** [src/use-cases/subscription/renew-subscription.use-case.ts](src/use-cases/subscription/renew-subscription.use-case.ts)
+**File:** [api/use-cases/subscription/renew-subscription.use-case.ts](api/use-cases/subscription/renew-subscription.use-case.ts)
 
 **The Problem:** When a subscription renews (especially from cron), we need to determine which Square environment to use based on the subscription and card's original environment.
 
@@ -353,7 +353,7 @@ async execute(input: RenewSubscriptionInput): Promise<RenewSubscriptionOutput> {
 - No manual intervention needed - automatic environment detection
 
 #### 5.2 Subscription Creation Environment Tracking
-**File:** [src/use-cases/subscription/purchase-subscription.use-case.ts](src/use-cases/subscription/purchase-subscription.use-case.ts)
+**File:** [api/use-cases/subscription/purchase-subscription.use-case.ts](api/use-cases/subscription/purchase-subscription.use-case.ts)
 
 When creating a subscription:
 ```typescript
@@ -369,7 +369,7 @@ This ensures the subscription remembers which environment it was created in.
 ### Phase 6: Route Updates
 
 #### 6.1 Update Purchase Route
-**File:** [src/routes/hono/purchase.ts](src/routes/hono/purchase.ts)
+**File:** [api/routes/hono/purchase.ts](api/routes/hono/purchase.ts)
 
 - Extract `test_mode` from query parameters
 - Get or create `PaymentContext` from middleware
@@ -393,17 +393,17 @@ app.post('/purchase', async (c) => {
 ```
 
 #### 6.2 Update Payment Routes
-**File:** [src/routes/hono/payment.ts](src/routes/hono/payment.ts)
+**File:** [api/routes/hono/payment.ts](api/routes/hono/payment.ts)
 
 Similar pattern - extract context from middleware, pass to use cases, include in responses.
 
 #### 6.3 Update Subscription Routes
-**File:** [src/routes/hono/subscription.ts](src/routes/hono/subscription.ts)
+**File:** [api/routes/hono/subscription.ts](api/routes/hono/subscription.ts)
 
 Add test mode support for manual subscription operations.
 
 #### 6.4 Update Cron Job
-**File:** [src/cron/subscriptionsCron.ts](src/cron/subscriptionsCron.ts)
+**File:** [api/cron/subscriptionsCron.ts](api/cron/subscriptionsCron.ts)
 
 **CRITICAL CHANGE:** The cron job must detect and use the correct environment for each subscription (not always production).
 
@@ -455,7 +455,7 @@ for (const subscription of subscriptionsDue) {
 ### Phase 7: Dependency Injection
 
 #### 7.1 Update Container
-**File:** [src/container.ts](src/container.ts)
+**File:** [api/container.ts](api/container.ts)
 
 Wire up dual environment architecture:
 ```typescript
@@ -503,7 +503,7 @@ export const createContainer = (): IContainer => {
 ### Phase 8: Event System
 
 #### 8.1 Update Domain Events
-**Files:** All events in [src/domain/events/](src/domain/events/)
+**Files:** All events in [api/domain/events/](api/domain/events/)
 
 Add `environment: 'production' | 'sandbox'` to event payloads:
 - `payment-processed.event.ts`
@@ -512,7 +512,7 @@ Add `environment: 'production' | 'sandbox'` to event payloads:
 - `subscription-created.event.ts`
 
 #### 8.2 Update Event Handlers
-**File:** [src/application/event-handlers/email-notification.handler.ts](src/application/event-handlers/email-notification.handler.ts)
+**File:** [api/application/event-handlers/email-notification.handler.ts](api/application/event-handlers/email-notification.handler.ts)
 
 - Add `[SANDBOX]` prefix to email subjects when `environment === 'sandbox'`
 - Include environment disclaimer in email body for sandbox transactions
@@ -641,28 +641,28 @@ GROUP BY square_environment;
 ## Critical Files Summary
 
 **New Files:**
-- `src/infrastructure/payment/dual-environment-provider.ts`
-- `src/infrastructure/payment/test-mode-detector.ts`
-- `src/infrastructure/payment/test-mode-authorizer.ts`
-- `src/database/migrations/002_add_square_environment_tracking.sql`
+- `api/infrastructure/payment/dual-environment-provider.ts`
+- `api/infrastructure/payment/test-mode-detector.ts`
+- `api/infrastructure/payment/test-mode-authorizer.ts`
+- `api/database/migrations/002_add_square_environment_tracking.sql`
 
 **Modified Files:**
-- `src/config/config.interface.ts`
-- `src/config/config.service.ts`
-- `src/container.ts`
-- `src/infrastructure/payment/payment-provider.interface.ts`
-- `src/infrastructure/payment/square/square.provider.ts`
-- `src/middleware/hono/authMiddleware.ts`
-- `src/infrastructure/database/repositories/transaction.repository.ts`
-- `src/infrastructure/database/repositories/user-card.repository.ts`
-- `src/infrastructure/database/repositories/subscription.repository.ts`
-- `src/use-cases/payment/*.use-case.ts` (5 files)
-- `src/routes/hono/purchase.ts`
-- `src/routes/hono/payment.ts`
-- `src/routes/hono/subscription.ts`
-- `src/cron/subscriptionsCron.ts` (CRITICAL: environment detection logic)
-- `src/domain/events/*.event.ts` (multiple event files)
-- `src/application/event-handlers/email-notification.handler.ts`
+- `api/config/config.interface.ts`
+- `api/config/config.service.ts`
+- `api/container.ts`
+- `api/infrastructure/payment/payment-provider.interface.ts`
+- `api/infrastructure/payment/square/square.provider.ts`
+- `api/middleware/hono/authMiddleware.ts`
+- `api/infrastructure/database/repositories/transaction.repository.ts`
+- `api/infrastructure/database/repositories/user-card.repository.ts`
+- `api/infrastructure/database/repositories/subscription.repository.ts`
+- `api/use-cases/payment/*.use-case.ts` (5 files)
+- `api/routes/hono/purchase.ts`
+- `api/routes/hono/payment.ts`
+- `api/routes/hono/subscription.ts`
+- `api/cron/subscriptionsCron.ts` (CRITICAL: environment detection logic)
+- `api/domain/events/*.event.ts` (multiple event files)
+- `api/application/event-handlers/email-notification.handler.ts`
 
 ## Backward Compatibility
 

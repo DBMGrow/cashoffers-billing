@@ -21,43 +21,43 @@ The event bus system decouples side effects from core business logic, making the
 ### ✅ Completed Components
 
 #### Event Infrastructure
-- **[event-bus.interface.ts](../src/infrastructure/events/event-bus.interface.ts)**: Core interfaces for events, handlers, and event bus
-- **[in-memory-event-bus.ts](../src/infrastructure/events/in-memory-event-bus.ts)**: Simple in-memory implementation with synchronous handler execution
-- **[base-event-handler.ts](../src/infrastructure/events/base-event-handler.ts)**: Abstract base class with `safeExecute()` and `criticalExecute()` helpers
+- **[event-bus.interface.ts](../api/infrastructure/events/event-bus.interface.ts)**: Core interfaces for events, handlers, and event bus
+- **[in-memory-event-bus.ts](../api/infrastructure/events/in-memory-event-bus.ts)**: Simple in-memory implementation with synchronous handler execution
+- **[base-event-handler.ts](../api/infrastructure/events/base-event-handler.ts)**: Abstract base class with `safeExecute()` and `criticalExecute()` helpers
 
 #### Domain Events (8 types)
-1. **[SubscriptionCreatedEvent](../src/domain/events/subscription-created.event.ts)**: Published when new subscription is created
-2. **[SubscriptionRenewedEvent](../src/domain/events/subscription-renewed.event.ts)**: Published when subscription renews successfully
-3. **[PaymentProcessedEvent](../src/domain/events/payment-processed.event.ts)**: Published after successful payment
-4. **[PaymentFailedEvent](../src/domain/events/payment-failed.event.ts)**: Published when payment fails
-5. **[UserCreatedEvent](../src/domain/events/user-created.event.ts)**: Published when new user is created during purchase
-6. **[CardCreatedEvent](../src/domain/events/card-created.event.ts)**: Published when payment card is created
-7. **[PurchaseRequestCompletedEvent](../src/domain/events/purchase-request-completed.event.ts)**: Published when purchase request completes
-8. **[PurchaseRequestFailedEvent](../src/domain/events/purchase-request-failed.event.ts)**: Published when purchase request fails
+1. **[SubscriptionCreatedEvent](../api/domain/events/subscription-created.event.ts)**: Published when new subscription is created
+2. **[SubscriptionRenewedEvent](../api/domain/events/subscription-renewed.event.ts)**: Published when subscription renews successfully
+3. **[PaymentProcessedEvent](../api/domain/events/payment-processed.event.ts)**: Published after successful payment
+4. **[PaymentFailedEvent](../api/domain/events/payment-failed.event.ts)**: Published when payment fails
+5. **[UserCreatedEvent](../api/domain/events/user-created.event.ts)**: Published when new user is created during purchase
+6. **[CardCreatedEvent](../api/domain/events/card-created.event.ts)**: Published when payment card is created
+7. **[PurchaseRequestCompletedEvent](../api/domain/events/purchase-request-completed.event.ts)**: Published when purchase request completes
+8. **[PurchaseRequestFailedEvent](../api/domain/events/purchase-request-failed.event.ts)**: Published when purchase request fails
 
 #### Event Handlers
-- **[EmailNotificationHandler](../src/application/event-handlers/email-notification.handler.ts)**:
+- **[EmailNotificationHandler](../api/application/event-handlers/email-notification.handler.ts)**:
   - Listens: `SubscriptionCreated`, `SubscriptionRenewed`, `PaymentFailed`
   - Uses `safeExecute()` - failures logged but don't fail the event
   - Sends welcome emails, renewal confirmations, and payment failure notices
 
-- **[TransactionLoggingHandler](../src/application/event-handlers/transaction-logging.handler.ts)**:
+- **[TransactionLoggingHandler](../api/application/event-handlers/transaction-logging.handler.ts)**:
   - Listens: `PaymentProcessed`, `PaymentFailed`
   - Uses `criticalExecute()` for successful payments, `safeExecute()` for failures
   - Ensures audit trail of all payment attempts
 
-- **[PremiumActivationHandler](../src/application/event-handlers/premium-activation.handler.ts)**:
+- **[PremiumActivationHandler](../api/application/event-handlers/premium-activation.handler.ts)**:
   - Listens: `SubscriptionCreated`, `SubscriptionRenewed`
   - Uses `criticalExecute()` - must succeed or event fails
   - Activates user premium status in main API
 
 #### Refactored Use Cases
-- **[PurchaseSubscriptionUseCase](../src/use-cases/subscription/purchase-subscription.use-case.ts)**:
+- **[PurchaseSubscriptionUseCase](../api/use-cases/subscription/purchase-subscription.use-case.ts)**:
   - **Before**: Direct calls to `activateUserPremium()` and `sendEmail()`
   - **After**: Publishes `SubscriptionCreatedEvent`, `PaymentProcessedEvent`, `UserCreatedEvent`, `CardCreatedEvent`
   - **Benefit**: Cleaner separation of concerns, easier to test
 
-- **[RenewSubscriptionUseCase](../src/use-cases/subscription/renew-subscription.use-case.ts)**:
+- **[RenewSubscriptionUseCase](../api/use-cases/subscription/renew-subscription.use-case.ts)**:
   - **Before**: Direct calls to `sendRenewalEmail()` in success path and `sendFailureEmail()` in error path
   - **After**: Publishes `SubscriptionRenewedEvent` and `PaymentFailedEvent`
   - **Benefit**: Retry logic for email sending (future Phase 3), consistent failure handling
@@ -68,7 +68,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ### High Priority (Immediate Benefit)
 
-#### 1. **CreateSubscriptionUseCase** ([create-subscription.use-case.ts](../src/use-cases/subscription/create-subscription.use-case.ts))
+#### 1. **CreateSubscriptionUseCase** ([create-subscription.use-case.ts](../api/use-cases/subscription/create-subscription.use-case.ts))
 **Current State**: Direct email and API calls embedded in use case
 ```typescript
 // Lines to refactor:
@@ -87,7 +87,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 2. **PauseSubscriptionUseCase** ([pause-subscription.use-case.ts](../src/use-cases/subscription/pause-subscription.use-case.ts))
+#### 2. **PauseSubscriptionUseCase** ([pause-subscription.use-case.ts](../api/use-cases/subscription/pause-subscription.use-case.ts))
 **Current State**: Direct email and user deactivation calls
 ```typescript
 // Lines to refactor:
@@ -107,7 +107,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 3. **CancelOnRenewalUseCase** ([cancel-on-renewal.use-case.ts](../src/use-cases/subscription/cancel-on-renewal.use-case.ts))
+#### 3. **CancelOnRenewalUseCase** ([cancel-on-renewal.use-case.ts](../api/use-cases/subscription/cancel-on-renewal.use-case.ts))
 **Current State**: Direct email calls
 ```typescript
 // Lines to refactor:
@@ -125,7 +125,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 4. **MarkForDowngradeUseCase** ([mark-for-downgrade.use-case.ts](../src/use-cases/subscription/mark-for-downgrade.use-case.ts))
+#### 4. **MarkForDowngradeUseCase** ([mark-for-downgrade.use-case.ts](../api/use-cases/subscription/mark-for-downgrade.use-case.ts))
 **Current State**: Direct email calls
 ```typescript
 // Lines to refactor:
@@ -143,7 +143,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 5. **CreatePaymentUseCase** ([create-payment.use-case.ts](../src/use-cases/payment/create-payment.use-case.ts))
+#### 5. **CreatePaymentUseCase** ([create-payment.use-case.ts](../api/use-cases/payment/create-payment.use-case.ts))
 **Current State**: Direct email calls after payment processing
 ```typescript
 // Lines to refactor:
@@ -162,7 +162,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 6. **RefundPaymentUseCase** ([refund-payment.use-case.ts](../src/use-cases/payment/refund-payment.use-case.ts))
+#### 6. **RefundPaymentUseCase** ([refund-payment.use-case.ts](../api/use-cases/payment/refund-payment.use-case.ts))
 **Current State**: Direct email calls after refund processing
 ```typescript
 // Lines to refactor:
@@ -180,7 +180,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 7. **CreateCardUseCase** ([create-card.use-case.ts](../src/use-cases/payment/create-card.use-case.ts))
+#### 7. **CreateCardUseCase** ([create-card.use-case.ts](../api/use-cases/payment/create-card.use-case.ts))
 **Current State**: Direct email calls when card is added or updated
 ```typescript
 // Lines to refactor:
@@ -200,7 +200,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 8. **UnlockPropertyUseCase** ([unlock-property.use-case.ts](../src/use-cases/property/unlock-property.use-case.ts))
+#### 8. **UnlockPropertyUseCase** ([unlock-property.use-case.ts](../api/use-cases/property/unlock-property.use-case.ts))
 **Current State**: Direct email calls after property unlock
 ```typescript
 // Lines to refactor:
@@ -218,7 +218,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ---
 
-#### 9. **DeactivateSubscriptionUseCase** ([deactivate-subscription.use-case.ts](../src/use-cases/subscription/deactivate-subscription.use-case.ts))
+#### 9. **DeactivateSubscriptionUseCase** ([deactivate-subscription.use-case.ts](../api/use-cases/subscription/deactivate-subscription.use-case.ts))
 **Current State**: Only updates subscription status, missing premium deactivation
 ```typescript
 // Missing functionality:
@@ -241,7 +241,7 @@ The event bus system decouples side effects from core business logic, making the
 
 ### Medium Priority (Nice to Have)
 
-#### 10. **Subscription Cron Job** ([subscriptionsCron.js](../src/cron/subscriptionsCron.js))
+#### 10. **Subscription Cron Job** ([subscriptionsCron.js](../api/cron/subscriptionsCron.js))
 **Current State**: Legacy JavaScript file, tightly coupled renewal logic
 **Recommended Refactor**:
 - Migrate to TypeScript

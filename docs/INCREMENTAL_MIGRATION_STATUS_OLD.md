@@ -83,7 +83,7 @@ We've successfully migrated to Hono (Phase 7) and begun Phase 8 - migrating rout
    - Need to migrate all to Kysely repositories
    - Can't remove Sequelize until this is done
 
-2. **Old Utility Functions**: 15+ files in src/utils/
+2. **Old Utility Functions**: 15+ files in api/utils/
    - Some are complex (handlePurchase, toggleSubscription)
    - Others are simple helpers
    - Need to decide: migrate to use cases or keep as helpers?

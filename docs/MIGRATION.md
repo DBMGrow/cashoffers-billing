@@ -24,23 +24,23 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 1. Card Routes - Extract GET endpoints to use cases
 
-**Files:** [src/routes/hono/card.ts](src/routes/hono/card.ts)
+**Files:** [api/routes/hono/card.ts](api/routes/hono/card.ts)
 
 **Tasks:**
 
 - [ ] Create `GetUserCardUseCase` for `GET /:user_id` endpoint (currently has direct UserCard model query with inline error handling at lines 10-30)
 - [ ] Create `CheckUserCardInfoUseCase` for `GET /:user_id/info` endpoint (currently has direct UserCard model query with conditional logic at lines 32-51)
 - [ ] Update card route to use new use cases with `executeUseCase` helper
-- [ ] Add input/output types to [src/use-cases/types/card.types.ts](src/use-cases/types/card.types.ts)
-- [ ] Add Zod validation schemas to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register new use cases in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
+- [ ] Add input/output types to [api/use-cases/types/card.types.ts](api/use-cases/types/card.types.ts)
+- [ ] Add Zod validation schemas to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register new use cases in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
 
 ---
 
 #### 2. Subscription Routes - Refactor POST / create/update endpoint
 
-**Files:** [src/routes/hono/subscription.ts](src/routes/hono/subscription.ts:41-98)
+**Files:** [api/routes/hono/subscription.ts](api/routes/hono/subscription.ts:41-98)
 
 **Issue:** Complex conditional logic mixing create and update operations with inline repository calls
 
@@ -48,16 +48,16 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 - [ ] Create `UpdateSubscriptionUseCase` to handle the update branch (currently inline at lines 62-91)
 - [ ] Refactor the POST / handler to use conditional logic: if subscription exists → `UpdateSubscriptionUseCase`, else → `CreateSubscriptionUseCase`
-- [ ] Add input/output types for update operation to [src/use-cases/types/subscription.types.ts](src/use-cases/types/subscription.types.ts)
-- [ ] Add Zod validation schema to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register `UpdateSubscriptionUseCase` in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
+- [ ] Add input/output types for update operation to [api/use-cases/types/subscription.types.ts](api/use-cases/types/subscription.types.ts)
+- [ ] Add Zod validation schema to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register `UpdateSubscriptionUseCase` in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
 
 ---
 
 #### 3. Subscription Routes - Extract DELETE endpoint logic
 
-**Files:** [src/routes/hono/subscription.ts](src/routes/hono/subscription.ts:135-157)
+**Files:** [api/routes/hono/subscription.ts](api/routes/hono/subscription.ts:135-157)
 
 **Issue:** Direct repository calls for deactivating/deleting subscriptions
 
@@ -66,16 +66,16 @@ This plan identifies every remaining task needed to complete the migration to cl
 - [ ] Create `DeactivateSubscriptionUseCase` to handle subscription deletion/deactivation
 - [ ] Use case should handle: fetching subscription, setting status to disabled, saving, returning result
 - [ ] Update DELETE / handler to use `DeactivateSubscriptionUseCase` with `executeUseCase` helper
-- [ ] Add input/output types to [src/use-cases/types/subscription.types.ts](src/use-cases/types/subscription.types.ts)
-- [ ] Add Zod validation schema to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register use case in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
+- [ ] Add input/output types to [api/use-cases/types/subscription.types.ts](api/use-cases/types/subscription.types.ts)
+- [ ] Add Zod validation schema to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register use case in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
 
 ---
 
 #### 4. Subscription Routes - Centralize authorization checks
 
-**Files:** [src/routes/hono/subscription.ts](src/routes/hono/subscription.ts:200-325)
+**Files:** [api/routes/hono/subscription.ts](api/routes/hono/subscription.ts:200-325)
 
 **Issue:** Repeated authorization logic in 4 endpoints (cancel, uncancel, downgrade, undowngrade)
 
@@ -94,7 +94,7 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 5. Property Purchase Route - Complete migration from Express to Hono
 
-**Files:** [src/routes/purchase/property/purchaseproperty.js](src/routes/purchase/property/purchaseproperty.js)
+**Files:** [api/routes/purchase/property/purchaseproperty.js](api/routes/purchase/property/purchaseproperty.js)
 
 **Issue:** Legacy Express.js route with inline business logic
 
@@ -107,14 +107,14 @@ This plan identifies every remaining task needed to complete the migration to cl
   - Update property unlock status via external API
   - Transaction logging
   - Email notifications
-- [ ] Create new Hono route file [src/routes/hono/property.ts](src/routes/hono/property.ts)
+- [ ] Create new Hono route file [api/routes/hono/property.ts](api/routes/hono/property.ts)
 - [ ] Implement `POST /:property_token` endpoint using `UnlockPropertyUseCase`
-- [ ] Add input/output types to new file [src/use-cases/types/property.types.ts](src/use-cases/types/property.types.ts)
-- [ ] Add Zod validation schema to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register use case in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
-- [ ] Update [src/app.ts](src/app.ts) to mount new property routes
-- [ ] Delete old Express route file [src/routes/purchase/property/purchaseproperty.js](src/routes/purchase/property/purchaseproperty.js)
+- [ ] Add input/output types to new file [api/use-cases/types/property.types.ts](api/use-cases/types/property.types.ts)
+- [ ] Add Zod validation schema to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register use case in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
+- [ ] Update [api/app.ts](api/app.ts) to mount new property routes
+- [ ] Delete old Express route file [api/routes/purchase/property/purchaseproperty.js](api/routes/purchase/property/purchaseproperty.js)
 
 ---
 
@@ -122,54 +122,54 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 6. Product Routes - Extract GET operations
 
-**Files:** [src/routes/hono/product.ts](src/routes/hono/product.ts)
+**Files:** [api/routes/hono/product.ts](api/routes/hono/product.ts)
 
 **Tasks:**
 
 - [ ] Create `GetProductUseCase` for `GET /:product_id` endpoint (currently direct Product model query at lines 9-20)
 - [ ] Create `GetProductsUseCase` for `GET /` endpoint with filtering (currently direct Product model query with Where clause at lines 22-40)
 - [ ] Update product route to use new use cases
-- [ ] Add input/output types to [src/use-cases/types/product.types.ts](src/use-cases/types/product.types.ts)
-- [ ] Add Zod validation schemas to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register use cases in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
+- [ ] Add input/output types to [api/use-cases/types/product.types.ts](api/use-cases/types/product.types.ts)
+- [ ] Add Zod validation schemas to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register use cases in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
 
 ---
 
 #### 7. Product Routes - Extract prorate calculation
 
-**Files:** [src/routes/hono/product.ts](src/routes/hono/product.ts:60-82), [src/utils/checkProrated.js](src/utils/checkProrated.js)
+**Files:** [api/routes/hono/product.ts](api/routes/hono/product.ts:60-82), [api/utils/checkProrated.js](api/utils/checkProrated.js)
 
 **Issue:** POST /checkprorated calls legacy utility function instead of use case
 
 **Tasks:**
 
-- [ ] Create `CheckProratedChargeUseCase` wrapping the prorate calculation logic from [src/utils/checkProrated.js](src/utils/checkProrated.js)
+- [ ] Create `CheckProratedChargeUseCase` wrapping the prorate calculation logic from [api/utils/checkProrated.js](api/utils/checkProrated.js)
 - [ ] Use case should: validate inputs, fetch subscriptions, calculate prorated amount, return result
 - [ ] Update POST /checkprorated handler to use new use case
-- [ ] Add input/output types to [src/use-cases/types/product.types.ts](src/use-cases/types/product.types.ts)
-- [ ] Add Zod validation schema to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register use case in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
+- [ ] Add input/output types to [api/use-cases/types/product.types.ts](api/use-cases/types/product.types.ts)
+- [ ] Add Zod validation schema to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register use case in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
 
 ---
 
 #### 8. Cron Routes - Wrap cron operations in use cases
 
-**Files:** [src/routes/hono/cron.ts](src/routes/hono/cron.ts), [src/cron/subscriptionsCron.js](src/cron/subscriptionsCron.js), [src/cron/suspendSubscriptionsCron.js](src/cron/suspendSubscriptionsCron.js)
+**Files:** [api/routes/hono/cron.ts](api/routes/hono/cron.ts), [api/cron/subscriptionsCron.js](api/cron/subscriptionsCron.js), [api/cron/suspendSubscriptionsCron.js](api/cron/suspendSubscriptionsCron.js)
 
 **Issue:** Cron endpoint directly calls cron functions without use case abstraction
 
 **Tasks:**
 
-- [ ] Create `ProcessSubscriptionRenewalsUseCase` to wrap [src/cron/subscriptionsCron.js](src/cron/subscriptionsCron.js) logic
-- [ ] Create `ProcessSubscriptionSuspensionsUseCase` to wrap [src/cron/suspendSubscriptionsCron.js](src/cron/suspendSubscriptionsCron.js) logic
+- [ ] Create `ProcessSubscriptionRenewalsUseCase` to wrap [api/cron/subscriptionsCron.js](api/cron/subscriptionsCron.js) logic
+- [ ] Create `ProcessSubscriptionSuspensionsUseCase` to wrap [api/cron/suspendSubscriptionsCron.js](api/cron/suspendSubscriptionsCron.js) logic
 - [ ] Update cron route POST / handler to use both use cases
 - [ ] Consider whether both operations should be in a single use case or separate
-- [ ] Add input/output types to [src/use-cases/types/cron.types.ts](src/use-cases/types/cron.types.ts) (new file)
-- [ ] Add Zod validation schemas to [src/use-cases/types/validation.schemas.ts](src/use-cases/types/validation.schemas.ts)
-- [ ] Register use cases in [src/container.ts](src/container.ts)
-- [ ] Export from [src/use-cases/index.ts](src/use-cases/index.ts)
+- [ ] Add input/output types to [api/use-cases/types/cron.types.ts](api/use-cases/types/cron.types.ts) (new file)
+- [ ] Add Zod validation schemas to [api/use-cases/types/validation.schemas.ts](api/use-cases/types/validation.schemas.ts)
+- [ ] Register use cases in [api/container.ts](api/container.ts)
+- [ ] Export from [api/use-cases/index.ts](api/use-cases/index.ts)
 
 ---
 
@@ -177,7 +177,7 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 9. Email Routes - Wrap template preview utility (optional)
 
-**Files:** [src/routes/hono/emails.ts](src/routes/hono/emails.ts)
+**Files:** [api/routes/hono/emails.ts](api/routes/hono/emails.ts)
 
 **Complexity:** Low - simple utility route, migration optional
 
@@ -191,7 +191,7 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 10. Status Routes - Wrap health check operations (optional)
 
-**Files:** [src/routes/hono/status.ts](src/routes/hono/status.ts)
+**Files:** [api/routes/hono/status.ts](api/routes/hono/status.ts)
 
 **Complexity:** Medium - orchestrates multiple service health checks
 
@@ -211,7 +211,7 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 11. Write tests for 7 new use cases from Phase 8
 
-**Files:** [src/use-cases/](src/use-cases/)
+**Files:** [api/use-cases/](api/use-cases/)
 
 **Missing Tests:**
 
@@ -258,7 +258,7 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 13. Integration tests for migrated routes
 
-**Files:** New test files in [src/tests/integration/](src/tests/integration/)
+**Files:** New test files in [api/tests/integration/](api/tests/integration/)
 
 **Tasks:**
 
@@ -289,15 +289,15 @@ This plan identifies every remaining task needed to complete the migration to cl
 
 #### 15. Remove unused utilities and legacy code
 
-**Files:** Various utility files in [src/utils/](src/utils/)
+**Files:** Various utility files in [api/utils/](api/utils/)
 
 **Tasks:**
 
 - [ ] Identify utility functions that have been replaced by use cases
-- [ ] Remove or deprecate: [src/utils/checkProrated.js](src/utils/checkProrated.js) (after CheckProratedChargeUseCase is implemented)
-- [ ] Remove or deprecate: [src/utils/chargeCardSingle.js](src/utils/chargeCardSingle.js) (if fully replaced by use cases)
-- [ ] Audit [src/utils/](src/utils/) directory for other unused functions
-- [ ] Remove old Express route directory: [src/routes/purchase/property/](src/routes/purchase/property/)
+- [ ] Remove or deprecate: [api/utils/checkProrated.js](api/utils/checkProrated.js) (after CheckProratedChargeUseCase is implemented)
+- [ ] Remove or deprecate: [api/utils/chargeCardSingle.js](api/utils/chargeCardSingle.js) (if fully replaced by use cases)
+- [ ] Audit [api/utils/](api/utils/) directory for other unused functions
+- [ ] Remove old Express route directory: [api/routes/purchase/property/](api/routes/purchase/property/)
 - [ ] Update imports across codebase
 
 ---
