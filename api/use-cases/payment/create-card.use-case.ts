@@ -74,7 +74,7 @@ export class CreateCardUseCase implements ICreateCardUseCase {
           card: {
             cardholderName,
           },
-        }, validatedInput.context) // Pass context for environment selection
+        }, input.context) // Pass context for environment selection (use input, not validatedInput)
         cardId = card.id
         last4 = card.last4 || ""
         cardBrand = card.cardBrand || ""

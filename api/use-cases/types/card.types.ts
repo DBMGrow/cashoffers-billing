@@ -21,7 +21,7 @@ export interface CardData {
   card_brand: string
   exp_month: string
   exp_year: string
-  cardholder_name: string
+  cardholder_name: string | null
   square_customer_id: string | null
   createdAt: Date
   updatedAt: Date
@@ -38,7 +38,7 @@ export interface GetUserCardOutput {
   cardBrand: string
   expMonth: string
   expYear: string
-  cardholderName: string
+  cardholderName: string | null
   squareCustomerId: string | null
   createdAt: Date
   updatedAt: Date

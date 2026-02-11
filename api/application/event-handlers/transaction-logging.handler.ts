@@ -81,6 +81,7 @@ export class TransactionLoggingHandler extends BaseEventHandler {
 
         if (existingTransactions.length === 0) {
           // Create new transaction record
+          const now = new Date()
           await this.transactionRepository.create({
             user_id: userId,
             square_transaction_id: externalTransactionId,
@@ -92,6 +93,8 @@ export class TransactionLoggingHandler extends BaseEventHandler {
             memo: lineItems
               ? lineItems.map((item) => item.description).join(', ')
               : `Payment processed via ${event.payload.paymentProvider}`,
+            createdAt: now,
+            updatedAt: now,
           })
 
           this.logger.info('Transaction logged successfully', {
@@ -136,6 +139,7 @@ export class TransactionLoggingHandler extends BaseEventHandler {
           attemptNumber: event.payload.attemptNumber,
         }
 
+        const now = new Date()
         await this.transactionRepository.create({
           user_id: userId,
           square_transaction_id: null, // No transaction ID for failed payments
@@ -145,6 +149,8 @@ export class TransactionLoggingHandler extends BaseEventHandler {
           product_id: productId || null,
           data: JSON.stringify(transactionData),
           memo: `Payment failed: ${errorMessage}`,
+          createdAt: now,
+          updatedAt: now,
         })
 
         this.logger.info('Failed payment logged successfully', {

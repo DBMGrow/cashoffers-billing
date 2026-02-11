@@ -4,6 +4,7 @@ import { ConsoleLogger } from "@/infrastructure/logging/console.logger"
 import { MockPaymentProvider } from "@/infrastructure/payment/mock/mock-payment.provider"
 import { MockEmailService } from "@/infrastructure/email/mock/mock-email.service"
 import { MockUserApiClient } from "@/infrastructure/external-api/user-api/mock-user-api.client"
+import { IEventBus, IDomainEvent } from "@/infrastructure/events/event-bus.interface"
 
 // Mock repositories (simplified for testing)
 class MockSubscriptionRepository {
@@ -179,6 +180,35 @@ class MockUserCardRepository {
   }
 }
 
+class MockEventBus implements IEventBus {
+  private events: IDomainEvent[] = []
+
+  async publish(event: IDomainEvent): Promise<void> {
+    this.events.push(event)
+  }
+
+  async publishBatch(events: IDomainEvent[]): Promise<void> {
+    this.events.push(...events)
+  }
+
+  subscribe(): void {
+    // No-op for tests
+  }
+
+  unsubscribe(): void {
+    // No-op for tests
+  }
+
+  // Test helper
+  getPublishedEvents() {
+    return this.events
+  }
+
+  clearEvents() {
+    this.events = []
+  }
+}
+
 describe("CreateSubscriptionUseCase", () => {
   let useCase: CreateSubscriptionUseCase
   let logger: ConsoleLogger
@@ -189,6 +219,7 @@ describe("CreateSubscriptionUseCase", () => {
   let productRepo: MockProductRepository
   let transactionRepo: MockTransactionRepository
   let userCardRepo: MockUserCardRepository
+  let eventBus: MockEventBus
 
   beforeEach(() => {
     logger = new ConsoleLogger()
@@ -199,6 +230,7 @@ describe("CreateSubscriptionUseCase", () => {
     productRepo = new MockProductRepository()
     transactionRepo = new MockTransactionRepository()
     userCardRepo = new MockUserCardRepository()
+    eventBus = new MockEventBus()
 
     useCase = new CreateSubscriptionUseCase({
       logger,
@@ -209,6 +241,7 @@ describe("CreateSubscriptionUseCase", () => {
       productRepository: productRepo as any,
       transactionRepository: transactionRepo as any,
       userCardRepository: userCardRepo as any,
+      eventBus,
     })
   })
 

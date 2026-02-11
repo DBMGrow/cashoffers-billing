@@ -6,6 +6,7 @@ import { MockEmailService } from "@/infrastructure/email/mock/mock-email.service
 import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IConfigService } from "@/config/config.interface"
+import { IEventBus, IDomainEvent } from "@/infrastructure/events/event-bus.interface"
 
 // Mock repositories (partial implementation for testing)
 class MockUserCardRepository {
@@ -125,6 +126,35 @@ class MockConfigService {
   }
 }
 
+class MockEventBus implements IEventBus {
+  private events: IDomainEvent[] = []
+
+  async publish(event: IDomainEvent): Promise<void> {
+    this.events.push(event)
+  }
+
+  async publishBatch(events: IDomainEvent[]): Promise<void> {
+    this.events.push(...events)
+  }
+
+  subscribe(): void {
+    // No-op for tests
+  }
+
+  unsubscribe(): void {
+    // No-op for tests
+  }
+
+  // Test helper
+  getPublishedEvents() {
+    return this.events
+  }
+
+  clearEvents() {
+    this.events = []
+  }
+}
+
 describe("CreatePaymentUseCase", () => {
   let useCase: CreatePaymentUseCase
   let logger: ConsoleLogger
@@ -133,6 +163,7 @@ describe("CreatePaymentUseCase", () => {
   let userCardRepo: MockUserCardRepository
   let transactionRepo: MockTransactionRepository
   let config: MockConfigService
+  let eventBus: MockEventBus
 
   beforeEach(() => {
     logger = new ConsoleLogger()
@@ -141,6 +172,7 @@ describe("CreatePaymentUseCase", () => {
     userCardRepo = new MockUserCardRepository()
     transactionRepo = new MockTransactionRepository()
     config = new MockConfigService()
+    eventBus = new MockEventBus()
 
     useCase = new CreatePaymentUseCase({
       logger,
@@ -149,6 +181,7 @@ describe("CreatePaymentUseCase", () => {
       userCardRepository: userCardRepo as any, // Partial mock for testing
       transactionRepository: transactionRepo as any, // Partial mock for testing
       config: config as any, // Mock config service
+      eventBus,
     })
   })
 

@@ -185,7 +185,7 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
           externalTransactionId: paymentId,
           paymentProvider: "Square",
           productId: product.product_id,
-          productName: product.name,
+          productName: product.product_name,
         })
       )
 

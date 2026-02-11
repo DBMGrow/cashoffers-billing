@@ -1,8 +1,8 @@
 import { Hono } from "hono"
-import type { HonoVariables } from "../../types/hono"
-import { Product } from "../../database/Product"
-import { authMiddleware } from "../../middleware/authMiddleware"
-import checkProrated from "../../utils/checkProrated"
+import type { HonoVariables } from "@/types/hono"
+import { getContainer } from "@/container"
+import { authMiddleware } from "@/middleware/authMiddleware"
+import checkProrated from "@/utils/checkProrated"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
@@ -12,8 +12,9 @@ app.get(
   authMiddleware("payments_read"),
   async (c) => {
     const { product_id } = c.req.param()
+    const container = getContainer()
 
-    const product = await Product.findOne({ where: { product_id } })
+    const product = await container.repositories.product.findById(parseInt(product_id, 10))
     if (!product) throw new Error("No product found")
 
     return c.json({ success: "success", data: product })
@@ -23,13 +24,10 @@ app.get(
 // Get all products with optional filters
 app.get("/", authMiddleware("payments_read"), async (c) => {
   const query = c.req.query()
-  const { sortby, direction, ...filters } = query
+  const container = getContainer()
 
-  const products = await Product.findAll({
-    where: filters,
-    // @ts-ignore
-    order: sortby ? [[sortby, direction || "ASC"]] : undefined,
-  })
+  // TODO: Add support for filters and sorting
+  const products = await container.repositories.product.findAll()
 
   return c.json({ success: "success", data: products })
 })
@@ -44,12 +42,16 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
   if (typeof price !== "number") throw new Error("price is required")
   if (data && typeof data !== "object") throw new Error("data must be valid json")
 
-  const product = await Product.create({
+  const container = getContainer()
+  const now = new Date()
+  const product = await container.repositories.product.create({
     product_name,
     product_description,
     product_type,
     price,
     data,
+    createdAt: now,
+    updatedAt: now,
   })
 
   return c.json({ success: "success", data: product })

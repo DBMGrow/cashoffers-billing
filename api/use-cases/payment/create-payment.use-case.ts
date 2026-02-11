@@ -78,7 +78,7 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
           currency: "USD",
         },
         customerId: userCard.square_customer_id,
-      }, validatedInput.context) // Pass context for environment selection
+      }, input.context) // Pass context for environment selection (use input, not validatedInput)
 
       // Check payment status
       if (payment.status !== "COMPLETED") {
@@ -173,8 +173,6 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
     // Publish PaymentFailedEvent
     await eventBus.publish(
       PaymentFailedEvent.create({
-        transactionId: transaction.transaction_id,
-        externalTransactionId: paymentId,
         userId: input.userId,
         email: input.email,
         amount: input.amount,

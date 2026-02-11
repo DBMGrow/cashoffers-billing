@@ -1,7 +1,7 @@
 import { Hono } from "hono"
-import type { HonoVariables } from "../../types/hono"
-import { authMiddleware } from "../../middleware/authMiddleware"
-import userCan from "../../utils/userCan"
+import type { HonoVariables } from "@/types/hono"
+import { authMiddleware } from "@/middleware/authMiddleware"
+import userCan from "@/utils/userCan"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 

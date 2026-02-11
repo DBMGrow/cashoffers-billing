@@ -261,7 +261,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
           currency: "USD",
         },
         customerId: userCard.square_customer_id || undefined,
-      }, validatedInput.context) // Pass context for environment selection
+      }, input.context) // Pass context for environment selection (use input, not validatedInput)
 
       if (payment.status !== "COMPLETED") {
         logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })

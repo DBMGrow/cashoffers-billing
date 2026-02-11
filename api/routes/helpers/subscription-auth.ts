@@ -1,5 +1,5 @@
 import { Context } from "hono"
-import type { HonoVariables } from "../../../types/hono"
+import type { HonoVariables } from "@/types/hono"
 import { getContainer } from "@/container"
 
 /**

@@ -1,7 +1,8 @@
 import { Hono } from "hono"
-import type { HonoVariables } from "../../types/hono"
-import subscriptionsCron from "../../cron/subscriptionsCron"
-import suspendSubscriptionsCron from "../../cron/suspendSubscriptionsCron"
+import type { HonoVariables } from "@/types/hono"
+import subscriptionsCron from "@/cron/subscriptionsCron"
+// TODO: suspendSubscriptionsCron doesn't exist yet - need to implement or remove
+// import suspendSubscriptionsCron from "@/cron/suspendSubscriptionsCron"
 
 const app = new Hono<{ Variables: HonoVariables }>()
 
@@ -15,7 +16,7 @@ app.post("/", async (c) => {
   }
 
   await subscriptionsCron()
-  await suspendSubscriptionsCron()
+  // await suspendSubscriptionsCron() // TODO: implement this function
 
   return c.json({ success: "success", message: "Cron job running" })
 })

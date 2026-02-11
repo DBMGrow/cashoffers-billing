@@ -1,5 +1,5 @@
 import { Hono } from "hono"
-import type { HonoVariables } from "../../types/hono"
+import type { HonoVariables } from "@/types/hono"
 import parseEmailTemplate from "@/utils/parseEmailTemplate"
 
 const app = new Hono<{ Variables: HonoVariables }>()

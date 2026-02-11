@@ -101,7 +101,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
           amount: BigInt(transactionAmount),
           currency: "USD",
         },
-      }, validatedInput.context) // Pass context for environment selection
+      }, input.context) // Pass context for environment selection (use input, not validatedInput)
 
       // Check refund status
       if (refundResult.status !== "COMPLETED" && refundResult.status !== "PENDING") {
@@ -161,7 +161,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
             currency: "USD",
             paymentProvider: "Square",
             environment: refundResult.environment, // Include environment in event
-            reason: validatedInput.reason,
+            // reason is optional and not in RefundPaymentInput
           })
         )
       }

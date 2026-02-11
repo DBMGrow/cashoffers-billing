@@ -6,6 +6,7 @@ import { MockEmailService } from "@/infrastructure/email/mock/mock-email.service
 import { ITransactionManager } from "@/infrastructure/database/transaction/transaction-manager.interface"
 import { Kysely } from "kysely"
 import { DB } from "@/lib/db"
+import { IEventBus, IDomainEvent } from "@/infrastructure/events/event-bus.interface"
 
 // Mock repositories (reusing from create-subscription tests)
 class MockSubscriptionRepository {
@@ -217,6 +218,35 @@ class MockTransactionManager implements ITransactionManager {
   }
 }
 
+class MockEventBus implements IEventBus {
+  private events: IDomainEvent[] = []
+
+  async publish(event: IDomainEvent): Promise<void> {
+    this.events.push(event)
+  }
+
+  async publishBatch(events: IDomainEvent[]): Promise<void> {
+    this.events.push(...events)
+  }
+
+  subscribe(): void {
+    // No-op for tests
+  }
+
+  unsubscribe(): void {
+    // No-op for tests
+  }
+
+  // Test helper
+  getPublishedEvents() {
+    return this.events
+  }
+
+  clearEvents() {
+    this.events = []
+  }
+}
+
 describe("RenewSubscriptionUseCase", () => {
   let useCase: RenewSubscriptionUseCase
   let logger: ConsoleLogger
@@ -227,6 +257,7 @@ describe("RenewSubscriptionUseCase", () => {
   let userCardRepo: MockUserCardRepository
   let config: MockConfigService
   let transactionManager: MockTransactionManager
+  let eventBus: MockEventBus
 
   beforeEach(() => {
     logger = new ConsoleLogger()
@@ -237,6 +268,7 @@ describe("RenewSubscriptionUseCase", () => {
     userCardRepo = new MockUserCardRepository()
     config = new MockConfigService()
     transactionManager = new MockTransactionManager()
+    eventBus = new MockEventBus()
 
     useCase = new RenewSubscriptionUseCase({
       logger,
@@ -248,6 +280,7 @@ describe("RenewSubscriptionUseCase", () => {
       purchaseRequestRepository: new MockPurchaseRequestRepository() as any,
       config: config as any,
       transactionManager,
+      eventBus,
     })
   })
 
