@@ -32,6 +32,11 @@ export interface IUserApiClient {
    * Deactivate user premium status
    */
   deactivateUserPremium(userId: number): Promise<void>
+
+  /**
+   * Deactivate user (sets active = false)
+   */
+  deactivateUser(userId: number): Promise<void>
 }
 
 /**

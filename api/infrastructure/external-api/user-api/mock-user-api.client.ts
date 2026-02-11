@@ -98,6 +98,10 @@ export class MockUserApiClient implements IUserApiClient {
     await this.updateUser(userId, { is_premium: false })
   }
 
+  async deactivateUser(userId: number): Promise<void> {
+    await this.updateUser(userId, { active: false })
+  }
+
   // Test helpers
   addMockUser(user: Partial<User> & { email: string }): User {
     const userId = user.id || this.nextId++

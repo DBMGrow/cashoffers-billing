@@ -13,6 +13,7 @@ import { createSubscriptionRepository } from '@/infrastructure/database/reposito
 import { createUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository'
 import { createProductRepository } from '@/infrastructure/database/repositories/product.repository'
 import { createPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository'
+import { createWhitelabelRepository } from '@/infrastructure/database/repositories/whitelabel.repository'
 import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
 import { createDualEnvironmentPaymentProvider } from '@/infrastructure/payment/dual-environment-provider'
 import { createSquareErrorTranslator } from '@/infrastructure/payment/error/square-error-translator'
@@ -52,6 +53,7 @@ import type { ISubscriptionRepository } from '@/infrastructure/database/reposito
 import type { IUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository.interface'
 import type { IProductRepository } from '@/infrastructure/database/repositories/product.repository.interface'
 import type { IPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository.interface'
+import type { IWhitelabelRepository } from '@/infrastructure/database/repositories/whitelabel.repository.interface'
 import type { IPaymentProvider } from '@/infrastructure/payment/payment-provider.interface'
 import type { IPaymentErrorTranslator } from '@/infrastructure/payment/error/payment-error-translator.interface'
 import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
@@ -92,6 +94,7 @@ export interface IContainer {
     userCard: IUserCardRepository
     product: IProductRepository
     purchaseRequest: IPurchaseRequestRepository
+    whitelabel: IWhitelabelRepository
   }
   services: {
     payment: IPaymentProvider
@@ -155,6 +158,7 @@ export const createContainer = (): IContainer => {
     userCard: createUserCardRepository(db),
     product: createProductRepository(db),
     purchaseRequest: createPurchaseRequestRepository(db),
+    whitelabel: createWhitelabelRepository(db),
   }
 
   // Create services
@@ -193,7 +197,12 @@ export const createContainer = (): IContainer => {
   const emailNotificationHandler = new EmailNotificationHandler(services.email, logger)
   const transactionLoggingHandler = new TransactionLoggingHandler(repositories.transaction, logger)
   const premiumActivationHandler = new PremiumActivationHandler(services.userApi, logger)
-  const premiumDeactivationHandler = new PremiumDeactivationHandler(services.userApi, logger)
+  const premiumDeactivationHandler = new PremiumDeactivationHandler(
+    services.userApi,
+    repositories.whitelabel,
+    repositories.subscription,
+    logger
+  )
 
   // Subscribe handlers to events
   eventBus.subscribe('SubscriptionCreated', emailNotificationHandler)

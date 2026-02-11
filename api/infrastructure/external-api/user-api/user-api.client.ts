@@ -192,6 +192,23 @@ export class UserApiClient implements IUserApiClient {
     }
   }
 
+  async deactivateUser(userId: number): Promise<void> {
+    const startTime = Date.now()
+
+    try {
+      this.logger.info('Deactivating user (setting active = false)', { userId })
+
+      await this.updateUser(userId, { active: false })
+
+      const duration = Date.now() - startTime
+      this.logger.info('User deactivated successfully', { userId, duration })
+    } catch (error) {
+      const duration = Date.now() - startTime
+      this.logger.error('Failed to deactivate user', error, { userId, duration })
+      throw error
+    }
+  }
+
   private parseUserResponse(data: any): User {
     if (data.success === 'success' && data.data) {
       return this.parseUser(data.data)

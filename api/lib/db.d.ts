@@ -1830,6 +1830,7 @@ export interface WebsitesDash {
 export interface Whitelabels {
   code: string;
   name: string;
+  suspension_behavior: Generated<"DEACTIVATE_USER" | "DOWNGRADE_TO_FREE">;
   whitelabel_id: Generated<number>;
 }
 
