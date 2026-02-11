@@ -1,9 +1,15 @@
 import type { Context, MiddlewareHandler } from "hono"
 import getUser from "../../utils/getUser"
+import { TestModeDetector } from "@/infrastructure/payment/test-mode-detector"
+import { TestModeAuthorizer } from "@/infrastructure/payment/test-mode-authorizer"
 
 interface AuthOptions {
   allowSelf?: boolean
 }
+
+// Initialize test mode services (singleton instances)
+const testModeDetector = new TestModeDetector()
+const testModeAuthorizer = new TestModeAuthorizer()
 
 /**
  * Hono auth middleware factory
@@ -91,6 +97,33 @@ export function authMiddleware(
     // Attach user data to context
     c.set("user", user?.data)
     c.set("token_owner", token_owner?.data)
+
+    // Detect and authorize test mode (for payment operations)
+    try {
+      const paymentContext = testModeDetector.detectTestMode(c, token_owner?.data)
+
+      // Authorize test mode if requested
+      testModeAuthorizer.authorize(token_owner?.data, paymentContext.testMode)
+
+      // Attach payment context to Hono context for use in routes
+      c.set("paymentContext", paymentContext)
+
+      // Log test mode activation for audit trail
+      if (paymentContext.testMode) {
+        console.log('[TEST MODE ACTIVATED]', {
+          userId: token_owner?.data?.user_id,
+          email: token_owner?.data?.email,
+          detectedFrom: paymentContext.metadata?.detectedFrom,
+          timestamp: paymentContext.metadata?.timestamp,
+        })
+      }
+    } catch (error) {
+      // Test mode authorization failed
+      return c.json({
+        success: "error",
+        error: error instanceof Error ? error.message : "Test mode authorization failed"
+      }, 403)
+    }
 
     await next()
   }

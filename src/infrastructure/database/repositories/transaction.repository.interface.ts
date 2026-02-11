@@ -53,4 +53,11 @@ export interface ITransactionRepository extends IRepository<Transactions> {
       userId?: number
     }
   ): Promise<number>
+
+  /**
+   * Find transactions by environment
+   */
+  findByEnvironment(
+    environment: 'production' | 'sandbox'
+  ): Promise<Selectable<Transactions>[]>
 }

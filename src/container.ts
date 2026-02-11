@@ -14,6 +14,7 @@ import { createUserCardRepository } from '@/infrastructure/database/repositories
 import { createProductRepository } from '@/infrastructure/database/repositories/product.repository'
 import { createPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository'
 import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
+import { createDualEnvironmentPaymentProvider } from '@/infrastructure/payment/dual-environment-provider'
 import { createSquareErrorTranslator } from '@/infrastructure/payment/error/square-error-translator'
 import { createMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler'
 import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/sendgrid.service'
@@ -159,8 +160,25 @@ export const createContainer = (): IContainer => {
   // Create event bus
   const eventBus = new InMemoryEventBus(logger)
 
+  // Create payment providers (production and sandbox)
+  const productionPaymentProvider = createSquarePaymentProvider(
+    config,
+    logger,
+    'production'
+  )
+
+  const sandboxPaymentProvider = config.square.sandbox.accessToken
+    ? createSquarePaymentProvider(config, logger, 'sandbox')
+    : null
+
+  const paymentProvider = createDualEnvironmentPaymentProvider(
+    productionPaymentProvider,
+    sandboxPaymentProvider,
+    logger
+  )
+
   const services = {
-    payment: createSquarePaymentProvider(config, logger),
+    payment: paymentProvider,
     paymentErrorTranslator: createSquareErrorTranslator(),
     mjmlCompiler,
     email: createSendGridEmailService(config, logger, mjmlCompiler),

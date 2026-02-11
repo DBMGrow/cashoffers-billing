@@ -29,6 +29,7 @@ app.post(
     const body = await c.req.json()
     const user = c.get("user")
     const container = getContainer()
+    const paymentContext = c.get('paymentContext')
 
     return executeUseCase(c, () =>
       container.useCases.unlockProperty.execute({
@@ -36,6 +37,7 @@ app.post(
         cardToken: body.card_token,
         userId: user?.user_id,
         email: user?.email || "",
+        context: paymentContext, // Pass context for environment selection
       })
     )
   }

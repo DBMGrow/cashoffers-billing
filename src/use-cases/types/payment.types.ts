@@ -1,3 +1,5 @@
+import type { PaymentContext } from '@/config/config.interface'
+
 /**
  * Payment-related DTOs (Data Transfer Objects)
  * These types define the inputs and outputs for payment use cases
@@ -12,6 +14,7 @@ export interface CreatePaymentInput {
   email: string
   memo?: string
   sendEmailOnCharge?: boolean
+  context?: PaymentContext
 }
 
 /**
@@ -37,6 +40,7 @@ export interface CreateCardInput {
   allowNullUserId?: boolean
   sendEmailOnUpdate?: boolean
   attemptRenewal?: boolean
+  context?: PaymentContext
 }
 
 /**
@@ -58,6 +62,7 @@ export interface RefundPaymentInput {
   userId: number
   squareTransactionId: string
   email?: string // Optional, will fetch from user API if not provided
+  context?: PaymentContext
 }
 
 /**

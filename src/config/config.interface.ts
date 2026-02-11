@@ -1,4 +1,14 @@
 /**
+ * Payment Context - tracks request-level payment environment
+ */
+export interface PaymentContext {
+  testMode: boolean
+  source?: 'API' | 'CRON' | 'ADMIN'
+  userId?: number
+  metadata?: Record<string, unknown>
+}
+
+/**
  * Configuration interface
  * Centralizes all environment variables and application configuration
  */
@@ -18,9 +28,15 @@ export interface IConfig {
 
   // Square Payment API
   square: {
-    accessToken: string
-    environment: 'production' | 'sandbox'
-    locationId: string
+    production: {
+      accessToken: string
+      locationId: string
+    }
+    sandbox: {
+      accessToken: string
+      locationId: string
+    }
+    defaultEnvironment: 'production' | 'sandbox'
   }
 
   // External APIs

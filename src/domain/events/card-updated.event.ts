@@ -23,6 +23,8 @@ export interface CardUpdatedPayload {
   externalCardId: string
   /** Payment provider (e.g., 'Square') */
   paymentProvider: string
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Whether this is the user's default card */
   isDefault?: boolean
   /** Fields that were updated */

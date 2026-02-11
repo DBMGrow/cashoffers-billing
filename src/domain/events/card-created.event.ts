@@ -23,6 +23,8 @@ export interface CardCreatedPayload {
   externalCardId: string
   /** Payment provider (e.g., 'Square') */
   paymentProvider: string
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Related subscription ID if created during subscription purchase */
   subscriptionId?: number
   /** Whether this is the user's default card */

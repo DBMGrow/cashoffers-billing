@@ -1415,6 +1415,7 @@ export interface Subscriptions {
   next_renewal_attempt: Date | null;
   product_id: number | null;
   renewal_date: Date;
+  square_environment: Generated<"production" | "sandbox" | null>;
   status: string | null;
   subscription_id: Generated<number>;
   subscription_name: string;
@@ -1499,6 +1500,7 @@ export interface Transactions {
   data: string | null;
   memo: string | null;
   product_id: number | null;
+  square_environment: Generated<"production" | "sandbox" | null>;
   square_transaction_id: string | null;
   status: string | null;
   transaction_id: Generated<number>;
@@ -1545,6 +1547,7 @@ export interface UserCards {
   id: Generated<number>;
   last_4: string;
   square_customer_id: string;
+  square_environment: Generated<"production" | "sandbox" | null>;
   updatedAt: Date;
   user_id: number | null;
 }

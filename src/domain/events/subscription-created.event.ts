@@ -23,6 +23,8 @@ export interface SubscriptionCreatedPayload {
   cardWasCreated?: boolean
   /** Next renewal date */
   nextRenewalDate?: Date
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Source of the subscription (API, CRON, ADMIN) */
   source?: string
 }

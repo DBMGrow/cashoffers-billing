@@ -5,14 +5,13 @@ import { IConfig } from './config.interface'
  * Single source of truth for all environment variables
  */
 export const createConfig = (): IConfig => {
-  // Validate required environment variables
+  // Validate required environment variables (production Square credentials required)
   const required = [
     'DB_HOST',
     'DB_USER',
     'DB_PASSWORD',
     'DB_NAME',
     'SQUARE_ACCESS_TOKEN',
-    'SQUARE_ENVIRONMENT',
     'SQUARE_LOCATION_ID',
     'API_URL',
     'API_URL_V2',
@@ -27,10 +26,15 @@ export const createConfig = (): IConfig => {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`)
   }
 
-  const squareEnv = process.env.SQUARE_ENVIRONMENT
-  if (squareEnv !== 'production' && squareEnv !== 'sandbox') {
+  // Determine default environment (backward compatible with SQUARE_ENVIRONMENT)
+  const defaultEnv = process.env.SQUARE_ENVIRONMENT || 'production'
+  if (defaultEnv !== 'production' && defaultEnv !== 'sandbox') {
     throw new Error('SQUARE_ENVIRONMENT must be "production" or "sandbox"')
   }
+
+  // Check if sandbox credentials are provided (optional)
+  const hasSandboxCredentials =
+    !!process.env.SQUARE_SANDBOX_ACCESS_TOKEN && !!process.env.SQUARE_SANDBOX_LOCATION_ID
 
   return {
     port: parseInt(process.env.PORT || '3000', 10),
@@ -45,9 +49,15 @@ export const createConfig = (): IConfig => {
     },
 
     square: {
-      accessToken: process.env.SQUARE_ACCESS_TOKEN!,
-      environment: squareEnv as 'production' | 'sandbox',
-      locationId: process.env.SQUARE_LOCATION_ID!,
+      production: {
+        accessToken: process.env.SQUARE_ACCESS_TOKEN!,
+        locationId: process.env.SQUARE_LOCATION_ID!,
+      },
+      sandbox: {
+        accessToken: process.env.SQUARE_SANDBOX_ACCESS_TOKEN || '',
+        locationId: process.env.SQUARE_SANDBOX_LOCATION_ID || '',
+      },
+      defaultEnvironment: defaultEnv as 'production' | 'sandbox',
     },
 
     api: {

@@ -1,3 +1,5 @@
+import type { PaymentContext } from '@/config/config.interface'
+
 /**
  * Subscription-related DTOs (Data Transfer Objects)
  * These types define the inputs and outputs for subscription use cases
@@ -12,6 +14,7 @@ export interface CreateSubscriptionInput {
   email: string
   userAlreadyExists: boolean
   waiveSignupFee?: boolean
+  context?: PaymentContext
 }
 
 /**
@@ -67,6 +70,7 @@ export interface UpdateSubscriptionFieldsOutput {
 export interface RenewSubscriptionInput {
   subscriptionId: number
   email: string
+  context?: PaymentContext
 }
 
 /**
@@ -215,6 +219,7 @@ export interface PurchaseSubscriptionInput {
 
   // Optional
   coupon?: string
+  context?: PaymentContext
 }
 
 /**

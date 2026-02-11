@@ -181,6 +181,17 @@ export class TransactionRepository implements ITransactionRepository {
     const result = await query.executeTakeFirst()
     return result?.count ? Number(result.count) : 0
   }
+
+  async findByEnvironment(
+    environment: 'production' | 'sandbox'
+  ): Promise<Selectable<Transactions>[]> {
+    return await this.db
+      .selectFrom('Transactions')
+      .where('square_environment', '=', environment)
+      .selectAll()
+      .orderBy('createdAt', 'desc')
+      .execute()
+  }
 }
 
 /**

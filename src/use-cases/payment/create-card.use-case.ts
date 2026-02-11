@@ -66,6 +66,7 @@ export class CreateCardUseCase implements ICreateCardUseCase {
       let squareCustomerId: string
       let last4: string
       let cardBrand: string
+      let environment: 'production' | 'sandbox'
       try {
         const card = await paymentProvider.createCard({
           sourceId: cardToken,
@@ -73,10 +74,11 @@ export class CreateCardUseCase implements ICreateCardUseCase {
           card: {
             cardholderName,
           },
-        })
+        }, validatedInput.context) // Pass context for environment selection
         cardId = card.id
         last4 = card.last4 || ""
         cardBrand = card.cardBrand || ""
+        environment = card.environment // Track which Square environment was used
         // Note: Square provider creates customer internally but doesn't return customerId
         // Store the card ID as reference - could be enhanced to return customerId from provider
         squareCustomerId = "" // Will be empty, provider doesn't return this
@@ -105,6 +107,7 @@ export class CreateCardUseCase implements ICreateCardUseCase {
             exp_year: String(expYear),
             cardholder_name: cardholderName,
             square_customer_id: squareCustomerId,
+            square_environment: environment, // Track which Square environment was used
             updatedAt: new Date(),
           })
           creatingNewCard = false
@@ -118,6 +121,7 @@ export class CreateCardUseCase implements ICreateCardUseCase {
             exp_year: String(expYear),
             cardholder_name: cardholderName,
             square_customer_id: squareCustomerId,
+            square_environment: environment, // Track which Square environment was used
             createdAt: new Date(),
             updatedAt: new Date(),
           })
@@ -133,6 +137,7 @@ export class CreateCardUseCase implements ICreateCardUseCase {
           exp_year: String(expYear),
           cardholder_name: cardholderName,
           square_customer_id: squareCustomerId,
+          square_environment: environment, // Track which Square environment was used
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -163,6 +168,7 @@ export class CreateCardUseCase implements ICreateCardUseCase {
           expirationYear: expYear,
           externalCardId: cardId,
           paymentProvider: "Square" as const,
+          environment, // Include environment in event
         }
 
         if (creatingNewCard) {

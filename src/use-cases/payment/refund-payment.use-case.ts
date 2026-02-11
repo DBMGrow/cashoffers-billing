@@ -93,7 +93,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
         return failure("Cannot refund transaction with zero amount", "INVALID_AMOUNT")
       }
 
-      // Process refund via Square
+      // Process refund via Square (use same environment as original transaction)
       const refundResult = await this.deps.paymentProvider.refundPayment({
         paymentId: validatedInput.squareTransactionId,
         idempotencyKey: uuidv4(),
@@ -101,7 +101,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
           amount: BigInt(transactionAmount),
           currency: "USD",
         },
-      })
+      }, validatedInput.context) // Pass context for environment selection
 
       // Check refund status
       if (refundResult.status !== "COMPLETED" && refundResult.status !== "PENDING") {
@@ -128,6 +128,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
         type: "refund",
         memo: "Refund completed",
         status: "completed",
+        square_environment: refundResult.environment, // Track which Square environment was used
         data: this.serializeRefund(refundResult),
         createdAt: now,
         updatedAt: now,
@@ -159,6 +160,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
             amount: transactionAmount,
             currency: "USD",
             paymentProvider: "Square",
+            environment: refundResult.environment, // Include environment in event
             reason: validatedInput.reason,
           })
         )
@@ -186,6 +188,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
           type: "refund",
           memo: "Refund failed",
           status: "failed",
+          square_environment: input.context?.testMode ? 'sandbox' : 'production', // Track environment even on failure
           data: JSON.stringify({ error: errorMessage }),
           createdAt: now,
           updatedAt: now,
@@ -215,6 +218,7 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
       type: "refund",
       memo: "Refund failed",
       status: "failed",
+      square_environment: input.context?.testMode ? 'sandbox' : 'production', // Track environment even on failure
       data: JSON.stringify({ error: "Refund not completed", transactionId: transaction.transaction_id }),
       createdAt: now,
       updatedAt: now,

@@ -1,3 +1,5 @@
+import type { PaymentContext } from '@/config/config.interface'
+
 /**
  * Payment Provider Interface
  * Abstracts payment processing (Square API)
@@ -6,22 +8,22 @@ export interface IPaymentProvider {
   /**
    * Create a payment/charge
    */
-  createPayment(request: CreatePaymentRequest): Promise<PaymentResult>
+  createPayment(request: CreatePaymentRequest, context?: PaymentContext): Promise<PaymentResult>
 
   /**
    * Create a customer card token
    */
-  createCard(request: CreateCardRequest): Promise<CardResult>
+  createCard(request: CreateCardRequest, context?: PaymentContext): Promise<CardResult>
 
   /**
    * Retrieve card information
    */
-  getCard(cardId: string): Promise<CardInfo>
+  getCard(cardId: string, context?: PaymentContext): Promise<CardInfo>
 
   /**
    * Refund a payment
    */
-  refundPayment(request: RefundPaymentRequest): Promise<RefundResult>
+  refundPayment(request: RefundPaymentRequest, context?: PaymentContext): Promise<RefundResult>
 }
 
 /**
@@ -59,6 +61,7 @@ export interface PaymentResult {
       expYear: number
     }
   }
+  environment: 'production' | 'sandbox'
 }
 
 /**
@@ -88,6 +91,7 @@ export interface CardResult {
   billingAddress?: {
     postalCode?: string
   }
+  environment: 'production' | 'sandbox'
 }
 
 /**
@@ -126,4 +130,5 @@ export interface RefundResult {
     currency: string
   }
   createdAt: string
+  environment: 'production' | 'sandbox'
 }

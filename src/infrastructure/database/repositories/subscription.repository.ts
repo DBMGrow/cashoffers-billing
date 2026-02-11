@@ -199,6 +199,19 @@ export class SubscriptionRepository implements ISubscriptionRepository {
       .selectAll()
       .execute()
   }
+
+  async findByEnvironment(
+    environment: 'production' | 'sandbox',
+    trx?: TransactionContext
+  ): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    return await db
+      .selectFrom('Subscriptions')
+      .where('square_environment', '=', environment)
+      .selectAll()
+      .orderBy('createdAt', 'desc')
+      .execute()
+  }
 }
 
 /**

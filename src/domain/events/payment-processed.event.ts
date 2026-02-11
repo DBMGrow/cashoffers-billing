@@ -29,6 +29,8 @@ export interface PaymentProcessedPayload {
   productId?: number
   /** Type of payment (purchase, renewal, unlock, refund) */
   paymentType: string
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Line items for multi-part charges */
   lineItems?: Array<{
     description: string

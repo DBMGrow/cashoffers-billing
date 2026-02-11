@@ -8,9 +8,12 @@ import type { UserCards } from '@/lib/db'
  */
 export interface IUserCardRepository extends IRepository<UserCards> {
   /**
-   * Find all cards for a user
+   * Find all cards for a user (optionally filter by environment)
    */
-  findByUserId(userId: number): Promise<Selectable<UserCards>[]>
+  findByUserId(
+    userId: number,
+    environment?: 'production' | 'sandbox'
+  ): Promise<Selectable<UserCards>[]>
 
   /**
    * Find active cards for a user

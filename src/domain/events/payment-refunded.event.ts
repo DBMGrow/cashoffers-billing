@@ -23,6 +23,8 @@ export interface PaymentRefundedPayload {
   currency?: string
   /** Payment provider (e.g., 'Square') */
   paymentProvider: string
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Reason for refund */
   reason?: string
   /** Related subscription ID if this was a subscription payment */

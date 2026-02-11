@@ -39,6 +39,7 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
   const { user_id, amount, memo, email } = body
 
   const container = getContainer()
+  const paymentContext = c.get('paymentContext')
 
   return executeUseCase(c, () =>
     container.useCases.createPayment.execute({
@@ -47,6 +48,7 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
       email: email || c.get("user")?.email || "",
       memo: memo || "Payment",
       sendEmailOnCharge: true,
+      context: paymentContext, // Pass context for environment selection
     })
   )
 })
@@ -64,12 +66,14 @@ app.post("/refund", authMiddleware("payments_create"), async (c) => {
   }
 
   const container = getContainer()
+  const paymentContext = c.get('paymentContext')
 
   return executeUseCase(c, () =>
     container.useCases.refundPayment.execute({
       userId: Number(user_id),
       squareTransactionId: transaction_id,
       email: email || c.get("user")?.email,
+      context: paymentContext, // Pass context for environment selection
     })
   )
 })

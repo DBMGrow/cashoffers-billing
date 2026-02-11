@@ -84,13 +84,22 @@ export class UserCardRepository implements IUserCardRepository {
 
   // Custom methods specific to UserCardRepository
 
-  async findByUserId(userId: number): Promise<Selectable<UserCards>[]> {
-    return await this.db
+  async findByUserId(
+    userId: number,
+    environment?: 'production' | 'sandbox'
+  ): Promise<Selectable<UserCards>[]> {
+    let query = this.db
       .selectFrom('UserCards')
       .where('user_id', '=', userId)
       .selectAll()
       .orderBy('createdAt', 'desc')
-      .execute()
+
+    // Optionally filter by environment
+    if (environment) {
+      query = query.where('square_environment', '=', environment)
+    }
+
+    return await query.execute()
   }
 
   async findActiveByUserId(userId: number): Promise<Selectable<UserCards>[]> {

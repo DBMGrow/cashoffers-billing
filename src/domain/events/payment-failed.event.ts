@@ -25,6 +25,8 @@ export interface PaymentFailedPayload {
   productId?: number
   /** Type of payment that failed (purchase, renewal, unlock) */
   paymentType: string
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Error message from payment provider */
   errorMessage: string
   /** Error code from payment provider */

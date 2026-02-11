@@ -47,6 +47,7 @@ app.post("/", authMiddleware(null), async (c) => {
 
   const user = c.get("user")
   const container = getContainer()
+  const paymentContext = c.get('paymentContext')
 
   return executeUseCase(c, () =>
     container.useCases.createCard.execute({
@@ -58,6 +59,7 @@ app.post("/", authMiddleware(null), async (c) => {
       email: user?.email || "",
       sendEmailOnUpdate: true,
       attemptRenewal: true,
+      context: paymentContext, // Pass context for environment selection
     })
   )
 })

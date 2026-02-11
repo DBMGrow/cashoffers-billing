@@ -27,6 +27,9 @@ app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) 
 
   const container = getContainer()
 
+  // Get payment context from middleware (includes test mode detection)
+  const paymentContext = c.get('paymentContext')
+
   // Execute use case with clean error handling
   const result = await executeUseCase(c, async () => {
     return container.useCases.purchaseSubscription.execute({
@@ -43,6 +46,7 @@ app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) 
       url,
       isInvestor,
       coupon,
+      context: paymentContext, // Pass context for environment selection
     })
   })
 
@@ -74,6 +78,7 @@ app.post("/", authMiddleware("payments_create", { allowSelf: true }), async (c) 
         userCreated: data.userCreated,
         proratedCharge: data.proratedCharge,
       },
+      environment: paymentContext?.testMode ? 'sandbox' : 'production', // Show which environment was used
     })
   }
 

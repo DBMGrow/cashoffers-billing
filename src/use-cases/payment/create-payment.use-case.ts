@@ -78,7 +78,7 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
           currency: "USD",
         },
         customerId: userCard.square_customer_id,
-      })
+      }, validatedInput.context) // Pass context for environment selection
 
       // Check payment status
       if (payment.status !== "COMPLETED") {
@@ -95,6 +95,7 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
         memo: validatedInput.memo,
         status: "completed",
         square_transaction_id: payment.id,
+        square_environment: payment.environment, // Track which Square environment was used
         data: this.serializePayment(payment),
         createdAt: now,
         updatedAt: now,
@@ -119,9 +120,10 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
             amount: validatedInput.amount,
             currency: "USD",
             cardId: userCard.card_id || undefined,
-            cardLast4: userCard.last_four || undefined,
+            cardLast4: userCard.last_4 || undefined,
             paymentProvider: "Square",
             paymentType: "one-time",
+            environment: payment.environment, // Include environment in event
             lineItems: validatedInput.memo ? [{
               description: validatedInput.memo,
               amount: validatedInput.amount
@@ -162,6 +164,7 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
       memo: "Payment failed",
       status: "failed",
       square_transaction_id: paymentId,
+      square_environment: input.context?.testMode ? 'sandbox' : 'production', // Track environment even on failure
       data: JSON.stringify({ error: "Payment not completed", paymentId }),
       createdAt: now,
       updatedAt: now,
@@ -179,6 +182,7 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
         errorMessage: "Payment not completed",
         paymentProvider: "Square",
         paymentType: "one-time",
+        environment: input.context?.testMode ? 'sandbox' : 'production', // Include environment in event
         willRetry: false,
       })
     )

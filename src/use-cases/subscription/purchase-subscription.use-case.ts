@@ -261,7 +261,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
           currency: "USD",
         },
         customerId: userCard.square_customer_id || undefined,
-      })
+      }, validatedInput.context) // Pass context for environment selection
 
       if (payment.status !== "COMPLETED") {
         logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
@@ -289,6 +289,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         status: "active",
         renewal_date: renewalDate,
         product_id: product.product_id,
+        square_environment: payment.environment, // Store environment from initial payment
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         createdAt: now,
@@ -303,6 +304,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         memo: `Subscription created: ${product.product_name}`,
         status: "completed",
         square_transaction_id: payment.id,
+        square_environment: payment.environment, // Track which Square environment was used
         product_id: product.product_id,
         data: JSON.stringify({ signupFee, renewalCost }),
         createdAt: now,
@@ -326,6 +328,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
           cardId: cardIdString,
           userWasCreated: userCreated,
           nextRenewalDate: renewalDate,
+          environment: payment.environment, // Include environment in event
           source: "API",
         })
       )
@@ -345,6 +348,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
           subscriptionId: subscription.subscription_id,
           productId: product.product_id,
           paymentType: "subscription",
+          environment: payment.environment, // Include environment in event
           lineItems: [
             { description: "Signup fee", amount: signupFee },
             { description: "First period", amount: renewalCost },
@@ -440,7 +444,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         card: {
           cardholderName: input.cardholderName,
         },
-      })
+      }, input.context) // Pass context for environment selection
 
       // Save card to database (we'll use a placeholder for square_customer_id since it's not in CardResult)
       const now = new Date()
@@ -448,6 +452,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         user_id: userId,
         card_id: card.id,
         square_customer_id: card.id, // Use card id as customer id placeholder
+        square_environment: card.environment, // Track which Square environment was used
         card_brand: card.cardBrand,
         last_4: card.last4,
         exp_month: input.expMonth.toString(),
@@ -469,6 +474,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
           expirationYear: input.expYear,
           externalCardId: card.id,
           paymentProvider: "Square",
+          environment: card.environment, // Include environment in event
           isDefault: true,
         })
       )

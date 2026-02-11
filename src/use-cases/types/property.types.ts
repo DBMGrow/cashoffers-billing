@@ -3,6 +3,8 @@
  * These types define the inputs and outputs for property use cases
  */
 
+import type { PaymentContext } from '@/config/config.interface'
+
 /**
  * Input for unlocking a property
  */
@@ -11,6 +13,7 @@ export interface UnlockPropertyInput {
   cardToken: string // Ephemeral token from Square
   userId: number
   email: string
+  context?: PaymentContext
 }
 
 /**

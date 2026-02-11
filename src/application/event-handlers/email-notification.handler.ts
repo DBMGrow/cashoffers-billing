@@ -44,6 +44,22 @@ export class EmailNotificationHandler extends BaseEventHandler {
     ]
   }
 
+  /**
+   * Helper method to add [SANDBOX] prefix to email subjects when using sandbox environment
+   */
+  private formatSubject(subject: string, environment?: 'production' | 'sandbox'): string {
+    return environment === 'sandbox' ? `[SANDBOX] ${subject}` : subject
+  }
+
+  /**
+   * Helper method to generate environment disclaimer text for sandbox transactions
+   */
+  private getEnvironmentDisclaimer(environment?: 'production' | 'sandbox'): string {
+    return environment === 'sandbox'
+      ? 'This is a test transaction using Square sandbox environment. No real charges were made.'
+      : ''
+  }
+
   async handle(event: IDomainEvent): Promise<void> {
     switch (event.eventType) {
       case 'SubscriptionCreated':
@@ -94,21 +110,23 @@ export class EmailNotificationHandler extends BaseEventHandler {
   ): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, productName, amount, initialChargeAmount } = event.payload
+        const { email, productName, amount, initialChargeAmount, environment } = event.payload
 
         this.logger.info('Sending subscription created email', {
           email,
           subscriptionId: event.payload.subscriptionId,
+          environment,
         })
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Welcome to CashOffers!',
+          subject: this.formatSubject('Welcome to CashOffers!', environment),
           template: 'subscriptionCreated.html',
           fields: {
             productName,
             amount: (initialChargeAmount || amount) / 100,
             subscriptionId: event.payload.subscriptionId,
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },
@@ -122,22 +140,24 @@ export class EmailNotificationHandler extends BaseEventHandler {
   ): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, productName, amount, nextRenewalDate } = event.payload
+        const { email, productName, amount, nextRenewalDate, environment } = event.payload
 
         this.logger.info('Sending subscription renewal email', {
           email,
           subscriptionId: event.payload.subscriptionId,
+          environment,
         })
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Your CashOffers Subscription Has Been Renewed',
+          subject: this.formatSubject('Your CashOffers Subscription Has Been Renewed', environment),
           template: 'subscriptionRenewal.html',
           fields: {
             productName,
             amount: amount / 100,
             nextRenewalDate: nextRenewalDate?.toISOString(),
             subscriptionId: event.payload.subscriptionId,
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },
@@ -151,7 +171,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   ): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, externalTransactionId, paymentType, lineItems } = event.payload
+        const { email, amount, externalTransactionId, paymentType, lineItems, environment } = event.payload
 
         // Only send email for one-time payments (subscriptions are handled separately)
         if (paymentType !== 'one-time' && paymentType !== 'unlock') {
@@ -162,19 +182,21 @@ export class EmailNotificationHandler extends BaseEventHandler {
           email,
           transactionId: event.payload.transactionId,
           paymentType,
+          environment,
         })
 
         const memo = lineItems && lineItems.length > 0 ? lineItems[0].description : ''
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Payment Successful',
+          subject: this.formatSubject('Payment Successful', environment),
           template: 'paymentConfirm.html',
           fields: {
             amount: amount / 100,
             transactionID: externalTransactionId,
             date: new Date().toLocaleDateString(),
             memo: memo,
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },
@@ -186,17 +208,18 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentFailed(event: PaymentFailedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, errorMessage, willRetry, nextRetryDate } =
+        const { email, amount, errorMessage, willRetry, nextRetryDate, environment } =
           event.payload
 
         this.logger.info('Sending payment failed email', {
           email,
           subscriptionId: event.payload.subscriptionId,
+          environment,
         })
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Payment Failed - Action Required',
+          subject: this.formatSubject('Payment Failed - Action Required', environment),
           template: 'subscriptionRenewalFailed.html',
           fields: {
             amount: amount / 100,
@@ -204,6 +227,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             willRetry,
             nextRetryDate: nextRetryDate?.toISOString(),
             subscriptionId: event.payload.subscriptionId,
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },
@@ -215,20 +239,22 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentRefunded(event: PaymentRefundedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount } = event.payload
+        const { email, amount, environment } = event.payload
 
         this.logger.info('Sending payment refunded email', {
           email,
           transactionId: event.payload.transactionId,
+          environment,
         })
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Payment Refunded',
+          subject: this.formatSubject('Payment Refunded', environment),
           template: 'refund.html',
           fields: {
             amount: amount / 100,
             date: new Date().toLocaleDateString(),
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },
@@ -240,21 +266,23 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleCardCreated(event: CardCreatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, cardLast4 } = event.payload
+        const { email, cardLast4, environment } = event.payload
 
         this.logger.info('Sending card created email', {
           email,
           cardId: event.payload.cardId,
+          environment,
         })
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'A Card Was Added to Your Account',
+          subject: this.formatSubject('A Card Was Added to Your Account', environment),
           template: 'cardUpdated.html',
           fields: {
             message: `A Card ending in ${cardLast4} was added to your account`,
             card: `**** **** **** ${cardLast4}`,
             date: new Date().toLocaleDateString(),
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },
@@ -266,21 +294,23 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleCardUpdated(event: CardUpdatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, cardLast4 } = event.payload
+        const { email, cardLast4, environment } = event.payload
 
         this.logger.info('Sending card updated email', {
           email,
           cardId: event.payload.cardId,
+          environment,
         })
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'The Card on Your Account Was Updated',
+          subject: this.formatSubject('The Card on Your Account Was Updated', environment),
           template: 'cardUpdated.html',
           fields: {
             message: `The Card linked to your account was updated and now ends in ${cardLast4}`,
             card: `**** **** **** ${cardLast4}`,
             date: new Date().toLocaleDateString(),
+            environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
       },

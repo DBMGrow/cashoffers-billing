@@ -19,19 +19,31 @@ import type {
  */
 export class SquarePaymentProvider implements IPaymentProvider {
   private client: Client
+  private environment: 'production' | 'sandbox'
+  private locationId: string
 
   constructor(
-    private config: IConfig,
-    private logger: ILogger
+    config: IConfig,
+    private logger: ILogger,
+    environment: 'production' | 'sandbox'
   ) {
+    this.environment = environment
+
+    // Use the appropriate config based on environment
+    const squareConfig = environment === 'production'
+      ? config.square.production
+      : config.square.sandbox
+
+    this.locationId = squareConfig.locationId
+
     this.client = new Client({
-      environment:
-        config.square.environment === 'production' ? Environment.Production : Environment.Sandbox,
-      accessToken: config.square.accessToken,
+      environment: environment === 'production' ? Environment.Production : Environment.Sandbox,
+      accessToken: squareConfig.accessToken,
     })
 
-    this.logger.debug('Square payment provider initialized', {
-      environment: config.square.environment,
+    this.logger.debug(`Square payment provider initialized [${environment.toUpperCase()}]`, {
+      environment,
+      locationId: this.locationId,
     })
   }
 
@@ -54,7 +66,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
           amount: request.amountMoney.amount,
           currency: request.amountMoney.currency,
         },
-        locationId: request.locationId || this.config.square.locationId,
+        locationId: request.locationId || this.locationId,
         autocomplete: true,
         customerId: request.customerId,
         acceptPartialAuthorization: false,
@@ -67,10 +79,11 @@ export class SquarePaymentProvider implements IPaymentProvider {
       }
 
       const duration = Date.now() - startTime
-      this.logger.info('Square payment created successfully', {
+      this.logger.info(`Square payment created successfully [${this.environment.toUpperCase()}]`, {
         paymentId: payment.id,
         status: payment.status,
         duration,
+        environment: this.environment,
       })
 
       return {
@@ -94,6 +107,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
                 : undefined,
             }
           : undefined,
+        environment: this.environment,
       }
     } catch (error) {
       const duration = Date.now() - startTime
@@ -155,10 +169,11 @@ export class SquarePaymentProvider implements IPaymentProvider {
       }
 
       const duration = Date.now() - startTime
-      this.logger.info('Square card created successfully', {
+      this.logger.info(`Square card created successfully [${this.environment.toUpperCase()}]`, {
         cardId: card.id,
         last4: card.last4,
         duration,
+        environment: this.environment,
       })
 
       return {
@@ -174,6 +189,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
                 postalCode: card.billingAddress.postalCode,
               }
             : undefined,
+        environment: this.environment,
       }
     } catch (error) {
       const duration = Date.now() - startTime
@@ -248,10 +264,11 @@ export class SquarePaymentProvider implements IPaymentProvider {
       }
 
       const duration = Date.now() - startTime
-      this.logger.info('Square refund created successfully', {
+      this.logger.info(`Square refund created successfully [${this.environment.toUpperCase()}]`, {
         refundId: refund.id,
         status: refund.status,
         duration,
+        environment: this.environment,
       })
 
       return {
@@ -262,6 +279,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
           currency: refund.amountMoney?.currency || 'USD',
         },
         createdAt: refund.createdAt!,
+        environment: this.environment,
       }
     } catch (error) {
       const duration = Date.now() - startTime
@@ -286,7 +304,8 @@ export class SquarePaymentProvider implements IPaymentProvider {
  */
 export const createSquarePaymentProvider = (
   config: IConfig,
-  logger: ILogger
+  logger: ILogger,
+  environment: 'production' | 'sandbox'
 ): IPaymentProvider => {
-  return new SquarePaymentProvider(config, logger)
+  return new SquarePaymentProvider(config, logger, environment)
 }

@@ -58,6 +58,7 @@ export class MockPaymentProvider implements IPaymentProvider {
           expYear: 2025,
         },
       },
+      environment: 'production',
     }
 
     this.payments.set(paymentId, payment)
@@ -78,6 +79,7 @@ export class MockPaymentProvider implements IPaymentProvider {
       expYear: 2025,
       cardholderName: request.card.cardholderName,
       billingAddress: request.card.billingAddress,
+      environment: 'production',
     }
 
     this.cards.set(cardId, {
@@ -120,6 +122,7 @@ export class MockPaymentProvider implements IPaymentProvider {
         currency: request.amountMoney.currency,
       },
       createdAt: new Date().toISOString(),
+      environment: 'production',
     }
 
     this.refunds.set(refundId, refund)

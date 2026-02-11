@@ -55,4 +55,12 @@ export interface ISubscriptionRepository extends IRepository<Subscriptions> {
    * - renewal_date is null or <= current date
    */
   findSubscriptionsForCronProcessing(date: Date, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]>
+
+  /**
+   * Find subscriptions by environment
+   */
+  findByEnvironment(
+    environment: 'production' | 'sandbox',
+    trx?: TransactionContext
+  ): Promise<Selectable<Subscriptions>[]>
 }

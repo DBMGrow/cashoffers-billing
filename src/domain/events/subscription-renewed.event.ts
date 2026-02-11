@@ -19,6 +19,8 @@ export interface SubscriptionRenewedPayload {
   previousRenewalDate?: Date
   /** New next renewal date */
   nextRenewalDate: Date
+  /** Square environment used (production or sandbox) */
+  environment?: 'production' | 'sandbox'
   /** Number of renewal attempts (for retry tracking) */
   attemptNumber?: number
   /** Whether this was a retry after a failed attempt */
