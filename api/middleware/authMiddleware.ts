@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono"
 import { getUserFromToken, getUserById } from "@/utils/getUserFromToken"
 import { TestModeDetector } from "@/infrastructure/payment/test-mode-detector"
 import { TestModeAuthorizer } from "@/infrastructure/payment/test-mode-authorizer"
+import { getLoggingContext } from "@/infrastructure/logging/logging-context-store"
 
 // Initialize test mode services (singleton instances)
 const testModeDetector = new TestModeDetector()
@@ -115,6 +116,12 @@ export function authMiddleware(
       active: tokenOwner.active,
       capabilities: tokenOwner.capabilities,
     })
+
+    // Update logging context with authenticated user ID
+    const loggingContext = getLoggingContext()
+    if (loggingContext) {
+      loggingContext.userId = tokenOwner.user_id
+    }
 
     // Detect and authorize test mode (for payment operations)
     try {

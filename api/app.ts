@@ -21,6 +21,8 @@ import { emailsRoutes } from "./routes/emails"
 // Import middleware
 import { errorHandler } from "./middleware/errorHandler"
 import { digestMiddleware } from "./middleware/digestMiddleware"
+import { loggingContextMiddleware } from "./middleware/loggingContextMiddleware"
+import { loggingFlushMiddleware } from "./middleware/loggingFlushMiddleware"
 
 // Create OpenAPI Hono app with typed variables
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -28,7 +30,9 @@ const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 // Global middleware
 app.use("*", honoLogger()) // Request logging
 app.use("*", cors()) // CORS support
-app.use("*", digestMiddleware) // Custom digest middleware
+app.use("*", digestMiddleware) // Custom digest middleware - creates requestId
+app.use("*", loggingContextMiddleware) // Sets up AsyncLocalStorage for logging
+app.use("*", loggingFlushMiddleware) // Flushes logs after response
 
 // Mount routes
 app.route("/product", productRoutes)

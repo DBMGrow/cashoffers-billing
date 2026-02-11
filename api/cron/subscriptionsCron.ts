@@ -2,22 +2,27 @@ import fetch from "node-fetch"
 import { getContainer } from "@/container"
 
 export default async function subscriptionsCron() {
-  console.log("Running subscriptions cron")
-
   // Get container and dependencies
   const container = getContainer()
   const subscriptionRepository = container.repositories.subscription
   const transactionRepository = container.repositories.transaction
   const emailService = container.services.email
 
+  // Create child logger with cron context
+  const cronLogger = container.logger.child({
+    component: 'subscriptionsCron',
+    contextType: 'cron_job',
+  })
+
+  cronLogger.info('Running subscriptions cron')
+
   try {
     const subscriptions = await subscriptionRepository.findSubscriptionsForCronProcessing(new Date())
 
-    console.log("Subscriptions to process: ", subscriptions.length)
-    console.log(
-      "Subscriptions: ",
-      subscriptions.map((sub) => sub.subscription_id)
-    )
+    cronLogger.info('Subscriptions to process', {
+      count: subscriptions.length,
+      subscriptionIds: subscriptions.map((sub) => sub.subscription_id),
+    })
 
     const usersResponse = await fetch(process.env.API_URL + "/users/mini?page=1&limit=50000", {
       headers: {
@@ -33,17 +38,23 @@ export default async function subscriptionsCron() {
 
     for (const subscription of subscriptions) {
       const subscriptionData = subscription
-      console.log("Processing subscription", subscriptionData.subscription_id)
+      cronLogger.info('Processing subscription', {
+        subscriptionId: subscriptionData.subscription_id,
+      })
 
       if (subscriptionData.cancel_on_renewal) {
         // Cancel subscription logic is handled during renewal
         // The subscription should be deactivated, not renewed
-        console.log(`Subscription ${subscriptionData.subscription_id} marked for cancellation, skipping renewal`)
+        cronLogger.info('Subscription marked for cancellation, skipping renewal', {
+          subscriptionId: subscriptionData.subscription_id,
+        })
         continue
       } else if (subscriptionData.downgrade_on_renewal) {
         // Downgrade subscription logic is handled during renewal
         // The subscription should be downgraded to a lower tier
-        console.log(`Subscription ${subscriptionData.subscription_id} marked for downgrade, skipping renewal`)
+        cronLogger.info('Subscription marked for downgrade, skipping renewal', {
+          subscriptionId: subscriptionData.subscription_id,
+        })
         continue
       }
 
@@ -51,13 +62,19 @@ export default async function subscriptionsCron() {
       const email = user?.email || ""
 
       if (!email) {
-        console.log("No email found for user_id: ", subscriptionData.user_id)
+        cronLogger.warn('No email found for user', {
+          userId: subscriptionData.user_id,
+          subscriptionId: subscriptionData.subscription_id,
+        })
         continue
       }
 
       // if user active = 0, skip subscription renewal attempt
       if (user?.active === 0) {
-        console.log("User is inactive, skipping subscription renewal attempt for user_id: ", subscriptionData.user_id)
+        cronLogger.info('User is inactive, skipping subscription renewal attempt', {
+          userId: subscriptionData.user_id,
+          subscriptionId: subscriptionData.subscription_id,
+        })
         continue
       }
 
@@ -69,15 +86,24 @@ export default async function subscriptionsCron() {
         })
 
         if (result.success) {
-          console.log(`Successfully renewed subscription ${subscriptionData.subscription_id}`)
+          cronLogger.info('Successfully renewed subscription', {
+            subscriptionId: subscriptionData.subscription_id,
+          })
         } else {
-          console.error(`Failed to renew subscription ${subscriptionData.subscription_id}:`, result.error)
+          cronLogger.error('Failed to renew subscription', undefined, {
+            subscriptionId: subscriptionData.subscription_id,
+            error: result.error,
+          })
         }
       } catch (error: any) {
-        console.error(`Error renewing subscription ${subscriptionData.subscription_id}:`, error.message)
+        cronLogger.error('Error renewing subscription', error, {
+          subscriptionId: subscriptionData.subscription_id,
+        })
       }
     }
   } catch (error: any) {
+    cronLogger.error('Fatal error in subscriptions cron', error)
+
     // Send error notification using new email service
     await emailService.sendPlainEmail({
       to: process.env.ADMIN_EMAIL!,

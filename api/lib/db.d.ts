@@ -123,6 +123,29 @@ export interface Audits {
   tablename: string;
 }
 
+export interface BillingLogs {
+  /**
+   * Logger context component name
+   */
+  component: string | null;
+  context_type: "background" | "cron_job" | "event_handler" | "http_request";
+  createdAt: Generated<Date>;
+  /**
+   * Stack trace for error logs
+   */
+  error_stack: string | null;
+  level: "debug" | "error" | "info" | "warn";
+  log_id: Generated<number>;
+  message: string;
+  /**
+   * Structured metadata from log entry
+   */
+  metadata: Json | null;
+  request_id: string | null;
+  service: Generated<string | null>;
+  user_id: number | null;
+}
+
 export interface BuyBoxes {
   active: Generated<number>;
   autooffer: Generated<number>;
@@ -1845,6 +1868,7 @@ export interface DB {
   Alerts: Alerts;
   AuditFields: AuditFields;
   Audits: Audits;
+  BillingLogs: BillingLogs;
   BuyBox_Rules: BuyBoxRules;
   BuyBox_Rules_Dash: BuyBoxRulesDash;
   BuyBoxes: BuyBoxes;

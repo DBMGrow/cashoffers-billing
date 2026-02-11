@@ -6,6 +6,7 @@ import { Kysely } from 'kysely'
 import type { DB } from '@/lib/db'
 import { createConfig } from '@/config/config.service'
 import { createLogger } from '@/infrastructure/logging/structured.logger'
+import { DatabaseLogger } from '@/infrastructure/logging/database.logger'
 import { createKyselyDatabase } from '@/infrastructure/database/kysely.factory'
 import { KyselyTransactionManager } from '@/infrastructure/database/transaction/kysely-transaction-manager'
 import { createTransactionRepository } from '@/infrastructure/database/repositories/transaction.repository'
@@ -14,6 +15,7 @@ import { createUserCardRepository } from '@/infrastructure/database/repositories
 import { createProductRepository } from '@/infrastructure/database/repositories/product.repository'
 import { createPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository'
 import { createWhitelabelRepository } from '@/infrastructure/database/repositories/whitelabel.repository'
+import { createBillingLogRepository } from '@/infrastructure/database/repositories/billing-log.repository'
 import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
 import { createDualEnvironmentPaymentProvider } from '@/infrastructure/payment/dual-environment-provider'
 import { createSquareErrorTranslator } from '@/infrastructure/payment/error/square-error-translator'
@@ -23,6 +25,7 @@ import { createUserApiClient } from '@/infrastructure/external-api/user-api/user
 import { InMemoryEventBus } from '@/infrastructure/events/in-memory-event-bus'
 import { EmailNotificationHandler } from '@/application/event-handlers/email-notification.handler'
 import { TransactionLoggingHandler } from '@/application/event-handlers/transaction-logging.handler'
+import { LogFlushHandler } from '@/application/event-handlers/log-flush.handler'
 import { PremiumActivationHandler } from '@/application/event-handlers/premium-activation.handler'
 import { PremiumDeactivationHandler } from '@/application/event-handlers/premium-deactivation.handler'
 import { CreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case'
@@ -54,6 +57,7 @@ import type { IUserCardRepository } from '@/infrastructure/database/repositories
 import type { IProductRepository } from '@/infrastructure/database/repositories/product.repository.interface'
 import type { IPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository.interface'
 import type { IWhitelabelRepository } from '@/infrastructure/database/repositories/whitelabel.repository.interface'
+import type { IBillingLogRepository } from '@/infrastructure/database/repositories/billing-log.repository.interface'
 import type { IPaymentProvider } from '@/infrastructure/payment/payment-provider.interface'
 import type { IPaymentErrorTranslator } from '@/infrastructure/payment/error/payment-error-translator.interface'
 import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
@@ -95,6 +99,7 @@ export interface IContainer {
     product: IProductRepository
     purchaseRequest: IPurchaseRequestRepository
     whitelabel: IWhitelabelRepository
+    billingLog: IBillingLogRepository
   }
   services: {
     payment: IPaymentProvider
@@ -139,17 +144,14 @@ export const createContainer = (): IContainer => {
   // Load configuration
   const config = createConfig()
 
-  // Create logger
-  const logger = createLogger(
+  // Create base logger (console only)
+  const baseLogger = createLogger(
     { service: 'cashoffers-billing' },
     config.nodeEnv === 'production' ? 'info' : 'debug'
   )
 
   // Create database connection
   const db = createKyselyDatabase(config)
-
-  // Create transaction manager
-  const transactionManager = new KyselyTransactionManager(db, logger)
 
   // Create repositories
   const repositories = {
@@ -159,7 +161,18 @@ export const createContainer = (): IContainer => {
     product: createProductRepository(db),
     purchaseRequest: createPurchaseRequestRepository(db),
     whitelabel: createWhitelabelRepository(db),
+    billingLog: createBillingLogRepository(db),
   }
+
+  // Wrap base logger with DatabaseLogger for persistence
+  const logger = new DatabaseLogger(
+    baseLogger,
+    repositories.billingLog,
+    { service: 'cashoffers-billing' }
+  )
+
+  // Create transaction manager (with database logger)
+  const transactionManager = new KyselyTransactionManager(db, logger)
 
   // Create services
   const mjmlCompiler = createMjmlCompiler(logger)
@@ -196,6 +209,7 @@ export const createContainer = (): IContainer => {
   // Register event handlers
   const emailNotificationHandler = new EmailNotificationHandler(services.email, logger)
   const transactionLoggingHandler = new TransactionLoggingHandler(repositories.transaction, logger)
+  const logFlushHandler = new LogFlushHandler(logger as DatabaseLogger, logger)
   const premiumActivationHandler = new PremiumActivationHandler(services.userApi, logger)
   const premiumDeactivationHandler = new PremiumDeactivationHandler(
     services.userApi,
@@ -215,6 +229,8 @@ export const createContainer = (): IContainer => {
 
   eventBus.subscribe('PaymentProcessed', transactionLoggingHandler)
   eventBus.subscribe('PaymentFailed', transactionLoggingHandler)
+
+  eventBus.subscribe('RequestCompleted', logFlushHandler)
 
   eventBus.subscribe('SubscriptionCreated', premiumActivationHandler)
   eventBus.subscribe('SubscriptionRenewed', premiumActivationHandler)
