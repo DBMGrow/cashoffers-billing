@@ -71,9 +71,10 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         source: "API",
         user_id: null, // Will be updated once user is known
         email: validatedInput.email,
-        product_id: typeof validatedInput.productId === "number"
-          ? validatedInput.productId
-          : parseInt(validatedInput.productId as string, 10),
+        product_id:
+          typeof validatedInput.productId === "number"
+            ? validatedInput.productId
+            : parseInt(validatedInput.productId as string, 10),
         subscription_id: null,
         request_data: JSON.stringify(validatedInput),
         status: "PENDING",
@@ -108,7 +109,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       }
 
       // Extract user configuration from product data
-      const productData = typeof product.data === 'object' && product.data !== null ? product.data as ProductData : {}
+      const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
       const userConfig = productData.user_config
 
       // 2. Look up or create user
@@ -160,7 +161,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
             // Apply product user configuration
             is_premium: userConfig?.is_premium,
             role: userConfig?.role,
-            whitelabel_id: userConfig?.white_label_id,
+            whitelabel_id: userConfig?.whitelabel_id ?? 4,
           })
           userId = user.id
           userCreated = true
@@ -249,11 +250,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       // Get card for payment
       const userCard = await this.deps.userCardRepository.findOne({ card_id: cardIdString })
       if (!userCard) {
-        await this.deps.purchaseRequestRepository.markAsFailed(
-          purchaseRequestId,
-          "Card not found",
-          "CARD_NOT_FOUND"
-        )
+        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, "Card not found", "CARD_NOT_FOUND")
         return failure("Card not found", "CARD_NOT_FOUND")
       }
 
@@ -261,15 +258,18 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
 
       // Process initial payment
-      const payment = await this.deps.paymentProvider.createPayment({
-        sourceId: userCard.card_id,
-        idempotencyKey: uuidv4(),
-        amountMoney: {
-          amount: BigInt(initialAmount),
-          currency: "USD",
+      const payment = await this.deps.paymentProvider.createPayment(
+        {
+          sourceId: userCard.card_id,
+          idempotencyKey: uuidv4(),
+          amountMoney: {
+            amount: BigInt(initialAmount),
+            currency: "USD",
+          },
+          customerId: userCard.square_customer_id || undefined,
         },
-        customerId: userCard.square_customer_id || undefined,
-      }, input.context) // Pass context for environment selection (use input, not validatedInput)
+        input.context
+      ) // Pass context for environment selection (use input, not validatedInput)
 
       if (payment.status !== "COMPLETED") {
         logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
@@ -422,11 +422,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       // Mark purchase request as failed if it was created
       if (purchaseRequestId) {
         try {
-          await this.deps.purchaseRequestRepository.markAsFailed(
-            purchaseRequestId,
-            errorMessage,
-            "PURCHASE_ERROR"
-          )
+          await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, "PURCHASE_ERROR")
         } catch (updateError) {
           logger.error("Failed to update purchase request status", { updateError })
         }
@@ -448,12 +444,15 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       }
 
       // Create card in Square
-      const card = await paymentProvider.createCard({
-        sourceId: input.cardToken,
-        card: {
-          cardholderName: input.cardholderName,
+      const card = await paymentProvider.createCard(
+        {
+          sourceId: input.cardToken,
+          card: {
+            cardholderName: input.cardholderName,
+          },
         },
-      }, input.context) // Pass context for environment selection
+        input.context
+      ) // Pass context for environment selection
 
       // Save card to database (we'll use a placeholder for square_customer_id since it's not in CardResult)
       const now = new Date()

@@ -14,7 +14,7 @@ export interface ProductUserConfig {
   /** User role in the CashOffers system */
   role: "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER"
   /** White label ID, or null for default white label */
-  white_label_id: number | null
+  whitelabel_id: number | null
   /** Indicates if this is a team subscription product */
   is_team_plan?: boolean
 }
