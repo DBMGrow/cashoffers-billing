@@ -1,0 +1,260 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{emailTitle}}</mj-title>
+    <mj-preview>Daily Billing System Health Report for {{reportDate}}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="1.6" />
+      <mj-section background-color="#ffffff" padding="20px" />
+    </mj-attributes>
+    <mj-style inline="inline">
+      .metric-label {
+        color: #6b7280;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .metric-value {
+        color: #1f2937;
+        font-size: 32px;
+        font-weight: bold;
+      }
+      .metric-value-small {
+        color: #1f2937;
+        font-size: 24px;
+        font-weight: bold;
+      }
+      .status-good {
+        color: #10b981;
+      }
+      .status-warning {
+        color: #f59e0b;
+      }
+      .status-critical {
+        color: #ef4444;
+      }
+      .section-header {
+        color: #1f2937;
+        font-size: 18px;
+        font-weight: 600;
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+      }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#f3f4f6">
+    <!-- Header -->
+    <mj-section background-color="#1e40af" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="bold">
+          Daily Health Report
+        </mj-text>
+        <mj-text align="center" color="#93c5fd" font-size="16px">
+          {{reportDate}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Overall Status -->
+    <mj-section background-color="#ffffff" padding="30px 20px">
+      <mj-column>
+        <mj-text css-class="section-header">
+          System Status
+        </mj-text>
+        <mj-text align="center" css-class="metric-value {{overallStatus}}">
+          {{overallStatusText}}
+        </mj-text>
+        <mj-text align="center" color="#6b7280" font-size="14px">
+          {{statusMessage}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Key Metrics Row -->
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-group>
+        <mj-column width="33%">
+          <mj-text align="center" css-class="metric-label">
+            Total Revenue
+          </mj-text>
+          <mj-text align="center" css-class="metric-value-small" color="#10b981">
+            {{totalRevenue}}
+          </mj-text>
+        </mj-column>
+        <mj-column width="33%">
+          <mj-text align="center" css-class="metric-label">
+            Successful Renewals
+          </mj-text>
+          <mj:text align="center" css-class="metric-value-small">
+            {{successfulRenewals}}
+          </mj-text>
+        </mj-column>
+        <mj-column width="33%">
+          <mj-text align="center" css-class="metric-label">
+            Failed Renewals
+          </mj-text>
+          <mj-text align="center" css-class="metric-value-small" color="{{failedRenewalsColor}}">
+            {{failedRenewals}}
+          </mj-text>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+
+    <!-- Subscription Metrics -->
+    <mj-section background-color="#ffffff" padding="30px 20px">
+      <mj-column>
+        <mj-text css-class="section-header">
+          Subscription Metrics
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section background-color="#ffffff" padding="10px 20px">
+      <mj-group>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">New Subscriptions</mj-text>
+          <mj-text font-size="20px" font-weight="600">{{newSubscriptions}}</mj-text>
+        </mj-column>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Cancelled Subscriptions</mj-text>
+          <mj-text font-size="20px" font-weight="600">{{cancelledSubscriptions}}</mj-text>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+
+    <mj-section background-color="#ffffff" padding="10px 20px">
+      <mj-group>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Active Subscriptions</mj-text>
+          <mj-text font-size="20px" font-weight="600">{{activeSubscriptions}}</mj-text>
+        </mj-column>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Subscriptions in Retry</mj-text>
+          <mj-text font-size="20px" font-weight="600" color="{{retryColor}}">{{subscriptionsInRetry}}</mj-text>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+
+    <mj-section background-color="#ffffff" padding="10px 20px 30px">
+      <mj-column>
+        <mj-text color="#6b7280" font-size="13px">Paused Subscriptions</mj-text>
+        <mj-text font-size="20px" font-weight="600">{{pausedSubscriptions}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Payment Metrics -->
+    <mj-section background-color="#ffffff" padding="30px 20px">
+      <mj-column>
+        <mj-text css-class="section-header">
+          Payment Metrics
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section background-color="#ffffff" padding="10px 20px">
+      <mj-group>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Successful Payments</mj-text>
+          <mj-text font-size="20px" font-weight="600">{{successfulPayments}}</mj-text>
+        </mj-column>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Failed Payments</mj-text>
+          <mj-text font-size="20px" font-weight="600" color="{{failedPaymentsColor}}">{{failedPayments}}</mj-text>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+
+    <mj-section background-color="#ffffff" padding="10px 20px 30px">
+      <mj-group>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Refunds Processed</mj-text>
+          <mj-text font-size="20px" font-weight="600">{{refunds}}</mj-text>
+        </mj-column>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Avg Transaction</mj-text>
+          <mj-text font-size="20px" font-weight="600">{{averageTransactionValue}}</mj-text>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+
+    <!-- Error Metrics -->
+    <mj-section background-color="#ffffff" padding="30px 20px">
+      <mj-column>
+        <mj-text css-class="section-header">
+          Error Metrics
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section background-color="#ffffff" padding="10px 20px">
+      <mj-group>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Total Errors</mj-text>
+          <mj-text font-size="20px" font-weight="600" color="{{totalErrorsColor}}">{{totalErrors}}</mj-text>
+        </mj-column>
+        <mj-column width="50%">
+          <mj-text color="#6b7280" font-size="13px">Critical Errors</mj-text>
+          <mj-text font-size="20px" font-weight="600" color="{{criticalErrorsColor}}">{{criticalErrors}}</mj-text>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+
+    <!-- Top Failure Reasons -->
+    {{#if hasFailureReasons}}
+    <mj-section background-color="#ffffff" padding="30px 20px">
+      <mj-column>
+        <mj-text css-class="section-header">
+          Top Failure Reasons
+        </mj-text>
+        <mj-text color="#6b7280" font-size="13px" padding-top="10px">
+          {{failureReasonsText}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    {{/if}}
+
+    <!-- Recent Errors -->
+    {{#if hasRecentErrors}}
+    <mj-section background-color="#ffffff" padding="30px 20px">
+      <mj-column>
+        <mj-text css-class="section-header">
+          Recent Errors (Last 10)
+        </mj-text>
+        <mj-text color="#6b7280" font-size="12px" padding-top="10px" line-height="1.8">
+          {{recentErrorsText}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    {{/if}}
+
+    <!-- Action Items -->
+    {{#if hasActionItems}}
+    <mj-section background-color="#fef3c7" padding="20px">
+      <mj-column>
+        <mj-text color="#92400e" font-size="14px" font-weight="600">
+          ⚠️ Action Required
+        </mj-text>
+        <mj-text color="#92400e" font-size="13px" padding-top="10px">
+          {{actionItemsText}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    {{/if}}
+
+    <!-- Footer -->
+    <mj-section background-color="#f9fafb" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" color="#6b7280" font-size="12px">
+          CashOffers Billing System Health Report
+        </mj-text>
+        <mj-text align="center" color="#6b7280" font-size="12px">
+          This is an automated daily report. Do not reply to this email.
+        </mj-text>
+        <mj-text align="center" color="#9ca3af" font-size="11px" padding-top="10px">
+          © {{currentYear}} CashOffers. All rights reserved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

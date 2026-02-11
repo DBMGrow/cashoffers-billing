@@ -47,6 +47,9 @@ import { GetUserCardUseCase } from '@/use-cases/card/get-user-card.use-case'
 import { CheckUserCardInfoUseCase } from '@/use-cases/card/check-user-card-info.use-case'
 import { DeactivateSubscriptionUseCase } from '@/use-cases/subscription/deactivate-subscription.use-case'
 import { UnlockPropertyUseCase } from '@/use-cases/property/unlock-property.use-case'
+import { createHealthMetricsService } from '@/domain/services/health-metrics.service'
+import { createHealthReportService } from '@/domain/services/health-report.service'
+import { createCriticalAlertService } from '@/domain/services/critical-alert.service'
 import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionManager } from '@/infrastructure/database/transaction/transaction-manager.interface'
@@ -82,6 +85,9 @@ import type { IGetUserCardUseCase } from '@/use-cases/card/get-user-card.use-cas
 import type { ICheckUserCardInfoUseCase } from '@/use-cases/card/check-user-card-info.use-case.interface'
 import type { IDeactivateSubscriptionUseCase } from '@/use-cases/subscription/deactivate-subscription.use-case.interface'
 import type { IUnlockPropertyUseCase } from '@/use-cases/property/unlock-property.use-case.interface'
+import type { IHealthMetricsService } from '@/domain/services/health-metrics.service'
+import type { IHealthReportService } from '@/domain/services/health-report.service'
+import type { ICriticalAlertService } from '@/domain/services/critical-alert.service'
 
 /**
  * Application container
@@ -108,6 +114,9 @@ export interface IContainer {
     email: IEmailService
     userApi: IUserApiClient
     eventBus: IEventBus
+    healthMetrics: IHealthMetricsService
+    healthReport: IHealthReportService
+    criticalAlert: ICriticalAlertService
   }
   useCases: {
     // Payment use cases
@@ -197,13 +206,37 @@ export const createContainer = (): IContainer => {
     logger
   )
 
+  // Create monitoring services
+  const healthMetricsService = createHealthMetricsService(
+    repositories.transaction,
+    repositories.subscription,
+    repositories.billingLog
+  )
+
+  const emailService = createSendGridEmailService(config, logger, mjmlCompiler)
+
+  const healthReportService = createHealthReportService(
+    healthMetricsService,
+    emailService,
+    logger
+  )
+
+  const criticalAlertService = createCriticalAlertService(
+    emailService,
+    config,
+    logger
+  )
+
   const services = {
     payment: paymentProvider,
     paymentErrorTranslator: createSquareErrorTranslator(),
     mjmlCompiler,
-    email: createSendGridEmailService(config, logger, mjmlCompiler),
+    email: emailService,
     userApi: createUserApiClient(config, logger),
     eventBus,
+    healthMetrics: healthMetricsService,
+    healthReport: healthReportService,
+    criticalAlert: criticalAlertService,
   }
 
   // Register event handlers

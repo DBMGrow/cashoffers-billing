@@ -45,3 +45,4 @@ export type EmailTemplate =
   | 'subscriptionCancelled.html'
   | 'cardAdded.html'
   | 'cardUpdated.html'
+  | 'daily-health-report.mjml'

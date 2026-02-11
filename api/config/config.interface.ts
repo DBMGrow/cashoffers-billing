@@ -16,6 +16,7 @@ export interface IConfig {
   // Server
   port: number
   nodeEnv: string
+  environment: string
 
   // Database
   database: {
@@ -52,7 +53,12 @@ export interface IConfig {
     fromEmail: string
   }
 
-  // Admin
+  email: {
+    adminEmail?: string
+    devEmail: string
+  }
+
+  // Deprecated - use email.devEmail instead (defaults to devEmail if adminEmail not set)
   adminEmail: string
 
   // Cron

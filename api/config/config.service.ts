@@ -17,7 +17,7 @@ export const createConfig = (): IConfig => {
     'API_URL_V2',
     'API_MASTER_TOKEN',
     'SENDGRID_API_KEY',
-    'ADMIN_EMAIL',
+    'DEV_EMAIL',
     'SESSION_SECRET',
   ]
 
@@ -39,6 +39,7 @@ export const createConfig = (): IConfig => {
   return {
     port: parseInt(process.env.PORT || '3000', 10),
     nodeEnv: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || 'development',
 
     database: {
       host: process.env.DB_HOST!,
@@ -71,7 +72,12 @@ export const createConfig = (): IConfig => {
       fromEmail: process.env.SENDGRID_FROM_EMAIL || 'noreply@cashoffers.com',
     },
 
-    adminEmail: process.env.ADMIN_EMAIL!,
+    email: {
+      adminEmail: process.env.ADMIN_EMAIL || undefined,
+      devEmail: process.env.DEV_EMAIL!,
+    },
+
+    adminEmail: process.env.ADMIN_EMAIL || process.env.DEV_EMAIL!, // Backward compatibility
     cronSecret: process.env.CRON_SECRET || 'default-cron-secret',
     sessionSecret: process.env.SESSION_SECRET!,
   }
