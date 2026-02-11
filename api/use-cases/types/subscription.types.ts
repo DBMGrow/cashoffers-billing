@@ -212,10 +212,9 @@ export interface PurchaseSubscriptionInput {
 
   // New User Info
   phone?: string
-  whitelabel?: string
+  whitelabel?: string  // Keep for backward compatibility
   slug?: string
   url?: string
-  isInvestor?: boolean
 
   // Optional
   coupon?: string

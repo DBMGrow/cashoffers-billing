@@ -58,4 +58,8 @@ export interface CreateUserRequest {
   last_name?: string
   phone?: string
   password?: string
+  // New fields from product configuration
+  is_premium?: 0 | 1
+  role?: string
+  whitelabel_id?: number
 }

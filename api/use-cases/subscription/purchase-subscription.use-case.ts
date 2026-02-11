@@ -12,6 +12,7 @@ import { IPurchaseSubscriptionUseCase } from "./purchase-subscription.use-case.i
 import { PurchaseSubscriptionInput, PurchaseSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { PurchaseSubscriptionInputSchema } from "../types/validation.schemas"
+import { ProductData } from "@/domain/types/product-data.types"
 import { v4 as uuidv4 } from "uuid"
 import { UserCreatedEvent } from "@/domain/events/user-created.event"
 import { CardCreatedEvent } from "@/domain/events/card-created.event"
@@ -106,6 +107,10 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         return failure("Product not found", "PRODUCT_NOT_FOUND")
       }
 
+      // Extract user configuration from product data
+      const productData = typeof product.data === 'object' && product.data !== null ? product.data as ProductData : {}
+      const userConfig = productData.user_config
+
       // 2. Look up or create user
       let user = await this.deps.userApiClient.getUserByEmail(validatedInput.email)
       let userCreated = false
@@ -152,6 +157,10 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
           user = await this.deps.userApiClient.createUser({
             email: validatedInput.email,
             phone: validatedInput.phone,
+            // Apply product user configuration
+            is_premium: userConfig?.is_premium,
+            role: userConfig?.role,
+            whitelabel_id: userConfig?.white_label_id,
           })
           userId = user.id
           userCreated = true
@@ -229,8 +238,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       // For now, we'll just note if it's an upgrade
 
       // 5. Create subscription with initial payment
-      // Parse product data (JSON field)
-      const productData = typeof product.data === 'object' && product.data !== null ? product.data as any : {}
+      // Parse product data (already extracted earlier)
       const signupFee = productData.signup_fee || 0
       const renewalCost = productData.renewal_cost || product.price
       const productDuration = productData.duration || "monthly"
@@ -292,6 +300,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         square_environment: payment.environment, // Store environment from initial payment
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
+        data: userConfig ? JSON.stringify({ user_config: userConfig }) : null, // Store user config from product
         createdAt: now,
         updatedAt: now,
       })

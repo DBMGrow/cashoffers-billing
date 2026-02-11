@@ -25,7 +25,6 @@ app.openapi(PurchaseRoute, async (c) => {
     whitelabel,
     slug,
     url,
-    isInvestor,
   } = body
 
   const container = getContainer()
@@ -47,7 +46,6 @@ app.openapi(PurchaseRoute, async (c) => {
       whitelabel,
       slug,
       url,
-      isInvestor,
       coupon,
       context: paymentContext, // Pass context for environment selection
     })

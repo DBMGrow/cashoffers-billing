@@ -209,7 +209,6 @@ export const PurchaseSubscriptionInputSchema = z.object({
   whitelabel: z.string().optional(),
   slug: z.string().optional(),
   url: z.string().optional(),
-  isInvestor: z.boolean().optional(),
   coupon: z.string().optional(),
 })
 

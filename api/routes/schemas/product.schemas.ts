@@ -15,6 +15,28 @@ import {
 
 export const ProductTypeSchema = z.enum(["none", "one-time", "subscription"])
 
+/**
+ * User configuration schema for products
+ * Validates the user_config structure in product.data
+ */
+export const ProductUserConfigSchema = z.object({
+  is_premium: z.union([z.literal(0), z.literal(1)]),
+  role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER"]),
+  white_label_id: z.number().nullable(),
+  is_team_plan: z.boolean().optional(),
+}).strict()
+
+/**
+ * Product data schema
+ * Validates the structure of the data JSON field
+ */
+export const ProductDataSchema = z.object({
+  signup_fee: z.number().optional(),
+  renewal_cost: z.number().optional(),
+  duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+  user_config: ProductUserConfigSchema.optional(),
+}).passthrough() // Allow additional fields for backward compatibility
+
 // ==================== Request Schemas ====================
 
 /**
@@ -25,7 +47,7 @@ export const CreateProductRequestSchema = z.object({
   product_description: z.string().optional(),
   product_type: ProductTypeSchema,
   price: z.number(),
-  data: z.record(z.string(), z.any()).optional(),
+  data: ProductDataSchema.optional(),
 })
 
 /**
@@ -160,8 +182,18 @@ export const CreateProductRoute = {
             product_name: "Premium Subscription",
             product_description: "Monthly premium access",
             product_type: "subscription",
-            price: 29.99,
-            data: { features: ["feature1", "feature2"] },
+            price: 25000,
+            data: {
+              signup_fee: 0,
+              renewal_cost: 25000,
+              duration: "monthly",
+              user_config: {
+                is_premium: 1,
+                role: "AGENT",
+                white_label_id: 1,
+                is_team_plan: false,
+              },
+            },
           },
         },
       },

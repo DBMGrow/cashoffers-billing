@@ -101,6 +101,106 @@ TypeScript and runtime both use `@/` alias for `api/` directory:
 - Import with `@/utils/foo` instead of relative paths
 - Configured in `tsconfig.json` and `vitest.config.ts`
 
+### Product-Driven User Configuration
+
+The billing service uses a product-driven approach where products define the user configuration they provide:
+
+#### Data Structure
+
+Products and subscriptions store configuration in their `data` JSON fields:
+
+**Products.data** (`api/domain/types/product-data.types.ts`):
+```typescript
+{
+  signup_fee?: number          // One-time fee in cents
+  renewal_cost?: number        // Recurring cost in cents
+  duration?: string            // "daily" | "weekly" | "monthly" | "yearly"
+  user_config?: {
+    is_premium: 0 | 1          // Premium status
+    role: string               // "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER"
+    white_label_id: number | null
+    is_team_plan?: boolean     // For role mapping logic
+  }
+}
+```
+
+**Subscriptions.data** (copied from product, can be customized per subscription):
+```typescript
+{
+  user_config?: {
+    // Same structure as product user_config
+  }
+}
+```
+
+#### Purchase Flow
+
+When users purchase subscriptions (`api/use-cases/subscription/purchase-subscription.use-case.ts`):
+
+1. Product `user_config` is extracted from `product.data`
+2. For new users, the config is passed to the main API's `createUser`:
+   - `is_premium` → sets premium status
+   - `role` → assigns user role
+   - `whitelabel_id` → assigns white label
+3. The `user_config` is stored in `subscription.data` for later reference
+
+#### Role Mapping for Plan Transitions
+
+Special logic applies when upgrading/downgrading between single and team plans (`api/domain/services/role-mapper.ts`):
+
+- **Single → Team**: Role becomes `TEAMOWNER` (regardless of product's base role)
+- **Team → Single**: Role becomes `AGENT` (regardless of product's base role)
+- **Same plan type**: Use product's configured role
+
+#### Subscription Lifecycle
+
+**Regular Renewals** (`api/use-cases/subscription/renew-subscription.use-case.ts`):
+- Do NOT update user configuration
+- Users maintain their current state
+
+**Upgrades/Downgrades** (future implementation):
+- Will read `user_config` from new product
+- Apply role mapping logic for plan type transitions
+- Update user in main API with new configuration
+
+**Suspensions** (future implementation):
+- Will revert user to non-premium state
+- Preserve white label assignment
+
+#### Migration Strategy
+
+The system is backward compatible:
+
+- Existing subscriptions without `data.user_config` continue working
+- Products without `user_config` allow purchases (all fields optional)
+- Main API handles optional `is_premium`/`role`/`whitelabel_id` fields
+- When creating/updating subscriptions, fall back to reading `product.data.user_config` if `subscription.data.user_config` is null
+
+#### Creating Products with User Configuration
+
+Use the POST `/product` endpoint with proper `user_config`:
+
+```json
+{
+  "product_name": "Premium Monthly",
+  "product_type": "subscription",
+  "price": 25000,
+  "data": {
+    "signup_fee": 0,
+    "renewal_cost": 25000,
+    "duration": "monthly",
+    "user_config": {
+      "is_premium": 1,
+      "role": "AGENT",
+      "white_label_id": 1,
+      "is_team_plan": false
+    }
+  }
+}
+```
+
+The schema validates `user_config` structure automatically (`api/routes/schemas/product.schemas.ts`).
+
 ## Key Patterns
 
 ### Error Handling
