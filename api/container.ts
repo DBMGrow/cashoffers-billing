@@ -37,6 +37,7 @@ import { MarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for-downg
 import { UpdateSubscriptionFieldsUseCase } from '@/use-cases/subscription/update-subscription-fields.use-case'
 import { GetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case'
 import { PurchaseSubscriptionUseCase } from '@/use-cases/subscription/purchase-subscription.use-case'
+import { CalculateProratedUseCase } from '@/use-cases/subscription/calculate-prorated.use-case'
 import { CreateProductUseCase } from '@/use-cases/product/create-product.use-case'
 import { GetUserCardUseCase } from '@/use-cases/card/get-user-card.use-case'
 import { CheckUserCardInfoUseCase } from '@/use-cases/card/check-user-card-info.use-case'
@@ -69,6 +70,7 @@ import type { IMarkForDowngradeUseCase } from '@/use-cases/subscription/mark-for
 import type { IUpdateSubscriptionFieldsUseCase } from '@/use-cases/subscription/update-subscription-fields.use-case.interface'
 import type { IGetSubscriptionsUseCase } from '@/use-cases/subscription/get-subscriptions.use-case.interface'
 import type { IPurchaseSubscriptionUseCase } from '@/use-cases/subscription/purchase-subscription.use-case.interface'
+import type { ICalculateProratedUseCase } from '@/use-cases/subscription/calculate-prorated.use-case.interface'
 import type { ICreateProductUseCase } from '@/use-cases/product/create-product.use-case.interface'
 import type { IGetUserCardUseCase } from '@/use-cases/card/get-user-card.use-case.interface'
 import type { ICheckUserCardInfoUseCase } from '@/use-cases/card/check-user-card-info.use-case.interface'
@@ -119,6 +121,7 @@ export interface IContainer {
     getSubscriptions: IGetSubscriptionsUseCase
     purchaseSubscription: IPurchaseSubscriptionUseCase
     deactivateSubscription: IDeactivateSubscriptionUseCase
+    calculateProrated: ICalculateProratedUseCase
     // Product use cases
     createProduct: ICreateProductUseCase
     // Property use cases
@@ -346,6 +349,11 @@ export const createContainer = (): IContainer => {
       subscriptionRepository: repositories.subscription,
       userApiClient: services.userApi,
       eventBus: services.eventBus,
+    }),
+    calculateProrated: new CalculateProratedUseCase({
+      logger,
+      productRepository: repositories.product,
+      subscriptionRepository: repositories.subscription,
     }),
     createProduct: new CreateProductUseCase({
       logger,

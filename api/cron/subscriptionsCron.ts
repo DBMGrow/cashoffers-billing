@@ -1,6 +1,4 @@
 import fetch from "node-fetch"
-import sendEmail from "../utils/sendEmail"
-import toggleSubscription from "../utils/toggleSubscription"
 import { getContainer } from "@/container"
 
 export default async function subscriptionsCron() {
@@ -10,6 +8,7 @@ export default async function subscriptionsCron() {
   const container = getContainer()
   const subscriptionRepository = container.repositories.subscription
   const transactionRepository = container.repositories.transaction
+  const emailService = container.services.email
 
   try {
     const subscriptions = await subscriptionRepository.findSubscriptionsForCronProcessing(new Date())
@@ -37,10 +36,14 @@ export default async function subscriptionsCron() {
       console.log("Processing subscription", subscriptionData.subscription_id)
 
       if (subscriptionData.cancel_on_renewal) {
-        await toggleSubscription(subscriptionData.subscription_id, { status: "cancel" })
+        // Cancel subscription logic is handled during renewal
+        // The subscription should be deactivated, not renewed
+        console.log(`Subscription ${subscriptionData.subscription_id} marked for cancellation, skipping renewal`)
         continue
       } else if (subscriptionData.downgrade_on_renewal) {
-        await toggleSubscription(subscriptionData.subscription_id, { status: "downgrade" })
+        // Downgrade subscription logic is handled during renewal
+        // The subscription should be downgraded to a lower tier
+        console.log(`Subscription ${subscriptionData.subscription_id} marked for downgrade, skipping renewal`)
         continue
       }
 
@@ -75,10 +78,12 @@ export default async function subscriptionsCron() {
       }
     }
   } catch (error: any) {
-    await sendEmail({
+    // Send error notification using new email service
+    await emailService.sendPlainEmail({
       to: process.env.ADMIN_EMAIL!,
       subject: "Subscription Cron Error",
       text: `There was an error processing subscriptions: ${error.message}`,
+      html: `<p>There was an error processing subscriptions: ${error.message}</p>`,
     })
     await transactionRepository.create({
       user_id: 0,

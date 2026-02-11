@@ -1,10 +1,14 @@
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@/types/hono"
 import { authMiddleware } from "@/middleware/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
+import { UnlockPropertyRoute } from "./schemas/property.schemas"
 
-const app = new Hono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
+
+// Apply auth middleware
+app.use("/:property_token", authMiddleware("properties_unlock"))
 
 /**
  * Unlock a property
@@ -21,26 +25,22 @@ const app = new Hono<{ Variables: HonoVariables }>()
  * - Amount charged ($50)
  * - Unlock status
  */
-app.post(
-  "/:property_token",
-  authMiddleware("properties_unlock"),
-  async (c) => {
-    const { property_token } = c.req.param()
-    const body = await c.req.json()
-    const user = c.get("user")
-    const container = getContainer()
-    const paymentContext = c.get('paymentContext')
+app.openapi(UnlockPropertyRoute, async (c) => {
+  const { property_token } = c.req.valid("param")
+  const body = c.req.valid("json")
+  const user = c.get("user")
+  const container = getContainer()
+  const paymentContext = c.get("paymentContext")
 
-    return executeUseCase(c, () =>
-      container.useCases.unlockProperty.execute({
-        propertyToken: property_token,
-        cardToken: body.card_token,
-        userId: user?.user_id,
-        email: user?.email || "",
-        context: paymentContext, // Pass context for environment selection
-      })
-    )
-  }
-)
+  return executeUseCase(c, () =>
+    container.useCases.unlockProperty.execute({
+      propertyToken: property_token,
+      cardToken: body.card_token,
+      userId: user?.user_id,
+      email: user?.email || "",
+      context: paymentContext, // Pass context for environment selection
+    })
+  )
+})
 
 export const propertyRoutes = app

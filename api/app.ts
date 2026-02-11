@@ -2,7 +2,8 @@ import "dotenv/config"
 import "./config/startup"
 
 import { serve } from "@hono/node-server"
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
+import { Scalar } from "@scalar/hono-api-reference"
 import { logger as honoLogger } from "hono/logger"
 import { cors } from "hono/cors"
 import type { HonoVariables } from "./types/hono"
@@ -21,8 +22,8 @@ import { emailsRoutes } from "./routes/emails"
 import { errorHandler } from "./middleware/errorHandler"
 import { digestMiddleware } from "./middleware/digestMiddleware"
 
-// Create Hono app with typed variables
-const app = new Hono<{ Variables: HonoVariables }>()
+// Create OpenAPI Hono app with typed variables
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
 // Global middleware
 app.use("*", honoLogger()) // Request logging
@@ -38,6 +39,34 @@ app.route("/purchase", purchaseRoutes)
 app.route("/property", propertyRoutes)
 app.route("/cron", cronRoutes)
 app.route("/emails", emailsRoutes)
+
+// OpenAPI documentation endpoints
+app.doc("/openapi.json", (c) => ({
+  openapi: "3.0.0",
+  info: {
+    title: "CashOffers Billing API",
+    version: "1.0.0",
+    description: "Billing and subscription management service for CashOffers with Square payment processing",
+  },
+  servers: [
+    { url: "http://localhost:3000", description: "Development" },
+    { url: "https://billing-api.cashoffers.com", description: "Production" },
+  ],
+}))
+
+// Scalar API documentation
+app.get(
+  "/docs",
+  Scalar({
+    url: "/openapi.json",
+    theme: "fastify",
+  })
+)
+
+// Health check endpoint (no auth required)
+app.get("/health", (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() })
+})
 
 // Error handler (must be last)
 app.onError(errorHandler)

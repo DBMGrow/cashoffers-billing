@@ -1,16 +1,40 @@
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@/types/hono"
 import { authMiddleware } from "@/middleware/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 import { checkSubscriptionAuthorization } from "./helpers/subscription-auth"
+import {
+  GetAllSubscriptionsRoute,
+  GetOwnSubscriptionRoute,
+  CreateOrUpdateSubscriptionRoute,
+  UpdateSubscriptionRoute,
+  DeleteSubscriptionRoute,
+  PauseSubscriptionRoute,
+  ResumeSubscriptionRoute,
+  CancelSubscriptionRoute,
+  UncancelSubscriptionRoute,
+  DowngradeSubscriptionRoute,
+  UndowngradeSubscriptionRoute,
+} from "./schemas/subscription.schemas"
 
-const app = new Hono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
-// Get all subscriptions with pagination
-app.get("/", authMiddleware("payments_read_all"), async (c) => {
-  const query = c.req.query()
-  const { page = "1", limit = "20" } = query
+// Apply auth middleware
+app.use("/", authMiddleware("payments_read_all")) // For GET /
+app.use("/single", authMiddleware(null)) // For GET /single
+app.use("/pause/:subscription_id", authMiddleware("payments_create"))
+app.use("/resume/:subscription_id", authMiddleware("payments_create"))
+
+// POST / and PUT / use payments_create
+app.use("/", authMiddleware("payments_create"))
+
+// DELETE uses payments_delete (applied after GET to avoid conflicts)
+
+// Get all subscriptions with pagination (admin only)
+app.openapi(GetAllSubscriptionsRoute, async (c) => {
+  const query = c.req.valid("query")
+  const { page = 1, limit = 20 } = query
 
   const container = getContainer()
 
@@ -23,7 +47,7 @@ app.get("/", authMiddleware("payments_read_all"), async (c) => {
 })
 
 // Get your own subscription
-app.get("/single", authMiddleware(null), async (c) => {
+app.openapi(GetOwnSubscriptionRoute, async (c) => {
   const user = c.get("user")
   const { user_id } = user
 
@@ -39,13 +63,9 @@ app.get("/single", authMiddleware(null), async (c) => {
 })
 
 // Create or update subscription
-app.post("/", authMiddleware("payments_create"), async (c) => {
-  const body = await c.req.json()
+app.openapi(CreateOrUpdateSubscriptionRoute, async (c) => {
+  const body = c.req.valid("json")
   const { user_id, subscription_name, amount, duration, product_id, signup_fee } = body
-
-  if (!user_id) {
-    return c.json({ success: "error", error: "user_id is required" }, 400)
-  }
 
   const container = getContainer()
 
@@ -76,7 +96,7 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
   return executeUseCase(c, () =>
     container.useCases.createSubscription.execute({
       userId: user_id,
-      productId: product_id || subscription_name,
+      productId: product_id || subscription_name || "default",
       email,
       userAlreadyExists: true,
       waiveSignupFee: signup_fee === 0,
@@ -85,13 +105,9 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
 })
 
 // Update subscription
-app.put("/", authMiddleware("payments_create"), async (c) => {
-  const body = await c.req.json()
+app.openapi(UpdateSubscriptionRoute, async (c) => {
+  const body = c.req.valid("json")
   const { subscription_id, subscription_name, amount, duration, status } = body
-
-  if (!subscription_id) {
-    return c.json({ success: "error", error: "subscription_id is required" }, 400)
-  }
 
   const container = getContainer()
 
@@ -107,13 +123,10 @@ app.put("/", authMiddleware("payments_create"), async (c) => {
 })
 
 // Delete (deactivate) subscription
-app.delete("/", authMiddleware("payments_delete"), async (c) => {
-  const body = await c.req.json()
+app.use("/", authMiddleware("payments_delete")) // Apply for DELETE method specifically
+app.openapi(DeleteSubscriptionRoute, async (c) => {
+  const body = c.req.valid("json")
   const { user_id } = body
-
-  if (!user_id) {
-    return c.json({ success: "error", error: "user_id is required" }, 400)
-  }
 
   const container = getContainer()
 
@@ -125,54 +138,34 @@ app.delete("/", authMiddleware("payments_delete"), async (c) => {
 })
 
 // Pause subscription
-app.post(
-  "/pause/:subscription_id",
-  authMiddleware("payments_create"),
-  async (c) => {
-    const { subscription_id } = c.req.param()
+app.openapi(PauseSubscriptionRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
 
-    if (!subscription_id) {
-      return c.json({ success: "error", error: "subscription_id is required" }, 400)
-    }
+  const container = getContainer()
 
-    const container = getContainer()
-
-    return executeUseCase(c, () =>
-      container.useCases.pauseSubscription.execute({
-        subscriptionId: Number(subscription_id),
-      })
-    )
-  }
-)
+  return executeUseCase(c, () =>
+    container.useCases.pauseSubscription.execute({
+      subscriptionId: Number(subscription_id),
+    })
+  )
+})
 
 // Resume subscription
-app.post(
-  "/resume/:subscription_id",
-  authMiddleware("payments_create"),
-  async (c) => {
-    const { subscription_id } = c.req.param()
+app.openapi(ResumeSubscriptionRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
 
-    if (!subscription_id) {
-      return c.json({ success: "error", error: "subscription_id is required" }, 400)
-    }
+  const container = getContainer()
 
-    const container = getContainer()
-
-    return executeUseCase(c, () =>
-      container.useCases.resumeSubscription.execute({
-        subscriptionId: Number(subscription_id),
-      })
-    )
-  }
-)
+  return executeUseCase(c, () =>
+    container.useCases.resumeSubscription.execute({
+      subscriptionId: Number(subscription_id),
+    })
+  )
+})
 
 // Cancel subscription (mark for cancellation on renewal)
-app.post("/cancel/:subscription_id", async (c) => {
-  const { subscription_id } = c.req.param()
-
-  if (!subscription_id) {
-    return c.json({ success: "error", error: "subscription_id is required" }, 400)
-  }
+app.openapi(CancelSubscriptionRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
 
   const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
@@ -190,12 +183,8 @@ app.post("/cancel/:subscription_id", async (c) => {
 })
 
 // Uncancel subscription
-app.post("/uncancel/:subscription_id", async (c) => {
-  const { subscription_id } = c.req.param()
-
-  if (!subscription_id) {
-    return c.json({ success: "error", error: "subscription_id is required" }, 400)
-  }
+app.openapi(UncancelSubscriptionRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
 
   const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
@@ -213,12 +202,8 @@ app.post("/uncancel/:subscription_id", async (c) => {
 })
 
 // Downgrade subscription (mark for downgrade on renewal)
-app.post("/downgrade/:subscription_id", async (c) => {
-  const { subscription_id } = c.req.param()
-
-  if (!subscription_id) {
-    return c.json({ success: "error", error: "subscription_id is required" }, 400)
-  }
+app.openapi(DowngradeSubscriptionRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
 
   const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
@@ -236,12 +221,8 @@ app.post("/downgrade/:subscription_id", async (c) => {
 })
 
 // Undowngrade subscription
-app.post("/undowngrade/:subscription_id", async (c) => {
-  const { subscription_id } = c.req.param()
-
-  if (!subscription_id) {
-    return c.json({ success: "error", error: "subscription_id is required" }, 400)
-  }
+app.openapi(UndowngradeSubscriptionRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
 
   const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))

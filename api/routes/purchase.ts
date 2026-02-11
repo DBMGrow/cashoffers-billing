@@ -1,14 +1,17 @@
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@/types/hono"
 import { authMiddleware } from "@/middleware/authMiddleware"
 import { getContainer } from "@/container"
-import { executeUseCase } from "./helpers/use-case-handler"
+import { PurchaseRoute } from "./schemas/purchase.schemas"
 
-const app = new Hono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
+
+// Apply auth middleware
+app.use("/", authMiddleware("payments_create"))
 
 // Main purchase endpoint
-app.post("/", authMiddleware("payments_create"), async (c) => {
-  const body = await c.req.json()
+app.openapi(PurchaseRoute, async (c) => {
+  const body = c.req.valid("json")
   const {
     product_id,
     email,
@@ -30,9 +33,9 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
   // Get payment context from middleware (includes test mode detection)
   const paymentContext = c.get('paymentContext')
 
-  // Execute use case with clean error handling
-  const result = await executeUseCase(c, async () => {
-    return container.useCases.purchaseSubscription.execute({
+  try {
+    // Execute use case
+    const useCaseResult = await container.useCases.purchaseSubscription.execute({
       productId: product_id,
       email,
       cardToken: card_token,
@@ -48,11 +51,21 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
       coupon,
       context: paymentContext, // Pass context for environment selection
     })
-  })
 
-  // If the use case succeeded, enhance the response with additional data
-  if (result && typeof result === "object" && "success" in result && result.success === "success") {
-    const data = (result as any).data
+    // Handle error response
+    if (!useCaseResult.success) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: useCaseResult.error,
+          code: useCaseResult.code,
+        },
+        400
+      )
+    }
+
+    // If successful, enhance response with additional data
+    const data = useCaseResult.data
 
     // Fetch additional data for response
     const [product, user, userCards] = await Promise.all([
@@ -63,26 +76,37 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
       container.repositories.userCard.findByUserId(data.userId),
     ])
 
-    return c.json({
-      success: "success",
-      data: {
-        subscription: {
-          subscriptionId: data.subscriptionId,
-          userId: data.userId,
-          productId: data.productId,
-          amount: data.amount,
+    // Return custom enhanced response
+    return c.json(
+      {
+        success: "success" as const,
+        data: {
+          subscription: {
+            subscriptionId: data.subscriptionId,
+            userId: data.userId,
+            productId: data.productId,
+            amount: data.amount,
+          },
+          product: product as any,
+          user: user as any,
+          userCard: userCards.length > 0 ? (userCards[0] as any) : null,
+          userCreated: data.userCreated,
+          proratedCharge: data.proratedCharge,
         },
-        product,
-        user,
-        userCard: userCards.length > 0 ? userCards[0] : null,
-        userCreated: data.userCreated,
-        proratedCharge: data.proratedCharge,
+        environment: (paymentContext?.testMode ? "sandbox" : "production") as "sandbox" | "production",
       },
-      environment: paymentContext?.testMode ? 'sandbox' : 'production', // Show which environment was used
-    })
+      200
+    )
+  } catch (error: any) {
+    return c.json(
+      {
+        success: "error" as const,
+        error: error.message || "An unexpected error occurred",
+        code: error.code,
+      },
+      500
+    )
   }
-
-  return result
 })
 
 export const purchaseRoutes = app

@@ -4,11 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "tsx api/app.ts",
-    "start:old": "tsx api/app.js",
-    "build": "tsc --noEmit",
     "dev": "tsx --watch api/app.ts",
-    "dev:old": "tsx --watch api/app.js",
+    "build": "tsc --noEmit",
+    "start": "tsx api/app.ts",
     "codegen": "kysely-codegen --out-file api/lib/db.d.ts",
     "test": "vitest",
     "preview:emails": "tsx api/preview/generate-previews.ts"
@@ -16,6 +14,9 @@
   "license": "ISC",
   "dependencies": {
     "@hono/node-server": "^1.19.9",
+    "@hono/zod-openapi": "^1.2.1",
+    "@hono/zod-validator": "^0.7.6",
+    "@scalar/hono-api-reference": "^0.9.40",
     "@sendgrid/mail": "^7.7.0",
     "@types/mjml": "^4.7.4",
     "@types/module-alias": "^2.0.4",

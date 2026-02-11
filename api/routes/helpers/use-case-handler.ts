@@ -18,7 +18,7 @@ export async function executeUseCase<T>(
     if (!result.success) {
       return c.json(
         {
-          success: "error",
+          success: "error" as const,
           error: result.error,
           code: result.code,
         },
@@ -28,7 +28,7 @@ export async function executeUseCase<T>(
 
     return c.json(
       {
-        success: "success",
+        success: "success" as const,
         data: result.data,
       },
       (options?.successStatus || 200) as any
@@ -38,7 +38,7 @@ export async function executeUseCase<T>(
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
     return c.json(
       {
-        success: "error",
+        success: "error" as const,
         error: errorMessage,
       },
       500

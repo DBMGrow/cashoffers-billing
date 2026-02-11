@@ -50,6 +50,8 @@ export * from "./subscription/get-subscriptions.use-case"
 export * from "./subscription/get-subscriptions.use-case.interface"
 export * from "./subscription/purchase-subscription.use-case"
 export * from "./subscription/purchase-subscription.use-case.interface"
+export * from "./subscription/calculate-prorated.use-case"
+export * from "./subscription/calculate-prorated.use-case.interface"
 
 // Product use cases
 export * from "./product/create-product.use-case"

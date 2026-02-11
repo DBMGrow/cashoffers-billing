@@ -1,15 +1,16 @@
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@/types/hono"
-import parseEmailTemplate from "@/utils/parseEmailTemplate"
+import { parseEmailTemplate } from "@/infrastructure/email/sendgrid/template-parser"
+import { PreviewEmailRoute } from "./schemas/emails.schemas"
 
-const app = new Hono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
 // Preview email template
-app.post("/preview", async (c) => {
-  const body = await c.req.json()
-  const html = await parseEmailTemplate(body.templateName, body.variables)
+app.openapi(PreviewEmailRoute, async (c) => {
+  const body = c.req.valid("json")
+  const html = await parseEmailTemplate(body.templateName, body.variables || {})
 
-  return c.html(html || "")
+  return c.html(html)
 })
 
 export const emailsRoutes = app

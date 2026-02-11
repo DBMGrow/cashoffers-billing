@@ -1,46 +1,46 @@
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@/types/hono"
 import { getContainer } from "@/container"
 import { authMiddleware } from "@/middleware/authMiddleware"
-import checkProrated from "@/utils/checkProrated"
+import {
+  GetProductRoute,
+  GetAllProductsRoute,
+  CreateProductRoute,
+  CheckProratedRoute,
+} from "./schemas/product.schemas"
 
-const app = new Hono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
+
+// Apply auth middleware
+app.use("/:product_id", authMiddleware("payments_read"))
+app.use("/", authMiddleware("payments_read"))
+app.use("/checkprorated", authMiddleware("payments_create"))
 
 // Get single product by ID
-app.get(
-  "/:product_id",
-  authMiddleware("payments_read"),
-  async (c) => {
-    const { product_id } = c.req.param()
-    const container = getContainer()
+app.openapi(GetProductRoute, async (c) => {
+  const { product_id } = c.req.valid("param")
+  const container = getContainer()
 
-    const product = await container.repositories.product.findById(parseInt(product_id, 10))
-    if (!product) throw new Error("No product found")
+  const product = await container.repositories.product.findById(product_id)
+  if (!product) throw new Error("No product found")
 
-    return c.json({ success: "success", data: product })
-  }
-)
+  return c.json({ success: "success" as const, data: product as any }, 200)
+})
 
 // Get all products with optional filters
-app.get("/", authMiddleware("payments_read"), async (c) => {
-  const query = c.req.query()
+app.openapi(GetAllProductsRoute, async (c) => {
   const container = getContainer()
 
   // TODO: Add support for filters and sorting
   const products = await container.repositories.product.findAll()
 
-  return c.json({ success: "success", data: products })
+  return c.json({ success: "success" as const, data: products as any }, 200)
 })
 
 // Create new product
-app.post("/", authMiddleware("payments_create"), async (c) => {
-  const body = await c.req.json()
+app.openapi(CreateProductRoute, async (c) => {
+  const body = c.req.valid("json")
   const { product_name, product_description, product_type, price, data } = body
-
-  if (!product_name) throw new Error("product_name is required")
-  if (!product_type) throw new Error("product_type is required")
-  if (typeof price !== "number") throw new Error("price is required")
-  if (data && typeof data !== "object") throw new Error("data must be valid json")
 
   const container = getContainer()
   const now = new Date()
@@ -49,29 +49,53 @@ app.post("/", authMiddleware("payments_create"), async (c) => {
     product_description,
     product_type,
     price,
-    data,
+    data: data as any,
     createdAt: now,
     updatedAt: now,
   })
 
-  return c.json({ success: "success", data: product })
+  return c.json({ success: "success" as const, data: product as any }, 200)
 })
 
 // Check prorated amount
-app.post(
-  "/checkprorated",
-  authMiddleware("payments_create"),
-  async (c) => {
-    // Create mock request for checkProrated compatibility
-    const body = await c.req.json()
-    const mockReq = {
-      body,
-      headers: Object.fromEntries(c.req.raw.headers.entries()),
+app.openapi(CheckProratedRoute, async (c) => {
+  const body = c.req.valid("json")
+  const container = getContainer()
+
+  try {
+    const result = await container.useCases.calculateProrated.execute({
+      productId: Number(body.product_id),
+      userId: Number(body.user_id),
+    })
+
+    if (!result.success) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: result.error,
+          code: result.code,
+        },
+        400
+      )
     }
 
-    const data = await checkProrated(mockReq as any)
-    return c.json({ success: "success", data })
+    // Return the full calculation result
+    return c.json(
+      {
+        success: "success" as const,
+        data: result.data as any,
+      },
+      200
+    )
+  } catch (error) {
+    return c.json(
+      {
+        success: "error" as const,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    )
   }
-)
+})
 
 export const productRoutes = app

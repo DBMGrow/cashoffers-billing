@@ -1,35 +1,18 @@
-import { Hono } from "hono"
+import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@/types/hono"
 import { authMiddleware } from "@/middleware/authMiddleware"
 import { getContainer } from "@/container"
 import { executeUseCase } from "./helpers/use-case-handler"
+import { GetUserCardRoute, GetUserCardInfoRoute, CreateCardRoute } from "./schemas/card.schemas"
 
-const app = new Hono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
-// Get user's card
-app.get("/:user_id", authMiddleware(null), async (c) => {
-  const user_id = c.req.param("user_id")
+// Apply auth middleware (no special permissions required)
+app.use("*", authMiddleware(null))
 
-  if (!user_id) {
-    return c.json({ success: "error", error: "user_id is required" }, 400)
-  }
-
-  const container = getContainer()
-
-  return executeUseCase(c, () =>
-    container.useCases.getUserCard.execute({
-      userId: Number(user_id),
-    })
-  )
-})
-
-// Check if user has a card
-app.get("/:user_id/info", authMiddleware(null), async (c) => {
-  const user_id = c.req.param("user_id")
-
-  if (!user_id) {
-    return c.json({ success: "error", error: "user_id is required" }, 400)
-  }
+// Check if user has a card (more specific route - must come first!)
+app.openapi(GetUserCardInfoRoute, async (c) => {
+  const { user_id } = c.req.valid("param")
 
   const container = getContainer()
 
@@ -40,14 +23,27 @@ app.get("/:user_id/info", authMiddleware(null), async (c) => {
   )
 })
 
+// Get user's card
+app.openapi(GetUserCardRoute, async (c) => {
+  const { user_id } = c.req.valid("param")
+
+  const container = getContainer()
+
+  return executeUseCase(c, () =>
+    container.useCases.getUserCard.execute({
+      userId: Number(user_id),
+    })
+  )
+})
+
 // Create new card
-app.post("/", authMiddleware(null), async (c) => {
-  const body = await c.req.json()
+app.openapi(CreateCardRoute, async (c) => {
+  const body = c.req.valid("json")
   const { user_id, card_token, exp_month, exp_year, cardholder_name } = body
 
   const user = c.get("user")
   const container = getContainer()
-  const paymentContext = c.get('paymentContext')
+  const paymentContext = c.get("paymentContext")
 
   return executeUseCase(c, () =>
     container.useCases.createCard.execute({
