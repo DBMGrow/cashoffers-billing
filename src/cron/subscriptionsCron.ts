@@ -1,6 +1,3 @@
-import { Op } from "sequelize"
-import { Subscription } from "../database/Subscription"
-import { Transaction } from "../database/Transaction"
 import fetch from "node-fetch"
 import sendEmail from "../utils/sendEmail"
 import toggleSubscription from "../utils/toggleSubscription"
@@ -9,32 +6,18 @@ import { getContainer } from "@/container"
 export default async function subscriptionsCron() {
   console.log("Running subscriptions cron")
 
+  // Get container and dependencies
+  const container = getContainer()
+  const subscriptionRepository = container.repositories.subscription
+  const transactionRepository = container.repositories.transaction
+
   try {
-    const subscriptions = await Subscription.findAll({
-      where: {
-        [Op.or]: [
-          { status: "active" },
-          // { status: "suspend" } // Updated to only process active subscriptions
-        ],
-        next_renewal_attempt: {
-          [Op.or]: {
-            [Op.lte]: new Date(),
-            [Op.is]: null,
-          },
-        },
-        renewal_date: {
-          [Op.or]: {
-            [Op.lte]: new Date(),
-            [Op.is]: null,
-          },
-        },
-      },
-    })
+    const subscriptions = await subscriptionRepository.findSubscriptionsForCronProcessing(new Date())
 
     console.log("Subscriptions to process: ", subscriptions.length)
     console.log(
       "Subscriptions: ",
-      subscriptions.map((sub: any) => sub.subscription_id)
+      subscriptions.map((sub) => sub.subscription_id)
     )
 
     const usersResponse = await fetch(process.env.API_URL + "/users/mini?page=1&limit=50000", {
@@ -46,12 +29,11 @@ export default async function subscriptionsCron() {
 
     if (users?.success !== "success") throw new Error("Error fetching users")
 
-    // Get container and use case
-    const container = getContainer()
+    // Get use case from container
     const renewSubscriptionUseCase = container.useCases.renewSubscription
 
     for (const subscription of subscriptions) {
-      const subscriptionData = (subscription as any).dataValues || subscription
+      const subscriptionData = subscription
       console.log("Processing subscription", subscriptionData.subscription_id)
 
       if (subscriptionData.cancel_on_renewal) {
@@ -98,13 +80,15 @@ export default async function subscriptionsCron() {
       subject: "Subscription Cron Error",
       text: `There was an error processing subscriptions: ${error.message}`,
     })
-    Transaction.create({
+    await transactionRepository.create({
       user_id: 0,
       amount: 0,
       type: "cron",
       memo: "Subscriptions failed",
       status: "failed",
       data: JSON.stringify(error),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })
   }
 }

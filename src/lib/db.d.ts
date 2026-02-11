@@ -928,11 +928,18 @@ export interface PropertyFiles {
   file_id: Generated<number>;
   file_notes: string | null;
   file_token: string;
-  file_url: string;
+  file_url: string | null;
   mime_type: string | null;
   original_filename: string | null;
-  primary: Generated<number>;
+  primary: Generated<number | null>;
+  processing_attempts: Generated<number>;
+  processing_error: string | null;
+  processing_started: Date | null;
   property_id: number;
+  raw_content_type: string | null;
+  raw_file_url: string | null;
+  raw_size_bytes: number | null;
+  status: Generated<"COMPLETED" | "FAILED" | "NO_PROCESSING" | "PENDING" | "PROCESSING">;
   updated: Generated<Date>;
   updated_user_id: number;
 }
@@ -1005,6 +1012,7 @@ export interface PropertyOffers {
   notes_seller: string | null;
   notification_sent: Generated<number>;
   offer_id: Generated<number>;
+  offer_number: number;
   offerapi_id: number | null;
   offerapi_pk: string | null;
   offerapi_pk2: string | null;
@@ -1036,11 +1044,13 @@ export interface PropertyOffersDash {
   customer_user_id: number | null;
   data: string | null;
   expiration: Date | null;
+  is_unlocked: Generated<number | null>;
   lender_user_id: number | null;
   nickname: string;
   notes_buyer: string | null;
   notes_seller: string | null;
   offer_id: Generated<number>;
+  offer_number: number;
   offerapi_id: number | null;
   offerapi_pk: string | null;
   photo_url: Generated<string | null>;
@@ -1087,6 +1097,7 @@ export interface PropertyOffersFull {
   notes_buyer: string | null;
   notes_seller: string | null;
   offer_id: Generated<number>;
+  offer_number: number;
   offerapi_id: number | null;
   offerapi_pk: string | null;
   offerapi_pk2: string | null;
@@ -1191,6 +1202,36 @@ export interface PropertyUsersDash {
   user_notifications_email: Generated<number | null>;
   viewlevel: Generated<number | null>;
   zip: string | null;
+}
+
+export interface PurchaseRequests {
+  amount_charged: number | null;
+  card_id_result: string | null;
+  completed_at: Date | null;
+  createdAt: Generated<Date>;
+  email: string;
+  error_code: string | null;
+  failure_reason: string | null;
+  idempotency_key: string | null;
+  max_retries: Generated<number | null>;
+  next_retry_at: Date | null;
+  processing_duration_ms: number | null;
+  product_id: number;
+  prorated_amount: number | null;
+  request_data: Json;
+  request_id: Generated<number>;
+  request_type: "NEW_PURCHASE" | "RENEWAL" | "UPGRADE";
+  request_uuid: string;
+  retry_count: Generated<number | null>;
+  source: Generated<"ADMIN" | "API" | "CRON" | null>;
+  started_at: Date | null;
+  status: Generated<"COMPLETED" | "CREATING_SUBSCRIPTION" | "FAILED" | "FINALIZING" | "PENDING" | "PROCESSING_PAYMENT" | "RETRY_SCHEDULED" | "VALIDATING" | null>;
+  subscription_id: number | null;
+  subscription_id_result: number | null;
+  transaction_id_result: number | null;
+  updatedAt: Generated<Date>;
+  user_created: Generated<number | null>;
+  user_id: number | null;
 }
 
 export interface Roles {
@@ -1332,19 +1373,15 @@ export interface SinglePropertyOffersDash {
   created_user_name: string | null;
   customer_name: string | null;
   customer_user_id: number | null;
-  customer_user_name: string | null;
   data: string | null;
   data_bk: string | null;
   expiration: Date | null;
-  /**
-   * 1 = final offer, 0 = not final
-   */
-  is_final_offer: Generated<number>;
   lender_user_id: number | null;
   nickname: string;
   notes_buyer: string | null;
   notes_seller: string | null;
   offer_id: Generated<number>;
+  offer_number: number;
   offerapi_id: number | null;
   offerapi_pk: string | null;
   photo_url: Generated<string | null>;
@@ -1361,7 +1398,6 @@ export interface SinglePropertyOffersDash {
   status_label: string | null;
   updated: Generated<Date>;
   updated_user_id: number;
-  updated_user_name: string | null;
   zip: string | null;
 }
 
@@ -1849,6 +1885,7 @@ export interface DB {
   Property_Rules_Queue: PropertyRulesQueue;
   Property_Users: PropertyUsers;
   Property_Users_Dash: PropertyUsersDash;
+  PurchaseRequests: PurchaseRequests;
   Roles: Roles;
   Rules: Rules;
   Showing_Feedback: ShowingFeedback;

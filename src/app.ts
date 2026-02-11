@@ -8,7 +8,6 @@ import { cors } from "hono/cors"
 import type { HonoVariables } from "./types/hono"
 
 // Import routes (we'll create these next)
-import { statusRoutes } from "./routes/hono/status"
 import { productRoutes } from "./routes/hono/product"
 import { cardRoutes } from "./routes/hono/card"
 import { paymentRoutes } from "./routes/hono/payment"
@@ -31,7 +30,6 @@ app.use("*", cors()) // CORS support
 app.use("*", digestMiddleware) // Custom digest middleware
 
 // Mount routes
-app.route("/status", statusRoutes)
 app.route("/product", productRoutes)
 app.route("/card", cardRoutes)
 app.route("/payment", paymentRoutes)
@@ -47,11 +45,14 @@ app.onError(errorHandler)
 // Start server
 const PORT = Number(process.env.PORT) || 3000
 
-serve({
-  fetch: app.fetch,
-  port: PORT,
-}, (info) => {
-  console.info(`🚀 Hono server listening on http://localhost:${info.port}`)
-})
+serve(
+  {
+    fetch: app.fetch,
+    port: PORT,
+  },
+  (info) => {
+    console.info(`🚀 Hono server listening on http://localhost:${info.port}`)
+  }
+)
 
 export { app }

@@ -5,10 +5,12 @@ import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IProductRepository } from "@/infrastructure/database/repositories/product.repository.interface"
 import { IConfigService } from "@/config/config.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IUnlockPropertyUseCase } from "./unlock-property.use-case.interface"
 import { UnlockPropertyInput, UnlockPropertyOutput } from "../types/property.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { UnlockPropertyInputSchema } from "../types/validation.schemas"
+import { PropertyUnlockedEvent } from "@/domain/events/property-unlocked.event"
 import { v4 as uuidv4 } from "uuid"
 
 interface Dependencies {
@@ -18,6 +20,7 @@ interface Dependencies {
   transactionRepository: ITransactionRepository
   productRepository: IProductRepository
   config: IConfigService
+  eventBus: IEventBus
 }
 
 /**
@@ -169,13 +172,22 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
         paymentId,
       })
 
-      // 7. Send confirmation email
-      try {
-        await this.sendSuccessEmail(validatedInput, propertyAddress, paymentId)
-      } catch (emailError) {
-        logger.warn("Failed to send success email", { error: emailError })
-        // Don't fail the use case if email fails
-      }
+      // 7. Publish PropertyUnlockedEvent
+      await this.deps.eventBus.publish(
+        PropertyUnlockedEvent.create({
+          transactionId: transaction.transaction_id,
+          userId: validatedInput.userId,
+          email: validatedInput.email,
+          propertyId: property?.id || 0,
+          propertyAddress,
+          amount,
+          currency: "USD",
+          externalTransactionId: paymentId,
+          paymentProvider: "Square",
+          productId: product.product_id,
+          productName: product.name,
+        })
+      )
 
       logger.info("Property unlocked successfully", {
         propertyToken: validatedInput.propertyToken,
@@ -204,26 +216,6 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
 
       return failure(errorMessage, "PROPERTY_UNLOCK_ERROR")
     }
-  }
-
-  private async sendSuccessEmail(
-    input: UnlockPropertyInput,
-    propertyAddress: string,
-    paymentId: string
-  ): Promise<void> {
-    const amountFormatted = this.formatAmount(5000)
-
-    await this.deps.emailService.sendEmail({
-      to: input.email,
-      subject: "Property Unlocked",
-      template: "propertyUnlocked.html",
-      fields: {
-        propertyAddress,
-        amount: amountFormatted,
-        transactionID: paymentId,
-        date: new Date().toLocaleDateString(),
-      },
-    })
   }
 
   private async sendAdminPropertyUpdateErrorEmail(
@@ -278,11 +270,6 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
 
     const parts = [address1, city, state].filter(Boolean)
     return parts.join(", ") || "Unknown Property"
-  }
-
-  private formatAmount(cents: number): string {
-    const dollars = cents / 100
-    return `$${dollars.toFixed(2)}`
   }
 
   private serializePayment(payment: any): string {

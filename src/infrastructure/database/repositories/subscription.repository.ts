@@ -177,6 +177,28 @@ export class SubscriptionRepository implements ISubscriptionRepository {
       updatedAt: new Date(),
     }, trx)
   }
+
+  async findSubscriptionsForCronProcessing(date: Date, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+
+    return await db
+      .selectFrom('Subscriptions')
+      .where('status', '=', 'active')
+      .where((eb) =>
+        eb.or([
+          eb('next_renewal_attempt', 'is', null),
+          eb('next_renewal_attempt', '<=', date)
+        ])
+      )
+      .where((eb) =>
+        eb.or([
+          eb('renewal_date', 'is', null),
+          eb('renewal_date', '<=', date)
+        ])
+      )
+      .selectAll()
+      .execute()
+  }
 }
 
 /**

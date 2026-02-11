@@ -4,10 +4,13 @@ import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IConfigService } from "@/config/config.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { ICreatePaymentUseCase } from "./create-payment.use-case.interface"
 import { CreatePaymentInput, CreatePaymentOutput } from "../types/payment.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CreatePaymentInputSchema } from "../types/validation.schemas"
+import { PaymentProcessedEvent } from "@/domain/events/payment-processed.event"
+import { PaymentFailedEvent } from "@/domain/events/payment-failed.event"
 import { v4 as uuidv4 } from "uuid"
 
 interface Dependencies {
@@ -17,6 +20,7 @@ interface Dependencies {
   userCardRepository: IUserCardRepository
   transactionRepository: ITransactionRepository
   config: IConfigService
+  eventBus: IEventBus
 }
 
 /**
@@ -104,9 +108,26 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
         duration: Date.now() - startTime,
       })
 
-      // Send success email
+      // Publish PaymentProcessedEvent
       if (validatedInput.sendEmailOnCharge !== false) {
-        await this.sendSuccessEmail(validatedInput, payment.id || "")
+        await this.deps.eventBus.publish(
+          PaymentProcessedEvent.create({
+            transactionId: transaction.transaction_id,
+            externalTransactionId: payment.id || "",
+            userId: validatedInput.userId,
+            email: validatedInput.email,
+            amount: validatedInput.amount,
+            currency: "USD",
+            cardId: userCard.card_id || undefined,
+            cardLast4: userCard.last_four || undefined,
+            paymentProvider: "Square",
+            paymentType: "one-time",
+            lineItems: validatedInput.memo ? [{
+              description: validatedInput.memo,
+              amount: validatedInput.amount
+            }] : undefined,
+          })
+        )
       }
 
       return success({
@@ -130,11 +151,11 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
   }
 
   private async handleFailedPayment(input: CreatePaymentInput, paymentId: string): Promise<void> {
-    const { logger, transactionRepository, emailService } = this.deps
+    const { logger, transactionRepository, eventBus } = this.deps
 
     // Log failed transaction
     const now = new Date()
-    await transactionRepository.create({
+    const transaction = await transactionRepository.create({
       user_id: input.userId,
       amount: input.amount,
       type: "payment",
@@ -146,38 +167,26 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
       updatedAt: now,
     })
 
-    // Send failure email to user
-    const amountFormatted = this.formatAmount(input.amount)
-    await emailService.sendEmail({
-      to: input.email,
-      subject: "Payment Error",
-      template: "paymentError.html",
-      fields: {
-        amount: amountFormatted,
-        date: new Date().toLocaleDateString(),
-      },
-    })
+    // Publish PaymentFailedEvent
+    await eventBus.publish(
+      PaymentFailedEvent.create({
+        transactionId: transaction.transaction_id,
+        externalTransactionId: paymentId,
+        userId: input.userId,
+        email: input.email,
+        amount: input.amount,
+        currency: "USD",
+        errorMessage: "Payment not completed",
+        paymentProvider: "Square",
+        paymentType: "one-time",
+        willRetry: false,
+      })
+    )
 
     logger.warn("Payment failed, user notified", {
       userId: input.userId,
       amount: input.amount,
       paymentId,
-    })
-  }
-
-  private async sendSuccessEmail(input: CreatePaymentInput, paymentId: string): Promise<void> {
-    const amountFormatted = this.formatAmount(input.amount)
-
-    await this.deps.emailService.sendEmail({
-      to: input.email,
-      subject: "Payment Successful",
-      template: "paymentConfirm.html",
-      fields: {
-        amount: amountFormatted,
-        transactionID: paymentId,
-        date: new Date().toLocaleDateString(),
-        memo: input.memo || "",
-      },
     })
   }
 
@@ -192,11 +201,6 @@ export class CreatePaymentUseCase implements ICreatePaymentUseCase {
       // Don't throw if admin email fails
       this.deps.logger.error("Failed to send admin error email", { error: emailError })
     }
-  }
-
-  private formatAmount(cents: number): string {
-    const dollars = cents / 100
-    return `$${dollars.toFixed(2)}`
   }
 
   private serializePayment(payment: any): string {

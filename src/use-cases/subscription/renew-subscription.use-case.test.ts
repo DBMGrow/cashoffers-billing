@@ -93,6 +93,50 @@ class MockTransactionRepository {
   }
 }
 
+class MockPurchaseRequestRepository {
+  private requests: any[] = []
+
+  async create(data: any) {
+    const request = {
+      request_id: this.requests.length + 1,
+      ...data,
+    }
+    this.requests.push(request)
+    return request
+  }
+
+  async update(id: number, data: any) {
+    const index = this.requests.findIndex((r) => r.request_id === id)
+    if (index === -1) return null
+    this.requests[index] = { ...this.requests[index], ...data }
+    return this.requests[index]
+  }
+
+  async updateStatus(id: number, status: string) {
+    return this.update(id, { status })
+  }
+
+  async markAsCompleted(id: number, results: any, startedAt: Date) {
+    return this.update(id, {
+      status: "COMPLETED",
+      ...results,
+      completed_at: new Date(),
+    })
+  }
+
+  async markAsFailed(id: number, reason: string, errorCode?: string) {
+    return this.update(id, {
+      status: "FAILED",
+      failure_reason: reason,
+      error_code: errorCode,
+    })
+  }
+
+  getAll() {
+    return this.requests
+  }
+}
+
 class MockUserCardRepository {
   private cards = new Map<number, any>()
 
@@ -201,6 +245,7 @@ describe("RenewSubscriptionUseCase", () => {
       subscriptionRepository: subscriptionRepo as any,
       transactionRepository: transactionRepo as any,
       userCardRepository: userCardRepo as any,
+      purchaseRequestRepository: new MockPurchaseRequestRepository() as any,
       config: config as any,
       transactionManager,
     })

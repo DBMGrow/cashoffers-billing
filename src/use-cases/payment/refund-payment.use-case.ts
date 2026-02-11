@@ -4,10 +4,12 @@ import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
 import { IConfigService } from "@/config/config.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IRefundPaymentUseCase } from "./refund-payment.use-case.interface"
 import { RefundPaymentInput, RefundPaymentOutput } from "../types/payment.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { RefundPaymentInputSchema } from "../types/validation.schemas"
+import { PaymentRefundedEvent } from "@/domain/events/payment-refunded.event"
 import { v4 as uuidv4 } from "uuid"
 
 interface Dependencies {
@@ -17,6 +19,7 @@ interface Dependencies {
   transactionRepository: ITransactionRepository
   userApiClient: IUserApiClient
   config: IConfigService
+  eventBus: IEventBus
 }
 
 /**
@@ -143,9 +146,22 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
         duration: Date.now() - startTime,
       })
 
-      // Send success email
+      // Publish PaymentRefundedEvent
       if (email) {
-        await this.sendSuccessEmail(email, transactionAmount, refundResult.id || "")
+        await this.deps.eventBus.publish(
+          PaymentRefundedEvent.create({
+            transactionId: refundTransaction.transaction_id,
+            externalRefundId: refundResult.id || "",
+            originalTransactionId: transaction.transaction_id,
+            externalPaymentId: validatedInput.squareTransactionId,
+            userId: validatedInput.userId,
+            email: email,
+            amount: transactionAmount,
+            currency: "USD",
+            paymentProvider: "Square",
+            reason: validatedInput.reason,
+          })
+        )
       }
 
       return success({
@@ -210,29 +226,6 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
     })
   }
 
-  private async sendSuccessEmail(
-    email: string,
-    amount: number,
-    refundId: string
-  ): Promise<void> {
-    try {
-      const amountFormatted = this.formatAmount(amount)
-
-      await this.deps.emailService.sendEmail({
-        to: email,
-        subject: "Payment Refunded",
-        template: "refund.html",
-        fields: {
-          amount: amountFormatted,
-          date: new Date().toLocaleDateString(),
-        },
-      })
-    } catch (error) {
-      this.deps.logger.error("Failed to send refund email", { error, email })
-      // Don't throw - refund was successful even if email fails
-    }
-  }
-
   private async sendAdminErrorEmail(error: string): Promise<void> {
     try {
       await this.deps.emailService.sendPlainEmail({
@@ -244,11 +237,6 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
       // Don't throw if admin email fails
       this.deps.logger.error("Failed to send admin error email", { error: emailError })
     }
-  }
-
-  private formatAmount(cents: number): string {
-    const dollars = cents / 100
-    return `$${dollars.toFixed(2)}`
   }
 
   private serializeRefund(refund: any): string {

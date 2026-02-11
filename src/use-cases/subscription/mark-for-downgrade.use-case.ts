@@ -2,16 +2,19 @@ import { ILogger } from "@/infrastructure/logging/logger.interface"
 import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
 import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IMarkForDowngradeUseCase } from "./mark-for-downgrade.use-case.interface"
 import { MarkForDowngradeInput, MarkForDowngradeOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { MarkForDowngradeInputSchema } from "../types/validation.schemas"
+import { SubscriptionDowngradedEvent } from "@/domain/events/subscription-downgraded.event"
 
 interface Dependencies {
   logger: ILogger
   subscriptionRepository: ISubscriptionRepository
   emailService: IEmailService
   userApiClient: IUserApiClient
+  eventBus: IEventBus
 }
 
 /**
@@ -27,7 +30,7 @@ export class MarkForDowngradeUseCase implements IMarkForDowngradeUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: MarkForDowngradeInput): Promise<UseCaseResult<MarkForDowngradeOutput>> {
-    const { logger, subscriptionRepository, emailService, userApiClient } = this.deps
+    const { logger, subscriptionRepository, userApiClient, eventBus } = this.deps
     const startTime = Date.now()
 
     try {
@@ -59,26 +62,30 @@ export class MarkForDowngradeUseCase implements IMarkForDowngradeUseCase {
         updatedAt: now,
       })
 
-      // Send email notification when marking for downgrade
+      // Publish SubscriptionDowngradedEvent when marking for downgrade
       if (validatedInput.downgrade) {
+        // Get user email for event notification
+        let userEmail: string | undefined
         try {
           const user = await userApiClient.getUser(subscription.user_id)
-          if (user?.email) {
-            // Send to admin
-            await emailService.sendEmail({
-              to: "annette@remrktco.com",
-              subject: "User Subscription Downgrade",
-              template: "subscriptionDowngraded.html",
-              fields: {
-                name: user?.first_name || user?.last_name || "Unknown",
-                email: user.email,
-              },
-            })
-          }
-        } catch (emailError) {
-          // Don't fail if email fails
-          logger.warn("Failed to send downgrade email", { error: emailError })
+          userEmail = user?.email
+        } catch (error) {
+          logger.warn("Failed to fetch user email", { userId: subscription.user_id, error })
         }
+
+        // Publish event (triggers email notifications to user and admin)
+        await eventBus.publish(
+          SubscriptionDowngradedEvent.create({
+            subscriptionId: subscription.subscription_id,
+            userId: subscription.user_id,
+            email: userEmail,
+            currentSubscriptionName: subscription.subscription_name || undefined,
+            reason: 'user_request',
+            downgradedBy: 'user',
+            effectiveDate: subscription.renewal_date ? new Date(subscription.renewal_date) : undefined,
+            downgradeOnRenewal: true,
+          })
+        )
       }
 
       logger.info("Downgrade on renewal flag updated successfully", {

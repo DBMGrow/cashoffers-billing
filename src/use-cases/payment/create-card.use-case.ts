@@ -4,10 +4,13 @@ import { IUserCardRepository } from "@/infrastructure/database/repositories/user
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
 import { IEmailService } from "@/infrastructure/email/email-service.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { ICreateCardUseCase } from "./create-card.use-case.interface"
 import { CreateCardInput, CreateCardOutput } from "../types/payment.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CreateCardInputSchema } from "../types/validation.schemas"
+import { CardCreatedEvent } from "@/domain/events/card-created.event"
+import { CardUpdatedEvent } from "@/domain/events/card-updated.event"
 
 interface Dependencies {
   logger: ILogger
@@ -16,6 +19,7 @@ interface Dependencies {
   transactionRepository: ITransactionRepository
   subscriptionRepository: ISubscriptionRepository
   emailService: IEmailService
+  eventBus: IEventBus
 }
 
 /**
@@ -147,23 +151,29 @@ export class CreateCardUseCase implements ICreateCardUseCase {
         updatedAt: now,
       })
 
-      // Send email notification
+      // Publish card event
       if (sendEmailOnUpdate) {
-        try {
-          const creatingNewCardMessage = `A Card ending in ${last4} was added to your account`
-          const updatingCardMessage = `The Card linked to your account was updated and now ends in ${last4}`
-          await emailService.sendEmail({
-            to: email,
-            subject: creatingNewCard ? "A Card Was Added to Your Account" : "The Card on Your Account Was Updated",
-            template: "cardUpdated.html",
-            fields: {
-              message: creatingNewCard ? creatingNewCardMessage : updatingCardMessage,
-              card: `**** **** **** ${last4}`,
-              date: new Date().toLocaleDateString(),
-            },
-          })
-        } catch (emailError) {
-          logger.warn("Failed to send card update email", { error: emailError })
+        const cardPayload = {
+          cardId,
+          userId: userId ?? 0,
+          email,
+          cardLast4: last4,
+          cardBrand,
+          expirationMonth: expMonth,
+          expirationYear: expYear,
+          externalCardId: cardId,
+          paymentProvider: "Square" as const,
+        }
+
+        if (creatingNewCard) {
+          await this.deps.eventBus.publish(CardCreatedEvent.create(cardPayload))
+        } else {
+          await this.deps.eventBus.publish(
+            CardUpdatedEvent.create({
+              ...cardPayload,
+              updatedFields: ["card_id", "last_4", "card_brand", "exp_month", "exp_year"],
+            })
+          )
         }
       }
 

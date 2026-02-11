@@ -1,13 +1,18 @@
 import { ILogger } from "@/infrastructure/logging/logger.interface"
 import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
+import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IDeactivateSubscriptionUseCase } from "./deactivate-subscription.use-case.interface"
 import { DeactivateSubscriptionInput, DeactivateSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { DeactivateSubscriptionInputSchema } from "../types/validation.schemas"
+import { SubscriptionDeactivatedEvent } from "@/domain/events/subscription-deactivated.event"
 
 interface Dependencies {
   logger: ILogger
   subscriptionRepository: ISubscriptionRepository
+  userApiClient: IUserApiClient
+  eventBus: IEventBus
 }
 
 /**
@@ -23,7 +28,7 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: DeactivateSubscriptionInput): Promise<UseCaseResult<DeactivateSubscriptionOutput>> {
-    const { logger, subscriptionRepository } = this.deps
+    const { logger, subscriptionRepository, userApiClient, eventBus } = this.deps
     const startTime = Date.now()
 
     try {
@@ -49,12 +54,35 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
       }
 
       const subscription = subscriptions[0]
+      const previousStatus = subscription.status
+
+      // Get user details for email notification
+      let userEmail: string | undefined
+      try {
+        const user = await userApiClient.getUser(userId)
+        userEmail = user?.email
+      } catch (error) {
+        logger.warn("Failed to fetch user email", { userId, error })
+      }
 
       // Update subscription status to inactive
       await subscriptionRepository.update(subscription.subscription_id, {
         status: "inactive",
         updatedAt: new Date(),
       })
+
+      // Publish SubscriptionDeactivatedEvent (triggers premium deactivation and email)
+      await eventBus.publish(
+        SubscriptionDeactivatedEvent.create({
+          subscriptionId: subscription.subscription_id,
+          userId,
+          email: userEmail,
+          subscriptionName: subscription.subscription_name || undefined,
+          reason: 'manual',
+          deactivatedBy: 'admin',
+          previousStatus: previousStatus || undefined,
+        })
+      )
 
       logger.info("Subscription deactivated successfully", {
         userId,

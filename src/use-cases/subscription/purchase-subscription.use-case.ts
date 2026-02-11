@@ -6,11 +6,18 @@ import { IProductRepository } from "@/infrastructure/database/repositories/produ
 import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
 import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
+import { IPurchaseRequestRepository } from "@/infrastructure/database/repositories/purchase-request.repository.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IPurchaseSubscriptionUseCase } from "./purchase-subscription.use-case.interface"
 import { PurchaseSubscriptionInput, PurchaseSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { PurchaseSubscriptionInputSchema } from "../types/validation.schemas"
 import { v4 as uuidv4 } from "uuid"
+import { UserCreatedEvent } from "@/domain/events/user-created.event"
+import { CardCreatedEvent } from "@/domain/events/card-created.event"
+import { PaymentProcessedEvent } from "@/domain/events/payment-processed.event"
+import { SubscriptionCreatedEvent } from "@/domain/events/subscription-created.event"
+import { PurchaseRequestCompletedEvent } from "@/domain/events/purchase-request-completed.event"
 
 interface Dependencies {
   logger: ILogger
@@ -21,6 +28,8 @@ interface Dependencies {
   subscriptionRepository: ISubscriptionRepository
   userCardRepository: IUserCardRepository
   transactionRepository: ITransactionRepository
+  purchaseRequestRepository: IPurchaseRequestRepository
+  eventBus: IEventBus
 }
 
 /**
@@ -40,7 +49,8 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
 
   async execute(input: PurchaseSubscriptionInput): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
     const { logger } = this.deps
-    const startTime = Date.now()
+    const startTime = new Date()
+    let purchaseRequestId: number | null = null
 
     try {
       // Validate input
@@ -52,10 +62,32 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       }
 
       const validatedInput = validationResult.data
+
+      // 0. Create PurchaseRequest for tracking (status: PENDING)
+      const purchaseRequest = await this.deps.purchaseRequestRepository.create({
+        request_uuid: uuidv4(),
+        request_type: "NEW_PURCHASE",
+        source: "API",
+        user_id: null, // Will be updated once user is known
+        email: validatedInput.email,
+        product_id: typeof validatedInput.productId === "number"
+          ? validatedInput.productId
+          : parseInt(validatedInput.productId as string, 10),
+        subscription_id: null,
+        request_data: JSON.stringify(validatedInput),
+        status: "PENDING",
+        idempotency_key: null,
+      })
+      purchaseRequestId = purchaseRequest.request_id
+
       logger.info("Processing purchase", {
+        purchaseRequestId,
         productId: validatedInput.productId,
         email: validatedInput.email,
       })
+
+      // Update status to VALIDATING
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "VALIDATING")
 
       // 1. Validate product
       const product = await this.deps.productRepository.findById(
@@ -66,6 +98,11 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
 
       if (!product) {
         logger.warn("Product not found", { productId: validatedInput.productId })
+        await this.deps.purchaseRequestRepository.markAsFailed(
+          purchaseRequestId,
+          "Product not found",
+          "PRODUCT_NOT_FOUND"
+        )
         return failure("Product not found", "PRODUCT_NOT_FOUND")
       }
 
@@ -77,6 +114,11 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       if (user) {
         // Existing user - validate API token
         if (!validatedInput.apiToken) {
+          await this.deps.purchaseRequestRepository.markAsFailed(
+            purchaseRequestId,
+            "API token required for existing user",
+            "API_TOKEN_REQUIRED"
+          )
           return failure("API token required for existing user", "API_TOKEN_REQUIRED")
         }
 
@@ -85,6 +127,11 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         userId = user.id
 
         logger.info("Existing user found", { userId })
+
+        // Update purchase request with user_id
+        await this.deps.purchaseRequestRepository.update(purchaseRequestId, {
+          user_id: userId,
+        })
       } else {
         // New user - require phone and card
         if (!validatedInput.phone) {
@@ -111,6 +158,12 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
 
           logger.info("New user created", { userId })
 
+          // Update purchase request with user_id and mark user as created
+          await this.deps.purchaseRequestRepository.update(purchaseRequestId, {
+            user_id: userId,
+            user_created: 1,
+          })
+
           // Update card with user_id (find by card_id first)
           const cards = await this.deps.userCardRepository.findAll({ card_id: cardResult.cardId })
           if (cards.length > 0) {
@@ -119,6 +172,16 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
               updatedAt: new Date(),
             })
           }
+
+          // Publish UserCreatedEvent
+          await this.deps.eventBus.publish(
+            UserCreatedEvent.create({
+              userId,
+              email: validatedInput.email,
+              creationSource: "purchase_flow",
+              productId: product.product_id,
+            })
+          )
         } catch (error) {
           logger.error("Failed to create user", { error })
           return failure("Failed to create user", "USER_CREATION_FAILED")
@@ -178,8 +241,16 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       // Get card for payment
       const userCard = await this.deps.userCardRepository.findOne({ card_id: cardIdString })
       if (!userCard) {
+        await this.deps.purchaseRequestRepository.markAsFailed(
+          purchaseRequestId,
+          "Card not found",
+          "CARD_NOT_FOUND"
+        )
         return failure("Card not found", "CARD_NOT_FOUND")
       }
+
+      // Update status to PROCESSING_PAYMENT
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
 
       // Process initial payment
       const payment = await this.deps.paymentProvider.createPayment({
@@ -194,8 +265,16 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
 
       if (payment.status !== "COMPLETED") {
         logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
+        await this.deps.purchaseRequestRepository.markAsFailed(
+          purchaseRequestId,
+          `Payment failed: ${payment.status}`,
+          "PAYMENT_FAILED"
+        )
         return failure("Payment failed", "PAYMENT_FAILED")
       }
+
+      // Update status to CREATING_SUBSCRIPTION
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
 
       // Calculate renewal date
       const renewalDate = this.calculateRenewalDate(productDuration)
@@ -217,7 +296,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       })
 
       // Log transaction
-      await this.deps.transactionRepository.create({
+      const transaction = await this.deps.transactionRepository.create({
         user_id: userId,
         amount: initialAmount,
         type: "subscription",
@@ -230,31 +309,85 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         updatedAt: now,
       })
 
-      // Activate user premium
-      await this.deps.userApiClient.activateUserPremium(userId)
+      // Update status to FINALIZING
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")
 
-      // Send welcome email
-      try {
-        await this.deps.emailService.sendEmail({
-          to: validatedInput.email,
-          subject: "Welcome to CashOffers!",
-          template: "subscriptionCreated.html",
-          fields: {
-            subscriptionName: product.product_name,
-            amount: `$${(renewalCost / 100).toFixed(2)}`,
-            renewalDate: renewalDate.toLocaleDateString(),
-          },
+      // Publish domain events (these will trigger email, premium activation, etc.)
+      await this.deps.eventBus.publish(
+        SubscriptionCreatedEvent.create({
+          subscriptionId: subscription.subscription_id,
+          userId,
+          email: validatedInput.email,
+          productId: product.product_id,
+          productName: product.product_name,
+          amount: renewalCost,
+          initialChargeAmount: initialAmount,
+          transactionId: transaction.transaction_id,
+          cardId: cardIdString,
+          userWasCreated: userCreated,
+          nextRenewalDate: renewalDate,
+          source: "API",
         })
-      } catch (emailError) {
-        // Don't fail purchase if email fails
-        logger.warn("Failed to send welcome email", { error: emailError })
-      }
+      )
+
+      // Publish payment processed event
+      await this.deps.eventBus.publish(
+        PaymentProcessedEvent.create({
+          transactionId: transaction.transaction_id,
+          externalTransactionId: payment.id,
+          userId,
+          email: validatedInput.email,
+          amount: initialAmount,
+          currency: "USD",
+          cardId: cardIdString,
+          cardLast4: userCard.last_4,
+          paymentProvider: "Square",
+          subscriptionId: subscription.subscription_id,
+          productId: product.product_id,
+          paymentType: "subscription",
+          lineItems: [
+            { description: "Signup fee", amount: signupFee },
+            { description: "First period", amount: renewalCost },
+          ],
+        })
+      )
+
+      // Mark purchase request as completed
+      await this.deps.purchaseRequestRepository.markAsCompleted(
+        purchaseRequestId,
+        {
+          subscriptionId: subscription.subscription_id,
+          transactionId: transaction.transaction_id,
+          amountCharged: initialAmount,
+          cardId: cardIdString,
+        },
+        startTime
+      )
+
+      // Publish PurchaseRequestCompletedEvent
+      await this.deps.eventBus.publish(
+        PurchaseRequestCompletedEvent.create({
+          purchaseRequestId,
+          requestUuid: purchaseRequest.request_uuid,
+          requestType: "NEW_PURCHASE",
+          source: "API",
+          userId,
+          email: validatedInput.email,
+          productId: product.product_id,
+          subscriptionId: subscription.subscription_id,
+          transactionId: transaction.transaction_id,
+          amountCharged: initialAmount,
+          cardId: cardIdString,
+          userWasCreated: userCreated,
+          processingDuration: new Date().getTime() - startTime.getTime(),
+        })
+      )
 
       logger.info("Purchase completed successfully", {
         userId,
         subscriptionId: subscription.subscription_id,
         amount: initialAmount,
-        duration: Date.now() - startTime,
+        duration: new Date().getTime() - startTime.getTime(),
       })
 
       return success({
@@ -270,8 +403,21 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       const errorMessage = error instanceof Error ? error.message : "Unknown error"
       logger.error("Purchase error", {
         error: errorMessage,
-        duration: Date.now() - startTime,
+        duration: new Date().getTime() - startTime.getTime(),
       })
+
+      // Mark purchase request as failed if it was created
+      if (purchaseRequestId) {
+        try {
+          await this.deps.purchaseRequestRepository.markAsFailed(
+            purchaseRequestId,
+            errorMessage,
+            "PURCHASE_ERROR"
+          )
+        } catch (updateError) {
+          logger.error("Failed to update purchase request status", { updateError })
+        }
+      }
 
       return failure(errorMessage, "PURCHASE_ERROR")
     }
@@ -281,7 +427,7 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
     userId: number | null,
     input: PurchaseSubscriptionInput
   ): Promise<{ success: boolean; cardId?: string; error?: string }> {
-    const { logger, paymentProvider, userCardRepository, emailService } = this.deps
+    const { logger, paymentProvider, userCardRepository, eventBus } = this.deps
 
     try {
       if (!input.cardToken || !input.expMonth || !input.expYear || !input.cardholderName) {
@@ -311,22 +457,21 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         updatedAt: now,
       })
 
-      // Send email notification if updating existing user's card
-      if (userId && input.email) {
-        try {
-          await emailService.sendEmail({
-            to: input.email,
-            subject: "Card Updated",
-            template: "cardUpdated.html",
-            fields: {
-              last4: card.last4 || "****",
-              cardBrand: card.cardBrand || "Card",
-            },
-          })
-        } catch (emailError) {
-          logger.warn("Failed to send card update email", { error: emailError })
-        }
-      }
+      // Publish CardCreatedEvent
+      await eventBus.publish(
+        CardCreatedEvent.create({
+          cardId: userCard.card_id,
+          userId: userId || 0, // Will be updated later if null
+          email: input.email,
+          cardLast4: card.last4 || "****",
+          cardBrand: card.cardBrand,
+          expirationMonth: input.expMonth,
+          expirationYear: input.expYear,
+          externalCardId: card.id,
+          paymentProvider: "Square",
+          isDefault: true,
+        })
+      )
 
       return { success: true, cardId: userCard.card_id }
     } catch (error) {

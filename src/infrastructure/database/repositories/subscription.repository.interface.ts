@@ -47,4 +47,12 @@ export interface ISubscriptionRepository extends IRepository<Subscriptions> {
    * Cancel subscription
    */
   cancel(id: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>>
+
+  /**
+   * Find subscriptions that are ready to be processed by the renewal cron
+   * Finds active subscriptions where:
+   * - next_renewal_attempt is null or <= current date
+   * - renewal_date is null or <= current date
+   */
+  findSubscriptionsForCronProcessing(date: Date, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]>
 }

@@ -12,11 +12,17 @@ import { createTransactionRepository } from '@/infrastructure/database/repositor
 import { createSubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository'
 import { createUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository'
 import { createProductRepository } from '@/infrastructure/database/repositories/product.repository'
+import { createPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository'
 import { createSquarePaymentProvider } from '@/infrastructure/payment/square/square.provider'
 import { createSquareErrorTranslator } from '@/infrastructure/payment/error/square-error-translator'
 import { createMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler'
 import { createSendGridEmailService } from '@/infrastructure/email/sendgrid/sendgrid.service'
 import { createUserApiClient } from '@/infrastructure/external-api/user-api/user-api.client'
+import { InMemoryEventBus } from '@/infrastructure/events/in-memory-event-bus'
+import { EmailNotificationHandler } from '@/application/event-handlers/email-notification.handler'
+import { TransactionLoggingHandler } from '@/application/event-handlers/transaction-logging.handler'
+import { PremiumActivationHandler } from '@/application/event-handlers/premium-activation.handler'
+import { PremiumDeactivationHandler } from '@/application/event-handlers/premium-deactivation.handler'
 import { CreatePaymentUseCase } from '@/use-cases/payment/create-payment.use-case'
 import { RefundPaymentUseCase } from '@/use-cases/payment/refund-payment.use-case'
 import { CreateCardUseCase } from '@/use-cases/payment/create-card.use-case'
@@ -38,10 +44,12 @@ import { UnlockPropertyUseCase } from '@/use-cases/property/unlock-property.use-
 import type { IConfig, IConfigService } from '@/config/config.interface'
 import type { ILogger } from '@/infrastructure/logging/logger.interface'
 import type { ITransactionManager } from '@/infrastructure/database/transaction/transaction-manager.interface'
+import type { IEventBus } from '@/infrastructure/events/event-bus.interface'
 import type { ITransactionRepository } from '@/infrastructure/database/repositories/transaction.repository.interface'
 import type { ISubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository.interface'
 import type { IUserCardRepository } from '@/infrastructure/database/repositories/user-card.repository.interface'
 import type { IProductRepository } from '@/infrastructure/database/repositories/product.repository.interface'
+import type { IPurchaseRequestRepository } from '@/infrastructure/database/repositories/purchase-request.repository.interface'
 import type { IPaymentProvider } from '@/infrastructure/payment/payment-provider.interface'
 import type { IPaymentErrorTranslator } from '@/infrastructure/payment/error/payment-error-translator.interface'
 import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
@@ -80,6 +88,7 @@ export interface IContainer {
     subscription: ISubscriptionRepository
     userCard: IUserCardRepository
     product: IProductRepository
+    purchaseRequest: IPurchaseRequestRepository
   }
   services: {
     payment: IPaymentProvider
@@ -87,6 +96,7 @@ export interface IContainer {
     mjmlCompiler: IMjmlCompiler
     email: IEmailService
     userApi: IUserApiClient
+    eventBus: IEventBus
   }
   useCases: {
     // Payment use cases
@@ -140,10 +150,14 @@ export const createContainer = (): IContainer => {
     subscription: createSubscriptionRepository(db),
     userCard: createUserCardRepository(db),
     product: createProductRepository(db),
+    purchaseRequest: createPurchaseRequestRepository(db),
   }
 
   // Create services
   const mjmlCompiler = createMjmlCompiler(logger)
+
+  // Create event bus
+  const eventBus = new InMemoryEventBus(logger)
 
   const services = {
     payment: createSquarePaymentProvider(config, logger),
@@ -151,7 +165,32 @@ export const createContainer = (): IContainer => {
     mjmlCompiler,
     email: createSendGridEmailService(config, logger, mjmlCompiler),
     userApi: createUserApiClient(config, logger),
+    eventBus,
   }
+
+  // Register event handlers
+  const emailNotificationHandler = new EmailNotificationHandler(services.email, logger)
+  const transactionLoggingHandler = new TransactionLoggingHandler(repositories.transaction, logger)
+  const premiumActivationHandler = new PremiumActivationHandler(services.userApi, logger)
+  const premiumDeactivationHandler = new PremiumDeactivationHandler(services.userApi, logger)
+
+  // Subscribe handlers to events
+  eventBus.subscribe('SubscriptionCreated', emailNotificationHandler)
+  eventBus.subscribe('SubscriptionRenewed', emailNotificationHandler)
+  eventBus.subscribe('PaymentFailed', emailNotificationHandler)
+  eventBus.subscribe('SubscriptionDeactivated', emailNotificationHandler)
+  eventBus.subscribe('SubscriptionPaused', emailNotificationHandler)
+  eventBus.subscribe('SubscriptionCancelled', emailNotificationHandler)
+  eventBus.subscribe('SubscriptionDowngraded', emailNotificationHandler)
+
+  eventBus.subscribe('PaymentProcessed', transactionLoggingHandler)
+  eventBus.subscribe('PaymentFailed', transactionLoggingHandler)
+
+  eventBus.subscribe('SubscriptionCreated', premiumActivationHandler)
+  eventBus.subscribe('SubscriptionRenewed', premiumActivationHandler)
+
+  eventBus.subscribe('SubscriptionDeactivated', premiumDeactivationHandler)
+  eventBus.subscribe('SubscriptionPaused', premiumDeactivationHandler)
 
   // Create config service wrapper for use cases
   const configService: IConfigService = {
@@ -179,6 +218,7 @@ export const createContainer = (): IContainer => {
       userCardRepository: repositories.userCard,
       transactionRepository: repositories.transaction,
       config: configService,
+      eventBus: services.eventBus,
     }),
     refundPayment: new RefundPaymentUseCase({
       logger,
@@ -187,6 +227,7 @@ export const createContainer = (): IContainer => {
       transactionRepository: repositories.transaction,
       userApiClient: services.userApi,
       config: configService,
+      eventBus: services.eventBus,
     }),
     createCard: new CreateCardUseCase({
       logger,
@@ -195,6 +236,7 @@ export const createContainer = (): IContainer => {
       transactionRepository: repositories.transaction,
       subscriptionRepository: repositories.subscription,
       emailService: services.email,
+      eventBus: services.eventBus,
     }),
     getPayments: new GetPaymentsUseCase({
       logger,
@@ -219,6 +261,7 @@ export const createContainer = (): IContainer => {
       productRepository: repositories.product,
       transactionRepository: repositories.transaction,
       userCardRepository: repositories.userCard,
+      eventBus: services.eventBus,
     }),
     renewSubscription: new RenewSubscriptionUseCase({
       logger,
@@ -227,8 +270,10 @@ export const createContainer = (): IContainer => {
       subscriptionRepository: repositories.subscription,
       transactionRepository: repositories.transaction,
       userCardRepository: repositories.userCard,
+      purchaseRequestRepository: repositories.purchaseRequest,
       config: configService,
       transactionManager,
+      eventBus: services.eventBus,
     }),
     pauseSubscription: new PauseSubscriptionUseCase({
       logger,
@@ -236,6 +281,7 @@ export const createContainer = (): IContainer => {
       transactionRepository: repositories.transaction,
       emailService: services.email,
       userApiClient: services.userApi,
+      eventBus: services.eventBus,
     }),
     resumeSubscription: new ResumeSubscriptionUseCase({
       logger,
@@ -247,12 +293,14 @@ export const createContainer = (): IContainer => {
       subscriptionRepository: repositories.subscription,
       emailService: services.email,
       userApiClient: services.userApi,
+      eventBus: services.eventBus,
     }),
     markForDowngrade: new MarkForDowngradeUseCase({
       logger,
       subscriptionRepository: repositories.subscription,
       emailService: services.email,
       userApiClient: services.userApi,
+      eventBus: services.eventBus,
     }),
     updateSubscriptionFields: new UpdateSubscriptionFieldsUseCase({
       logger,
@@ -272,10 +320,14 @@ export const createContainer = (): IContainer => {
       subscriptionRepository: repositories.subscription,
       userCardRepository: repositories.userCard,
       transactionRepository: repositories.transaction,
+      purchaseRequestRepository: repositories.purchaseRequest,
+      eventBus: services.eventBus,
     }),
     deactivateSubscription: new DeactivateSubscriptionUseCase({
       logger,
       subscriptionRepository: repositories.subscription,
+      userApiClient: services.userApi,
+      eventBus: services.eventBus,
     }),
     createProduct: new CreateProductUseCase({
       logger,
@@ -289,6 +341,7 @@ export const createContainer = (): IContainer => {
       transactionRepository: repositories.transaction,
       productRepository: repositories.product,
       config: configService,
+      eventBus: services.eventBus,
     }),
   }
 

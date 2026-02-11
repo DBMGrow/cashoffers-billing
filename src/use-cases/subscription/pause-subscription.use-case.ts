@@ -3,10 +3,12 @@ import { ISubscriptionRepository } from "@/infrastructure/database/repositories/
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IPauseSubscriptionUseCase } from "./pause-subscription.use-case.interface"
 import { PauseSubscriptionInput, PauseSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { PauseSubscriptionInputSchema } from "../types/validation.schemas"
+import { SubscriptionPausedEvent } from "@/domain/events/subscription-paused.event"
 
 interface Dependencies {
   logger: ILogger
@@ -14,6 +16,7 @@ interface Dependencies {
   transactionRepository: ITransactionRepository
   emailService: IEmailService
   userApiClient: IUserApiClient
+  eventBus: IEventBus
 }
 
 /**
@@ -30,7 +33,7 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: PauseSubscriptionInput): Promise<UseCaseResult<PauseSubscriptionOutput>> {
-    const { logger, subscriptionRepository, transactionRepository, emailService, userApiClient } = this.deps
+    const { logger, subscriptionRepository, transactionRepository, userApiClient, eventBus } = this.deps
     const startTime = Date.now()
 
     try {
@@ -80,24 +83,27 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
         updatedAt: now,
       })
 
-      // Send email notification
+      // Get user email for event notification
+      let userEmail: string | undefined
       try {
         const user = await userApiClient.getUser(subscription.user_id)
-        if (user?.email) {
-          await emailService.sendEmail({
-            to: user.email,
-            subject: "Subscription Paused",
-            template: "subscriptionPaused.html",
-            fields: {
-              subscriptionName: subscription.subscription_name,
-              date: new Date().toLocaleDateString(),
-            },
-          })
-        }
-      } catch (emailError) {
-        // Don't fail if email fails
-        logger.warn("Failed to send pause email", { error: emailError })
+        userEmail = user?.email
+      } catch (error) {
+        logger.warn("Failed to fetch user email", { userId: subscription.user_id, error })
       }
+
+      // Publish SubscriptionPausedEvent (triggers email and premium deactivation)
+      await eventBus.publish(
+        SubscriptionPausedEvent.create({
+          subscriptionId: subscription.subscription_id,
+          userId: subscription.user_id,
+          email: userEmail,
+          subscriptionName: subscription.subscription_name || undefined,
+          reason: 'user_request',
+          pausedBy: 'user',
+          previousStatus: 'active',
+        })
+      )
 
       logger.info("Subscription paused successfully", {
         subscriptionId: validatedInput.subscriptionId,

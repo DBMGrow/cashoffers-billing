@@ -9,23 +9,27 @@ This is a billing and subscription management service for CashOffers, built with
 ## Development Commands
 
 ### Running the Application
+
 ```bash
 npm run dev          # Start with hot-reload using tsx --watch
 npm start            # Start without hot-reload
 ```
 
 ### Building and Testing
+
 ```bash
 npm run build        # Type-check TypeScript (no build artifacts, noEmit: true)
 npm test             # Run test suite with Vitest
 ```
 
 ### Database
+
 ```bash
 npm run codegen      # Generate Kysely types from database schema to src/lib/db.d.ts
 ```
 
 ### Email Templates
+
 ```bash
 npm run preview:emails   # Generate HTML previews of all MJML email templates
 ```
@@ -60,6 +64,7 @@ The service orchestrates complex payment workflows involving user creation, card
 ### Subscription Renewal System
 
 Subscription renewals are handled by a cron job (`src/cron/subscriptionsCron.js`) that:
+
 - Finds subscriptions due for renewal
 - Fetches user data from main API
 - Processes payment via `handlePaymentOfSubscription`
@@ -69,6 +74,7 @@ Subscription renewals are handled by a cron job (`src/cron/subscriptionsCron.js`
 - Skips inactive users
 
 Key behaviors:
+
 - Subscriptions with `cancel_on_renewal: true` are cancelled instead of renewed
 - Subscriptions with `downgrade_on_renewal: true` are downgraded
 - Failed payments trigger retry scheduling via `updateNextRenewalAttempt`
@@ -76,18 +82,11 @@ Key behaviors:
 ### Authentication & Authorization
 
 `src/middleware/authMiddleware.js` implements a capability-based permission system:
+
 - Validates requests against main API's user data
 - Supports permission strings (e.g., `"payments_create"`)
 - `allowSelf: true` option allows users to access their own data
 - Token owner vs. resource owner distinction (allows admins to act on behalf of users)
-
-### Database Models
-
-Uses Sequelize ORM with MySQL. Key models in `src/database/`:
-- **Subscription**: Core subscription data with renewal tracking
-- **UserCard**: Square card tokens and metadata
-- **Transaction**: Audit log of all payment events
-- **Product**: Product catalog
 
 ### External Dependencies
 
@@ -98,36 +97,43 @@ Uses Sequelize ORM with MySQL. Key models in `src/database/`:
 ### Module Aliases
 
 TypeScript and runtime both use `@/` alias for `src/` directory:
+
 - Import with `@/utils/foo` instead of relative paths
 - Configured in `tsconfig.json` and `vitest.config.ts`
 
 ## Key Patterns
 
 ### Error Handling
+
 - Uses `express-async-errors` for automatic async error catching
 - `CodedError` class for structured errors with error codes
 - `handleErrors` utility centralizes error responses and admin notifications
 
 ### Email Notifications
+
 All emails use HTML templates with field substitution:
+
 ```javascript
 await sendEmail({
   to: email,
   subject: "...",
   template: "subscriptionRenewal.html",
-  fields: { amount, date, subscription, lineItems }
+  fields: { amount, date, subscription, lineItems },
 })
 ```
 
 ### Transaction Logging
+
 Every payment operation logs to the Transaction table for audit trail, including failures.
 
 ### Prorated Charges
+
 When upgrading subscriptions, `checkProrated` calculates the difference between old and new subscription amounts based on time remaining in the billing period.
 
 ## Environment Configuration
 
 Required environment variables (see `.env`):
+
 - `SQUARE_ACCESS_TOKEN`, `SQUARE_ENVIRONMENT`: Square API credentials
 - `API_URL`, `API_URL_V2`, `API_MASTER_TOKEN`: Main API connection
 - `ADMIN_EMAIL`: Error notifications
@@ -139,6 +145,7 @@ Required environment variables (see `.env`):
 Tests located in `src/tests/unit/` using Vitest. Current coverage focuses on utility functions like `getHomeUptickSubscription`.
 
 To run a single test file:
+
 ```bash
 npx vitest run src/tests/unit/getHomeUptickSubscription.test.ts
 ```

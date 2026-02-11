@@ -4,14 +4,19 @@ import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
+import { IPurchaseRequestRepository } from "@/infrastructure/database/repositories/purchase-request.repository.interface"
 import { IConfigService } from "@/config/config.interface"
 import { ITransactionManager } from "@/infrastructure/database/transaction/transaction-manager.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { IRenewSubscriptionUseCase } from "./renew-subscription.use-case.interface"
 import { RenewSubscriptionInput, RenewSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { RenewSubscriptionInputSchema } from "../types/validation.schemas"
 import { v4 as uuidv4 } from "uuid"
 import { SubscriptionMapper } from "@/domain"
+import { SubscriptionRenewedEvent } from "@/domain/events/subscription-renewed.event"
+import { PaymentProcessedEvent } from "@/domain/events/payment-processed.event"
+import { PaymentFailedEvent } from "@/domain/events/payment-failed.event"
 
 interface Dependencies {
   logger: ILogger
@@ -20,8 +25,10 @@ interface Dependencies {
   subscriptionRepository: ISubscriptionRepository
   transactionRepository: ITransactionRepository
   userCardRepository: IUserCardRepository
+  purchaseRequestRepository: IPurchaseRequestRepository
   config: IConfigService
   transactionManager: ITransactionManager
+  eventBus: IEventBus
 }
 
 interface LineItem {
@@ -45,7 +52,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
   async execute(input: RenewSubscriptionInput): Promise<UseCaseResult<RenewSubscriptionOutput>> {
     const { logger } = this.deps
-    const startTime = Date.now()
+    const startTime = new Date()
+    let purchaseRequestId: number | null = null
 
     try {
       // Validate input with Zod
@@ -57,11 +65,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       }
 
       const validatedInput = validationResult.data
-      logger.info("Processing subscription renewal", {
-        subscriptionId: validatedInput.subscriptionId,
-      })
 
-      // Get subscription
+      // Get subscription first to populate purchase request data
       const subscription = await this.deps.subscriptionRepository.findById(
         validatedInput.subscriptionId
       )
@@ -69,6 +74,34 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
       }
+
+      if (!subscription.product_id) {
+        logger.error("Subscription missing product_id", { subscriptionId: validatedInput.subscriptionId })
+        return failure("Subscription has no product", "INVALID_SUBSCRIPTION")
+      }
+
+      // 0. Create PurchaseRequest for tracking (status: PENDING, type: RENEWAL, source: CRON)
+      const purchaseRequest = await this.deps.purchaseRequestRepository.create({
+        request_uuid: uuidv4(),
+        request_type: "RENEWAL",
+        source: "CRON",
+        user_id: subscription.user_id,
+        email: validatedInput.email,
+        product_id: subscription.product_id,
+        subscription_id: validatedInput.subscriptionId,
+        request_data: JSON.stringify(validatedInput),
+        status: "PENDING",
+        idempotency_key: null,
+      })
+      purchaseRequestId = purchaseRequest.request_id
+
+      logger.info("Processing subscription renewal", {
+        purchaseRequestId,
+        subscriptionId: validatedInput.subscriptionId,
+      })
+
+      // Update status to VALIDATING
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "VALIDATING")
 
       // Build line items for charges
       const lineItems: LineItem[] = [
@@ -94,6 +127,18 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           SubscriptionMapper.toDatabase(cancelledEntity) as any
         )
 
+        // Mark purchase request as completed (cancellation case - no payment)
+        await this.deps.purchaseRequestRepository.markAsCompleted(
+          purchaseRequestId,
+          {
+            subscriptionId: validatedInput.subscriptionId,
+            transactionId: null,
+            amountCharged: 0,
+            cardId: null,
+          },
+          startTime
+        )
+
         logger.info("Subscription cancelled on renewal", {
           subscriptionId: validatedInput.subscriptionId,
         })
@@ -106,20 +151,32 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         })
       }
 
+      // Update status to PROCESSING_PAYMENT
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
+
       // Process payment if amount > 0
+      let paymentId: string | null = null
+      let cardId: string | null = null
       if (totalAmount > 0) {
-        await this.processRenewalPayment(
+        const paymentResult = await this.processRenewalPayment(
           subscription.user_id!,
           validatedInput.email,
           totalAmount,
           subscription.subscription_name || "Subscription",
           lineItems
         )
+        paymentId = paymentResult.paymentId
+        cardId = paymentResult.cardId
       }
+
+      // Update status to CREATING_SUBSCRIPTION (updating renewal)
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
 
       // Use domain entity to handle renewal logic
       const renewedEntity = subscriptionEntity.renew()
       const newRenewalDate = renewedEntity.renewalDate
+
+      let transactionId: number | null = null
 
       // Update subscription and log transaction atomically
       await this.deps.transactionManager.runInTransaction(async (trx) => {
@@ -132,37 +189,83 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
         // Log transaction
         const now = new Date()
-        await this.deps.transactionRepository.create({
+        const transaction = await this.deps.transactionRepository.create({
           user_id: subscription.user_id!,
           amount: totalAmount,
           type: "subscription",
           memo: subscription.subscription_name || "Subscription renewal",
           status: "completed",
+          square_transaction_id: paymentId || undefined,
           data: JSON.stringify({ renewalDate: newRenewalDate }),
           createdAt: now,
           updatedAt: now,
         }, trx)
+        transactionId = transaction.transaction_id
       })
 
-      // Send renewal email (outside transaction - external service)
-      await this.sendRenewalEmail(
-        validatedInput.email,
-        subscription.subscription_name || "Subscription",
-        totalAmount,
-        newRenewalDate,
-        lineItems
+      // Update status to FINALIZING
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")
+
+      // Publish domain events for subscription renewal
+      await this.deps.eventBus.publish(
+        SubscriptionRenewedEvent.create({
+          subscriptionId: validatedInput.subscriptionId,
+          userId: subscription.user_id!,
+          email: validatedInput.email,
+          productId: subscription.product_id,
+          productName: subscription.subscription_name || "Subscription",
+          amount: totalAmount,
+          transactionId: transactionId || undefined,
+          cardId: cardId || undefined,
+          nextRenewalDate: newRenewalDate,
+        })
+      )
+
+      // Publish payment processed event if payment was made
+      if (paymentId && totalAmount > 0) {
+        await this.deps.eventBus.publish(
+          PaymentProcessedEvent.create({
+            transactionId: transactionId!,
+            externalTransactionId: paymentId,
+            userId: subscription.user_id!,
+            email: validatedInput.email,
+            amount: totalAmount,
+            currency: "USD",
+            cardId: cardId || undefined,
+            paymentProvider: "Square",
+            subscriptionId: validatedInput.subscriptionId,
+            productId: subscription.product_id,
+            paymentType: "renewal",
+            lineItems: lineItems.map((item) => ({
+              description: item.item,
+              amount: item.price,
+            })),
+          })
+        )
+      }
+
+      // Mark purchase request as completed
+      await this.deps.purchaseRequestRepository.markAsCompleted(
+        purchaseRequestId,
+        {
+          subscriptionId: validatedInput.subscriptionId,
+          transactionId,
+          amountCharged: totalAmount,
+          cardId,
+        },
+        startTime
       )
 
       logger.info("Subscription renewal completed", {
         subscriptionId: validatedInput.subscriptionId,
         amount: totalAmount,
         nextRenewalDate: newRenewalDate,
-        duration: Date.now() - startTime,
+        duration: new Date().getTime() - startTime.getTime(),
       })
 
       return success({
         subscriptionId: validatedInput.subscriptionId,
-        transactionId: "", // Would be set from transaction creation
+        transactionId: transactionId ? String(transactionId) : "",
         nextRenewalDate: newRenewalDate,
         amount: totalAmount,
       })
@@ -171,10 +274,23 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       logger.error("Subscription renewal error", {
         error: errorMessage,
         subscriptionId: input.subscriptionId,
-        duration: Date.now() - startTime,
+        duration: new Date().getTime() - startTime.getTime(),
       })
 
-      // Handle renewal failure
+      // Mark purchase request as failed if it was created
+      if (purchaseRequestId) {
+        try {
+          await this.deps.purchaseRequestRepository.markAsFailed(
+            purchaseRequestId,
+            errorMessage,
+            "RENEWAL_ERROR"
+          )
+        } catch (updateError) {
+          logger.error("Failed to update purchase request status", { updateError })
+        }
+      }
+
+      // Handle renewal failure (keeps existing retry logic for backward compatibility)
       await this.handleRenewalFailure(input.subscriptionId, input.email, errorMessage)
 
       return failure(errorMessage, "RENEWAL_ERROR")
@@ -187,7 +303,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     amount: number,
     subscriptionName: string,
     lineItems: LineItem[]
-  ): Promise<void> {
+  ): Promise<{ paymentId: string; cardId: string }> {
     const { logger, paymentProvider, userCardRepository } = this.deps
 
     // Get user's card
@@ -222,59 +338,25 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       amount,
       paymentId: payment.id,
     })
+
+    return {
+      paymentId: payment.id,
+      cardId: userCard.card_id,
+    }
   }
 
-
-  private async sendRenewalEmail(
-    email: string,
-    subscriptionName: string,
-    amount: number,
-    renewalDate: Date,
-    lineItems: LineItem[]
-  ): Promise<void> {
-    const lineItemsHtml = lineItems
-      .map((item) => `<li>${item.item}: $${(item.price / 100).toFixed(2)}</li>`)
-      .join("")
-
-    await this.deps.emailService.sendEmail({
-      to: email,
-      subject: "Subscription Renewal",
-      template: "subscriptionRenewal.html",
-      fields: {
-        amount: `$${(amount / 100).toFixed(2)}`,
-        date: renewalDate.toLocaleDateString(),
-        subscription: subscriptionName,
-        lineItems: `<ul>${lineItemsHtml}</ul>`,
-      },
-    })
-  }
 
   private async handleRenewalFailure(
     subscriptionId: number,
     email: string,
     error: string
   ): Promise<void> {
-    const { logger, emailService, subscriptionRepository, transactionRepository, config } =
-      this.deps
+    const { logger, eventBus, subscriptionRepository, transactionRepository } = this.deps
 
     try {
       // Get subscription for details
       const subscription = await subscriptionRepository.findById(subscriptionId)
       if (!subscription) return
-
-      // Send failure email to user
-      await emailService.sendEmail({
-        to: email,
-        subject: "Subscription Renewal Failed",
-        template: "subscriptionRenewalFailed.html",
-        fields: {
-          subscription: subscription.subscription_name || "Subscription",
-          date: new Date().toLocaleDateString(),
-          link: config.get("FRONTEND_URL")
-            ? `${config.get("FRONTEND_URL")}/manage?email=${email}`
-            : "",
-        },
-      })
 
       // Update next renewal attempt with escalating retry logic
       const nextAttempt = this.calculateNextRetryAttempt(subscription.next_renewal_attempt)
@@ -295,6 +377,24 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         createdAt: now,
         updatedAt: now,
       })
+
+      // Publish PaymentFailedEvent (this will trigger email notification)
+      await eventBus.publish(
+        PaymentFailedEvent.create({
+          userId: subscription.user_id!,
+          email,
+          amount: subscription.amount || 0,
+          currency: "USD",
+          paymentProvider: "Square",
+          subscriptionId,
+          productId: subscription.product_id || undefined,
+          paymentType: "renewal",
+          errorMessage: error,
+          errorCode: "RENEWAL_ERROR",
+          willRetry: true,
+          nextRetryDate: nextAttempt,
+        })
+      )
 
       logger.info("Renewal failure handled", {
         subscriptionId,

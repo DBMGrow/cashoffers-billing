@@ -6,11 +6,14 @@ import { ISubscriptionRepository } from "@/infrastructure/database/repositories/
 import { IProductRepository } from "@/infrastructure/database/repositories/product.repository.interface"
 import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
 import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { ICreateSubscriptionUseCase } from "./create-subscription.use-case.interface"
 import { CreateSubscriptionInput, CreateSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CreateSubscriptionInputSchema } from "../types/validation.schemas"
 import { v4 as uuidv4 } from "uuid"
+import { SubscriptionCreatedEvent } from "@/domain/events/subscription-created.event"
+import { PaymentProcessedEvent } from "@/domain/events/payment-processed.event"
 
 interface Dependencies {
   logger: ILogger
@@ -21,6 +24,7 @@ interface Dependencies {
   productRepository: IProductRepository
   transactionRepository: ITransactionRepository
   userCardRepository: IUserCardRepository
+  eventBus: IEventBus
 }
 
 /**
@@ -78,21 +82,6 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
         return failure("Product configuration invalid: missing duration", "INVALID_PRODUCT_CONFIG")
       }
 
-      // Determine if this is a premium subscription
-      const isPremium = product.product_name !== "KW Subscribe"
-
-      // Activate user via external API
-      try {
-        await this.deps.userApiClient.updateUser(validatedInput.userId, {
-          active: true,
-          is_premium: isPremium,
-        })
-        logger.info("User activated", { userId: validatedInput.userId, isPremium })
-      } catch (error) {
-        logger.error("Failed to activate user", { error, userId: validatedInput.userId })
-        return failure("Failed to activate user", "USER_ACTIVATION_FAILED")
-      }
-
       // Create subscription record
       const now = new Date()
       const renewalDate = this.calculateRenewalDate(productData.duration)
@@ -121,14 +110,21 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
         validatedInput.userAlreadyExists || validatedInput.waiveSignupFee ? 0 : product.price
       const totalAmount = (productData.renewal_cost ?? 0) + signupFee
 
+      let paymentId: string | undefined
+      let cardId: string | undefined
+      let transactionId: number | undefined
+
       if (totalAmount > 0) {
-        await this.processInitialPayment(
+        const paymentResult = await this.processInitialPayment(
           validatedInput.userId,
           validatedInput.email,
           totalAmount,
           product.product_name,
           signupFee
         )
+        paymentId = paymentResult.paymentId
+        cardId = paymentResult.cardId
+        transactionId = paymentResult.transactionId
       }
 
       // Log subscription creation transaction
@@ -142,13 +138,45 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
         updatedAt: now,
       })
 
-      // Send creation email
-      await this.sendCreationEmail(
-        validatedInput.email,
-        product.product_name,
-        totalAmount,
-        signupFee
+      // Publish domain events (this will trigger email, premium activation, etc.)
+      await this.deps.eventBus.publish(
+        SubscriptionCreatedEvent.create({
+          subscriptionId: subscription.subscription_id,
+          userId: validatedInput.userId,
+          email: validatedInput.email,
+          productId: typeof productId === "number" ? productId : parseInt(String(productId), 10),
+          productName: product.product_name,
+          amount: productData.renewal_cost ?? 0,
+          initialChargeAmount: totalAmount,
+          transactionId,
+          cardId,
+          nextRenewalDate: renewalDate,
+          source: "API",
+        })
       )
+
+      // Publish payment processed event if payment was made
+      if (paymentId && totalAmount > 0) {
+        await this.deps.eventBus.publish(
+          PaymentProcessedEvent.create({
+            transactionId: transactionId!,
+            externalTransactionId: paymentId,
+            userId: validatedInput.userId,
+            email: validatedInput.email,
+            amount: totalAmount,
+            currency: "USD",
+            cardId,
+            paymentProvider: "Square",
+            subscriptionId: subscription.subscription_id,
+            productId: typeof productId === "number" ? productId : parseInt(String(productId), 10),
+            paymentType: "subscription",
+            lineItems: [
+              ...(signupFee > 0 ? [{ description: "Signup fee", amount: signupFee }] : []),
+              { description: "First period", amount: productData.renewal_cost ?? 0 },
+            ],
+          })
+        )
+      }
 
       logger.info("Subscription creation completed", {
         subscriptionId: subscription.subscription_id,
@@ -204,7 +232,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
     totalAmount: number,
     subscriptionName: string,
     signupFee: number
-  ): Promise<void> {
+  ): Promise<{ paymentId: string; cardId: string; transactionId: number }> {
     const { logger, paymentProvider, userCardRepository, transactionRepository } = this.deps
 
     // Get user's card
@@ -236,7 +264,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
 
     // Log payment transaction
     const now = new Date()
-    await transactionRepository.create({
+    const transaction = await transactionRepository.create({
       user_id: userId,
       amount: totalAmount,
       type: "payment",
@@ -253,35 +281,12 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
       amount: totalAmount,
       paymentId: payment.id,
     })
-  }
 
-  private async sendCreationEmail(
-    email: string,
-    subscriptionName: string,
-    totalAmount: number,
-    signupFee: number
-  ): Promise<void> {
-    const lineItems: string[] = []
-
-    if (signupFee > 0) {
-      lineItems.push(`Signup Fee: $${(signupFee / 100).toFixed(2)}`)
+    return {
+      paymentId: payment.id,
+      cardId: userCard.card_id,
+      transactionId: transaction.transaction_id,
     }
-
-    lineItems.push(`${subscriptionName}: $${((totalAmount - signupFee) / 100).toFixed(2)}`)
-
-    const lineItemsHtml = lineItems.map((item) => `<li>${item}</li>`).join("")
-
-    await this.deps.emailService.sendEmail({
-      to: email,
-      subject: "Subscription Created",
-      template: "subscriptionCreated.html",
-      fields: {
-        amount: `$${(totalAmount / 100).toFixed(2)}`,
-        date: new Date().toLocaleDateString(),
-        subscription: subscriptionName,
-        lineItems: lineItemsHtml,
-      },
-    })
   }
 
   private serializeProduct(product: any): string {

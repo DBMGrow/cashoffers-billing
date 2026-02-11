@@ -2,16 +2,19 @@ import { ILogger } from "@/infrastructure/logging/logger.interface"
 import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
 import { IEmailService } from "@/infrastructure/email/email-service.interface"
 import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@/infrastructure/events/event-bus.interface"
 import { ICancelOnRenewalUseCase } from "./cancel-on-renewal.use-case.interface"
 import { CancelOnRenewalInput, CancelOnRenewalOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CancelOnRenewalInputSchema } from "../types/validation.schemas"
+import { SubscriptionCancelledEvent } from "@/domain/events/subscription-cancelled.event"
 
 interface Dependencies {
   logger: ILogger
   subscriptionRepository: ISubscriptionRepository
   emailService: IEmailService
   userApiClient: IUserApiClient
+  eventBus: IEventBus
 }
 
 /**
@@ -27,7 +30,7 @@ export class CancelOnRenewalUseCase implements ICancelOnRenewalUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: CancelOnRenewalInput): Promise<UseCaseResult<CancelOnRenewalOutput>> {
-    const { logger, subscriptionRepository, emailService, userApiClient } = this.deps
+    const { logger, subscriptionRepository, userApiClient, eventBus } = this.deps
     const startTime = Date.now()
 
     try {
@@ -59,26 +62,30 @@ export class CancelOnRenewalUseCase implements ICancelOnRenewalUseCase {
         updatedAt: now,
       })
 
-      // Send email notification when marking for cancellation
+      // Publish SubscriptionCancelledEvent when marking for cancellation
       if (validatedInput.cancel) {
+        // Get user email for event notification
+        let userEmail: string | undefined
         try {
           const user = await userApiClient.getUser(subscription.user_id)
-          if (user?.email) {
-            // Send to admin
-            await emailService.sendEmail({
-              to: "annette@remrktco.com",
-              subject: "User Subscription Cancellation",
-              template: "subscriptionCancelled.html",
-              fields: {
-                name: user?.first_name || user?.last_name || "Unknown",
-                email: user.email,
-              },
-            })
-          }
-        } catch (emailError) {
-          // Don't fail if email fails
-          logger.warn("Failed to send cancellation email", { error: emailError })
+          userEmail = user?.email
+        } catch (error) {
+          logger.warn("Failed to fetch user email", { userId: subscription.user_id, error })
         }
+
+        // Publish event (triggers email notifications to user and admin)
+        await eventBus.publish(
+          SubscriptionCancelledEvent.create({
+            subscriptionId: subscription.subscription_id,
+            userId: subscription.user_id,
+            email: userEmail,
+            subscriptionName: subscription.subscription_name || undefined,
+            reason: 'user_request',
+            cancelledBy: 'user',
+            effectiveDate: subscription.renewal_date ? new Date(subscription.renewal_date) : undefined,
+            cancelOnRenewal: true,
+          })
+        )
       }
 
       logger.info("Cancel on renewal flag updated successfully", {
