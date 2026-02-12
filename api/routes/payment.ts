@@ -1,8 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
-import type { HonoVariables } from "@/types/hono"
-import { authMiddleware } from "@/middleware/authMiddleware"
-import { userCan } from "@/utils/userCan"
-import { getContainer } from "@/container"
+import type { HonoVariables } from "@api/types/hono"
+import { authMiddleware } from "@api/middleware/authMiddleware"
+import { userCan } from "@api/utils/userCan"
+import { getContainer } from "@api/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 import {
   GetPaymentsRoute,

@@ -1,22 +1,22 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { IPaymentProvider } from "@/infrastructure/payment/payment-provider.interface"
-import { IEmailService } from "@/infrastructure/email/email-service.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
-import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
-import { IUserCardRepository } from "@/infrastructure/database/repositories/user-card.repository.interface"
-import { IPurchaseRequestRepository } from "@/infrastructure/database/repositories/purchase-request.repository.interface"
-import { IConfigService } from "@/config/config.interface"
-import { ITransactionManager } from "@/infrastructure/database/transaction/transaction-manager.interface"
-import { IEventBus } from "@/infrastructure/events/event-bus.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
+import { IEmailService } from "@api/infrastructure/email/email-service.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import { IUserCardRepository } from "@api/infrastructure/database/repositories/user-card.repository.interface"
+import { IPurchaseRequestRepository } from "@api/infrastructure/database/repositories/purchase-request.repository.interface"
+import { IConfigService } from "@api/config/config.interface"
+import { ITransactionManager } from "@api/infrastructure/database/transaction/transaction-manager.interface"
+import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IRenewSubscriptionUseCase } from "./renew-subscription.use-case.interface"
 import { RenewSubscriptionInput, RenewSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { RenewSubscriptionInputSchema } from "../types/validation.schemas"
 import { v4 as uuidv4 } from "uuid"
-import { SubscriptionMapper } from "@/domain"
-import { SubscriptionRenewedEvent } from "@/domain/events/subscription-renewed.event"
-import { PaymentProcessedEvent } from "@/domain/events/payment-processed.event"
-import { PaymentFailedEvent } from "@/domain/events/payment-failed.event"
+import { SubscriptionMapper } from "@api/domain"
+import { SubscriptionRenewedEvent } from "@api/domain/events/subscription-renewed.event"
+import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
+import { PaymentFailedEvent } from "@api/domain/events/payment-failed.event"
 
 interface Dependencies {
   logger: ILogger
@@ -330,7 +330,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     const environment = (userCard.square_environment || subscription?.square_environment || 'production') as 'production' | 'sandbox'
 
     // Create PaymentContext with testMode based on environment
-    const context: import('@/config/config.interface').PaymentContext = {
+    const context: import('@api/config/config.interface').PaymentContext = {
       testMode: environment === 'sandbox',
       source: 'CRON',
       userId,

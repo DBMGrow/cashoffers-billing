@@ -3,7 +3,7 @@
  * These types define the inputs and outputs for property use cases
  */
 
-import type { PaymentContext } from '@/config/config.interface'
+import type { PaymentContext } from '@api/config/config.interface'
 
 /**
  * Input for unlocking a property

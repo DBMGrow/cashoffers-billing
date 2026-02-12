@@ -1,5 +1,5 @@
-import type { PaymentContext } from '@/config/config.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
+import type { PaymentContext } from '@api/config/config.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 import type {
   IPaymentProvider,
   CreatePaymentRequest,

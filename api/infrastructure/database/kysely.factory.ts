@@ -1,7 +1,7 @@
-import { DB } from '@/lib/db'
+import { DB } from '@api/lib/db'
 import { Kysely, MysqlDialect } from 'kysely'
 import { createPool } from 'mysql2'
-import type { IConfig } from '@/config/config.interface'
+import type { IConfig } from '@api/config/config.interface'
 
 /**
  * Create a Kysely database instance

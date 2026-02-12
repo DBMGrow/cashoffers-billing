@@ -1,7 +1,7 @@
 import mjml2html from "mjml"
 import { promises as fs } from "fs"
 import { IMjmlCompiler, MjmlCompilationResult } from "./mjml-compiler.interface"
-import { ILogger } from "@/infrastructure/logging/logger.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
 
 /**
  * MJML Compiler Implementation

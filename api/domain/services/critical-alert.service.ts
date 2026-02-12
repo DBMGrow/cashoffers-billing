@@ -1,6 +1,6 @@
-import type { IEmailService } from '@/infrastructure/email/email-service.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
-import type { IConfig } from '@/config/config.interface'
+import type { IEmailService } from '@api/infrastructure/email/email-service.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import type { IConfig } from '@api/config/config.interface'
 
 /**
  * Critical Alert Service

@@ -1,5 +1,5 @@
 import type { Context as HonoContext } from 'hono'
-import type { PaymentContext } from '@/config/config.interface'
+import type { PaymentContext } from '@api/config/config.interface'
 
 /**
  * Test Mode Detector Interface

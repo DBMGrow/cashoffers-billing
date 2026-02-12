@@ -1,5 +1,5 @@
 import fetch from "node-fetch"
-import { getContainer } from "@/container"
+import { getContainer } from "@api/container"
 
 export default async function subscriptionsCron() {
   // Get container and dependencies

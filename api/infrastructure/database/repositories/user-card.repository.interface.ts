@@ -1,6 +1,6 @@
 import { Selectable } from 'kysely'
 import { IRepository } from './repository.interface'
-import type { UserCards } from '@/lib/db'
+import type { UserCards } from '@api/lib/db'
 
 /**
  * UserCard Repository Interface

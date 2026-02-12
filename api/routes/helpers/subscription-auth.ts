@@ -1,6 +1,6 @@
 import { Context } from "hono"
-import type { HonoVariables } from "@/types/hono"
-import { getContainer } from "@/container"
+import type { HonoVariables } from "@api/types/hono"
+import { getContainer } from "@api/container"
 
 /**
  * Check if user is authorized to perform subscription operations

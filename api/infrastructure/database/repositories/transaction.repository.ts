@@ -1,5 +1,5 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, Transactions } from '@/lib/db'
+import type { DB, Transactions } from '@api/lib/db'
 import { ITransactionRepository } from './transaction.repository.interface'
 
 /**

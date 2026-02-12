@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
-import type { HonoVariables } from "@/types/hono"
-import { getContainer } from "@/container"
-import { authMiddleware } from "@/middleware/authMiddleware"
+import type { HonoVariables } from "@api/types/hono"
+import { getContainer } from "@api/container"
+import { authMiddleware } from "@api/middleware/authMiddleware"
 import {
   GetProductRoute,
   GetAllProductsRoute,

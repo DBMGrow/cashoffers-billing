@@ -1,8 +1,9 @@
 import type { MiddlewareHandler } from "hono"
-import { getUserFromToken, getUserById } from "@/utils/getUserFromToken"
-import { TestModeDetector } from "@/infrastructure/payment/test-mode-detector"
-import { TestModeAuthorizer } from "@/infrastructure/payment/test-mode-authorizer"
-import { getLoggingContext } from "@/infrastructure/logging/logging-context-store"
+import { getCookie } from "hono/cookie"
+import { getUserFromToken, getUserById } from "@api/utils/getUserFromToken"
+import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
+import { TestModeAuthorizer } from "@api/infrastructure/payment/test-mode-authorizer"
+import { getLoggingContext } from "@api/infrastructure/logging/logging-context-store"
 
 // Initialize test mode services (singleton instances)
 const testModeDetector = new TestModeDetector()
@@ -35,8 +36,9 @@ export function authMiddleware(
     : null
 
   return async (c, next) => {
-    // Extract API token from headers
-    const apiToken = c.req.header("x-api-token")
+    // Extract API token from headers or cookies
+    // Priority: header first, then cookie
+    const apiToken = c.req.header("x-api-token") || getCookie(c, "_api_token")
 
     if (!apiToken) {
       return c.json({

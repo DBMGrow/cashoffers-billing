@@ -1,7 +1,7 @@
 import sgMail from '@sendgrid/mail'
-import type { IConfig } from '@/config/config.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
-import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
+import type { IConfig } from '@api/config/config.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import type { IMjmlCompiler } from '@api/infrastructure/email/mjml/mjml-compiler.interface'
 import type {
   IEmailService,
   SendEmailRequest,

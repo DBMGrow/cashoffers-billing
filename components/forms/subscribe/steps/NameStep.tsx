@@ -1,0 +1,60 @@
+"use client"
+
+import { useState } from "react"
+import { UseFormReturn } from "react-hook-form"
+import type { SubscribeFormData } from "@/types/forms"
+import Input from "@/components/UI/SignupForm/Input"
+import getUniqueSlug from "@/components/utils/getUniqueSlug"
+
+interface NameStepProps {
+  form: UseFormReturn<SubscribeFormData>
+  onNext: () => void
+  onBack: () => void
+  setAllowReset: (allow: boolean) => void
+}
+
+export default function NameStep({ form, onNext, onBack, setAllowReset }: NameStepProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const name = form.watch("name")
+  const isDisabled = !name || name.length < 2
+
+  const handleSubmit = async () => {
+    if (isDisabled) return
+
+    const isInvestor = form.getValues("isInvestor")
+    const product = form.getValues("product")
+
+    // If investor or free plan, skip slug generation
+    if (isInvestor || product === "free" || product === "freeinvestor") {
+      onNext()
+      return
+    }
+
+    setIsLoading(true)
+    setAllowReset(false)
+
+    try {
+      const uniqueSlug = await getUniqueSlug(name)
+      if (uniqueSlug) {
+        form.setValue("slug", uniqueSlug)
+      }
+    } catch (error) {
+      console.error("Error getting unique slug:", error)
+    } finally {
+      setIsLoading(false)
+      setAllowReset(true)
+      onNext()
+    }
+  }
+
+  return (
+    <Input
+      placeholder="John Doe"
+      value={name}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name", e.target.value)}
+      isDisabled={isDisabled}
+      isLoading={isLoading}
+      handleSubmit={handleSubmit}
+    />
+  )
+}

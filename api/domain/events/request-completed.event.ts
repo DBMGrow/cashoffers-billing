@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
-import type { LogQueueEntry } from '@/infrastructure/logging/logging-context.interface'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
+import type { LogQueueEntry } from '@api/infrastructure/logging/logging-context.interface'
 
 /**
  * Event emitted when an HTTP request completes.

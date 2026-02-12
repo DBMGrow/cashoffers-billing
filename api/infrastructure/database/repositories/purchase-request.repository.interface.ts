@@ -1,7 +1,7 @@
 import { Selectable } from 'kysely'
-import { PurchaseRequests } from '@/lib/db'
+import { PurchaseRequests } from '@api/lib/db'
 import { IRepository, TransactionContext } from './repository.interface'
-import { PurchaseRequestResults } from '@/domain/entities/purchase-request'
+import { PurchaseRequestResults } from '@api/domain/entities/purchase-request'
 
 /**
  * PurchaseRequest Repository Interface

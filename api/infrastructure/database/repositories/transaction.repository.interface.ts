@@ -1,6 +1,6 @@
 import { Selectable } from 'kysely'
 import { IRepository } from './repository.interface'
-import type { Transactions } from '@/lib/db'
+import type { Transactions } from '@api/lib/db'
 
 /**
  * Transaction Repository Interface

@@ -3,7 +3,7 @@
  * Define types for c.get() and c.set() to enable TypeScript inference
  */
 
-import type { PaymentContext } from '@/config/config.interface'
+import type { PaymentContext } from '@api/config/config.interface'
 
 export type HonoVariables = {
   user: any // User data from auth middleware

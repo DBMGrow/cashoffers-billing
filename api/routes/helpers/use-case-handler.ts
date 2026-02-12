@@ -1,5 +1,5 @@
 import { Context } from "hono"
-import { UseCaseResult } from "@/use-cases/base/use-case.interface"
+import { UseCaseResult } from "@api/use-cases/base/use-case.interface"
 
 /**
  * Execute a use case and handle the response consistently

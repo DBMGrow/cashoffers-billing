@@ -1,8 +1,8 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, PurchaseRequests } from '@/lib/db'
+import type { DB, PurchaseRequests } from '@api/lib/db'
 import { IPurchaseRequestRepository } from './purchase-request.repository.interface'
 import { TransactionContext } from './repository.interface'
-import { PurchaseRequestResults } from '@/domain/entities/purchase-request'
+import { PurchaseRequestResults } from '@api/domain/entities/purchase-request'
 
 /**
  * PurchaseRequest Repository Implementation

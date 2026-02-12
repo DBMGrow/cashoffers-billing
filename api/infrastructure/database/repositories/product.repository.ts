@@ -1,5 +1,5 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, Products } from '@/lib/db'
+import type { DB, Products } from '@api/lib/db'
 import { IProductRepository } from './product.repository.interface'
 
 /**

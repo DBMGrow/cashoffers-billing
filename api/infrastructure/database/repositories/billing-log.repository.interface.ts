@@ -1,6 +1,6 @@
 import { Selectable } from 'kysely'
 import { IRepository } from './repository.interface'
-import type { BillingLogs } from '@/lib/db'
+import type { BillingLogs } from '@api/lib/db'
 
 /**
  * Billing Log Repository Interface

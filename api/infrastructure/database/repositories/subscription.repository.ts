@@ -1,5 +1,5 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, Subscriptions } from '@/lib/db'
+import type { DB, Subscriptions } from '@api/lib/db'
 import { ISubscriptionRepository } from './subscription.repository.interface'
 import { TransactionContext } from './repository.interface'
 

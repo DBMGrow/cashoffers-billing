@@ -1,5 +1,5 @@
 import type { IEventHandler, IDomainEvent } from './event-bus.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 
 /**
  * Abstract base class for event handlers.

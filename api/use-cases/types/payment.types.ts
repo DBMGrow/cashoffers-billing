@@ -1,4 +1,4 @@
-import type { PaymentContext } from '@/config/config.interface'
+import type { PaymentContext } from '@api/config/config.interface'
 
 /**
  * Payment-related DTOs (Data Transfer Objects)

@@ -1,6 +1,6 @@
 import "dotenv/config"
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import getHomeUptickSubscription from "@/utils/getHomeUptickSubscription"
+import getHomeUptickSubscription from "@api/utils/getHomeUptickSubscription"
 
 describe("getHomeUptickSubscription user 94", () => {
   // reset mocks

@@ -1,6 +1,6 @@
-import type { ITransactionRepository } from '@/infrastructure/database/repositories/transaction.repository.interface'
-import type { ISubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository.interface'
-import type { IBillingLogRepository } from '@/infrastructure/database/repositories/billing-log.repository.interface'
+import type { ITransactionRepository } from '@api/infrastructure/database/repositories/transaction.repository.interface'
+import type { ISubscriptionRepository } from '@api/infrastructure/database/repositories/subscription.repository.interface'
+import type { IBillingLogRepository } from '@api/infrastructure/database/repositories/billing-log.repository.interface'
 
 /**
  * Health Metrics Service

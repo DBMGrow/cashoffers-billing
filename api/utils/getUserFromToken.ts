@@ -1,4 +1,4 @@
-import { db } from "@/lib/database"
+import { db } from "@api/lib/database"
 
 /**
  * User data with capabilities from database

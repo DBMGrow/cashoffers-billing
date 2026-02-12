@@ -1,8 +1,8 @@
-import { BaseEventHandler } from '@/infrastructure/events/base-event-handler'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
-import type { RequestCompletedEvent } from '@/domain/events/request-completed.event'
-import type { DatabaseLogger } from '@/infrastructure/logging/database.logger'
+import { BaseEventHandler } from '@api/infrastructure/events/base-event-handler'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import type { RequestCompletedEvent } from '@api/domain/events/request-completed.event'
+import type { DatabaseLogger } from '@api/infrastructure/logging/database.logger'
 
 /**
  * Handles flushing queued logs to database after request completion.

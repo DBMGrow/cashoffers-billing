@@ -1,5 +1,5 @@
 import { Kysely } from "kysely"
-import { DB } from "@/lib/db"
+import { DB } from "@api/lib/db"
 
 /**
  * Transaction Manager Interface

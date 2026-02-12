@@ -1,9 +1,9 @@
-import { BaseEventHandler } from '@/infrastructure/events/base-event-handler'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
-import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
-import type { SubscriptionCreatedEvent } from '@/domain/events/subscription-created.event'
-import type { SubscriptionRenewedEvent } from '@/domain/events/subscription-renewed.event'
+import { BaseEventHandler } from '@api/infrastructure/events/base-event-handler'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
+import type { IUserApiClient } from '@api/infrastructure/external-api/user-api.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import type { SubscriptionCreatedEvent } from '@api/domain/events/subscription-created.event'
+import type { SubscriptionRenewedEvent } from '@api/domain/events/subscription-renewed.event'
 
 /**
  * Handles activating user premium status when subscriptions are created or renewed.

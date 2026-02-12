@@ -1,6 +1,6 @@
 import { Selectable } from 'kysely'
 import { IRepository, TransactionContext } from './repository.interface'
-import type { Subscriptions } from '@/lib/db'
+import type { Subscriptions } from '@api/lib/db'
 
 /**
  * Subscription Repository Interface

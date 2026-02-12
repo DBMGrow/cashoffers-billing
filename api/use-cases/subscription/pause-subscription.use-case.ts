@@ -1,14 +1,14 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
-import { ITransactionRepository } from "@/infrastructure/database/repositories/transaction.repository.interface"
-import { IEmailService } from "@/infrastructure/email/email-service.interface"
-import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
-import { IEventBus } from "@/infrastructure/events/event-bus.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import { IEmailService } from "@api/infrastructure/email/email-service.interface"
+import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IPauseSubscriptionUseCase } from "./pause-subscription.use-case.interface"
 import { PauseSubscriptionInput, PauseSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { PauseSubscriptionInputSchema } from "../types/validation.schemas"
-import { SubscriptionPausedEvent } from "@/domain/events/subscription-paused.event"
+import { SubscriptionPausedEvent } from "@api/domain/events/subscription-paused.event"
 
 interface Dependencies {
   logger: ILogger

@@ -1,5 +1,5 @@
 import { ILogger } from './logger.interface'
-import { IBillingLogRepository } from '@/infrastructure/database/repositories/billing-log.repository.interface'
+import { IBillingLogRepository } from '@api/infrastructure/database/repositories/billing-log.repository.interface'
 import { getLoggingContext } from './logging-context-store'
 import { LogQueueEntry, LogContextType } from './logging-context.interface'
 

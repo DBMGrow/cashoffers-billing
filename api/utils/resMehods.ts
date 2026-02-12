@@ -1,4 +1,4 @@
-import { db } from "@/lib/database"
+import { db } from "@api/lib/database"
 
 export type LogMessage = string | object | null | undefined
 

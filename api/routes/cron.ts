@@ -1,10 +1,10 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
-import type { HonoVariables } from "@/types/hono"
-import subscriptionsCron from "@/cron/subscriptionsCron"
+import type { HonoVariables } from "@api/types/hono"
+import subscriptionsCron from "@api/cron/subscriptionsCron"
 import { RunCronRoute, SendHealthReportRoute } from "./schemas/cron.schemas"
-import { getContainer } from "@/container"
+import { getContainer } from "@api/container"
 // TODO: suspendSubscriptionsCron doesn't exist yet - need to implement or remove
-// import suspendSubscriptionsCron from "@/cron/suspendSubscriptionsCron"
+// import suspendSubscriptionsCron from "@api/cron/suspendSubscriptionsCron"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 

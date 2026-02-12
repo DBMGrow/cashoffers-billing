@@ -10,8 +10,8 @@
 
 import { promises as fs } from "fs"
 import path from "path"
-import { MjmlCompiler } from "@/infrastructure/email/mjml/mjml-compiler"
-import { ILogger } from "@/infrastructure/logging/logger.interface"
+import { MjmlCompiler } from "@api/infrastructure/email/mjml/mjml-compiler"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { emailPreviews } from "./email-preview-data"
 
 // Simple console logger for script

@@ -1,5 +1,5 @@
 import { Selectable, Insertable, Updateable, Kysely } from 'kysely'
-import { DB } from '@/lib/db'
+import { DB } from '@api/lib/db'
 
 /**
  * Transaction Context - optional parameter for transactional operations

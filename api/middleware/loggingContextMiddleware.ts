@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
-import { loggingContextStore } from '@/infrastructure/logging/logging-context-store'
-import type { LoggingContext } from '@/infrastructure/logging/logging-context.interface'
+import { loggingContextStore } from '@api/infrastructure/logging/logging-context-store'
+import type { LoggingContext } from '@api/infrastructure/logging/logging-context.interface'
 
 /**
  * Logging Context Middleware

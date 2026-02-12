@@ -1,9 +1,9 @@
-import { BaseEventHandler } from '@/infrastructure/events/base-event-handler'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
-import type { ITransactionRepository } from '@/infrastructure/database/repositories/transaction.repository.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
-import type { PaymentProcessedEvent } from '@/domain/events/payment-processed.event'
-import type { PaymentFailedEvent } from '@/domain/events/payment-failed.event'
+import { BaseEventHandler } from '@api/infrastructure/events/base-event-handler'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
+import type { ITransactionRepository } from '@api/infrastructure/database/repositories/transaction.repository.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import type { PaymentProcessedEvent } from '@api/domain/events/payment-processed.event'
+import type { PaymentFailedEvent } from '@api/domain/events/payment-failed.event'
 
 /**
  * Handles logging payment transactions to the database.

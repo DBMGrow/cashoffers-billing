@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
 
 /**
  * Event emitted when a subscription is marked for cancellation on renewal.

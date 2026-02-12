@@ -17,6 +17,9 @@ import { purchaseRoutes } from "./routes/purchase"
 import { propertyRoutes } from "./routes/property"
 import { cronRoutes } from "./routes/cron"
 import { emailsRoutes } from "./routes/emails"
+import { authRoutes } from "./routes/auth"
+import { signupRoutes } from "./routes/signup"
+import { manageRoutes } from "./routes/manage"
 
 // Import middleware
 import { errorHandler } from "./middleware/errorHandler"
@@ -43,6 +46,9 @@ app.route("/purchase", purchaseRoutes)
 app.route("/property", propertyRoutes)
 app.route("/cron", cronRoutes)
 app.route("/emails", emailsRoutes)
+app.route("/auth", authRoutes)
+app.route("/signup", signupRoutes)
+app.route("/manage", manageRoutes)
 
 // OpenAPI documentation endpoints
 app.doc("/openapi.json", (c) => ({

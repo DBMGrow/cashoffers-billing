@@ -1,13 +1,13 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
-import { IEmailService } from "@/infrastructure/email/email-service.interface"
-import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
-import { IEventBus } from "@/infrastructure/events/event-bus.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import { IEmailService } from "@api/infrastructure/email/email-service.interface"
+import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { ICancelOnRenewalUseCase } from "./cancel-on-renewal.use-case.interface"
 import { CancelOnRenewalInput, CancelOnRenewalOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CancelOnRenewalInputSchema } from "../types/validation.schemas"
-import { SubscriptionCancelledEvent } from "@/domain/events/subscription-cancelled.event"
+import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 
 interface Dependencies {
   logger: ILogger

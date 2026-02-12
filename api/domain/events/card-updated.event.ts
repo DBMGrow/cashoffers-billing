@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
 
 /**
  * Event emitted when a payment card is updated for a user.

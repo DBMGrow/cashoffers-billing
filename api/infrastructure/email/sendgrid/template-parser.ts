@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import type { IMjmlCompiler } from '@/infrastructure/email/mjml/mjml-compiler.interface'
+import type { IMjmlCompiler } from '@api/infrastructure/email/mjml/mjml-compiler.interface'
 
 /**
  * Parse email template and replace fields

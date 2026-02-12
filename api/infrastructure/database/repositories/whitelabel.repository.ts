@@ -1,5 +1,5 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, Whitelabels } from '@/lib/db'
+import type { DB, Whitelabels } from '@api/lib/db'
 import { IWhitelabelRepository } from './whitelabel.repository.interface'
 
 /**

@@ -1,6 +1,6 @@
 import fetch from 'node-fetch'
-import type { IConfig } from '@/config/config.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
+import type { IConfig } from '@api/config/config.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 import type {
   IUserApiClient,
   User,

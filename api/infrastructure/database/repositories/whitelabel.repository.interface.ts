@@ -1,6 +1,6 @@
 import { Selectable } from 'kysely'
 import { IRepository } from './repository.interface'
-import type { Whitelabels } from '@/lib/db'
+import type { Whitelabels } from '@api/lib/db'
 
 /**
  * Whitelabel Repository Interface

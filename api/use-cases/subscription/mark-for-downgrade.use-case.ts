@@ -1,13 +1,13 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
-import { IEmailService } from "@/infrastructure/email/email-service.interface"
-import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
-import { IEventBus } from "@/infrastructure/events/event-bus.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import { IEmailService } from "@api/infrastructure/email/email-service.interface"
+import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IMarkForDowngradeUseCase } from "./mark-for-downgrade.use-case.interface"
 import { MarkForDowngradeInput, MarkForDowngradeOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { MarkForDowngradeInputSchema } from "../types/validation.schemas"
-import { SubscriptionDowngradedEvent } from "@/domain/events/subscription-downgraded.event"
+import { SubscriptionDowngradedEvent } from "@api/domain/events/subscription-downgraded.event"
 
 interface Dependencies {
   logger: ILogger

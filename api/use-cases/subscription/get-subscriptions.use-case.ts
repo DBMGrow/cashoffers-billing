@@ -1,5 +1,5 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
 import { IGetSubscriptionsUseCase } from "./get-subscriptions.use-case.interface"
 import { GetSubscriptionsInput, GetSubscriptionsOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"

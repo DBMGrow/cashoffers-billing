@@ -7,8 +7,8 @@ vi.mock("@/utils/getHomeUptickSubscription.deps", () => ({
   getClientsCount: vi.fn(),
 }))
 
-import getHomeUptickSubscription from "@/utils/getHomeUptickSubscription"
-import { getUserFromDB, getSubscriptionFromDB, getClientsCount } from "@/utils/getHomeUptickSubscription.deps"
+import getHomeUptickSubscription from "@api/utils/getHomeUptickSubscription"
+import { getUserFromDB, getSubscriptionFromDB, getClientsCount } from "@api/utils/getHomeUptickSubscription.deps"
 
 const mGetUserFromDB = vi.mocked(getUserFromDB)
 const mGetSubscriptionFromDB = vi.mocked(getSubscriptionFromDB)

@@ -1,5 +1,5 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, BillingLogs } from '@/lib/db'
+import type { DB, BillingLogs } from '@api/lib/db'
 import { IBillingLogRepository } from './billing-log.repository.interface'
 
 /**

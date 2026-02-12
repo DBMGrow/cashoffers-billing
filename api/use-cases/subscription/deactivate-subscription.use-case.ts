@@ -1,12 +1,12 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
-import { IUserApiClient } from "@/infrastructure/external-api/user-api.interface"
-import { IEventBus } from "@/infrastructure/events/event-bus.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
+import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IDeactivateSubscriptionUseCase } from "./deactivate-subscription.use-case.interface"
 import { DeactivateSubscriptionInput, DeactivateSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { DeactivateSubscriptionInputSchema } from "../types/validation.schemas"
-import { SubscriptionDeactivatedEvent } from "@/domain/events/subscription-deactivated.event"
+import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-deactivated.event"
 
 interface Dependencies {
   logger: ILogger

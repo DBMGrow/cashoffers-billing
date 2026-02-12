@@ -1,5 +1,5 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, UserCards } from '@/lib/db'
+import type { DB, UserCards } from '@api/lib/db'
 import { IUserCardRepository } from './user-card.repository.interface'
 
 /**

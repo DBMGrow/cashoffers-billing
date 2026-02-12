@@ -1,7 +1,7 @@
-import { db } from "@/lib/database"
+import { db } from "@api/lib/database"
 import axios from "axios"
 import { Selectable } from "kysely"
-import { HomeuptickSubscriptions, Users } from "@/lib/db"
+import { HomeuptickSubscriptions, Users } from "@api/lib/db"
 
 /**
  * Retrieves a user from the database by their user ID.

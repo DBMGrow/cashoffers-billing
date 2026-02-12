@@ -1,12 +1,12 @@
-import { BaseEventHandler } from '@/infrastructure/events/base-event-handler'
-import type { IDomainEvent } from '@/infrastructure/events/event-bus.interface'
-import type { IUserApiClient } from '@/infrastructure/external-api/user-api.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
-import type { SubscriptionDeactivatedEvent } from '@/domain/events/subscription-deactivated.event'
-import type { SubscriptionPausedEvent } from '@/domain/events/subscription-paused.event'
-import type { IWhitelabelRepository } from '@/infrastructure/database/repositories/whitelabel.repository.interface'
-import type { ISubscriptionRepository } from '@/infrastructure/database/repositories/subscription.repository.interface'
-import type { SubscriptionData } from '@/domain/types/product-data.types'
+import { BaseEventHandler } from '@api/infrastructure/events/base-event-handler'
+import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
+import type { IUserApiClient } from '@api/infrastructure/external-api/user-api.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import type { SubscriptionDeactivatedEvent } from '@api/domain/events/subscription-deactivated.event'
+import type { SubscriptionPausedEvent } from '@api/domain/events/subscription-paused.event'
+import type { IWhitelabelRepository } from '@api/infrastructure/database/repositories/whitelabel.repository.interface'
+import type { ISubscriptionRepository } from '@api/infrastructure/database/repositories/subscription.repository.interface'
+import type { SubscriptionData } from '@api/domain/types/product-data.types'
 
 /**
  * Handles deactivating user premium status when subscriptions end or are paused.

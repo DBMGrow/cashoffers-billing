@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { RenewSubscriptionUseCase } from "./renew-subscription.use-case"
-import { ConsoleLogger } from "@/infrastructure/logging/console.logger"
-import { MockPaymentProvider } from "@/infrastructure/payment/mock/mock-payment.provider"
-import { MockEmailService } from "@/infrastructure/email/mock/mock-email.service"
-import { ITransactionManager } from "@/infrastructure/database/transaction/transaction-manager.interface"
+import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
+import { MockPaymentProvider } from "@api/infrastructure/payment/mock/mock-payment.provider"
+import { MockEmailService } from "@api/infrastructure/email/mock/mock-email.service"
+import { ITransactionManager } from "@api/infrastructure/database/transaction/transaction-manager.interface"
 import { Kysely } from "kysely"
-import { DB } from "@/lib/db"
-import { IEventBus, IDomainEvent } from "@/infrastructure/events/event-bus.interface"
+import { DB } from "@api/lib/db"
+import { IEventBus, IDomainEvent } from "@api/infrastructure/events/event-bus.interface"
 
 // Mock repositories (reusing from create-subscription tests)
 class MockSubscriptionRepository {

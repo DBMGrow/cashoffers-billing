@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { MjmlCompiler } from "./mjml-compiler"
-import { ILogger } from "@/infrastructure/logging/logger.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { promises as fs } from "fs"
 import path from "path"
 

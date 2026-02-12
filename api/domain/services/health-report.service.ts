@@ -1,6 +1,6 @@
 import type { IHealthMetricsService, DailyHealthMetrics } from './health-metrics.service'
-import type { IEmailService } from '@/infrastructure/email/email-service.interface'
-import type { ILogger } from '@/infrastructure/logging/logger.interface'
+import type { IEmailService } from '@api/infrastructure/email/email-service.interface'
+import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 
 /**
  * Health Report Service

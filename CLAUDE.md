@@ -96,9 +96,10 @@ Key behaviors:
 
 ### Module Aliases
 
-TypeScript and runtime both use `@/` alias for `api/` directory:
+TypeScript and runtime both use `@api/` alias for `api/` directory:
 
-- Import with `@/utils/foo` instead of relative paths
+- Import backend code with `@api/utils/foo` instead of relative paths
+- Frontend code uses `@/` for root-level imports (Next.js convention)
 - Configured in `tsconfig.json` and `vitest.config.ts`
 
 ### Product-Driven User Configuration

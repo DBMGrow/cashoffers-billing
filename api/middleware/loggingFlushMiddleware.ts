@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
-import { getLoggingContext } from '@/infrastructure/logging/logging-context-store'
-import { RequestCompletedEvent } from '@/domain/events/request-completed.event'
-import { getContainer } from '@/container'
+import { getLoggingContext } from '@api/infrastructure/logging/logging-context-store'
+import { RequestCompletedEvent } from '@api/domain/events/request-completed.event'
+import { getContainer } from '@api/container'
 
 /**
  * Logging Flush Middleware

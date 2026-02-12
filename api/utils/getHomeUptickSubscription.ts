@@ -1,4 +1,4 @@
-import { getClientsCount, getSubscriptionFromDB, getUserFromDB } from "@/utils/getHomeUptickSubscription.deps"
+import { getClientsCount, getSubscriptionFromDB, getUserFromDB } from "@api/utils/getHomeUptickSubscription.deps"
 
 interface HomeUptickSubscription {
   id: number

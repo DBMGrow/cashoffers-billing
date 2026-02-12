@@ -1,7 +1,7 @@
 import { Kysely } from "kysely"
-import { DB } from "@/lib/db"
+import { DB } from "@api/lib/db"
 import { ITransactionManager } from "./transaction-manager.interface"
-import { ILogger } from "@/infrastructure/logging/logger.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
 
 /**
  * Kysely Transaction Manager Implementation

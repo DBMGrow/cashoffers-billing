@@ -1,6 +1,6 @@
-import { ILogger } from "@/infrastructure/logging/logger.interface"
-import { IProductRepository } from "@/infrastructure/database/repositories/product.repository.interface"
-import { ISubscriptionRepository } from "@/infrastructure/database/repositories/subscription.repository.interface"
+import { ILogger } from "@api/infrastructure/logging/logger.interface"
+import { IProductRepository } from "@api/infrastructure/database/repositories/product.repository.interface"
+import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
 import { ICalculateProratedUseCase, CalculateProratedInput, CalculateProratedOutput } from "./calculate-prorated.use-case.interface"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 
