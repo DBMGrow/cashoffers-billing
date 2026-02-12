@@ -26,7 +26,6 @@ export default function Home() {
               <span className="text-secondary">.</span>
             </h1>
           </div>
-          <YoutubeVideo />
         </div>
         <div className="mb-[100px]"></div>
       </section>

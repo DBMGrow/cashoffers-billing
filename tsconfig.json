@@ -27,8 +27,6 @@
   },
   "include": [
     "next-env.d.ts",
-    "api/**/*.ts",
-    "api/**/*.js",
     "app/**/*.ts",
     "app/**/*.tsx",
     "components/**/*.ts",
@@ -41,5 +39,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["dist", "node_modules", ".next"]
+  "exclude": ["dist", "node_modules", ".next", "api"]
 }

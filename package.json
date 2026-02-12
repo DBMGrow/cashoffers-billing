@@ -5,11 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:api": "tsx --watch api/app.ts",
     "build": "next build",
-    "build:api": "tsc --noEmit",
     "start": "next start",
-    "start:api": "tsx api/app.ts",
     "lint": "next lint",
     "codegen": "kysely-codegen --out-file api/lib/db.d.ts",
     "test": "vitest",

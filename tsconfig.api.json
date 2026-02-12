@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2020"],
+    "noEmit": true
+  },
+  "include": [
+    "api/**/*.ts",
+    "api/**/*.js"
+  ],
+  "exclude": ["node_modules", "dist", ".next"]
+}

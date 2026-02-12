@@ -82,16 +82,16 @@ app.get("/health", (c) => {
 app.onError(errorHandler)
 
 // Start server
-const PORT = Number(process.env.PORT) || 3000
+// const PORT = Number(process.env.PORT) || 3000
 
-serve(
-  {
-    fetch: app.fetch,
-    port: PORT,
-  },
-  (info) => {
-    console.info(`🚀 Hono server listening on http://localhost:${info.port}`)
-  }
-)
+// serve(
+//   {
+//     fetch: app.fetch,
+//     port: PORT,
+//   },
+//   (info) => {
+//     console.info(`🚀 Hono server listening on http://localhost:${info.port}`)
+//   }
+// )
 
 export { app }

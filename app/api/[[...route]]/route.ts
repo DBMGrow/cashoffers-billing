@@ -1,10 +1,9 @@
 import { Hono } from "hono"
 import { handle } from "hono/vercel"
+import { app } from "@api/app"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
-
-const app = new Hono().basePath("/api")
 
 export const GET = handle(app)
 export const POST = handle(app)
