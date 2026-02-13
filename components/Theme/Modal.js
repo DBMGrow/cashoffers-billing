@@ -76,7 +76,7 @@ export function ModalContent({ children }) {
 
 export function ModalHeader({ children }) {
   return (
-    <DialogTitle className="text-xl font-semibold p-6 pb-2 border-b border-default-200">
+    <DialogTitle as="h3" className="p-6 pb-2 border-b border-default-200">
       {children}
     </DialogTitle>
   )

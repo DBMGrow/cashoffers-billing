@@ -4,10 +4,10 @@ export default function GeneralConsent({ isChecked, setIsChecked }) {
   return (
     <div className="flex gap-2 items-center">
       <input type="checkbox" name="consent" id="consent" checked={isChecked} onClick={handleCheck} />
-      <label htmlFor="consent" className="text-default-700 text-xs">
+      <label htmlFor="consent" className="text-caption">
         I have read and agree to the{" "}
         <a
-          className="font-bold text-primary"
+          className="font-bold"
           href="https://www.instantofferspro.com/disclosure-statement-terms-of-use/"
           target="_blank"
         >

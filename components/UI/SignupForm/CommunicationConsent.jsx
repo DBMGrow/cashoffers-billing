@@ -10,9 +10,9 @@ export default function CommunicationConsent({ isChecked, setIsChecked }) {
   return (
     <div className="flex gap-2 items-center">
       <input type="checkbox" name="consent" id="consent" checked={isChecked} onClick={handleCheck} />
-      <label htmlFor="consent" className="text-default-700 text-xs">
+      <label htmlFor="consent" className="text-caption">
         I have read and agree to the{" "}
-        <button className="font-bold text-primary" onClick={handleOpen}>
+        <button className="font-bold text-primary-color" onClick={handleOpen}>
           Consent to Communication
         </button>
       </label>

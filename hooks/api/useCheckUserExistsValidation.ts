@@ -14,7 +14,7 @@ export function useCheckUserExistsValidation() {
   return useMutation({
     mutationFn: async (email: string) => {
       const { data } = await axios.get<ApiResponse<CheckUserResponse>>(
-        `/api/checkuserexists/${encodeURIComponent(email)}`
+        `/api/signup/checkuserexists/${encodeURIComponent(email)}`
       )
       if (data.success !== "success") {
         throw new Error("Failed to check user")

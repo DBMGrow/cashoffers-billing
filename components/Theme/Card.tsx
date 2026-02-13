@@ -28,7 +28,7 @@ export function Card({ isPressable = false, onPress, children, className = "" }:
     }
   }
 
-  const baseClasses = "bg-white rounded-lg shadow-md transition-all duration-200"
+  const baseClasses = "bg-white border border-gray-200 rounded-lg shadow transition-all duration-200"
   const pressableClasses = isPressable
     ? "cursor-pointer hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-[0.98]"
     : ""

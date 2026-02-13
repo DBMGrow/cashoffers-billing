@@ -42,7 +42,7 @@ export default function DashboardStep({ user, onManageSubscription, onUpdateCard
             <div className="w-full mb-2">
               <option.icon className="w-6 h-6 text-default-800" />
             </div>
-            <h5 className="text-default-700">{option.title}</h5>
+            <h5>{option.title}</h5>
           </CardBody>
         </Card>
       ))}

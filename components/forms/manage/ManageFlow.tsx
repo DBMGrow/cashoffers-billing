@@ -6,6 +6,7 @@ import type { ManageFormData } from "@/types/forms"
 import type { User } from "@/types/api"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
+import useStepTransition from "@/hooks/useStepTransition"
 import FlowWrapper from "../FlowWrapper"
 
 // Step components
@@ -28,7 +29,7 @@ const stepConfig: Record<ManageStep, { title: string; description: string }> = {
 }
 
 export default function ManageFlow() {
-  const [currentStep, setCurrentStep] = useState<ManageStep>("email")
+  const { displayStep, isTransitioning, transitionToStep } = useStepTransition<ManageStep>("email")
   const [user, setUser] = useState<User | null>(null)
   const [allowReset, setAllowReset] = useState(true)
   const [errorMessage, setErrorMessage] = useState("")
@@ -43,14 +44,14 @@ export default function ManageFlow() {
   })
 
   const goToStep = (step: ManageStep) => {
-    setCurrentStep(step)
+    transitionToStep(step)
     setAllowReset(true)
   }
 
   const goToError = (message: string, returnTo: ManageStep) => {
     setErrorMessage(message)
     setReturnStep(returnTo)
-    setCurrentStep("error")
+    transitionToStep("error")
   }
 
   const startStep: ManageStep = "email"
@@ -58,12 +59,24 @@ export default function ManageFlow() {
   const userName = user?.name || ""
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
 
-  const titleText = useAnimateText(stepConfig[currentStep]?.title || "", 5, 0, titleReplacements)
-  const descriptionText = useAnimateText(stepConfig[currentStep]?.description || "", 2, 0.2)
-  const containerRef = useAnimateContainer(currentStep)
+  const titleText = useAnimateText(
+    stepConfig[displayStep]?.title || "",
+    5,
+    0,
+    titleReplacements,
+    isTransitioning
+  )
+  const descriptionText = useAnimateText(
+    stepConfig[displayStep]?.description || "",
+    2,
+    0.2,
+    {},
+    isTransitioning
+  )
+  const containerRef = useAnimateContainer(displayStep, isTransitioning)
 
   const renderStep = () => {
-    switch (currentStep) {
+    switch (displayStep) {
       case "email":
         return (
           <LoginEmailStep
@@ -126,7 +139,7 @@ export default function ManageFlow() {
       onReset={() => {
         form.reset()
         setUser(null)
-        setCurrentStep(startStep)
+        transitionToStep(startStep)
       }}
       minHeight="350px"
     >

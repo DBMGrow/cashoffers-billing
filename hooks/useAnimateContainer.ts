@@ -3,36 +3,67 @@
 import { useLayoutEffect, useRef } from "react"
 import { gsap } from "gsap"
 
-export default function useAnimateContainer(trigger: unknown) {
+export default function useAnimateContainer(displayStep: unknown, isTransitioning: boolean) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isFirstRender = useRef(true)
+  const timeline = useRef<gsap.core.Tween | null>(null)
 
   useLayoutEffect(() => {
     if (!containerRef.current) return
 
-    // Reset to initial state before animating
-    gsap.set(containerRef.current, {
-      opacity: 0,
-      y: -5,
-    })
+    // Kill any existing animation
+    if (timeline.current) {
+      timeline.current.kill()
+    }
 
-    // Fade in
-    const timeline = gsap.to(containerRef.current, {
-      opacity: 1,
-      y: 0,
-      duration: 0.7,
-      delay: isFirstRender.current ? 0.5 : 0.2,
-      ease: "power2.inOut",
-    })
-
+    // First render: just fade in with delay
     if (isFirstRender.current) {
+      gsap.set(containerRef.current, {
+        opacity: 0,
+        y: -5,
+      })
+
+      timeline.current = gsap.to(containerRef.current, {
+        opacity: 1,
+        y: 0,
+        duration: 0.7,
+        delay: 0.5,
+        ease: "power2.out",
+      })
+
       isFirstRender.current = false
+      return
+    }
+
+    // If transitioning, animate out
+    if (isTransitioning) {
+      timeline.current = gsap.to(containerRef.current, {
+        opacity: 0,
+        y: 5,
+        duration: 0.3,
+        ease: "power2.in",
+      })
+    } else {
+      // Not transitioning anymore, animate in
+      gsap.set(containerRef.current, {
+        opacity: 0,
+        y: -5,
+      })
+
+      timeline.current = gsap.to(containerRef.current, {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: "power2.out",
+      })
     }
 
     return () => {
-      timeline.kill()
+      if (timeline.current) {
+        timeline.current.kill()
+      }
     }
-  }, [trigger])
+  }, [displayStep, isTransitioning])
 
   return containerRef
 }

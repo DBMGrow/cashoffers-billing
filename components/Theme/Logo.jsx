@@ -7,15 +7,15 @@ export default function Logo({ isLight }) {
   const router = useRouter()
 
   const logoProps = {
-    className: `font-bold text-xl ${
-      isLight ? "text-white bg-default-800" : "text-default-700 bg-default-200"
+    className: `text-xl ${
+      isLight ? "text-white bg-default-800" : "bg-default-200"
     } px-2 rounded`,
   }
 
   return (
     <Link className="flex" href="https://www.instantofferspro.com/agents">
       <h1 {...logoProps}>
-        CashOffers<span className="text-secondary ">.</span>PRO
+        CashOffers<span className="text-secondary-color">.</span>PRO
       </h1>
     </Link>
   )

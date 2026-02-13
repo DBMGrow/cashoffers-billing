@@ -20,7 +20,7 @@ export default function WelcomeStep({ form }: WelcomeStepProps) {
 
   return (
     <div className="w-full text-center">
-      <p className="text-default-700 text-lg">
+      <p className="text-lg">
         Welcome to CashOffers.PRO! Redirecting you to set up your password...
       </p>
     </div>

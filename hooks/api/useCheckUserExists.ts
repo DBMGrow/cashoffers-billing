@@ -15,7 +15,9 @@ export function useCheckUserExists(email: string | null) {
     queryKey: ["checkUserExists", email],
     queryFn: async () => {
       if (!email) return null
-      const { data } = await axios.get<ApiResponse<CheckUserResponse>>(`/api/checkuserexists/${encodeURIComponent(email)}`)
+      const { data } = await axios.get<ApiResponse<CheckUserResponse>>(
+        `/api/signup/checkuserexists/${encodeURIComponent(email)}`
+      )
       if (data.success !== "success") throw new Error("Failed to check user")
       return data.data
     },

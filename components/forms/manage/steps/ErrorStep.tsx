@@ -12,10 +12,10 @@ export default function ErrorStep({ errorMessage, onRetry }: ErrorStepProps) {
     <div className="flex flex-col items-center justify-center space-y-6 py-8">
       <div className="text-center space-y-2">
         <div className="text-6xl mb-4">⚠️</div>
-        <p className="text-lg text-gray-700 dark:text-gray-300 max-w-md">{errorMessage}</p>
+        <p className="text-lg max-w-md">{errorMessage}</p>
       </div>
 
-      <ThemeButton onClick={onRetry} className="mt-4">
+      <ThemeButton onPress={onRetry} className="mt-4">
         Try Again
       </ThemeButton>
     </div>

@@ -7,7 +7,7 @@ export default function Input({ placeholder, type = "text", handleSubmit, isDisa
 
   const inputProps = {
     className:
-      "border-b-4 bg-transparent py-1 text-default-700 placeholder:text-default-400 grow border-default-300 text-3xl font-medium focus:outline-none focus:ring-0	",
+      "border-b-4 bg-transparent py-1 placeholder:text-default-400 grow border-default-300 text-3xl font-medium focus:outline-none focus:ring-0",
     type,
     placeholder,
     ref,

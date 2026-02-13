@@ -1,10 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import {
-  PurchaseFreeRoute,
-  CheckUserExistsRoute,
-  CheckSlugExistsRoute,
-} from "./schemas/signup.schemas"
+import axios from "axios"
+import { PurchaseFreeRoute, CheckUserExistsRoute, CheckSlugExistsRoute } from "./schemas/signup.schemas"
+import { db } from "@/api/lib/database"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -37,13 +35,9 @@ app.openapi(PurchaseFreeRoute, async (c) => {
     const role = body.isInvestor ? "INVITEDINVESTOR" : "AGENT"
 
     // Create user in auth API
-    const response = await fetch(process.env.API_ROUTE_AUTH + "/users", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-token": process.env.API_KEY!,
-      },
-      body: JSON.stringify({
+    const response = await axios.post(
+      process.env.API_ROUTE_AUTH + "/users",
+      {
         email: body.email,
         name: body.name,
         phone: body.phone,
@@ -54,10 +48,16 @@ app.openapi(PurchaseFreeRoute, async (c) => {
         reset_token: resetToken,
         is_premium: 0,
         whitelabel_id: whitelabelId,
-      }),
-    })
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-token": process.env.API_KEY!,
+        },
+      }
+    )
 
-    const data = await response.json()
+    const data = response.data
 
     if (!data) {
       throw new Error("No data")
@@ -102,22 +102,10 @@ app.openapi(CheckUserExistsRoute, async (c) => {
     const { email } = c.req.valid("param")
 
     // Fetch user from auth API
-    const user = await fetch(
-      `${process.env.API_ROUTE_AUTH}/users?email=${encodeURIComponent(email)}`,
-      {
-        headers: {
-          "x-api-token": process.env.API_KEY!,
-        },
-      }
-    )
-    const userJson: any = await user.json()
-
-    if (userJson.success !== "success") {
-      throw new Error("Something went wrong")
-    }
+    const user = await db.selectFrom("Users").selectAll().where("email", "=", email).executeTakeFirst()
 
     // User doesn't exist
-    if (!userJson?.data?.length) {
+    if (!user) {
       return c.json(
         {
           success: "success" as const,
@@ -127,9 +115,8 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       )
     }
 
-    const userData = userJson.data[0]
-    const isPremium = userData.is_premium
-    const active = userData.active
+    const isPremium = user.is_premium
+    const active = user.active
 
     // Premium but inactive - offer downgrade
     if (isPremium && !active) {
@@ -144,15 +131,12 @@ app.openapi(CheckUserExistsRoute, async (c) => {
     }
 
     // Check card info
-    const userInfo = await fetch(
-      `${process.env.API_ROUTE}/card/${userData.user_id}/info`,
-      {
-        headers: {
-          "x-api-token": process.env.API_KEY!,
-        },
-      }
-    )
-    const userInfoJson: any = await userInfo.json()
+    const userInfo = await axios.get(`${process.env.API_ROUTE}/card/${user.user_id}/info`, {
+      headers: {
+        "x-api-token": process.env.API_KEY!,
+      },
+    })
+    const userInfoJson: any = userInfo.data
 
     if (userInfoJson.success !== "success") {
       throw new Error("Something went wrong 2")
@@ -168,20 +152,17 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       response.hasCard = true
     } else {
       // Determine if user can set up card and which plan
-      if ((!userData.team_id && userData.user_id) || userData.role === "TEAMOWNER") {
+      if ((!user.team_id && user.user_id) || user.role === "TEAMOWNER") {
         response.canSetUpCard = true
-        if (!userData.team_id) response.plan = 1
+        if (!user.team_id) response.plan = 1
 
-        if (userData.role === "TEAMOWNER") {
-          const team = await fetch(
-            `${process.env.API_ROUTE_AUTH}/teams/${userData.team_id}`,
-            {
-              headers: {
-                "x-api-token": process.env.API_KEY!,
-              },
-            }
-          )
-          const teamJson: any = await team.json()
+        if (user.role === "TEAMOWNER") {
+          const team = await axios.get(`${process.env.API_ROUTE_AUTH}/teams/${user.team_id}`, {
+            headers: {
+              "x-api-token": process.env.API_KEY!,
+            },
+          })
+          const teamJson: any = team.data
 
           if (teamJson.success !== "success") {
             throw new Error("Something went wrong 3")
@@ -215,7 +196,7 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
   try {
     const { slug } = c.req.valid("param")
 
-    const response = await fetch(
+    const response = await axios.get(
       `${process.env.API_ROUTE_AUTH_V2}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
       {
         headers: {
@@ -224,7 +205,7 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
       }
     )
 
-    const json = await response.json()
+    const json = response.data
     const data = json?.data
 
     if (data?.exists === false) {

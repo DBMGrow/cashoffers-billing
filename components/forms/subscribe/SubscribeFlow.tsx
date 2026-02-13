@@ -7,6 +7,7 @@ import { z } from "zod"
 import type { SubscribeFormData, FormStep, WhitelabelType, CardData } from "@/types/forms"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
+import useStepTransition from "@/hooks/useStepTransition"
 import FlowWrapper from "../FlowWrapper"
 
 // Step components
@@ -70,7 +71,7 @@ const stepConfig: Record<FormStep, { title: string; description: string }> = {
 }
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: SubscribeFlowProps) {
-  const [currentStep, setCurrentStep] = useState<FormStep>("email")
+  const { displayStep, isTransitioning, transitionToStep } = useStepTransition<FormStep>("email")
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [allowReset, setAllowReset] = useState(true)
   const [errorMessage, setErrorMessage] = useState("")
@@ -94,14 +95,14 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
   })
 
   const goToStep = (step: FormStep) => {
-    setCurrentStep(step)
+    transitionToStep(step)
     setAllowReset(true)
   }
 
   const goToError = (message: string, returnTo: FormStep) => {
     setErrorMessage(message)
     setReturnStep(returnTo)
-    setCurrentStep("error")
+    transitionToStep("error")
   }
 
   const startStep: FormStep = "email"
@@ -109,12 +110,12 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
   const userName = form.watch("name")
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
 
-  const titleText = useAnimateText(stepConfig[currentStep]?.title || "", 0.6, 0.2, titleReplacements)
-  const descriptionText = useAnimateText(stepConfig[currentStep]?.description || "", 0.8, 0.5)
-  const containerRef = useAnimateContainer(currentStep)
+  const titleText = useAnimateText(stepConfig[displayStep]?.title || "", 0.6, 0.2, titleReplacements, isTransitioning)
+  const descriptionText = useAnimateText(stepConfig[displayStep]?.description || "", 0.8, 0.5, {}, isTransitioning)
+  const containerRef = useAnimateContainer(displayStep, isTransitioning)
 
   const renderStep = () => {
-    switch (currentStep) {
+    switch (displayStep) {
       case "email":
         return (
           <EmailStep
@@ -205,7 +206,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
       allowReset={allowReset}
       onReset={() => {
         form.reset()
-        setCurrentStep(startStep)
+        transitionToStep(startStep)
       }}
     >
       {renderStep()}

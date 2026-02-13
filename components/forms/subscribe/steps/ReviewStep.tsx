@@ -137,15 +137,15 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
         footer={
           <>
             <div className="flex gap-2 justify-between items-start">
-              <div className="text-default-700 font-bold">Monthly Charge</div>
-              <div className="text-xl font-bold text-default-700">
+              <strong>Monthly Charge</strong>
+              <div className="text-xl font-bold">
                 ${productPrice}
-                <span className="text-sm font-medium text-default-700">/mo</span>
+                <span className="text-caption">/mo</span>
               </div>
             </div>
             <div className="flex gap-2 justify-between items-start">
-              <div className="text-default-700 font-bold">Total Today</div>
-              <div className="text-2xl text-secondary font-bold">${priceToday}</div>
+              <strong>Total Today</strong>
+              <div className="text-price">${priceToday}</div>
             </div>
           </>
         }
