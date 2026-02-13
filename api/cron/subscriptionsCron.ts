@@ -1,4 +1,4 @@
-import fetch from "node-fetch"
+import axios from "axios"
 import { getContainer } from "@api/container"
 
 export default async function subscriptionsCron() {
@@ -24,12 +24,12 @@ export default async function subscriptionsCron() {
       subscriptionIds: subscriptions.map((sub) => sub.subscription_id),
     })
 
-    const usersResponse = await fetch(process.env.API_URL + "/users/mini?page=1&limit=50000", {
+    const usersResponse = await axios.get(process.env.API_URL + "/users/mini?page=1&limit=50000", {
       headers: {
         "x-api-token": process.env.API_MASTER_TOKEN!,
       },
     })
-    const users: any = await usersResponse.json()
+    const users: any = usersResponse.data
 
     if (users?.success !== "success") throw new Error("Error fetching users")
 

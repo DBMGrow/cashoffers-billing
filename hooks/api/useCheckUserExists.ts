@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import axios from "axios"
 import type { ApiResponse } from "@/types/api"
 
 interface CheckUserResponse {
@@ -14,8 +15,7 @@ export function useCheckUserExists(email: string | null) {
     queryKey: ["checkUserExists", email],
     queryFn: async () => {
       if (!email) return null
-      const res = await fetch(`/api/checkuserexists/${encodeURIComponent(email)}`)
-      const data: ApiResponse<CheckUserResponse> = await res.json()
+      const { data } = await axios.get<ApiResponse<CheckUserResponse>>(`/api/checkuserexists/${encodeURIComponent(email)}`)
       if (data.success !== "success") throw new Error("Failed to check user")
       return data.data
     },

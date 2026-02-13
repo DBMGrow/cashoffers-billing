@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import InvestorPageClient from "./InvestorPageClient"
-import { Spinner } from "@nextui-org/react"
+import { Spinner } from "@/components/Theme/Spinner"
 
 export const metadata = {
   title: "Investor Sign Up | CashOffers.PRO",
@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function InvestorPage() {
   return (
-    <Suspense fallback={<div className="w-screen h-screen flex items-center justify-center"><Spinner /></div>}>
+    <Suspense>
       <InvestorPageClient />
     </Suspense>
   )

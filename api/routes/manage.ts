@@ -15,26 +15,13 @@ app.openapi(CheckPlanRoute, async (c) => {
     const { subscription, productID } = body
     const apiToken = c.req.header("x-api-token")
 
-    if (!subscription) {
-      throw new Error("Subscription required")
-    }
-    if (!productID) {
-      throw new Error("productID required")
-    }
-    if (!apiToken) {
-      throw new Error("api_token required")
-    }
-
     const responseBody: any = {}
 
     // If team subscription, fetch team details
     if (subscription?.data?.team) {
-      const headers = { "x-api-token": apiToken }
+      const headers = { "x-api-token": apiToken! }
 
-      const teamResponse = await fetch(
-        `${process.env.API_ROUTE_AUTH}/teams/${subscription.data.team_id}`,
-        { headers }
-      )
+      const teamResponse = await fetch(`${process.env.API_ROUTE_AUTH}/teams/${subscription.data.team_id}`, { headers })
       const team: any = await teamResponse.json()
 
       if (team.success !== "success") {
@@ -59,12 +46,9 @@ app.openapi(CheckPlanRoute, async (c) => {
     }
 
     // Fetch product details
-    const productResponse = await fetch(
-      `${process.env.API_ROUTE}/product/${productID}`,
-      {
-        headers: { "x-api-token": process.env.API_KEY! },
-      }
-    )
+    const productResponse = await fetch(`${process.env.API_ROUTE}/product/${productID}`, {
+      headers: { "x-api-token": process.env.API_KEY! },
+    })
     const product: any = await productResponse.json()
 
     if (product.success !== "success") {
@@ -73,20 +57,17 @@ app.openapi(CheckPlanRoute, async (c) => {
     responseBody.product = product.data
 
     // Calculate prorated cost
-    const proratedResponse = await fetch(
-      `${process.env.API_ROUTE}/product/checkprorated`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-token": process.env.API_KEY!,
-        },
-        body: JSON.stringify({
-          product_id: productID,
-          user_id: subscription.user_id,
-        }),
-      }
-    )
+    const proratedResponse = await fetch(`${process.env.API_ROUTE}/product/checkprorated`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-token": process.env.API_KEY!,
+      },
+      body: JSON.stringify({
+        product_id: productID,
+        user_id: subscription.user_id,
+      }),
+    })
     const proratedCost: any = await proratedResponse.json()
 
     if (proratedCost.success !== "success") {
@@ -103,7 +84,7 @@ app.openapi(CheckPlanRoute, async (c) => {
     )
   } catch (error: any) {
     console.error(error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ success: "error" as const, error: error.message }, 500)
   }
 })
 

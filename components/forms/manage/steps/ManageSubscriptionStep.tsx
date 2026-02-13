@@ -1,7 +1,8 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { Spinner } from "@nextui-org/react"
+import axios from "axios"
+import { Spinner } from "@/components/Theme/Spinner"
 import type { User, Subscription, ApiResponse } from "@/types/api"
 import P from "@/components/Theme/P"
 import Table from "@/components/Theme/Table"
@@ -19,12 +20,11 @@ export default function ManageSubscriptionStep({ user, onBack, onUpdateCard }: M
   const { data, error, isLoading } = useQuery({
     queryKey: ["subscription", user.api_token],
     queryFn: async () => {
-      const res = await fetch("/api/subscription/single", {
+      const { data: json } = await axios.get<ApiResponse<Subscription[]>>("/api/subscription/single", {
         headers: {
           "x-api-token": user.api_token,
         },
       })
-      const json: ApiResponse<Subscription[]> = await res.json()
       if (json.success !== "success" || !json.data?.[0]) {
         throw new Error("Failed to load subscription")
       }

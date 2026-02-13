@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import ManagePageClient from "./ManagePageClient"
-import { Spinner } from "@nextui-org/react"
+import { Spinner } from "@/components/Theme/Spinner"
 
 export const metadata = {
   title: "Manage Your Account | CashOffers.PRO",

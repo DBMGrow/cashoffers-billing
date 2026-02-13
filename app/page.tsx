@@ -1,10 +1,9 @@
 "use client"
 
 import DefaultLogo from "@/components/Theme/Logo"
-import { Card, CardBody } from "@nextui-org/react"
+import { Card, CardBody } from "@/components/Theme/Card"
 import Pricing from "@/components/UI/LandingPage/Pricing"
 import Link from "next/link"
-import YoutubeVideo from "@/components/UI/LandingPage/YoutubeVideo"
 
 export default function Home() {
   return (

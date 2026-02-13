@@ -1,7 +1,6 @@
 import "dotenv/config"
 import "./config/startup"
 
-import { serve } from "@hono/node-server"
 import { OpenAPIHono } from "@hono/zod-openapi"
 import { Scalar } from "@scalar/hono-api-reference"
 import { logger as honoLogger } from "hono/logger"
@@ -28,7 +27,7 @@ import { loggingContextMiddleware } from "./middleware/loggingContextMiddleware"
 import { loggingFlushMiddleware } from "./middleware/loggingFlushMiddleware"
 
 // Create OpenAPI Hono app with typed variables
-const app = new OpenAPIHono<{ Variables: HonoVariables }>()
+const app = new OpenAPIHono<{ Variables: HonoVariables }>().basePath("/api")
 
 // Global middleware
 app.use("*", honoLogger()) // Request logging
@@ -59,8 +58,8 @@ app.doc("/openapi.json", (c) => ({
     description: "Billing and subscription management service for CashOffers with Square payment processing",
   },
   servers: [
-    { url: "http://localhost:3000", description: "Development" },
-    { url: "https://billing-api.cashoffers.com", description: "Production" },
+    { url: "http://localhost:3000/api", description: "Development" },
+    { url: "https://billing-api.cashoffers.com/api", description: "Production" },
   ],
 }))
 
@@ -68,7 +67,7 @@ app.doc("/openapi.json", (c) => ({
 app.get(
   "/docs",
   Scalar({
-    url: "/openapi.json",
+    url: "/api/openapi.json",
     theme: "fastify",
   })
 )

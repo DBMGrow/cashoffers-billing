@@ -21,10 +21,11 @@ interface ReviewStepProps {
   cardData: CardData | null
   onNext: () => void
   onBack: () => void
+  onError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
-export default function ReviewStep({ form, cardData, onNext, onBack, setAllowReset }: ReviewStepProps) {
+export default function ReviewStep({ form, cardData, onNext, onBack, onError, setAllowReset }: ReviewStepProps) {
   const router = useRouter()
   const formData = form.watch()
   const product = formData.product
@@ -62,7 +63,7 @@ export default function ReviewStep({ form, cardData, onNext, onBack, setAllowRes
     })
 
     if (result.success !== "success") {
-      alert("Error creating account. Please try again.")
+      onError("Error creating account. Please try again.")
       setAllowReset(true)
       return
     }
@@ -77,7 +78,7 @@ export default function ReviewStep({ form, cardData, onNext, onBack, setAllowRes
 
   const handleSubmit = async () => {
     if (!cardData) {
-      alert("Please add a card.")
+      onError("Please add a card.")
       return
     }
 
@@ -107,13 +108,13 @@ export default function ReviewStep({ form, cardData, onNext, onBack, setAllowRes
     })
 
     if (result.code === "PUR08") {
-      alert("We were unable to process your card. Please ensure your card information is correct.")
+      onError("We were unable to process your card. Please ensure your card information is correct.")
       setAllowReset(true)
       return
     }
 
     if (result.success !== "success") {
-      alert("Error processing payment. Please try again.")
+      onError("Error processing payment. Please try again.")
       setAllowReset(true)
       return
     }

@@ -203,7 +203,7 @@ app.openapi(CheckUserExistsRoute, async (c) => {
 
     return c.json(response, 200)
   } catch (error: any) {
-    return c.json({ error: error.message }, 400)
+    return c.json({ success: "error" as const, error: error.message }, 400)
   }
 })
 
@@ -245,7 +245,7 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
       200
     )
   } catch (error: any) {
-    return c.json({ error: error.message }, 400)
+    return c.json({ success: "error" as const, error: error.message }, 400)
   }
 })
 

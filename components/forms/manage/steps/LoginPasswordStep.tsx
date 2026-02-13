@@ -13,10 +13,11 @@ interface LoginPasswordStepProps {
   form: UseFormReturn<ManageFormData>
   onSuccess: (user: User) => void
   onBack: () => void
+  onError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
-export default function LoginPasswordStep({ form, onSuccess, onBack, setAllowReset }: LoginPasswordStepProps) {
+export default function LoginPasswordStep({ form, onSuccess, onBack, onError, setAllowReset }: LoginPasswordStepProps) {
   const loginMutation = useLogin()
   const password = form.watch("password")
   const email = form.watch("email")
@@ -32,9 +33,9 @@ export default function LoginPasswordStep({ form, onSuccess, onBack, setAllowRes
 
       if (result.success !== "success") {
         if (result.error === "PWINVALID") {
-          alert("Invalid password. Please try again.")
+          onError("Invalid password. Please try again.")
         } else {
-          alert("Error logging in. Please try again.")
+          onError("Error logging in. Please try again.")
         }
         setAllowReset(true)
         return
@@ -44,7 +45,7 @@ export default function LoginPasswordStep({ form, onSuccess, onBack, setAllowRes
         onSuccess(result.data)
       }
     } catch (error) {
-      alert("Error logging in. Please try again.")
+      onError("Error logging in. Please try again.")
       setAllowReset(true)
     }
   }

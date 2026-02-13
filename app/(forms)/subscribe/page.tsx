@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import SubscribePageClient from "./SubscribePageClient"
-import { Spinner } from "@nextui-org/react"
+import { Spinner } from "@/components/Theme/Spinner"
 
 export const metadata = {
   title: "Sign Up | CashOffers.PRO",

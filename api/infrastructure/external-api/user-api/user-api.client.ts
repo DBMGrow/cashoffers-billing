@@ -1,4 +1,4 @@
-import fetch from 'node-fetch'
+import axios from 'axios'
 import type { IConfig } from '@api/config/config.interface'
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 import type {
@@ -27,21 +27,23 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.debug('Fetching user from API', { userId })
 
-      const response = await fetch(`${this.config.api.url}/users/${userId}`, {
+      const response = await axios.get(`${this.config.api.url}/users/${userId}`, {
         headers: {
           'x-api-token': this.config.api.masterToken,
         },
+        validateStatus: (status) => status < 500, // Don't throw on 4xx errors
       })
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          this.logger.debug('User not found', { userId })
-          return null
-        }
+      if (response.status === 404) {
+        this.logger.debug('User not found', { userId })
+        return null
+      }
+
+      if (response.status >= 400) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const data: any = await response.json()
+      const data: any = response.data
       const duration = Date.now() - startTime
 
       this.logger.debug('User fetched successfully', { userId, duration })
@@ -60,17 +62,13 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.debug('Fetching user by email from API', { email })
 
-      const response = await fetch(`${this.config.api.url}/users?email=${encodeURIComponent(email)}`, {
+      const response = await axios.get(`${this.config.api.url}/users?email=${encodeURIComponent(email)}`, {
         headers: {
           'x-api-token': this.config.api.masterToken,
         },
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const data: any = await response.json()
+      const data: any = response.data
       const duration = Date.now() - startTime
 
       if (data.success === 'success' && data.data && data.data.length > 0) {
@@ -93,20 +91,14 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.info('Creating new user via API', { email: userData.email })
 
-      const response = await fetch(`${this.config.api.url}/users`, {
-        method: 'POST',
+      const response = await axios.post(`${this.config.api.url}/users`, userData, {
         headers: {
           'Content-Type': 'application/json',
           'x-api-token': this.config.api.masterToken,
         },
-        body: JSON.stringify(userData),
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const data: any = await response.json()
+      const data: any = response.data
       const duration = Date.now() - startTime
 
       this.logger.info('User created successfully', {
@@ -132,20 +124,14 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.debug('Updating user via API', { userId })
 
-      const response = await fetch(`${this.config.api.url}/users/${userId}`, {
-        method: 'PUT',
+      const response = await axios.put(`${this.config.api.url}/users/${userId}`, userData, {
         headers: {
           'Content-Type': 'application/json',
           'x-api-token': this.config.api.masterToken,
         },
-        body: JSON.stringify(userData),
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const data: any = await response.json()
+      const data: any = response.data
       const duration = Date.now() - startTime
 
       this.logger.debug('User updated successfully', { userId, duration })

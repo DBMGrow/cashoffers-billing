@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { gsap } from "gsap"
 
 export default function useAnimateText(
@@ -12,16 +12,19 @@ export default function useAnimateText(
   const [displayText, setDisplayText] = useState("")
   const animationRef = useRef<gsap.core.Tween | null>(null)
 
+  // Memoize parsed text to avoid unnecessary recalculations
+  const parsedText = useMemo(() => {
+    let result = text
+    for (const [key, value] of Object.entries(replacements)) {
+      result = result.replace(`{${key}}`, value)
+    }
+    return result
+  }, [text, ...Object.values(replacements)])
+
   useEffect(() => {
     // Cancel previous animation
     if (animationRef.current) {
       animationRef.current.kill()
-    }
-
-    // Apply replacements
-    let parsedText = text
-    for (const [key, value] of Object.entries(replacements)) {
-      parsedText = parsedText.replace(`{${key}}`, value)
     }
 
     // Animate
@@ -42,7 +45,7 @@ export default function useAnimateText(
         animationRef.current.kill()
       }
     }
-  }, [text, duration, delay, JSON.stringify(replacements)])
+  }, [parsedText, duration, delay])
 
   return displayText
 }

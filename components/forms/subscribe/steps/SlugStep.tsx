@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect } from "react"
 import { UseFormReturn } from "react-hook-form"
+import { useCheckSlugExistsValidation } from "@/hooks/api/useCheckSlugExistsValidation"
 import type { SubscribeFormData } from "@/types/forms"
 import Input from "@/components/UI/SignupForm/Input"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
@@ -10,13 +11,19 @@ interface SlugStepProps {
   form: UseFormReturn<SubscribeFormData>
   onNext: () => void
   onBack: () => void
+  onError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
-export default function SlugStep({ form, onNext, onBack, setAllowReset }: SlugStepProps) {
-  const [isLoading, setIsLoading] = useState(false)
+export default function SlugStep({ form, onNext, onBack, onError, setAllowReset }: SlugStepProps) {
   const slug = form.watch("slug") || ""
   const isDisabled = !slug
+  const checkSlug = useCheckSlugExistsValidation()
+
+  // Automatically sync loading state with setAllowReset
+  useEffect(() => {
+    setAllowReset(!checkSlug.isPending)
+  }, [checkSlug.isPending, setAllowReset])
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -28,33 +35,21 @@ export default function SlugStep({ form, onNext, onBack, setAllowReset }: SlugSt
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (isDisabled) return
 
-    setIsLoading(true)
-    setAllowReset(false)
-
-    try {
-      const res = await fetch(`/api/checkslugexists/${encodeURIComponent(slug)}`)
-      const data = await res.json()
-
-      if (data.success !== "success") {
-        alert("Error checking domain prefix. Please try again.")
-        return
-      }
-
-      if (data.userExists) {
-        alert("This domain prefix is already in use. Please try a different one.")
-        return
-      }
-
-      onNext()
-    } catch (error) {
-      alert("Error checking domain prefix. Please try again.")
-    } finally {
-      setIsLoading(false)
-      setAllowReset(true)
-    }
+    checkSlug.mutate(slug, {
+      onSuccess: (data) => {
+        if (data?.userExists) {
+          onError("This domain prefix is already in use. Please try a different one.")
+        } else {
+          onNext()
+        }
+      },
+      onError: () => {
+        onError("Error checking domain prefix. Please try again.")
+      },
+    })
   }
 
   const handleSkip = () => {
@@ -70,7 +65,7 @@ export default function SlugStep({ form, onNext, onBack, setAllowReset }: SlugSt
           value={slug}
           onChange={onChange}
           isDisabled={isDisabled}
-          isLoading={isLoading}
+          isLoading={checkSlug.isPending}
           handleSubmit={handleSubmit}
         />
         <ThemeButton onClick={handleSkip} color="secondary">

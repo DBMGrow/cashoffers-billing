@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardBody } from "@nextui-org/react"
+import { Card, CardBody } from "@/components/Theme/Card"
 import { ArrowUturnLeftIcon, ArrowPathIcon, CreditCardIcon } from "@heroicons/react/24/outline"
 import type { User } from "@/types/api"
 import { useRouter } from "next/navigation"

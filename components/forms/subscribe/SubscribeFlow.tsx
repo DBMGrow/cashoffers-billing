@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import type { SubscribeFormData, FormStep, WhitelabelType, CardData } from "@/types/forms"
-import { ThemeButton } from "@/components/Theme/ThemeButton"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
+import FlowWrapper from "../FlowWrapper"
 
 // Step components
 import EmailStep from "./steps/EmailStep"
@@ -19,6 +19,7 @@ import PhoneStep from "./steps/PhoneStep"
 import CardStep from "./steps/CardStep"
 import ReviewStep from "./steps/ReviewStep"
 import WelcomeStep from "./steps/WelcomeStep"
+import ErrorStep from "./steps/ErrorStep"
 
 const subscribeSchema = z.object({
   product: z.union([z.number(), z.string()]),
@@ -41,8 +42,14 @@ interface SubscribeFlowProps {
 
 const stepConfig: Record<FormStep, { title: string; description: string }> = {
   plan: { title: "Select a Plan.", description: "Choose a plan that's right for you." },
-  email: { title: "What is your Email?", description: "You'll use this email to log in." },
-  name: { title: "What is your Name?", description: "Enter your name how you would like it to show up to your clients." },
+  email: {
+    title: "What is your Email?",
+    description: "You'll use this email to log in. You can change it later if you need to.",
+  },
+  name: {
+    title: "What is your Name?",
+    description: "Enter your name how you would like it to show up to your clients.",
+  },
   slug: {
     title: "Please choose a Domain Prefix.",
     description: "This will be the consumer facing website URL that you can use instantly to generate leads.",
@@ -50,15 +57,24 @@ const stepConfig: Record<FormStep, { title: string; description: string }> = {
   broker: { title: "What is your Brokerage?", description: "Enter your Brokerage name." },
   team: { title: "What is your Team Name? (Optional)", description: "Enter your Team name." },
   phone: { title: "What is your Phone Number?", description: "You can change this later." },
-  card: { title: "What Card would you like to use?", description: "This card will be saved on file for your subscription." },
+  card: {
+    title: "What Card would you like to use?",
+    description: "This card will be saved on file for your subscription.",
+  },
   review: { title: "Review.", description: "How does everything look?" },
-  welcome: { title: "Welcome to CashOffers.PRO", description: "Congrats! All you need to do now is set your password." },
+  welcome: {
+    title: "Welcome to CashOffers.PRO",
+    description: "Congrats! All you need to do now is set your password.",
+  },
+  error: { title: "Oops!", description: "Something went wrong." },
 }
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: SubscribeFlowProps) {
   const [currentStep, setCurrentStep] = useState<FormStep>("email")
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [allowReset, setAllowReset] = useState(true)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [returnStep, setReturnStep] = useState<FormStep>("email")
 
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),
@@ -82,18 +98,32 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
     setAllowReset(true)
   }
 
+  const goToError = (message: string, returnTo: FormStep) => {
+    setErrorMessage(message)
+    setReturnStep(returnTo)
+    setCurrentStep("error")
+  }
+
   const startStep: FormStep = "email"
 
-  const titleText = useAnimateText(stepConfig[currentStep]?.title || "", 0.5, 0, {
-    name: form.watch("name"),
-  })
-  const descriptionText = useAnimateText(stepConfig[currentStep]?.description || "", 0.5, 0.2)
+  const userName = form.watch("name")
+  const titleReplacements = useMemo(() => ({ name: userName }), [userName])
+
+  const titleText = useAnimateText(stepConfig[currentStep]?.title || "", 0.6, 0.2, titleReplacements)
+  const descriptionText = useAnimateText(stepConfig[currentStep]?.description || "", 0.8, 0.5)
   const containerRef = useAnimateContainer(currentStep)
 
   const renderStep = () => {
     switch (currentStep) {
       case "email":
-        return <EmailStep form={form} onNext={() => goToStep("name")} setAllowReset={setAllowReset} />
+        return (
+          <EmailStep
+            form={form}
+            onNext={() => goToStep("name")}
+            onError={(message) => goToError(message, "email")}
+            setAllowReset={setAllowReset}
+          />
+        )
       case "name":
         return (
           <NameStep
@@ -117,6 +147,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
               return goToStep("broker")
             }}
             onBack={() => goToStep("name")}
+            onError={(message) => goToError(message, "slug")}
             setAllowReset={setAllowReset}
           />
         )
@@ -153,40 +184,31 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
             cardData={cardData}
             onNext={() => goToStep("welcome")}
             onBack={() => goToStep("card")}
+            onError={(message) => goToError(message, "review")}
             setAllowReset={setAllowReset}
           />
         )
       case "welcome":
         return <WelcomeStep form={form} />
+      case "error":
+        return <ErrorStep errorMessage={errorMessage} onRetry={() => goToStep(returnStep)} />
       default:
         return null
     }
   }
 
   return (
-    <div className="min-h-[350px] w-full border-default-300 py-8 px-2 flex flex-col justify-between">
-      <div className="rounded">
-        <h2 className="h-[25px] text-default-700 text-lg font-bold">{titleText}</h2>
-        <p className="h-[15px] my-1 text-sm text-default-700">{descriptionText}</p>
-      </div>
-      <div className="flex w-full gap-2 py-4" ref={containerRef}>
-        {renderStep()}
-      </div>
-      <div className="flex gap-2">
-        <div className="w-[100px]">
-          <ThemeButton
-            color="blur"
-            className="w-full"
-            isDisabled={!allowReset}
-            onClick={() => {
-              form.reset()
-              setCurrentStep(startStep)
-            }}
-          >
-            Start Over
-          </ThemeButton>
-        </div>
-      </div>
-    </div>
+    <FlowWrapper
+      titleText={titleText}
+      descriptionText={descriptionText}
+      containerRef={containerRef}
+      allowReset={allowReset}
+      onReset={() => {
+        form.reset()
+        setCurrentStep(startStep)
+      }}
+    >
+      {renderStep()}
+    </FlowWrapper>
   )
 }

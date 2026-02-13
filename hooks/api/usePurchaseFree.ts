@@ -1,16 +1,12 @@
 import { useMutation } from "@tanstack/react-query"
+import axios from "axios"
 import type { PurchaseFreeRequest, ApiResponse, User } from "@/types/api"
 
 export function usePurchaseFree() {
   return useMutation({
-    mutationFn: async (data: PurchaseFreeRequest) => {
-      const response = await fetch("/api/purchasefree", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      const json: ApiResponse<{ user: User }> = await response.json()
-      return json
+    mutationFn: async (purchaseData: PurchaseFreeRequest) => {
+      const { data } = await axios.post<ApiResponse<{ user: User }>>("/api/purchasefree", purchaseData)
+      return data
     },
   })
 }

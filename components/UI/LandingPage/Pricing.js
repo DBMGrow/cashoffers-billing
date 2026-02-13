@@ -1,6 +1,6 @@
 import { products } from "@/components/data/productsList"
 import { productsInvestor } from "@/components/data/productsListInvestor"
-import { Card, CardBody } from "@nextui-org/react"
+import { Card, CardBody } from "@/components/Theme/Card"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import Link from "next/link"
 

@@ -39,6 +39,7 @@ export type FormStep =
   | "card"
   | "review"
   | "welcome"
+  | "error"
 
 export type WhitelabelType =
   | "default"

@@ -1,10 +1,10 @@
+import axios from "axios"
+
 export default async function getUniqueSlug(name: string): Promise<string | null> {
   try {
-    const res = await fetch(
+    const { data } = await axios.get(
       process.env.NEXT_PUBLIC_API_ROUTE_AUTH_V2 + "/signup/getuniqueslug?name=" + encodeURIComponent(name)
     )
-
-    const data = await res.json()
 
     if (!data?.success) return null
 

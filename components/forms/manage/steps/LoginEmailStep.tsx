@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect } from "react"
 import { UseFormReturn } from "react-hook-form"
+import { useCheckUserExistsValidation } from "@/hooks/api/useCheckUserExistsValidation"
 import type { ManageFormData } from "@/types/forms"
 import Input from "@/components/UI/SignupForm/Input"
 import validateEmail from "@/components/utils/validateEmail"
@@ -9,41 +10,35 @@ import validateEmail from "@/components/utils/validateEmail"
 interface LoginEmailStepProps {
   form: UseFormReturn<ManageFormData>
   onNext: () => void
+  onError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
-export default function LoginEmailStep({ form, onNext, setAllowReset }: LoginEmailStepProps) {
-  const [isLoading, setIsLoading] = useState(false)
+export default function LoginEmailStep({ form, onNext, onError, setAllowReset }: LoginEmailStepProps) {
   const email = form.watch("email")
   const isValid = validateEmail(email)
+  const checkUser = useCheckUserExistsValidation()
 
-  const handleSubmit = async () => {
+  // Automatically sync loading state with setAllowReset
+  useEffect(() => {
+    setAllowReset(!checkUser.isPending)
+  }, [checkUser.isPending, setAllowReset])
+
+  const handleSubmit = () => {
     if (!isValid) return
 
-    setIsLoading(true)
-    setAllowReset(false)
-
-    try {
-      const res = await fetch(`/api/checkuserexists/${encodeURIComponent(email)}`)
-      const data = await res.json()
-
-      if (data.success !== "success") {
-        alert("Error checking user. Please try again.")
-        return
-      }
-
-      if (!data.userExists) {
-        alert("There's no account linked to this email. Please try a different email.")
-        return
-      }
-
-      onNext()
-    } catch (error) {
-      alert("Error checking user. Please try again.")
-    } finally {
-      setIsLoading(false)
-      setAllowReset(true)
-    }
+    checkUser.mutate(email, {
+      onSuccess: (data) => {
+        if (!data?.userExists) {
+          onError("There's no account linked to this email. Please try a different email.")
+        } else {
+          onNext()
+        }
+      },
+      onError: () => {
+        onError("Error checking user. Please try again.")
+      },
+    })
   }
 
   return (
@@ -52,7 +47,7 @@ export default function LoginEmailStep({ form, onNext, setAllowReset }: LoginEma
       value={email}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("email", e.target.value)}
       isDisabled={!isValid}
-      isLoading={isLoading}
+      isLoading={checkUser.isPending}
       handleSubmit={handleSubmit}
     />
   )

@@ -1,4 +1,4 @@
-import fetch from "node-fetch"
+import axios from "axios"
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider, CreatePaymentRequest } from "@api/infrastructure/payment/payment-provider.interface"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
@@ -282,13 +282,13 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
     const apiToken = this.deps.config.get("API_MASTER_TOKEN")
 
     try {
-      const response = await fetch(`${apiUrl}/properties/${propertyToken}/full`, {
+      const response = await axios.get(`${apiUrl}/properties/${propertyToken}/full`, {
         headers: {
           "x-api-token": apiToken,
         },
       })
 
-      const data = await response.json()
+      const data = response.data
 
       if (!data?.success) {
         throw new Error("Property API returned error: " + JSON.stringify(data))
@@ -307,16 +307,17 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
     const apiToken = this.deps.config.get("API_MASTER_TOKEN")
 
     try {
-      const response = await fetch(`${apiUrl}/properties/${propertyToken}/full`, {
-        method: "PUT",
-        headers: {
-          "x-api-token": apiToken,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ is_unlocked: 2 }),
-      })
+      const response = await axios.put(`${apiUrl}/properties/${propertyToken}/full`,
+        { is_unlocked: 2 },
+        {
+          headers: {
+            "x-api-token": apiToken,
+            "Content-Type": "application/json",
+          },
+        }
+      )
 
-      const data = await response.json()
+      const data = response.data
 
       if (!data?.success) {
         throw new Error("Property API returned error: " + JSON.stringify(data))

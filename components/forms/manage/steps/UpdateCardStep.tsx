@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import axios from "axios"
 import type { User } from "@/types/api"
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
@@ -9,9 +10,10 @@ import P from "@/components/Theme/P"
 interface UpdateCardStepProps {
   user: User
   onBack: () => void
+  onError: (message: string) => void
 }
 
-export default function UpdateCardStep({ user, onBack }: UpdateCardStepProps) {
+export default function UpdateCardStep({ user, onBack, onError }: UpdateCardStepProps) {
   const [isSuccess, setIsSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -21,28 +23,20 @@ export default function UpdateCardStep({ user, onBack }: UpdateCardStepProps) {
     cardTokenizeResponseReceived: async (token: any) => {
       setIsLoading(true)
       try {
-        const response = await fetch("/api/card", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            api_token: user.api_token,
-            card_token: token.token,
-            exp_month: token.details.card.expMonth,
-            exp_year: token.details.card.expYear,
-          }),
+        const { data: result } = await axios.put("/api/card", {
+          api_token: user.api_token,
+          card_token: token.token,
+          exp_month: token.details.card.expMonth,
+          exp_year: token.details.card.expYear,
         })
-
-        const result = await response.json()
 
         if (result.success === "success") {
           setIsSuccess(true)
         } else {
-          alert("Failed to update card. Please try again.")
+          onError("Failed to update card. Please try again.")
         }
       } catch (error) {
-        alert("Failed to update card. Please try again.")
+        onError("Failed to update card. Please try again.")
       } finally {
         setIsLoading(false)
       }
