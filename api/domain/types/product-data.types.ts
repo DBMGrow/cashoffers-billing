@@ -30,6 +30,8 @@ export interface ProductData {
   renewal_cost?: number
   /** Billing cycle duration */
   duration?: "daily" | "weekly" | "monthly" | "yearly"
+  /** Maximum number of team members for team plans */
+  team_members?: number
 
   // New user configuration
   /** Configuration applied to users when they purchase this product */

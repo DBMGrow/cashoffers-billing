@@ -62,6 +62,7 @@ export default function SlugStep({ form, onNext, onBack, onError, setAllowReset 
       <div className="flex gap-2 items-end">
         <Input
           placeholder="johndoe"
+          name="slug"
           value={slug}
           onChange={onChange}
           isDisabled={isDisabled}

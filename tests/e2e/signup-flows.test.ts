@@ -9,6 +9,7 @@ import {
   fillName,
   fillBroker,
   fillPhone,
+  setupValidationMocks,
 } from './helpers/form-helpers'
 import { isAuthenticated } from './helpers/auth-helpers'
 import { cleanupTestUser } from './helpers/api-helpers'
@@ -23,9 +24,11 @@ import {
 test.describe('Signup Flows (1-12)', () => {
   let testEmail: string
 
-  test.beforeEach(() => {
+  test.beforeEach(async ({ page }) => {
     // Generate unique email for each test
     testEmail = generateTestEmail()
+    // Setup API mocks for validation endpoints
+    await setupValidationMocks(page)
   })
 
   test.afterEach(async () => {
@@ -250,7 +253,7 @@ test.describe('Signup Flows (1-12)', () => {
 
     // Try a common slug that might be taken
     await page.fill('input[name="slug"]', 'test')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     // Wait for either success or error
     // If error, we should see a message about slug being taken
@@ -260,7 +263,7 @@ test.describe('Signup Flows (1-12)', () => {
     if (hasError) {
       // If slug is taken, try a unique one
       await page.fill('input[name="slug"]', generateTestSlug('slugtest'))
-      await page.click('button:has-text("Continue")')
+      await page.click('button:has-text("Next")')
     }
 
     // Should proceed to next step

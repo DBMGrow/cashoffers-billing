@@ -120,11 +120,11 @@ export const testRoutes = app
 ```
 
 **Implementation Steps**:
-1. ☐ Create `api/routes/test.ts`
-2. ☐ Add helper functions for token generation
-3. ☐ Register routes in main router
-4. ☐ Add environment check to prevent production access
-5. ☐ Test endpoints manually with curl/Postman
+1. ✅ Create `api/routes/test.ts`
+2. ✅ Add helper functions for token generation
+3. ✅ Register routes in main router
+4. ✅ Add environment check to prevent production access
+5. ✅ Test endpoints manually with curl/Postman
 
 **Verification**:
 ```bash
@@ -156,10 +156,10 @@ grep -r "ProductProvider\|WhitelabelProvider" --include="*.tsx" --include="*.ts"
 ```
 
 **B. Ensure all components pass params to useProducts**
-- ☐ Check `SubscribeFlow.tsx` - Pass `whitelabel` from props
-- ☐ Check `ReviewStep.tsx` - Get `whitelabel` from form data
-- ☐ Check `UpdatePlanStep.tsx` - Use `mode: "manage"`
-- ☐ Check `Pricing.js` - Pass `whitelabel` prop
+- ✅ Check `SubscribeFlow.tsx` - Pass `whitelabel` from props
+- ✅ Check `ReviewStep.tsx` - Get `whitelabel` from form data
+- ✅ Check `UpdatePlanStep.tsx` - Use `mode: "manage"`
+- ✅ Check `Pricing.js` - Pass `whitelabel` prop
 
 **C. Add error boundaries for query errors**
 

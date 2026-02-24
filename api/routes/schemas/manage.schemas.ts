@@ -210,7 +210,9 @@ export const UpdateCardResponseSchema = z.object({
  * Purchase request schema (for plan changes)
  */
 export const ManagePurchaseRequestSchema = z.object({
-  product_id: z.union([z.number(), z.string()]),
+  product_id: z.union([z.number(), z.string()]).transform((val) =>
+    typeof val === "string" ? parseInt(val, 10) : val
+  ),
   subscription_id: z.number().optional(),
 })
 
@@ -378,6 +380,10 @@ export const ManagePurchaseRoute = {
     400: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request or plan change failed",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Product or subscription not found",
     },
   },
   tags: ["Manage"],

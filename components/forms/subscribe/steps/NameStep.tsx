@@ -50,6 +50,7 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
   return (
     <Input
       placeholder="John Doe"
+      name="name"
       value={name}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name", e.target.value)}
       isDisabled={isDisabled}

@@ -1,11 +1,47 @@
 import { Page } from '@playwright/test'
 
 /**
+ * Setup API mocks for validation endpoints
+ * Call this before starting any signup flow
+ */
+export async function setupValidationMocks(page: Page) {
+  // Mock slug validation - always return slug is available
+  await page.route('**/api/signup/checkslugexists/**', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: 'success',
+        userExists: false,
+      }),
+    })
+  })
+
+  // Mock user exists check - always return user doesn't exist
+  await page.route('**/api/signup/checkuserexists/**', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: 'success',
+        userExists: false,
+        offerDowngrade: false,
+      }),
+    })
+  })
+}
+
+/**
  * Fill email input
  */
 export async function fillEmail(page: Page, email: string) {
   await page.fill('input[name="email"]', email)
-  await page.click('button:has-text("Continue")')
+  // Wait for button to be enabled and click with retry logic
+  const nextButton = page.getByTestId('next-button')
+  await nextButton.waitFor({ state: 'visible', timeout: 5000 })
+  await nextButton.click({ timeout: 10000 })
+  // Wait for navigation to complete
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -13,7 +49,10 @@ export async function fillEmail(page: Page, email: string) {
  */
 export async function fillName(page: Page, name: string) {
   await page.fill('input[name="name"]', name)
-  await page.click('button:has-text("Continue")')
+  const nextButton = page.getByTestId('next-button')
+  await nextButton.waitFor({ state: 'visible', timeout: 5000 })
+  await nextButton.click({ timeout: 10000 })
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -21,7 +60,10 @@ export async function fillName(page: Page, name: string) {
  */
 export async function fillSlug(page: Page, slug: string) {
   await page.fill('input[name="slug"]', slug)
-  await page.click('button:has-text("Continue")')
+  const nextButton = page.getByTestId('next-button')
+  await nextButton.waitFor({ state: 'visible', timeout: 5000 })
+  await nextButton.click({ timeout: 10000 })
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -36,7 +78,10 @@ export async function skipSlug(page: Page) {
  */
 export async function fillBroker(page: Page, brokerName: string) {
   await page.fill('input[name="name_broker"]', brokerName)
-  await page.click('button:has-text("Continue")')
+  const nextButton = page.getByTestId('next-button')
+  await nextButton.waitFor({ state: 'visible', timeout: 5000 })
+  await nextButton.click({ timeout: 10000 })
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -44,7 +89,10 @@ export async function fillBroker(page: Page, brokerName: string) {
  */
 export async function fillTeamName(page: Page, teamName: string) {
   await page.fill('input[name="name_team"]', teamName)
-  await page.click('button:has-text("Continue")')
+  const nextButton = page.getByTestId('next-button')
+  await nextButton.waitFor({ state: 'visible', timeout: 5000 })
+  await nextButton.click({ timeout: 10000 })
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -52,7 +100,10 @@ export async function fillTeamName(page: Page, teamName: string) {
  */
 export async function fillPhone(page: Page, phone: string) {
   await page.fill('input[name="phone"]', phone)
-  await page.click('button:has-text("Continue")')
+  const nextButton = page.getByTestId('next-button')
+  await nextButton.waitFor({ state: 'visible', timeout: 5000 })
+  await nextButton.click({ timeout: 10000 })
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -80,7 +131,8 @@ export async function fillCard(
   const cvvFrame = page.frameLocator('iframe[name*="cvv"]')
   await cvvFrame.locator('input').fill(cvv)
 
-  await page.click('button:has-text("Continue")')
+  await page.waitForSelector('button:has-text("Next"):not([disabled])', { timeout: 5000 })
+  await page.click('button:has-text("Next")')
 }
 
 /**
@@ -105,8 +157,15 @@ export async function fillPersonalInfo(page: Page, data: {
 
   await fillBroker(page, data.broker)
 
-  if (data.teamName) {
-    await fillTeamName(page, data.teamName)
+  // Check if team name step exists (optional step for some products)
+  const hasTeamStep = await page.locator('input[name="name_team"]').isVisible({ timeout: 2000 }).catch(() => false)
+  if (hasTeamStep) {
+    if (data.teamName) {
+      await fillTeamName(page, data.teamName)
+    } else {
+      // Just click Next to skip optional team name
+      await page.click('button:has-text("Next")')
+    }
   }
 
   await fillPhone(page, data.phone)

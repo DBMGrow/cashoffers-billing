@@ -19,6 +19,7 @@ export default function PhoneStep({ form, onNext, onBack }: PhoneStepProps) {
     <Input
       type="tel"
       placeholder="(123) 456-7890"
+      name="phone"
       value={phone}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("phone", formatPhone(e.target.value))}
       isDisabled={isDisabled}

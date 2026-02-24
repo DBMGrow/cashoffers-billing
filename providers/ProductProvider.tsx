@@ -7,11 +7,12 @@ import { ProductData } from "@/api/domain/types/product-data.types"
  * Product type matching the database schema
  */
 export interface Product {
-  product_id: number
+  product_id: number | string
   product_name: string
   product_description: string | null
   product_type: "none" | "one-time" | "subscription"
   price: number
+  active: number
   data: ProductData | null
   createdAt: Date
   updatedAt: Date

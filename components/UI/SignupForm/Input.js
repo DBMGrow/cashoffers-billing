@@ -1,7 +1,7 @@
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { useRef, useEffect } from "react"
 
-export default function Input({ placeholder, type = "text", handleSubmit, isDisabled, value, onChange, isLoading }) {
+export default function Input({ placeholder, type = "text", handleSubmit, isDisabled, value, onChange, isLoading, name, testId }) {
   handleSubmit = handleSubmit || (() => console.warn("No handleSubmit provided"))
   const ref = useRef()
 
@@ -13,6 +13,8 @@ export default function Input({ placeholder, type = "text", handleSubmit, isDisa
     ref,
     value,
     onChange,
+    name,
+    "data-testid": testId || name || "form-input",
   }
 
   // focus on after 0.5 seconds
@@ -43,7 +45,13 @@ export default function Input({ placeholder, type = "text", handleSubmit, isDisa
     <>
       <div className="flex flex-col items-stretch grow gap-2 md:items-end md:flex-row">
         <input {...inputProps} />
-        <ThemeButton color="primary" onPress={handleSubmit} isDisabled={isDisabled} isLoading={isLoading}>
+        <ThemeButton
+          color="primary"
+          onPress={handleSubmit}
+          isDisabled={isDisabled}
+          isLoading={isLoading}
+          data-testid="next-button"
+        >
           Next
         </ThemeButton>
       </div>

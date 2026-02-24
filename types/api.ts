@@ -22,7 +22,9 @@ export interface User {
 }
 
 export interface Subscription {
+  subscription_id: number
   subscription_name: string
+  product_id: number | string
   renewal_cost: number
   duration?: string
   createdAt?: string
@@ -63,4 +65,28 @@ export interface PurchaseFreeRequest {
   whitelabel?: string | null
   isInvestor: number
   slug?: string | null
+}
+
+export interface Product {
+  product_id: number | string
+  product_name: string
+  product_description?: string | null
+  product_type: string
+  price: number
+  active: number
+  data?: {
+    renewal_cost?: number
+    signup_fee?: number
+    duration?: string
+    team_members?: number
+    user_config?: {
+      role?: string
+      is_premium?: number
+      whitelabel_id?: number | null
+      is_team_plan?: boolean
+    }
+    [key: string]: any
+  } | null
+  createdAt?: string
+  updatedAt?: string
 }

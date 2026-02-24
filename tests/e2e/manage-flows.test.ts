@@ -195,7 +195,7 @@ test.describe('Manage Flows (13-29)', () => {
 
     // Enter email
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     // Enter password
     await page.fill('input[name="password"]', 'TestPassword123!')
@@ -210,7 +210,7 @@ test.describe('Manage Flows (13-29)', () => {
     await page.goto('/manage')
 
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     // Enter wrong password
     await page.fill('input[name="password"]', 'WrongPassword123!')
@@ -235,7 +235,7 @@ test.describe('Manage Flows (13-29)', () => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.agentMonthly}`)
 
     await page.fill('input[name="email"]', inactiveUser.email)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     // Should see downgrade offer
     await expect(page.locator('text=/reactivate|downgrade/i')).toBeVisible({ timeout: 5000 })

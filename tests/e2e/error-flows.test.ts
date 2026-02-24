@@ -3,6 +3,7 @@ import {
   fillPersonalInfo,
   fillCard,
   completeReviewStep,
+  setupValidationMocks,
 } from './helpers/form-helpers'
 import { generateTestEmail, generateTestSlug, TEST_CARDS, PRODUCT_IDS } from './fixtures/test-data'
 import { cleanupTestUser } from './helpers/api-helpers'
@@ -10,8 +11,10 @@ import { cleanupTestUser } from './helpers/api-helpers'
 test.describe('Error and Edge Case Flows (30-34)', () => {
   let testEmail: string
 
-  test.beforeEach(() => {
+  test.beforeEach(async ({ page }) => {
     testEmail = generateTestEmail('error')
+    // Setup API mocks for validation endpoints
+    await setupValidationMocks(page)
   })
 
   test.afterEach(async () => {
@@ -101,23 +104,19 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
   })
 
   test('Flow 33: Email Already Exists Error', async ({ page }) => {
-    // First signup
+    // First signup with free product (goes: email → name → phone directly)
     await page.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
 
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await page.fill('input[name="name"]', 'First User')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
-    // Skip slug
-    await page.click('button:has-text("Skip")')
-
-    await page.fill('input[name="name_broker"]', 'First Brokerage')
-    await page.click('button:has-text("Continue")')
-
+    // Free products skip slug and broker, go directly to phone
+    await page.waitForSelector('input[name="phone"]', { timeout: 5000 })
     await page.fill('input[name="phone"]', '(555) 444-5555')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await completeReviewStep(page)
 
@@ -128,11 +127,12 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.agentMonthly}`)
 
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     // Should see error or redirect to login/manage
     const hasError = await page.locator('text=/already.*exists|account.*exists/i')
       .isVisible({ timeout: 5000 })
+      .catch(() => false)
 
     const redirectedToManage = page.url().includes('/manage')
 
@@ -143,58 +143,72 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
     // Navigate with invalid product ID
     await page.goto('/subscribe?product=99999')
 
-    // Should show error or redirect
+    // Wait for products to load and validation to occur
+    await page.waitForLoadState('networkidle')
+
+    // Should show error (looking for "Invalid product" text specifically)
     await expect(
-      page.locator('text=/invalid|not.*found|error/i')
-    ).toBeVisible({ timeout: 5000 })
+      page.locator('text=/invalid.*product/i')
+    ).toBeVisible({ timeout: 10000 })
   })
 
   test('Flow 35: Missing Required Fields', async ({ page }) => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.agentMonthly}`)
 
-    // Try to proceed without filling email
-    await page.click('button:has-text("Continue")')
+    // Verify button is disabled when email is empty
+    await expect(page.locator('button:has-text("Next")')).toBeDisabled()
 
-    // Should see validation error
-    await expect(
-      page.locator('text=/required|please.*enter|this.*field/i')
-    ).toBeVisible()
+    // Fill invalid email to test validation
+    await page.fill('input[name="email"]', '')
+
+    // Button should still be disabled
+    await expect(page.locator('button:has-text("Next")')).toBeDisabled()
   })
 
   test('Flow 36: Invalid Email Format', async ({ page }) => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.agentMonthly}`)
 
+    // Fill invalid email format
     await page.fill('input[name="email"]', 'invalid-email')
-    await page.click('button:has-text("Continue")')
 
-    // Should see email validation error
-    await expect(
-      page.locator('text=/invalid.*email|valid.*email/i')
-    ).toBeVisible()
+    // Button should be disabled for invalid email
+    await expect(page.locator('button:has-text("Next")')).toBeDisabled()
+
+    // Fill valid email to test button becomes enabled
+    await page.fill('input[name="email"]', testEmail)
+    await expect(page.locator('button:has-text("Next")')).toBeEnabled()
   })
 
   test('Flow 37: Invalid Phone Format', async ({ page }) => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.agentMonthly}`)
 
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await page.fill('input[name="name"]', 'Phone Test User')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await page.click('button:has-text("Skip")') // Skip slug
 
     await page.fill('input[name="name_broker"]', 'Phone Test Brokerage')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
-    // Enter invalid phone
+    // Wait for next step to load - either team or phone
+    await page.waitForTimeout(500)
+
+    // If team name input is visible, click Next to skip it
+    const teamInput = page.locator('input[name="name_team"]')
+    if (await teamInput.isVisible().catch(() => false)) {
+      await page.click('button:has-text("Next")')
+      await page.waitForTimeout(500)
+    }
+
+    // Now on phone step - enter invalid phone
+    await page.waitForSelector('input[name="phone"]', { timeout: 10000 })
     await page.fill('input[name="phone"]', '123')
-    await page.click('button:has-text("Continue")')
 
-    // Should see phone validation error
-    await expect(
-      page.locator('text=/invalid.*phone|valid.*phone/i')
-    ).toBeVisible()
+    // Button should be disabled for invalid phone (less than 14 characters formatted)
+    await expect(page.locator('button:has-text("Next")')).toBeDisabled()
   })
 
   test('Flow 38: Network Error Handling', async ({ page, context }) => {
@@ -206,11 +220,11 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
 
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
-    // Should see network error
+    // Should see network error (use first match to avoid strict mode violation)
     await expect(
-      page.locator('text=/error|failed|try.*again|network/i')
+      page.locator('text=/error|failed|try.*again|network/i').first()
     ).toBeVisible({ timeout: 10000 })
   })
 
@@ -218,18 +232,18 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
     await page.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
 
     await page.fill('input[name="email"]', testEmail)
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await page.fill('input[name="name"]', 'Consent Test User')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await page.click('button:has-text("Skip")') // Skip slug
 
     await page.fill('input[name="name_broker"]', 'Consent Brokerage')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     await page.fill('input[name="phone"]', '(555) 555-6666')
-    await page.click('button:has-text("Continue")')
+    await page.click('button:has-text("Next")')
 
     // Try to submit without checking consents
     await page.click('button:has-text("Complete Sign Up")')
@@ -276,28 +290,28 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
     const signup1 = (async () => {
       await page1.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
       await page1.fill('input[name="email"]', sameEmail)
-      await page1.click('button:has-text("Continue")')
+      await page1.click('button:has-text("Next")')
       await page1.fill('input[name="name"]', 'Race User 1')
-      await page1.click('button:has-text("Continue")')
+      await page1.click('button:has-text("Next")')
       await page1.click('button:has-text("Skip")')
       await page1.fill('input[name="name_broker"]', 'Race Brokerage 1')
-      await page1.click('button:has-text("Continue")')
+      await page1.click('button:has-text("Next")')
       await page1.fill('input[name="phone"]', '(555) 666-7777')
-      await page1.click('button:has-text("Continue")')
+      await page1.click('button:has-text("Next")')
       await completeReviewStep(page1)
     })()
 
     const signup2 = (async () => {
       await page2.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
       await page2.fill('input[name="email"]', sameEmail)
-      await page2.click('button:has-text("Continue")')
+      await page2.click('button:has-text("Next")')
       await page2.fill('input[name="name"]', 'Race User 2')
-      await page2.click('button:has-text("Continue")')
+      await page2.click('button:has-text("Next")')
       await page2.click('button:has-text("Skip")')
       await page2.fill('input[name="name_broker"]', 'Race Brokerage 2')
-      await page2.click('button:has-text("Continue")')
+      await page2.click('button:has-text("Next")')
       await page2.fill('input[name="phone"]', '(555) 777-8888')
-      await page2.click('button:has-text("Continue")')
+      await page2.click('button:has-text("Next")')
       await completeReviewStep(page2)
     })()
 

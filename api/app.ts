@@ -19,6 +19,7 @@ import { emailsRoutes } from "./routes/emails"
 import { authRoutes } from "./routes/auth"
 import { signupRoutes } from "./routes/signup"
 import { manageRoutes } from "./routes/manage"
+import { testRoutes } from "./routes/test"
 
 // Import middleware
 import { errorHandler } from "./lib/middleware/errorHandler"
@@ -48,6 +49,7 @@ app.route("/emails", emailsRoutes)
 app.route("/auth", authRoutes)
 app.route("/signup", signupRoutes)
 app.route("/manage", manageRoutes)
+app.route("/test", testRoutes)
 
 // OpenAPI documentation endpoints
 app.doc("/openapi.json", (c) => ({

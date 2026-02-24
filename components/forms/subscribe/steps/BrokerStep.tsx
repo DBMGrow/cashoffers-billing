@@ -17,6 +17,7 @@ export default function BrokerStep({ form, onNext, onBack }: BrokerStepProps) {
   return (
     <Input
       placeholder="e.g. Keller Williams, RE/MAX"
+      name="name_broker"
       value={nameBroker}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name_broker", e.target.value)}
       isDisabled={isDisabled}

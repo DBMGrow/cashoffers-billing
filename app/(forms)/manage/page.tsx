@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import ManagePageClient from "./ManagePageClient"
 import { Spinner } from "@/components/Theme/Spinner"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 export const metadata = {
   title: "Manage Your Account | CashOffers.PRO",
@@ -9,14 +10,16 @@ export const metadata = {
 
 export default function ManagePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="w-screen h-screen flex items-center justify-center">
-          <Spinner />
-        </div>
-      }
-    >
-      <ManagePageClient />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="w-screen h-screen flex items-center justify-center">
+            <Spinner />
+          </div>
+        }
+      >
+        <ManagePageClient />
+      </Suspense>
+    </ErrorBoundary>
   )
 }

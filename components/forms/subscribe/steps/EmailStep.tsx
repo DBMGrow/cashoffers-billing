@@ -48,6 +48,7 @@ export default function EmailStep({ form, onNext, onOfferDowngrade, onError, set
   return (
     <Input
       placeholder="john.doe@example.com"
+      name="email"
       value={email}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("email", e.target.value)}
       isDisabled={!isValid}

@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import SubscribePageClient from "./SubscribePageClient"
 import { Spinner } from "@/components/Theme/Spinner"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 export const metadata = {
   title: "Sign Up | CashOffers.PRO",
@@ -37,14 +38,16 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
   }
 
   return (
-    <Suspense
-      fallback={
-        <div className="w-screen h-screen flex items-center justify-center">
-          <Spinner />
-        </div>
-      }
-    >
-      <SubscribePageClient />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="w-screen h-screen flex items-center justify-center">
+            <Spinner />
+          </div>
+        }
+      >
+        <SubscribePageClient />
+      </Suspense>
+    </ErrorBoundary>
   )
 }

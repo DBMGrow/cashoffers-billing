@@ -145,3 +145,6 @@ next-env.d.ts
 
 # Email preview output
 email-previews/
+
+test-results/
+playwright-report/

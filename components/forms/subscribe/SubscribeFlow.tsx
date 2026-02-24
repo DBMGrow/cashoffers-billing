@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -87,9 +87,10 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
   const [allowReset, setAllowReset] = useState(true)
   const [errorMessage, setErrorMessage] = useState("")
   const [returnStep, setReturnStep] = useState<FormStep>("email")
+  const [productValidated, setProductValidated] = useState(false)
 
   // Fetch products using TanStack Query
-  const { getProductById } = useProducts({
+  const { getProductById, loading } = useProducts({
     mode: "signup",
     whitelabel: whitelabel || "default"
   })
@@ -97,6 +98,19 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
   // Derive isInvestor from product data instead of hardcoding product ID
   const selectedProduct = getProductById(initialProduct)
   const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
+
+  // Check if product is invalid after products load
+  useEffect(() => {
+    if (!loading && !productValidated) {
+      if (!selectedProduct && initialProduct !== "free" && initialProduct !== "freeinvestor") {
+        setErrorMessage("Invalid product ID. The product you selected could not be found.")
+        setReturnStep("email")
+        setAllowReset(false)
+        transitionToStep("error")
+      }
+      setProductValidated(true)
+    }
+  }, [loading, selectedProduct, initialProduct, productValidated, transitionToStep])
 
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),

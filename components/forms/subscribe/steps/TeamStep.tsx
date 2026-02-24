@@ -16,6 +16,7 @@ export default function TeamStep({ form, onNext, onBack }: TeamStepProps) {
   return (
     <Input
       placeholder="My Team"
+      name="name_team"
       value={nameTeam}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name_team", e.target.value)}
       isDisabled={false}

@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import InvestorPageClient from "./InvestorPageClient"
 import { Spinner } from "@/components/Theme/Spinner"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 export const metadata = {
   title: "Investor Sign Up | CashOffers.PRO",
@@ -9,8 +10,10 @@ export const metadata = {
 
 export default function InvestorPage() {
   return (
-    <Suspense>
-      <InvestorPageClient />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense>
+        <InvestorPageClient />
+      </Suspense>
+    </ErrorBoundary>
   )
 }
