@@ -40,6 +40,8 @@ export type FormStep =
   | "review"
   | "welcome"
   | "error"
+  | "offerDowngrade"
+  | "offerDowngradeConfirm"
 
 export type WhitelabelType =
   | "default"

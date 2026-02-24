@@ -14,9 +14,10 @@ interface ManageSubscriptionStepProps {
   user: User
   onBack: () => void
   onUpdateCard: () => void
+  onChangePlan: () => void
 }
 
-export default function ManageSubscriptionStep({ user, onBack, onUpdateCard }: ManageSubscriptionStepProps) {
+export default function ManageSubscriptionStep({ user, onBack, onUpdateCard, onChangePlan }: ManageSubscriptionStepProps) {
   const { data, error, isLoading } = useQuery({
     queryKey: ["subscription", user.api_token],
     queryFn: async () => {
@@ -47,15 +48,22 @@ export default function ManageSubscriptionStep({ user, onBack, onUpdateCard }: M
   return (
     <div className="w-full flex flex-col">
       <Table footer={
-        <div className="flex gap-2">
-          <div className="flex flex-col grow w-1/4">
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <div className="flex flex-col grow">
+              <ThemeButton color="secondary" onPress={onChangePlan}>
+                Change Plan
+              </ThemeButton>
+            </div>
+            <div className="flex flex-col grow">
+              <ThemeButton color="secondary" onPress={onUpdateCard}>
+                Update Card
+              </ThemeButton>
+            </div>
+          </div>
+          <div className="w-full">
             <ThemeButton color="primary" onPress={onBack}>
               Back
-            </ThemeButton>
-          </div>
-          <div className="flex flex-col grow w-3/4">
-            <ThemeButton color="secondary" onPress={onUpdateCard}>
-              Update Card
             </ThemeButton>
           </div>
         </div>

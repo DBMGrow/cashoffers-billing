@@ -11,6 +11,7 @@ import {
 } from "./schemas/signup.schemas"
 import { db } from "@/api/lib/database"
 import { setCookie } from "hono/cookie"
+import { getContainer } from "@api/container"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -292,9 +293,23 @@ app.openapi(SendReactivationRoute, async (c) => {
       Math.random().toString(36).substring(2, 10).toUpperCase() +
       Math.random().toString(36).substring(2, 10).toUpperCase()
 
-    // TODO: Send reactivation email via sendEmail utility
-    // This would typically call sendEmail({ to: email, template: 'reactivation.html', fields: { token: reactivationToken } })
-    console.log(`Reactivation email would be sent to ${email} with token ${reactivationToken}`)
+    // Build reactivation URL
+    const baseUrl = process.env.APP_URL || "https://billing.cashoffers.com"
+    const reactivationUrl = `${baseUrl}/subscribe?reactivation_token=${reactivationToken}&email=${encodeURIComponent(email)}`
+
+    // Send reactivation email
+    const container = getContainer()
+    await container.services.email.sendEmail({
+      to: email,
+      subject: "Reactivate Your CashOffers Account",
+      template: "accountReactivation.html",
+      fields: {
+        name: user.name || "User",
+        reactivation_url: reactivationUrl,
+      },
+    })
+
+    console.log(`Reactivation email sent to ${email} with token ${reactivationToken}`)
 
     return c.json(
       {

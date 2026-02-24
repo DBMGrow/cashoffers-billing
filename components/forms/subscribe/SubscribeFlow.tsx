@@ -23,6 +23,8 @@ import CardStep from "./steps/CardStep"
 import ReviewStep from "./steps/ReviewStep"
 import WelcomeStep from "./steps/WelcomeStep"
 import ErrorStep from "./steps/ErrorStep"
+import OfferDowngradeStep from "./steps/OfferDowngradeStep"
+import OfferDowngradeConfirmStep from "./steps/OfferDowngradeConfirmStep"
 
 const subscribeSchema = z.object({
   product: z.union([z.number(), z.string()]),
@@ -70,6 +72,14 @@ const stepConfig: Record<FormStep, { title: string; description: string }> = {
     description: "Congrats! All you need to do now is set your password.",
   },
   error: { title: "Oops!", description: "Something went wrong." },
+  offerDowngrade: {
+    title: "Reactivate Your Account",
+    description: "Let's get you back on track.",
+  },
+  offerDowngradeConfirm: {
+    title: "Check Your Email",
+    description: "We've sent you a reactivation link.",
+  },
 }
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: SubscribeFlowProps) {
@@ -131,6 +141,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
           <EmailStep
             form={form}
             onNext={() => goToStep("name")}
+            onOfferDowngrade={() => goToStep("offerDowngrade")}
             onError={(message) => goToError(message, "email")}
             setAllowReset={setAllowReset}
           />
@@ -203,6 +214,17 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
         return <WelcomeStep form={form} />
       case "error":
         return <ErrorStep errorMessage={errorMessage} onRetry={() => goToStep(returnStep)} />
+      case "offerDowngrade":
+        return (
+          <OfferDowngradeStep
+            form={form}
+            onNext={() => goToStep("offerDowngradeConfirm")}
+            onError={(message) => goToError(message, "offerDowngrade")}
+            setAllowReset={setAllowReset}
+          />
+        )
+      case "offerDowngradeConfirm":
+        return <OfferDowngradeConfirmStep form={form} />
       default:
         return null
     }

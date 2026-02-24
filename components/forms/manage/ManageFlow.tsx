@@ -15,9 +15,10 @@ import LoginPasswordStep from "./steps/LoginPasswordStep"
 import DashboardStep from "./steps/DashboardStep"
 import ManageSubscriptionStep from "./steps/ManageSubscriptionStep"
 import UpdateCardStep from "./steps/UpdateCardStep"
+import UpdatePlanStep from "./steps/UpdatePlanStep"
 import ErrorStep from "./steps/ErrorStep"
 
-type ManageStep = "email" | "password" | "dashboard" | "subscription" | "card" | "error"
+type ManageStep = "email" | "password" | "dashboard" | "subscription" | "card" | "changePlan" | "error"
 
 const stepConfig: Record<ManageStep, { title: string; description: string }> = {
   email: { title: "What is your Email?", description: "Use the Email you signed up with." },
@@ -25,6 +26,7 @@ const stepConfig: Record<ManageStep, { title: string; description: string }> = {
   dashboard: { title: "Welcome back!", description: "What would you like to do?" },
   subscription: { title: "Manage Subscription", description: "View and update your subscription." },
   card: { title: "Update Card", description: "Update your billing information." },
+  changePlan: { title: "Change Plan", description: "Select a new plan for your subscription." },
   error: { title: "Oops!", description: "Something went wrong." },
 }
 
@@ -113,6 +115,7 @@ export default function ManageFlow() {
             user={user!}
             onBack={() => goToStep("dashboard")}
             onUpdateCard={() => goToStep("card")}
+            onChangePlan={() => goToStep("changePlan")}
           />
         )
       case "card":
@@ -121,6 +124,15 @@ export default function ManageFlow() {
             user={user!}
             onBack={() => goToStep("dashboard")}
             onError={(message) => goToError(message, "card")}
+          />
+        )
+      case "changePlan":
+        return (
+          <UpdatePlanStep
+            user={user!}
+            onBack={() => goToStep("subscription")}
+            onSuccess={() => goToStep("subscription")}
+            onError={(message) => goToError(message, "changePlan")}
           />
         )
       case "error":

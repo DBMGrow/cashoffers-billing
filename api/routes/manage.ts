@@ -4,6 +4,8 @@ import jwt from "jsonwebtoken"
 import { setCookie } from "hono/cookie"
 import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { db } from "@/api/lib/database"
+import { getContainer } from "@api/container"
+import { executeUseCase } from "./helpers/use-case-handler"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -353,22 +355,122 @@ app.openapi(ManagePurchaseRoute, async (c) => {
     const user = c.get("user")
     const body = c.req.valid("json")
     const { product_id, subscription_id } = body
+    const container = getContainer()
+    const paymentContext = c.get("paymentContext")
 
-    // TODO: Implement plan change logic
-    // This would typically:
-    // 1. Validate role compatibility
-    // 2. Calculate prorated charge
-    // 3. Process payment if needed
-    // 4. Update subscription
-    // 5. Update user config if needed
-    console.log(`Plan change requested for user ${user.user_id} to product ${product_id}`)
+    // 1. Fetch the new product to validate
+    const newProduct = await db
+      .selectFrom("Products")
+      .selectAll()
+      .where("product_id", "=", product_id)
+      .executeTakeFirst()
+
+    if (!newProduct) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "Product not found",
+        },
+        404
+      )
+    }
+
+    // 2. Validate role compatibility
+    const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
+    const productRole = newProduct.data?.user_config?.role
+    const productIsAgentType = ["AGENT", "TEAMOWNER"].includes(productRole)
+
+    if (userIsAgentType !== productIsAgentType) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "Cannot switch between AGENT and INVESTOR roles",
+          code: "ROLE_INCOMPATIBLE",
+        },
+        400
+      )
+    }
+
+    // 3. Fetch current subscription
+    const currentSubscription = await db
+      .selectFrom("Subscriptions")
+      .selectAll()
+      .where("subscription_id", "=", subscription_id)
+      .where("user_id", "=", user.user_id)
+      .executeTakeFirst()
+
+    if (!currentSubscription) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "Subscription not found",
+        },
+        404
+      )
+    }
+
+    // 4. Calculate prorated charge
+    const proratedResult = await container.useCases.calculateProrated.execute({
+      productId: product_id,
+      userId: user.user_id,
+    })
+
+    if (proratedResult.success !== "success") {
+      throw new Error("Failed to calculate prorated cost")
+    }
+
+    const proratedAmount = proratedResult.data.proratedCost
+
+    // 5. Process payment if there's a charge
+    let chargeDetails = null
+    if (proratedAmount > 0) {
+      const paymentResult = await container.useCases.createPayment.execute({
+        userId: user.user_id,
+        amount: proratedAmount,
+        email: user.email,
+        memo: `Plan upgrade to ${newProduct.product_name}`,
+        sendEmailOnCharge: true,
+        context: paymentContext,
+      })
+
+      if (paymentResult.success !== "success") {
+        return c.json(
+          {
+            success: "error" as const,
+            error: paymentResult.error || "Payment failed",
+          },
+          400
+        )
+      }
+
+      chargeDetails = paymentResult.data
+    }
+
+    // 6. Update subscription with new product
+    const updateResult = await container.useCases.updateSubscriptionFields.execute({
+      subscriptionId: subscription_id,
+      productId: product_id,
+      subscriptionName: newProduct.product_name,
+      amount: newProduct.data?.renewal_cost || newProduct.price,
+      duration: newProduct.data?.duration,
+    })
+
+    if (updateResult.success !== "success") {
+      return c.json(
+        {
+          success: "error" as const,
+          error: updateResult.error || "Failed to update subscription",
+        },
+        400
+      )
+    }
 
     return c.json(
       {
         success: "success" as const,
         data: {
-          subscription: {},
-          charge: null,
+          subscription: updateResult.data,
+          charge: chargeDetails,
         },
       },
       200

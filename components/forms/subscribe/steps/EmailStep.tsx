@@ -10,11 +10,12 @@ import validateEmail from "@/components/utils/validateEmail"
 interface EmailStepProps {
   form: UseFormReturn<SubscribeFormData>
   onNext: () => void
+  onOfferDowngrade: () => void
   onError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
-export default function EmailStep({ form, onNext, onError, setAllowReset }: EmailStepProps) {
+export default function EmailStep({ form, onNext, onOfferDowngrade, onError, setAllowReset }: EmailStepProps) {
   const email = form.watch("email")
   const isValid = validateEmail(email)
   const checkUser = useCheckUserExistsValidation()
@@ -29,7 +30,10 @@ export default function EmailStep({ form, onNext, onError, setAllowReset }: Emai
 
     checkUser.mutate(email, {
       onSuccess: (data) => {
-        if (data?.userExists) {
+        // Check if user should be offered downgrade (inactive premium user)
+        if (data?.offerDowngrade) {
+          onOfferDowngrade()
+        } else if (data?.userExists) {
           onError("This email is already in use. Please try a different email.")
         } else {
           onNext()

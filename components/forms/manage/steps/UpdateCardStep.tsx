@@ -23,11 +23,12 @@ export default function UpdateCardStep({ user, onBack, onError }: UpdateCardStep
     cardTokenizeResponseReceived: async (token: any) => {
       setIsLoading(true)
       try {
-        const { data: result } = await axios.put("/api/card", {
-          api_token: user.api_token,
+        const { data: result } = await axios.post("/api/card", {
+          user_id: user.user_id,
           card_token: token.token,
           exp_month: token.details.card.expMonth,
           exp_year: token.details.card.expYear,
+          cardholder_name: user.name || "Cardholder",
         })
 
         if (result.success === "success") {
