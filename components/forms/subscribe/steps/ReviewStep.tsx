@@ -3,12 +3,10 @@
 import { useState } from "react"
 import { UseFormReturn } from "react-hook-form"
 import type { SubscribeFormData, CardData } from "@/types/forms"
-import type { Product } from "@/types/products"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { usePurchase } from "@/hooks/api/usePurchase"
 import { usePurchaseFree } from "@/hooks/api/usePurchaseFree"
-import { products } from "@/components/data/productsList"
-import { productsInvestor } from "@/components/data/productsListInvestor"
+import { useProducts } from "@/providers/ProductProvider"
 import Row from "@/components/Theme/Row"
 import Table from "@/components/Theme/Table"
 import InvestorConsent from "@/components/UI/SignupForm/InvestorConsent"
@@ -29,7 +27,12 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
   const router = useRouter()
   const formData = form.watch()
   const product = formData.product
-  const isInvestorProduct = product === 11 || product === "freeinvestor"
+
+  // Use dynamic product data from context
+  const { getProductById } = useProducts()
+  const productData = getProductById(product)
+
+  const isInvestorProduct = productData?.data?.user_config?.role === "INVESTOR"
 
   const [isChecked, setIsChecked] = useState(!isInvestorProduct)
   const [isGeneralChecked, setIsGeneralChecked] = useState(false)
@@ -38,15 +41,18 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
   const purchaseMutation = usePurchase()
   const purchaseFreeMutation = usePurchaseFree()
 
-  const ourProducts = isInvestorProduct ? productsInvestor : products
-  const productInfo: Product | undefined = ourProducts.find((p: any) => p.productID === product) as Product | undefined
-  const planName = productInfo?.listName || "Unknown Plan"
+  const planName = productData?.product_name || "Unknown Plan"
 
-  let signupFee = !!productInfo?.signup
+  // Calculate prices from product data
+  const monthlyPrice = (productData?.data?.renewal_cost || 0) / 100
+  const signupFeeAmount = (productData?.data?.signup_fee || 0) / 100
+
+  // Apply coupon logic
+  let signupFee = signupFeeAmount > 0
   if (formData.coupon === "CPStart" || product === 12) signupFee = false
 
-  const productPrice = productInfo ? productInfo.price / 100 : 0
-  const priceToday = signupFee ? productPrice + 250 : productPrice
+  const productPrice = monthlyPrice
+  const priceToday = signupFee ? productPrice + signupFeeAmount : productPrice
 
   const handleSubmitFree = async () => {
     setAllowReset(false)

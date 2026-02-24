@@ -9,6 +9,8 @@ import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
 import useStepTransition from "@/hooks/useStepTransition"
 import FlowWrapper from "../FlowWrapper"
+import { useProducts } from "@/providers/ProductProvider"
+import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 // Step components
 import EmailStep from "./steps/EmailStep"
@@ -77,6 +79,14 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
   const [errorMessage, setErrorMessage] = useState("")
   const [returnStep, setReturnStep] = useState<FormStep>("email")
 
+  // Use context providers to get product data
+  const { getProductById } = useProducts()
+  const { currentWhitelabel } = useWhitelabel()
+
+  // Derive isInvestor from product data instead of hardcoding product ID
+  const selectedProduct = getProductById(initialProduct)
+  const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
+
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),
     mode: "onChange",
@@ -90,7 +100,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
       name_team: null,
       coupon: coupon || null,
       whitelabel: whitelabel !== "default" ? whitelabel : null,
-      isInvestor: initialProduct === 11,
+      isInvestor,
     },
   })
 
