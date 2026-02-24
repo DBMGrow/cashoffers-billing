@@ -17,7 +17,7 @@ interface UpdatePlanStepProps {
 }
 
 export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: UpdatePlanStepProps) {
-  const { products, loading: productsLoading } = useProducts()
+  const { products, loading: productsLoading } = useProducts({ mode: "manage" })
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [proratedInfo, setProratedInfo] = useState<any>(null)
   const [checkingPlan, setCheckingPlan] = useState(false)

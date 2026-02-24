@@ -28,8 +28,11 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
   const formData = form.watch()
   const product = formData.product
 
-  // Use dynamic product data from context
-  const { getProductById } = useProducts()
+  // Fetch products using TanStack Query
+  const { getProductById } = useProducts({
+    mode: "signup",
+    whitelabel: (formData.whitelabel as string) || "default"
+  })
   const productData = getProductById(product)
 
   const isInvestorProduct = productData?.data?.user_config?.role === "INVESTOR"

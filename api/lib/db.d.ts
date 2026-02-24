@@ -507,6 +507,7 @@ export interface Properties {
   hvac_type: string | null;
   insight_id: number | null;
   intent: Generated<number>;
+  is_sold: Generated<number>;
   is_unlocked: Generated<number | null>;
   kitchen_appliances: string | null;
   kitchen_appliancesnotworking: string | null;
@@ -734,6 +735,7 @@ export interface PropertiesJoined {
   baths: Decimal | null;
   beds: number | null;
   city: string;
+  condition: string | null;
   country: Generated<string>;
   county: string | null;
   created: Generated<Date>;
@@ -769,6 +771,10 @@ export interface PropertiesJoined {
   hoa_55: number | null;
   hoa_gated: string | null;
   homebuilder: number | null;
+  hvac_age: string | null;
+  hvac_details: string | null;
+  hvac_number: string | null;
+  hvac_type: string | null;
   insight_id: number | null;
   kitchen_appliances: string | null;
   kitchen_appliancesnotworking: string | null;
@@ -776,6 +782,7 @@ export interface PropertiesJoined {
   kitchen_counter: string | null;
   kitchen_features: string | null;
   kitchen_notes: string | null;
+  kitchen_remodeled: string | null;
   landscape_community: string | null;
   landscape_home: string | null;
   lat: number | null;
@@ -785,14 +792,21 @@ export interface PropertiesJoined {
   neighborhood: string | null;
   nickname: string | null;
   occupancy: string | null;
+  organic_growth: number | null;
+  organic_growth_details: string | null;
   parking: string | null;
   pets: number | null;
   pets_notes: string | null;
   plumbing_septic: number | null;
   plumbing_septic_certified: string | null;
+  plumbing_system: string | null;
   plumbing_type: string | null;
   pool: string | null;
+  property_additions: string | null;
+  property_additions_sqft: string | null;
   property_id: Generated<number>;
+  property_needs: number | null;
+  property_needs_notes: string | null;
   property_token: string | null;
   propertytype: string | null;
   renovation: number | null;
@@ -824,6 +838,7 @@ export interface PropertiesJoined {
   utm_term: string | null;
   walls_notes: string | null;
   walls_painted: string | null;
+  water_heater_age: string | null;
   water_notes: string | null;
   water_type: string | null;
   yearbuilt: number | null;
@@ -1852,6 +1867,7 @@ export interface WebsitesDash {
 
 export interface Whitelabels {
   code: string;
+  data: Json | null;
   name: string;
   suspension_behavior: Generated<"DEACTIVATE_USER" | "DOWNGRADE_TO_FREE">;
   whitelabel_id: Generated<number>;

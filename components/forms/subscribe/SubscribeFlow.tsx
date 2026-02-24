@@ -10,7 +10,6 @@ import useAnimateContainer from "@/hooks/useAnimateContainer"
 import useStepTransition from "@/hooks/useStepTransition"
 import FlowWrapper from "../FlowWrapper"
 import { useProducts } from "@/providers/ProductProvider"
-import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 // Step components
 import EmailStep from "./steps/EmailStep"
@@ -83,15 +82,17 @@ const stepConfig: Record<FormStep, { title: string; description: string }> = {
 }
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: SubscribeFlowProps) {
-  const { displayStep, isTransitioning, transitionToStep } = useStepTransition<FormStep>("email")
+  const { displayStep, isTransitioning, transitionToStep} = useStepTransition<FormStep>("email")
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [allowReset, setAllowReset] = useState(true)
   const [errorMessage, setErrorMessage] = useState("")
   const [returnStep, setReturnStep] = useState<FormStep>("email")
 
-  // Use context providers to get product data
-  const { getProductById } = useProducts()
-  const { currentWhitelabel } = useWhitelabel()
+  // Fetch products using TanStack Query
+  const { getProductById } = useProducts({
+    mode: "signup",
+    whitelabel: whitelabel || "default"
+  })
 
   // Derive isInvestor from product data instead of hardcoding product ID
   const selectedProduct = getProductById(initialProduct)

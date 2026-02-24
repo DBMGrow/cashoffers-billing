@@ -6,7 +6,10 @@ import Link from "next/link"
 import { useProducts } from "@/providers/ProductProvider"
 
 export default function Pricing({ whitelabel, investor = false }) {
-  const { products: allProducts, loading } = useProducts()
+  const { products: allProducts, loading } = useProducts({
+    mode: "signup",
+    whitelabel: whitelabel || "default"
+  })
 
   // const hasSignupFee = whitelabel !== "platinum"
   const hasSignupFee = true
