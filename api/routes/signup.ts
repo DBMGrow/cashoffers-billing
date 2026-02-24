@@ -339,7 +339,10 @@ app.openapi(GetProductsRoute, async (c) => {
 
     const filteredProducts = allProducts.filter((product: any) => {
       const productWhitelabelId = product.data?.user_config?.whitelabel_id
-      return productWhitelabelId === whitelabelId
+      // Include products that:
+      // 1. Have a whitelabel_id that matches the requested one
+      // 2. Don't have a whitelabel_id set (backward compatibility - available for all whitelabels)
+      return productWhitelabelId === whitelabelId || productWhitelabelId === undefined || productWhitelabelId === null
     })
 
     return c.json(

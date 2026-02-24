@@ -6,6 +6,7 @@ import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { db } from "@/api/lib/database"
 import { getContainer } from "@api/container"
 import { executeUseCase } from "./helpers/use-case-handler"
+import type { ProductData } from "@api/domain/types/product-data.types"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -215,13 +216,13 @@ app.openapi(GetProductsRoute, async (c) => {
       const productRole = product.data?.user_config?.role
       const productWhitelabelId = product.data?.user_config?.whitelabel_id
 
-      // Check role compatibility
-      if (!compatibleRoles.includes(productRole)) {
+      // Check role compatibility (skip if product doesn't specify a role - backward compatibility)
+      if (productRole && !compatibleRoles.includes(productRole)) {
         return false
       }
 
-      // Check whitelabel match if user has one
-      if (user.whitelabel_id && productWhitelabelId !== user.whitelabel_id) {
+      // Check whitelabel match if both user and product have whitelabel_id
+      if (user.whitelabel_id && productWhitelabelId && productWhitelabelId !== user.whitelabel_id) {
         return false
       }
 
@@ -377,8 +378,9 @@ app.openapi(ManagePurchaseRoute, async (c) => {
 
     // 2. Validate role compatibility
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
-    const productRole = newProduct.data?.user_config?.role
-    const productIsAgentType = ["AGENT", "TEAMOWNER"].includes(productRole)
+    const productData = newProduct.data as ProductData | null
+    const productRole = productData?.user_config?.role
+    const productIsAgentType = productRole ? ["AGENT", "TEAMOWNER"].includes(productRole) : false
 
     if (userIsAgentType !== productIsAgentType) {
       return c.json(
@@ -391,7 +393,18 @@ app.openapi(ManagePurchaseRoute, async (c) => {
       )
     }
 
-    // 3. Fetch current subscription
+    // 3. Validate subscription_id is provided
+    if (!subscription_id) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "subscription_id is required",
+        },
+        400
+      )
+    }
+
+    // 4. Fetch current subscription
     const currentSubscription = await db
       .selectFrom("Subscriptions")
       .selectAll()
@@ -409,19 +422,19 @@ app.openapi(ManagePurchaseRoute, async (c) => {
       )
     }
 
-    // 4. Calculate prorated charge
+    // 5. Calculate prorated charge
     const proratedResult = await container.useCases.calculateProrated.execute({
       productId: product_id,
       userId: user.user_id,
     })
 
-    if (proratedResult.success !== "success") {
-      throw new Error("Failed to calculate prorated cost")
+    if (!proratedResult.success) {
+      throw new Error(proratedResult.error || "Failed to calculate prorated cost")
     }
 
-    const proratedAmount = proratedResult.data.proratedCost
+    const proratedAmount = proratedResult.data.proratedAmount
 
-    // 5. Process payment if there's a charge
+    // 6. Process payment if there's a charge
     let chargeDetails = null
     if (proratedAmount > 0) {
       const paymentResult = await container.useCases.createPayment.execute({
@@ -433,7 +446,7 @@ app.openapi(ManagePurchaseRoute, async (c) => {
         context: paymentContext,
       })
 
-      if (paymentResult.success !== "success") {
+      if (!paymentResult.success) {
         return c.json(
           {
             success: "error" as const,
@@ -446,30 +459,31 @@ app.openapi(ManagePurchaseRoute, async (c) => {
       chargeDetails = paymentResult.data
     }
 
-    // 6. Update subscription with new product
-    const updateResult = await container.useCases.updateSubscriptionFields.execute({
-      subscriptionId: subscription_id,
-      productId: product_id,
-      subscriptionName: newProduct.product_name,
-      amount: newProduct.data?.renewal_cost || newProduct.price,
-      duration: newProduct.data?.duration,
-    })
+    // 7. Update subscription with new product
+    await db
+      .updateTable("Subscriptions")
+      .set({
+        product_id: product_id,
+        subscription_name: newProduct.product_name,
+        amount: productData?.renewal_cost || newProduct.price,
+        duration: productData?.duration,
+        updatedAt: new Date(),
+      })
+      .where("subscription_id", "=", subscription_id)
+      .execute()
 
-    if (updateResult.success !== "success") {
-      return c.json(
-        {
-          success: "error" as const,
-          error: updateResult.error || "Failed to update subscription",
-        },
-        400
-      )
-    }
+    // Fetch updated subscription
+    const updatedSubscription = await db
+      .selectFrom("Subscriptions")
+      .selectAll()
+      .where("subscription_id", "=", subscription_id)
+      .executeTakeFirst()
 
     return c.json(
       {
         success: "success" as const,
         data: {
-          subscription: updateResult.data,
+          subscription: updatedSubscription,
           charge: chargeDetails,
         },
       },

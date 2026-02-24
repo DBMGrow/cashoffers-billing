@@ -6,7 +6,7 @@ export function useCheckSlugExists(slug: string | null) {
     queryKey: ["checkSlugExists", slug],
     queryFn: async () => {
       if (!slug) return null
-      const { data } = await axios.get(`/api/checkslugexists/${encodeURIComponent(slug)}`)
+      const { data } = await axios.get(`/api/signup/checkslugexists/${encodeURIComponent(slug)}`)
       return data
     },
     enabled: !!slug && slug.length > 0,

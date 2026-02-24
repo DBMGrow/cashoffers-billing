@@ -5,7 +5,7 @@ import type { PurchaseFreeRequest, ApiResponse, User } from "@/types/api"
 export function usePurchaseFree() {
   return useMutation({
     mutationFn: async (purchaseData: PurchaseFreeRequest) => {
-      const { data } = await axios.post<ApiResponse<{ user: User }>>("/api/purchasefree", purchaseData)
+      const { data } = await axios.post<ApiResponse<{ user: User }>>("/api/signup/purchasefree", purchaseData)
       return data
     },
   })
