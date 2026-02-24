@@ -23,7 +23,7 @@ export default function Home() {
       </section>
       <section className="min-h-162.5 w-screen flex items-stretch justify-center -mt-25">
         <Card className="rounded-b-none w-full md:min-w-200 md:w-2/3">
-          <CardBody className="flex flex-col gap-8 sm:p-8 bg-[url('/images/bg-element-8.svg')] bg-no-repeat bg-bottom-right bg-size-[100%]">
+          <CardBody className="flex flex-col gap-8 sm:p-8 bg-[url('/images/card-bg.jpg')] bg-no-repeat bg-bottom-right bg-size-[100%]">
             <div className="pt-10 w-full text-center">
               <h2>Pricing</h2>
             </div>

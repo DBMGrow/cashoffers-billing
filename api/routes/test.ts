@@ -164,7 +164,7 @@ if (process.env.NODE_ENV !== "production") {
               product_id: z.number(),
               amount: z.number(),
               status: z.string().optional(),
-              subscription_name: z.string(),
+              subscription_name: z.string().optional(),
               duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
               renewal_date: z.string().optional(), // ISO date string
             }),
@@ -234,7 +234,7 @@ if (process.env.NODE_ENV !== "production") {
           product_id: body.product_id,
           amount: body.amount,
           status: body.status || "active",
-          subscription_name: body.subscription_name,
+          subscription_name: body.subscription_name || "Test Subscription",
           duration: body.duration || "monthly",
           renewal_date: renewalDate,
           createdAt: now,
@@ -247,13 +247,13 @@ if (process.env.NODE_ENV !== "production") {
         data: {
           subscription_id: Number(result.insertId),
         },
-      })
+      }, 200)
     } catch (error: any) {
       console.error("Error creating test subscription:", error)
       return c.json(
         {
           success: "error" as const,
-          error: error.message || "Failed to create test subscription",
+          error: String(error.message || "Failed to create test subscription"),
         },
         400
       )

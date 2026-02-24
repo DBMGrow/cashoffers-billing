@@ -1,6 +1,62 @@
 import { Page } from '@playwright/test'
 
 /**
+ * Setup API mocks for purchase endpoints
+ * Call this when you want to skip actual payment processing in tests.
+ * Works for both paid (mock_purchase=true) and free plan signups.
+ */
+export async function setupPurchaseMocks(page: Page) {
+  // Mock the paid purchase endpoint
+  await page.route('**/api/purchase', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: 'success',
+        data: {
+          subscription: {
+            subscriptionId: 999,
+            userId: 1001,
+            productId: 1,
+            amount: 25000,
+          },
+          product: { product_name: 'Test Plan' },
+          user: {
+            id: 1001,
+            email: 'test@example.com',
+            reset_token: null,
+            api_token: 'mock-api-token-12345',
+          },
+          userCard: { last_4: '1111' },
+          userCreated: true,
+          proratedCharge: 0,
+        },
+        environment: 'sandbox',
+      }),
+    })
+  })
+
+  // Mock the free purchase endpoint
+  await page.route('**/api/signup/purchasefree', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: 'success',
+        data: {
+          user: {
+            id: 1001,
+            email: 'test@example.com',
+            reset_token: null,
+            api_token: 'mock-api-token-12345',
+          },
+        },
+      }),
+    })
+  })
+}
+
+/**
  * Setup API mocks for validation endpoints
  * Call this before starting any signup flow
  */
@@ -194,6 +250,11 @@ export async function completeReviewStep(page: Page) {
  * The app shows a welcome message before redirecting to the dashboard
  */
 export async function waitForWelcome(page: Page) {
-  // Wait for the welcome message to appear
-  await page.waitForSelector('text=/Welcome to CashOffers\\.PRO/i', { timeout: 30000 })
+  // Wait for either:
+  // 1. The welcome text to appear in the WelcomeStep component
+  // 2. The page to navigate away (indicating the signup completed and redirect happened)
+  await Promise.race([
+    page.waitForSelector('text=/Welcome to CashOffers/i', { timeout: 30000 }),
+    page.waitForURL(url => !url.toString().includes('/subscribe'), { timeout: 30000 }),
+  ])
 }

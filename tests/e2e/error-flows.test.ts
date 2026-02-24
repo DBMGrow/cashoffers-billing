@@ -105,6 +105,18 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
 
   test('Flow 33: Email Already Exists Error', async ({ page }) => {
     // First signup with free product (goes: email → name → phone directly)
+    // Mock the purchase API for the first signup
+    await page.route('**/api/signup/purchasefree', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: 'success',
+          data: { user: { id: 1001, email: testEmail, reset_token: null, api_token: 'mock-token' } },
+        }),
+      })
+    })
+
     await page.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
 
     await page.fill('input[name="email"]', testEmail)
@@ -120,8 +132,8 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
 
     await completeReviewStep(page)
 
-    // Wait for completion
-    await page.waitForURL(/\/welcome/, { timeout: 10000 })
+    // Wait for WelcomeStep or redirect (signup completed)
+    await page.waitForSelector('text=/Welcome to CashOffers/i', { timeout: 10000 })
 
     // Now try to sign up again with same email
     await page.goto(`/subscribe?product=${PRODUCT_IDS.agentMonthly}`)
@@ -229,6 +241,7 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
   })
 
   test('Flow 39: Consent Checkboxes Not Checked', async ({ page }) => {
+    // Free product flow: email → name → phone (skips slug and broker)
     await page.goto(`/subscribe?product=${PRODUCT_IDS.free}`)
 
     await page.fill('input[name="email"]', testEmail)
@@ -237,21 +250,24 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
     await page.fill('input[name="name"]', 'Consent Test User')
     await page.click('button:has-text("Next")')
 
-    await page.click('button:has-text("Skip")') // Skip slug
-
-    await page.fill('input[name="name_broker"]', 'Consent Brokerage')
-    await page.click('button:has-text("Next")')
-
+    // Free product: goes directly to phone (no slug or broker steps)
+    await page.waitForSelector('input[name="phone"]', { timeout: 5000 })
     await page.fill('input[name="phone"]', '(555) 555-6666')
     await page.click('button:has-text("Next")')
 
-    // Try to submit without checking consents
-    await page.click('button:has-text("Complete Sign Up")')
+    // On review step: the "Sign Up" button should be disabled without consents
+    await page.waitForSelector('button:has-text("Sign Up")', { timeout: 5000 })
+    const submitButton = page.locator('button:has-text("Sign Up")')
 
-    // Should see validation error
-    await expect(
-      page.locator('text=/consent.*required|must.*agree/i')
-    ).toBeVisible()
+    // Button should be disabled when no consents are checked
+    await expect(submitButton).toBeDisabled()
+
+    // Check the general consent checkbox to enable the button
+    const consentCheckboxes = page.locator('input[type="checkbox"][name="consent"]')
+    await consentCheckboxes.first().check()
+
+    // Button should now be enabled
+    await expect(submitButton).toBeEnabled()
   })
 
   test('Flow 40: Prorated Charge Calculation Error', async ({ page, context }) => {

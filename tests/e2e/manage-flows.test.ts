@@ -145,7 +145,7 @@ test.describe('Manage Flows (13-29)', () => {
       `/api/manage/products`,
       {
         headers: {
-          Cookie: `_api_token=${testUser._api_token}`,
+          Cookie: `_api_token=${testUser.api_token}`,
         },
       }
     )

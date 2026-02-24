@@ -46,7 +46,7 @@ export default function FormsLayoutClient({ children }: { children: React.ReactN
         className={`${theme} w-screen h-screen bg-primary bg-[url('/images/bg-3.jpg')] bg-cover bg-blend-multiply fixed -z-10`}
       ></div>
       <Card className="min-w-[55vw] bg-white max-w-175 md:mr-75 rounded-l-none h-screen">
-        <CardBody className="h-full flex flex-col justify-between sm:p-8 bg-[url('/images/bg-element-8.svg')] bg-no-repeat bg-bottom">
+        <CardBody className="h-full flex flex-col justify-between sm:p-8 bg-[url('/images/card-bg.jpg')] bg-no-repeat bg-bottom">
           <LogoComponent isLight={false} />
           {children}
         </CardBody>
