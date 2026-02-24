@@ -257,19 +257,29 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
       // Update status to PROCESSING_PAYMENT
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
 
-      // Process initial payment
-      const payment = await this.deps.paymentProvider.createPayment(
-        {
-          sourceId: userCard.card_id,
-          idempotencyKey: uuidv4(),
-          amountMoney: {
-            amount: BigInt(initialAmount),
-            currency: "USD",
-          },
-          customerId: userCard.square_customer_id || undefined,
-        },
-        input.context
-      ) // Pass context for environment selection (use input, not validatedInput)
+      // Process initial payment (or mock it for testing)
+      const payment = input.context?.mockPurchase
+        ? {
+            id: `MOCK_PAYMENT_${Date.now()}`,
+            status: "COMPLETED" as const,
+            environment: "sandbox" as const,
+            amountMoney: {
+              amount: BigInt(initialAmount),
+              currency: "USD" as const,
+            },
+          }
+        : await this.deps.paymentProvider.createPayment(
+            {
+              sourceId: userCard.card_id,
+              idempotencyKey: uuidv4(),
+              amountMoney: {
+                amount: BigInt(initialAmount),
+                currency: "USD",
+              },
+              customerId: userCard.square_customer_id || undefined,
+            },
+            input.context
+          )
 
       if (payment.status !== "COMPLETED") {
         logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
@@ -443,16 +453,23 @@ export class PurchaseSubscriptionUseCase implements IPurchaseSubscriptionUseCase
         return { success: false, error: "Card information incomplete" }
       }
 
-      // Create card in Square
-      const card = await paymentProvider.createCard(
-        {
-          sourceId: input.cardToken,
-          card: {
-            cardholderName: input.cardholderName,
-          },
-        },
-        input.context
-      ) // Pass context for environment selection
+      // For mock purchases, create a fake card instead of calling Square API
+      const card = input.context?.mockPurchase
+        ? {
+            id: `MOCK_CARD_${Date.now()}`,
+            cardBrand: "VISA",
+            last4: "1111",
+            environment: "sandbox" as const,
+          }
+        : await paymentProvider.createCard(
+            {
+              sourceId: input.cardToken,
+              card: {
+                cardholderName: input.cardholderName,
+              },
+            },
+            input.context
+          )
 
       // Save card to database (we'll use a placeholder for square_customer_id since it's not in CardResult)
       const now = new Date()

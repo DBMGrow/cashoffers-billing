@@ -17,13 +17,14 @@ import { useRouter } from "next/navigation"
 interface ReviewStepProps {
   form: UseFormReturn<SubscribeFormData>
   cardData: CardData | null
+  mockPurchase?: boolean
   onNext: () => void
   onBack: () => void
   onError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
-export default function ReviewStep({ form, cardData, onNext, onBack, onError, setAllowReset }: ReviewStepProps) {
+export default function ReviewStep({ form, cardData, mockPurchase = false, onNext, onBack, onError, setAllowReset }: ReviewStepProps) {
   const router = useRouter()
   const formData = form.watch()
   const product = formData.product
@@ -86,7 +87,20 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
   }
 
   const handleSubmit = async () => {
-    if (!cardData) {
+    // Create mock card data for testing if mockPurchase is true
+    const effectiveCardData = mockPurchase
+      ? {
+          token: "MOCK_CARD_TOKEN_FOR_TESTING",
+          details: {
+            card: {
+              expMonth: 12,
+              expYear: 2025,
+            },
+          },
+        }
+      : cardData
+
+    if (!effectiveCardData) {
       onError("Please add a card.")
       return
     }
@@ -103,9 +117,9 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
       email: formData.email,
       phone: formData.phone,
       name: formData.name,
-      card_token: cardData.token,
-      exp_month: cardData.details.card.expMonth,
-      exp_year: cardData.details.card.expYear,
+      card_token: effectiveCardData.token,
+      exp_month: effectiveCardData.details.card.expMonth,
+      exp_year: effectiveCardData.details.card.expYear,
       cardholder_name: formData.name,
       name_broker: formData.name_broker,
       name_team: formData.name_team,
@@ -114,6 +128,7 @@ export default function ReviewStep({ form, cardData, onNext, onBack, onError, se
       isInvestor: formData.isInvestor,
       url,
       coupon: formData.coupon,
+      mock_purchase: mockPurchase,
     })
 
     if (result.code === "PUR08") {

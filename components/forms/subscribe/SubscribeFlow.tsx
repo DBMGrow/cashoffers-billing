@@ -42,6 +42,7 @@ interface SubscribeFlowProps {
   initialProduct: number | string
   whitelabel: WhitelabelType
   coupon?: string | null
+  mockPurchase?: boolean
 }
 
 const stepConfig: Record<FormStep, { title: string; description: string }> = {
@@ -81,7 +82,7 @@ const stepConfig: Record<FormStep, { title: string; description: string }> = {
   },
 }
 
-export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: SubscribeFlowProps) {
+export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mockPurchase = false }: SubscribeFlowProps) {
   const { displayStep, isTransitioning, transitionToStep} = useStepTransition<FormStep>("email")
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [allowReset, setAllowReset] = useState(true)
@@ -197,8 +198,11 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
           <PhoneStep
             form={form}
             onNext={() => {
-              if (form.getValues("product") === "free" || form.getValues("product") === "freeinvestor")
+              const product = form.getValues("product")
+              // Skip card step for free products or when using mock purchase
+              if (product === "free" || product === "freeinvestor" || mockPurchase) {
                 return goToStep("review")
+              }
               return goToStep("card")
             }}
             onBack={() => goToStep("team")}
@@ -219,6 +223,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon }: Su
           <ReviewStep
             form={form}
             cardData={cardData}
+            mockPurchase={mockPurchase}
             onNext={() => goToStep("welcome")}
             onBack={() => goToStep("card")}
             onError={(message) => goToError(message, "review")}

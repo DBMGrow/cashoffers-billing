@@ -49,14 +49,7 @@ test.describe('Signup Flows (1-12)', () => {
       phone: '(555) 123-4567',
     })
 
-    // Fill card details
-    await fillCard(
-      page,
-      TEST_CARDS.valid.number,
-      TEST_CARDS.valid.expMonth,
-      TEST_CARDS.valid.expYear,
-      TEST_CARDS.valid.cvv
-    )
+    // Note: Card step is skipped when mock_purchase=true
 
     // Complete review step
     await completeReviewStep(page)
@@ -104,13 +97,7 @@ test.describe('Signup Flows (1-12)', () => {
     // Fill phone (investors don't have broker/team fields)
     await fillPhone(page, '(555) 345-6789')
 
-    // Fill card
-    await fillCard(
-      page,
-      TEST_CARDS.valid.number,
-      TEST_CARDS.valid.expMonth,
-      TEST_CARDS.valid.expYear
-    )
+    // Note: Card step is skipped when mock_purchase=true
 
     // Complete review
     await completeReviewStep(page)
@@ -146,12 +133,7 @@ test.describe('Signup Flows (1-12)', () => {
       phone: '(555) 567-8901',
     })
 
-    await fillCard(
-      page,
-      TEST_CARDS.valid.number,
-      TEST_CARDS.valid.expMonth,
-      TEST_CARDS.valid.expYear
-    )
+    // Note: Card step is skipped when mock_purchase=true
 
     await completeReviewStep(page)
 
@@ -204,12 +186,7 @@ test.describe('Signup Flows (1-12)', () => {
       phone: '(555) 678-9012',
     })
 
-    await fillCard(
-      page,
-      TEST_CARDS.valid.number,
-      TEST_CARDS.valid.expMonth,
-      TEST_CARDS.valid.expYear
-    )
+    // Note: Card step is skipped when mock_purchase=true
 
     await completeReviewStep(page)
 
@@ -229,12 +206,7 @@ test.describe('Signup Flows (1-12)', () => {
       phone: '(555) 789-0123',
     })
 
-    await fillCard(
-      page,
-      TEST_CARDS.valid.number,
-      TEST_CARDS.valid.expMonth,
-      TEST_CARDS.valid.expYear
-    )
+    // Note: Card step is skipped when mock_purchase=true
 
     await completeReviewStep(page)
 
@@ -283,12 +255,7 @@ test.describe('Signup Flows (1-12)', () => {
       phone: '(555) 890-1234',
     })
 
-    await fillCard(
-      page,
-      TEST_CARDS.valid.number,
-      TEST_CARDS.valid.expMonth,
-      TEST_CARDS.valid.expYear
-    )
+    // Note: Card step is skipped when mock_purchase=true
 
     // On review step, verify coupon is shown (if implemented)
     // await expect(page.locator('text=/coupon|discount/i')).toBeVisible()

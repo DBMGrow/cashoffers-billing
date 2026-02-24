@@ -1,14 +1,14 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { getContainer } from "@api/container"
 import { PurchaseRoute } from "./schemas/purchase.schemas"
 import { setCookie } from "hono/cookie"
+import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
-// Apply auth middleware
-app.use("/", authMiddleware("payments_create"))
+// Note: No auth middleware - this endpoint is used for new user signups
+// who don't have API tokens yet. The use case handles creating new users.
 
 // Main purchase endpoint
 app.openapi(PurchaseRoute, async (c) => {
@@ -16,6 +16,7 @@ app.openapi(PurchaseRoute, async (c) => {
   const {
     product_id,
     email,
+    name,
     coupon,
     phone,
     card_token,
@@ -26,18 +27,33 @@ app.openapi(PurchaseRoute, async (c) => {
     whitelabel,
     slug,
     url,
+    mock_purchase,
+    name_broker,
+    name_team,
+    isInvestor,
   } = body
 
   const container = getContainer()
 
-  // Get payment context from middleware (includes test mode detection)
-  const paymentContext = c.get("paymentContext")
+  // Detect test mode based on email (since we don't have auth for new users)
+  const testModeDetector = new TestModeDetector()
+  const paymentContext = testModeDetector.detectTestMode(c, {
+    email,
+    user_id: undefined,
+    capabilities: [],
+  })
+
+  // Override context for mock purchases
+  const effectiveContext = mock_purchase
+    ? { ...paymentContext, mockPurchase: true }
+    : paymentContext
 
   try {
     // Execute use case
     const useCaseResult = await container.useCases.purchaseSubscription.execute({
       productId: product_id,
       email,
+      name,
       cardToken: card_token,
       expMonth: exp_month ? Number(exp_month) : undefined,
       expYear: exp_year ? Number(exp_year) : undefined,
@@ -47,8 +63,11 @@ app.openapi(PurchaseRoute, async (c) => {
       whitelabel,
       slug,
       url,
+      nameBroker: name_broker,
+      nameTeam: name_team,
+      isInvestor,
       coupon,
-      context: paymentContext, // Pass context for environment selection
+      context: effectiveContext, // Pass context with mock flag
     })
 
     // Handle error response

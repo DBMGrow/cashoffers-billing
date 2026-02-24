@@ -211,10 +211,14 @@ export interface PurchaseSubscriptionInput {
   apiToken?: string
 
   // New User Info
+  name?: string
   phone?: string
   whitelabel?: string  // Keep for backward compatibility
   slug?: string
   url?: string
+  nameBroker?: string
+  nameTeam?: string
+  isInvestor?: boolean | number
 
   // Optional
   coupon?: string

@@ -23,16 +23,21 @@ export const PurchaseRequestSchema = z.object({
     typeof val === "string" ? parseInt(val, 10) : val
   ),
   email: EmailSchema,
+  name: z.string().optional(),
   card_token: z.string().optional(),
   exp_month: z.union([z.string(), z.number()]).optional(),
   exp_year: z.union([z.string(), z.number()]).optional(),
   cardholder_name: z.string().optional(),
   api_token: z.string().optional(),
   phone: z.string().optional(),
+  name_broker: z.string().optional(),
+  name_team: z.string().optional(),
   whitelabel: z.string().optional(),
   slug: z.string().optional(),
   url: z.string().optional(),
   coupon: z.string().optional(),
+  isInvestor: z.union([z.number(), z.boolean()]).optional(),
+  mock_purchase: z.boolean().optional(),
 })
 
 // ==================== Response Schemas ====================

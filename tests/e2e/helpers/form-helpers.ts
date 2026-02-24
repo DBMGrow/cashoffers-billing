@@ -175,17 +175,25 @@ export async function fillPersonalInfo(page: Page, data: {
  * Complete review step with consents
  */
 export async function completeReviewStep(page: Page) {
-  // Check consent checkboxes
-  await page.check('input[name="general_consent"]')
-  await page.check('input[name="communication_consent"]')
+  // Check both consent checkboxes (they both have name="consent")
+  // We need to get all checkboxes and check each one
+  const checkboxes = await page.locator('input[type="checkbox"][name="consent"]').all()
+  for (const checkbox of checkboxes) {
+    await checkbox.check()
+  }
 
-  // Submit
-  await page.click('button:has-text("Complete Sign Up")')
+  // Wait a moment for state to update
+  await page.waitForTimeout(500)
+
+  // Submit - button text is "Sign Up", not "Complete Sign Up"
+  await page.click('button:has-text("Sign Up"):not([disabled])')
 }
 
 /**
- * Wait for welcome page after successful signup
+ * Wait for welcome message after successful signup
+ * The app shows a welcome message before redirecting to the dashboard
  */
 export async function waitForWelcome(page: Page) {
-  await page.waitForURL(/\/welcome/, { timeout: 30000 })
+  // Wait for the welcome message to appear
+  await page.waitForSelector('text=/Welcome to CashOffers\\.PRO/i', { timeout: 30000 })
 }
