@@ -34,7 +34,7 @@ export default function FlowWrapper({
         </div>
       </div>
       <div className="w-30">
-        <ThemeButton color="blur" className="w-full" isDisabled={!allowReset} onClick={onReset}>
+        <ThemeButton color="blur" className="w-full" isDisabled={!allowReset} onPress={onReset}>
           Start&nbsp;Over
         </ThemeButton>
       </div>

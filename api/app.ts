@@ -21,10 +21,10 @@ import { signupRoutes } from "./routes/signup"
 import { manageRoutes } from "./routes/manage"
 
 // Import middleware
-import { errorHandler } from "./middleware/errorHandler"
-import { digestMiddleware } from "./middleware/digestMiddleware"
-import { loggingContextMiddleware } from "./middleware/loggingContextMiddleware"
-import { loggingFlushMiddleware } from "./middleware/loggingFlushMiddleware"
+import { errorHandler } from "./lib/middleware/errorHandler"
+import { digestMiddleware } from "./lib/middleware/digestMiddleware"
+import { loggingContextMiddleware } from "./lib/middleware/loggingContextMiddleware"
+import { loggingFlushMiddleware } from "./lib/middleware/loggingFlushMiddleware"
 
 // Create OpenAPI Hono app with typed variables
 const app = new OpenAPIHono<{ Variables: HonoVariables }>().basePath("/api")

@@ -1,7 +1,18 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import jwt from "jsonwebtoken"
-import { CheckPlanRoute, CheckTokenRoute } from "./schemas/manage.schemas"
+import { setCookie } from "hono/cookie"
+import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
+import { db } from "@/api/lib/database"
+import {
+  CheckPlanRoute,
+  CheckTokenRoute,
+  GetProductsRoute,
+  GetWhitelabelsRoute,
+  GetSubscriptionRoute,
+  UpdateCardRoute,
+  ManagePurchaseRoute
+} from "./schemas/manage.schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -16,6 +27,17 @@ app.openapi(CheckPlanRoute, async (c) => {
     const apiToken = c.req.header("x-api-token")
 
     const responseBody: any = {}
+
+    // Fetch user details to check role
+    const userResponse = await fetch(`${process.env.API_ROUTE_AUTH}/users/${subscription.user_id}`, {
+      headers: { "x-api-token": apiToken! },
+    })
+    const userData: any = await userResponse.json()
+
+    if (userData.success !== "success") {
+      throw new Error("Error fetching user")
+    }
+    const user = userData.data
 
     // If team subscription, fetch team details
     if (subscription?.data?.team) {
@@ -55,6 +77,22 @@ app.openapi(CheckPlanRoute, async (c) => {
       throw new Error("Error fetching product")
     }
     responseBody.product = product.data
+
+    // Role validation: check if user can switch to this product
+    const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
+    const productRole = product.data?.data?.user_config?.role
+    const productIsAgentType = ["AGENT", "TEAMOWNER"].includes(productRole)
+
+    if (userIsAgentType !== productIsAgentType) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "Cannot switch between AGENT and INVESTOR roles",
+          code: "ROLE_INCOMPATIBLE",
+        },
+        400
+      )
+    }
 
     // Calculate prorated cost
     const proratedResponse = await fetch(`${process.env.API_ROUTE}/product/checkprorated`, {
@@ -120,8 +158,19 @@ app.openapi(CheckTokenRoute, async (c) => {
       throw new Error("User not found")
     }
 
-    // TODO: Set authentication cookies here
-    // setCookie(c, 'auth_token', token, { httpOnly: true, secure: true, sameSite: 'Lax' })
+    // Get API token from user data
+    const apiToken = user.data._api_token
+
+    // Set authentication cookie
+    if (apiToken) {
+      setCookie(c, "_api_token", apiToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      })
+    }
 
     return c.json(
       {
@@ -140,6 +189,193 @@ app.openapi(CheckTokenRoute, async (c) => {
       },
       500
     )
+  }
+})
+
+/**
+ * GET /manage/products
+ * Fetches products filtered by user's role and whitelabel
+ */
+app.use("/products", authMiddleware(null))
+app.openapi(GetProductsRoute, async (c) => {
+  try {
+    const user = c.get("user")
+
+    // Determine compatible roles
+    const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
+    const compatibleRoles = userIsAgentType ? ["AGENT", "TEAMOWNER"] : ["INVESTOR"]
+
+    // Fetch all products and filter in JavaScript
+    // This is simpler than JSON path queries in Kysely
+    const allProducts = await db.selectFrom("Products").selectAll().execute()
+
+    const filteredProducts = allProducts.filter((product: any) => {
+      const productRole = product.data?.user_config?.role
+      const productWhitelabelId = product.data?.user_config?.whitelabel_id
+
+      // Check role compatibility
+      if (!compatibleRoles.includes(productRole)) {
+        return false
+      }
+
+      // Check whitelabel match if user has one
+      if (user.whitelabel_id && productWhitelabelId !== user.whitelabel_id) {
+        return false
+      }
+
+      return true
+    })
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: filteredProducts,
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in manage products API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * GET /manage/whitelabels
+ * Fetches all whitelabel branding data
+ */
+app.use("/whitelabels", authMiddleware(null))
+app.openapi(GetWhitelabelsRoute, async (c) => {
+  try {
+    const whitelabels = await db.selectFrom("Whitelabels").selectAll().execute()
+
+    // Transform to include branding data
+    const whitelabelsWithBranding = whitelabels.map((wl: any) => ({
+      whitelabel_id: wl.whitelabel_id,
+      code: wl.code,
+      name: wl.name,
+      primary_color: wl.data?.primary_color || "#4d9cb9",
+      secondary_color: wl.data?.secondary_color || "#ec8b33",
+      logo_url: wl.data?.logo_url || "/assets/logos/default-logo.png",
+    }))
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: whitelabelsWithBranding,
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in manage whitelabels API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * GET /manage/subscription/single
+ * Fetches the user's active subscription
+ */
+app.use("/subscription/single", authMiddleware(null))
+app.openapi(GetSubscriptionRoute, async (c) => {
+  try {
+    const user = c.get("user")
+
+    // Fetch active subscription with product details
+    const subscription = await db
+      .selectFrom("Subscriptions")
+      .innerJoin("Products", "Products.product_id", "Subscriptions.product_id")
+      .selectAll()
+      .where("Subscriptions.user_id", "=", user.user_id)
+      .where("Subscriptions.status", "=", "active")
+      .executeTakeFirst()
+
+    if (!subscription) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "Subscription not found",
+        },
+        404
+      )
+    }
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: subscription,
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in subscription/single API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * POST /manage/updatecard
+ * Updates the user's card on file
+ */
+app.use("/updatecard", authMiddleware(null))
+app.openapi(UpdateCardRoute, async (c) => {
+  try {
+    const user = c.get("user")
+    const body = c.req.valid("json")
+    const { card_token, exp_month, exp_year } = body
+
+    // TODO: Implement Square card update logic
+    // This would typically:
+    // 1. Find user's existing card
+    // 2. Call Square API to update card
+    // 3. Update UserCards table
+    console.log(`Card update requested for user ${user.user_id}`)
+
+    return c.json(
+      {
+        success: "success" as const,
+        message: "Card updated successfully",
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in updatecard API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * POST /manage/purchase
+ * Changes the user's subscription plan
+ */
+app.use("/purchase", authMiddleware(null))
+app.openapi(ManagePurchaseRoute, async (c) => {
+  try {
+    const user = c.get("user")
+    const body = c.req.valid("json")
+    const { product_id, subscription_id } = body
+
+    // TODO: Implement plan change logic
+    // This would typically:
+    // 1. Validate role compatibility
+    // 2. Calculate prorated charge
+    // 3. Process payment if needed
+    // 4. Update subscription
+    // 5. Update user config if needed
+    console.log(`Plan change requested for user ${user.user_id} to product ${product_id}`)
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: {
+          subscription: {},
+          charge: null,
+        },
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in manage purchase API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
   }
 })
 

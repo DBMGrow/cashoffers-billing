@@ -157,3 +157,231 @@ export const CheckTokenRoute = {
   description:
     "Verifies a JWT token from the main application and sets authentication cookies for the billing portal. Enables seamless transitions between applications without re-authentication.",
 }
+
+/**
+ * Products response schema
+ */
+export const ProductsResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.array(z.any()),
+})
+
+/**
+ * Whitelabels response schema
+ */
+export const WhitelabelsResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.array(z.object({
+    whitelabel_id: z.number(),
+    code: z.string(),
+    name: z.string(),
+    primary_color: z.string().optional(),
+    secondary_color: z.string().optional(),
+    logo_url: z.string().optional(),
+  })),
+})
+
+/**
+ * Subscription response schema
+ */
+export const SubscriptionResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.any(),
+})
+
+/**
+ * Update card request schema
+ */
+export const UpdateCardRequestSchema = z.object({
+  card_token: z.string(),
+  exp_month: z.number(),
+  exp_year: z.number(),
+})
+
+/**
+ * Update card response schema
+ */
+export const UpdateCardResponseSchema = z.object({
+  success: z.literal("success"),
+  message: z.string().optional(),
+})
+
+/**
+ * Purchase request schema (for plan changes)
+ */
+export const ManagePurchaseRequestSchema = z.object({
+  product_id: z.union([z.number(), z.string()]),
+  subscription_id: z.number().optional(),
+})
+
+/**
+ * Purchase response schema
+ */
+export const ManagePurchaseResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.object({
+    subscription: z.any(),
+    charge: z.any().optional(),
+  }),
+})
+
+/**
+ * GET /manage/products - Get products filtered by user role
+ */
+export const GetProductsRoute = {
+  method: "get" as const,
+  path: "/products",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ProductsResponseSchema,
+        },
+      },
+      description: "Products retrieved successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+  },
+  tags: ["Manage"],
+  summary: "Get products",
+  description:
+    "Fetches all active products filtered by user's role and whitelabel. Used in manage flow to show available plan changes.",
+}
+
+/**
+ * GET /manage/whitelabels - Get all whitelabels
+ */
+export const GetWhitelabelsRoute = {
+  method: "get" as const,
+  path: "/whitelabels",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: WhitelabelsResponseSchema,
+        },
+      },
+      description: "Whitelabels retrieved successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+  },
+  tags: ["Manage"],
+  summary: "Get whitelabels",
+  description:
+    "Fetches all whitelabel branding data including colors and logos. Used to dynamically theme the application.",
+}
+
+/**
+ * GET /manage/subscription/single - Get user's current subscription
+ */
+export const GetSubscriptionRoute = {
+  method: "get" as const,
+  path: "/subscription/single",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SubscriptionResponseSchema,
+        },
+      },
+      description: "Subscription retrieved successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Subscription not found",
+    },
+  },
+  tags: ["Manage"],
+  summary: "Get user's current subscription",
+  description:
+    "Fetches the authenticated user's active subscription with product details.",
+}
+
+/**
+ * POST /manage/updatecard - Update card on file
+ */
+export const UpdateCardRoute = {
+  method: "post" as const,
+  path: "/updatecard",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: UpdateCardRequestSchema,
+          example: {
+            card_token: "cnon:card-nonce-ok",
+            exp_month: 12,
+            exp_year: 2025,
+          },
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: UpdateCardResponseSchema,
+        },
+      },
+      description: "Card updated successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request or card update failed",
+    },
+  },
+  tags: ["Manage"],
+  summary: "Update card on file",
+  description:
+    "Updates the user's payment card on file. Used when users want to change their billing card.",
+}
+
+/**
+ * POST /manage/purchase - Change subscription plan
+ */
+export const ManagePurchaseRoute = {
+  method: "post" as const,
+  path: "/purchase",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: ManagePurchaseRequestSchema,
+          example: {
+            product_id: 2,
+            subscription_id: 123,
+          },
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ManagePurchaseResponseSchema,
+        },
+      },
+      description: "Plan changed successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request or plan change failed",
+    },
+  },
+  tags: ["Manage"],
+  summary: "Change subscription plan",
+  description:
+    "Changes the user's subscription to a different plan. Handles prorated charges and role validation.",
+}

@@ -2,12 +2,13 @@
 
 import { ButtonHTMLAttributes, ReactNode } from "react"
 
-interface ThemeButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "color" | "onPress"> {
+interface ThemeButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "color" | "onPress" | "onClick"> {
   color?: "primary" | "secondary" | "blur"
   variant?: "full"
   isDisabled?: boolean
   isLoading?: boolean
   onPress?: () => void
+  onClick?: () => void
   children: ReactNode
   className?: string
 }
@@ -18,6 +19,7 @@ export function ThemeButton({
   isDisabled = false,
   isLoading = false,
   onPress,
+  onClick,
   children,
   className = "",
   ...restProps
@@ -52,8 +54,12 @@ export function ThemeButton({
     .join(" ")
 
   const handleClick = () => {
-    if (!isDisabled && !isLoading && onPress) {
-      onPress()
+    if (!isDisabled && !isLoading) {
+      // Prioritize onPress if provided, otherwise use onClick
+      const handler = onPress || onClick
+      if (handler) {
+        handler()
+      }
     }
   }
 

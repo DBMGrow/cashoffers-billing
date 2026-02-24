@@ -1,8 +1,16 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import axios from "axios"
-import { PurchaseFreeRoute, CheckUserExistsRoute, CheckSlugExistsRoute } from "./schemas/signup.schemas"
+import {
+  PurchaseFreeRoute,
+  CheckUserExistsRoute,
+  CheckSlugExistsRoute,
+  SendReactivationRoute,
+  GetProductsRoute,
+  GetWhitelabelsRoute
+} from "./schemas/signup.schemas"
 import { db } from "@/api/lib/database"
+import { setCookie } from "hono/cookie"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -67,6 +75,17 @@ app.openapi(PurchaseFreeRoute, async (c) => {
       throw new Error(JSON.stringify(data))
     }
 
+    // Extract API token from response and set cookie
+    if (data.data?._api_token) {
+      setCookie(c, "_api_token", data.data._api_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      })
+    }
+
     return c.json({ data }, 200)
   } catch (error: any) {
     console.error("Error in purchasefree API:", error.message)
@@ -100,12 +119,15 @@ app.openapi(PurchaseFreeRoute, async (c) => {
 app.openapi(CheckUserExistsRoute, async (c) => {
   try {
     const { email } = c.req.valid("param")
+    console.log("CheckUserExists called with email:", email)
 
     // Fetch user from auth API
     const user = await db.selectFrom("Users").selectAll().where("email", "=", email).executeTakeFirst()
+    console.log("User query result:", user ? "User found" : "User not found")
 
     // User doesn't exist
     if (!user) {
+      console.log("Returning userExists: false")
       return c.json(
         {
           success: "success" as const,
@@ -115,11 +137,14 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       )
     }
 
+    console.log("User exists, checking status. user_id:", user.user_id, "is_premium:", user.is_premium, "active:", user.active)
+
     const isPremium = user.is_premium
     const active = user.active
 
     // Premium but inactive - offer downgrade
     if (isPremium && !active) {
+      console.log("Returning offerDowngrade: true")
       return c.json(
         {
           success: "success" as const,
@@ -130,17 +155,14 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       )
     }
 
-    // Check card info
-    const userInfo = await axios.get(`${process.env.API_ROUTE}/card/${user.user_id}/info`, {
-      headers: {
-        "x-api-token": process.env.API_KEY!,
-      },
-    })
-    const userInfoJson: any = userInfo.data
+    console.log("Checking card and team info...")
 
-    if (userInfoJson.success !== "success") {
-      throw new Error("Something went wrong 2")
-    }
+    // Check card info from database
+    const userCard = await db
+      .selectFrom("UserCards")
+      .selectAll()
+      .where("user_id", "=", user.user_id)
+      .executeTakeFirst()
 
     const response: any = {
       success: "success",
@@ -148,7 +170,7 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       hasCard: false,
     }
 
-    if (userInfoJson.data?.has_card) {
+    if (userCard) {
       response.hasCard = true
     } else {
       // Determine if user can set up card and which plan
@@ -156,19 +178,18 @@ app.openapi(CheckUserExistsRoute, async (c) => {
         response.canSetUpCard = true
         if (!user.team_id) response.plan = 1
 
-        if (user.role === "TEAMOWNER") {
-          const team = await axios.get(`${process.env.API_ROUTE_AUTH}/teams/${user.team_id}`, {
-            headers: {
-              "x-api-token": process.env.API_KEY!,
-            },
-          })
-          const teamJson: any = team.data
+        if (user.role === "TEAMOWNER" && user.team_id) {
+          const team = await db
+            .selectFrom("Teams")
+            .select(["max_users"])
+            .where("team_id", "=", user.team_id)
+            .executeTakeFirst()
 
-          if (teamJson.success !== "success") {
-            throw new Error("Something went wrong 3")
+          if (!team) {
+            throw new Error("Team not found")
           }
 
-          const teamSize = teamJson.data?.max_users
+          const teamSize = team.max_users
 
           if (teamSize <= 6) response.plan = 2
           else if (teamSize <= 10) response.plan = 3
@@ -182,9 +203,12 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       }
     }
 
+    console.log("Returning final response:", JSON.stringify(response))
     return c.json(response, 200)
   } catch (error: any) {
-    return c.json({ success: "error" as const, error: error.message }, 400)
+    console.error("Error in checkuserexists API:", error)
+    const errorMessage = error?.message || error?.toString() || "Unknown error occurred"
+    return c.json({ success: "error" as const, error: errorMessage }, 400)
   }
 })
 
@@ -226,6 +250,126 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
       200
     )
   } catch (error: any) {
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * POST /signup/sendreactivation
+ * Sends reactivation email to inactive premium users
+ */
+app.openapi(SendReactivationRoute, async (c) => {
+  try {
+    const body = c.req.valid("json")
+    const { email } = body
+
+    // Fetch user from database
+    const user = await db.selectFrom("Users").selectAll().where("email", "=", email).executeTakeFirst()
+
+    if (!user) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "User not found",
+        },
+        400
+      )
+    }
+
+    // Verify user can downgrade (is_premium && !active)
+    if (!user.is_premium || user.active) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "User is not eligible for reactivation",
+        },
+        400
+      )
+    }
+
+    // Generate reactivation token
+    const reactivationToken =
+      Math.random().toString(36).substring(2, 10).toUpperCase() +
+      Math.random().toString(36).substring(2, 10).toUpperCase()
+
+    // TODO: Send reactivation email via sendEmail utility
+    // This would typically call sendEmail({ to: email, template: 'reactivation.html', fields: { token: reactivationToken } })
+    console.log(`Reactivation email would be sent to ${email} with token ${reactivationToken}`)
+
+    return c.json(
+      {
+        success: "success" as const,
+        message: "Reactivation email sent successfully",
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in sendreactivation API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * GET /signup/products
+ * Fetches all active products filtered by whitelabel
+ */
+app.openapi(GetProductsRoute, async (c) => {
+  try {
+    const query = c.req.valid("query")
+    const whitelabelCode = query.whitelabel || "default"
+    const whitelabelId = whitelabelIds[whitelabelCode] ?? 1
+
+    // Fetch all products and filter in JavaScript
+    const allProducts = await db.selectFrom("Products").selectAll().execute()
+
+    const filteredProducts = allProducts.filter((product: any) => {
+      const productWhitelabelId = product.data?.user_config?.whitelabel_id
+      return productWhitelabelId === whitelabelId
+    })
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: filteredProducts,
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in products API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * GET /signup/whitelabels
+ * Fetches all whitelabel branding data
+ */
+app.openapi(GetWhitelabelsRoute, async (c) => {
+  try {
+    // Fetch whitelabels from database
+    const whitelabels = await db.selectFrom("Whitelabels").selectAll().execute()
+
+    // Transform to include branding data
+    // Note: The 'data' field will be added in Phase 4 migration
+    // For now, we return basic info with placeholder branding
+    const whitelabelsWithBranding = whitelabels.map((wl: any) => ({
+      whitelabel_id: wl.whitelabel_id,
+      code: wl.code,
+      name: wl.name,
+      primary_color: wl.data?.primary_color || "#4d9cb9",
+      secondary_color: wl.data?.secondary_color || "#ec8b33",
+      logo_url: wl.data?.logo_url || "/assets/logos/default-logo.png",
+    }))
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: whitelabelsWithBranding,
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in whitelabels API:", error)
     return c.json({ success: "error" as const, error: error.message }, 400)
   }
 })

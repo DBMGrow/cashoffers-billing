@@ -1,6 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { authMiddleware } from "@api/middleware/authMiddleware"
+import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { getContainer } from "@api/container"
 import { executeUseCase } from "./helpers/use-case-handler"
 import { checkSubscriptionAuthorization } from "./helpers/subscription-auth"
@@ -73,9 +73,7 @@ app.openapi(CreateOrUpdateSubscriptionRoute, async (c) => {
   const existingResult = await container.useCases.getSubscriptions.execute({ userId: user_id })
 
   const existingSubscription =
-    existingResult.success && existingResult.data.subscriptions.length > 0
-      ? existingResult.data.subscriptions[0]
-      : null
+    existingResult.success && existingResult.data.subscriptions.length > 0 ? existingResult.data.subscriptions[0] : null
 
   if (existingSubscription) {
     // Update existing subscription using use case

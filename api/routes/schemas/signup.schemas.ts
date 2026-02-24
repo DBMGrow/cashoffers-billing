@@ -159,3 +159,136 @@ export const CheckSlugExistsRoute = {
   description:
     "Checks if a team slug is already taken. Used during team registration to validate slug availability.",
 }
+
+/**
+ * Send reactivation email request body
+ */
+export const SendReactivationRequestSchema = z.object({
+  email: EmailSchema,
+})
+
+/**
+ * Send reactivation response
+ */
+export const SendReactivationResponseSchema = z.object({
+  success: z.literal("success"),
+  message: z.string(),
+})
+
+/**
+ * Products response schema
+ */
+export const ProductsResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.array(z.any()),
+})
+
+/**
+ * Whitelabels response schema
+ */
+export const WhitelabelsResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.array(z.object({
+    whitelabel_id: z.number(),
+    code: z.string(),
+    name: z.string(),
+    primary_color: z.string().optional(),
+    secondary_color: z.string().optional(),
+    logo_url: z.string().optional(),
+  })),
+})
+
+/**
+ * POST /signup/sendreactivation - Send reactivation email
+ */
+export const SendReactivationRoute = {
+  method: "post" as const,
+  path: "/sendreactivation",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: SendReactivationRequestSchema,
+          example: {
+            email: "user@example.com",
+          },
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SendReactivationResponseSchema,
+        },
+      },
+      description: "Reactivation email sent successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request or user cannot downgrade",
+    },
+  },
+  tags: ["Signup"],
+  summary: "Send reactivation email",
+  description:
+    "Sends a reactivation email to inactive premium users, offering them to downgrade to a free account.",
+}
+
+/**
+ * GET /signup/products - Get products filtered by whitelabel
+ */
+export const GetProductsRoute = {
+  method: "get" as const,
+  path: "/products",
+  request: {
+    query: z.object({
+      whitelabel: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ProductsResponseSchema,
+        },
+      },
+      description: "Products retrieved successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+  },
+  tags: ["Signup"],
+  summary: "Get products",
+  description:
+    "Fetches all active products filtered by whitelabel. Used during signup to display available plans.",
+}
+
+/**
+ * GET /signup/whitelabels - Get all whitelabels
+ */
+export const GetWhitelabelsRoute = {
+  method: "get" as const,
+  path: "/whitelabels",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: WhitelabelsResponseSchema,
+        },
+      },
+      description: "Whitelabels retrieved successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+  },
+  tags: ["Signup"],
+  summary: "Get whitelabels",
+  description:
+    "Fetches all whitelabel branding data including colors and logos. Used to dynamically theme the application.",
+}

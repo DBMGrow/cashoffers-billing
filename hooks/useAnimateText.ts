@@ -42,9 +42,12 @@ export default function useAnimateText(
           const currentLength = Math.round(obj.length)
           setDisplayText(parsedText.slice(0, currentLength))
         },
+        onComplete: () => {
+          // Update previousText after animation completes
+          previousText.current = parsedText
+        },
       })
 
-      previousText.current = parsedText
       isFirstRender.current = false
       return
     }
@@ -63,6 +66,10 @@ export default function useAnimateText(
           const newLength = Math.round(obj.length)
           setDisplayText(previousText.current.slice(0, newLength))
         },
+        onComplete: () => {
+          // Clear previous text so the animate in will definitely trigger
+          previousText.current = ""
+        },
       })
     } else if (previousText.current !== parsedText) {
       // Not transitioning and text changed, animate in new text
@@ -76,9 +83,11 @@ export default function useAnimateText(
           const currentLength = Math.round(obj.length)
           setDisplayText(parsedText.slice(0, currentLength))
         },
+        onComplete: () => {
+          // Update previousText after animation completes
+          previousText.current = parsedText
+        },
       })
-
-      previousText.current = parsedText
     }
 
     return () => {

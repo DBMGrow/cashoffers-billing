@@ -1,8 +1,9 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { authMiddleware } from "@api/middleware/authMiddleware"
+import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { getContainer } from "@api/container"
 import { PurchaseRoute } from "./schemas/purchase.schemas"
+import { setCookie } from "hono/cookie"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -30,7 +31,7 @@ app.openapi(PurchaseRoute, async (c) => {
   const container = getContainer()
 
   // Get payment context from middleware (includes test mode detection)
-  const paymentContext = c.get('paymentContext')
+  const paymentContext = c.get("paymentContext")
 
   try {
     // Execute use case
@@ -67,12 +68,21 @@ app.openapi(PurchaseRoute, async (c) => {
 
     // Fetch additional data for response
     const [product, user, userCards] = await Promise.all([
-      container.repositories.product.findById(
-        typeof product_id === "number" ? product_id : parseInt(product_id, 10)
-      ),
+      container.repositories.product.findById(typeof product_id === "number" ? product_id : parseInt(product_id, 10)),
       container.services.userApi.getUser(data.userId),
       container.repositories.userCard.findByUserId(data.userId),
     ])
+
+    // Set authentication cookie if api_token was provided
+    if (api_token) {
+      setCookie(c, "_api_token", api_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      })
+    }
 
     // Return custom enhanced response
     return c.json(
