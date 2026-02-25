@@ -8,10 +8,12 @@ import {
   SendReactivationRoute,
   GetProductsRoute,
   GetWhitelabelsRoute,
+  GetUniqueSlugRoute,
 } from "./schemas"
-import { db } from "@/api/lib/database"
+import { db } from "@api/lib/database"
 import { setCookie } from "hono/cookie"
 import { getContainer } from "@api/container"
+import { checkSlugExists } from "./utils"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -391,6 +393,19 @@ app.openapi(GetWhitelabelsRoute, async (c) => {
     )
   } catch (error: any) {
     console.error("Error in whitelabels API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+app.openapi(GetUniqueSlugRoute, async (c) => {
+  const name = c.req.valid("query").name
+
+  try {
+    let uniqueSlug = name.toLowerCase().replace(/ /g, "")
+    uniqueSlug = await checkSlugExists(uniqueSlug)
+    return c.json({ success: "success" as const, data: { slug: uniqueSlug } }, 200)
+  } catch (error: any) {
+    console.error("Error in getuniqueslug API:", error)
     return c.json({ success: "error" as const, error: error.message }, 400)
   }
 })

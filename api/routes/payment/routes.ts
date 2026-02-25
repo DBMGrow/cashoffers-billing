@@ -1,6 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
+import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { userCan } from "@api/utils/userCan"
 import { getContainer } from "@api/container"
 import { executeUseCase } from "../helpers/use-case-handler"

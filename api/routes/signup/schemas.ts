@@ -290,3 +290,34 @@ export const GetWhitelabelsRoute = {
   description:
     "Fetches all whitelabel branding data including colors and logos. Used to dynamically theme the application.",
 }
+
+export const GetUniqueSlugRoute = {
+  method: "get" as const,
+  path: "/getuniqueslug",
+  request: {
+    query: z.object({
+      name: z.string(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal("success"),
+            data: { slug: z.string() },
+          }),
+        },
+      },
+      description: "Unique slug generated successfully",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+  },
+  tags: ["Signup"],
+  summary: "Get unique slug",
+  description:
+    "Generates a unique slug based on the provided name. Used during team registration to suggest an available slug.",
+}
