@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import type { ManageFormData } from "@/types/forms"
 import type { User } from "@/types/api"
+import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
 import useStepTransition from "@/hooks/useStepTransition"
@@ -19,6 +20,16 @@ import UpdatePlanStep from "./steps/UpdatePlanStep"
 import ErrorStep from "./steps/ErrorStep"
 
 type ManageStep = "email" | "password" | "dashboard" | "subscription" | "card" | "changePlan" | "error"
+
+const MANAGE_STEPS: readonly ManageStep[] = [
+  "email", "password", "dashboard", "subscription", "card", "changePlan", "error",
+]
+
+const devPresets: DevPreset<ManageFormData>[] = [
+  { label: "→ Password", step: "password" },
+  { label: "→ Dashboard", step: "dashboard" },
+  { label: "→ Error", step: "error" },
+]
 
 const stepConfig: Record<ManageStep, { title: string; description: string }> = {
   email: { title: "What is your Email?", description: "Use the Email you signed up with." },
@@ -143,19 +154,29 @@ export default function ManageFlow() {
   }
 
   return (
-    <FlowWrapper
-      titleText={titleText}
-      descriptionText={descriptionText}
-      containerRef={containerRef}
-      allowReset={allowReset}
-      onReset={() => {
-        form.reset()
-        setUser(null)
-        transitionToStep(startStep)
-      }}
-      minHeight="350px"
-    >
-      {renderStep()}
-    </FlowWrapper>
+    <>
+      <FlowWrapper
+        titleText={titleText}
+        descriptionText={descriptionText}
+        containerRef={containerRef}
+        allowReset={allowReset}
+        onReset={() => {
+          form.reset()
+          setUser(null)
+          transitionToStep(startStep)
+        }}
+        minHeight="350px"
+      >
+        {renderStep()}
+      </FlowWrapper>
+      <FlowDevTools
+        flowName="Manage"
+        currentStep={displayStep}
+        steps={MANAGE_STEPS}
+        onGoToStep={goToStep}
+        form={form}
+        presets={devPresets}
+      />
+    </>
   )
 }

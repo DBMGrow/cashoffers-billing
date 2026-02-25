@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import type { SubscribeFormData, FormStep, WhitelabelType, CardData } from "@/types/forms"
+import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
 import useStepTransition from "@/hooks/useStepTransition"
@@ -81,6 +82,20 @@ const stepConfig: Record<FormStep, { title: string; description: string }> = {
     description: "We've sent you a reactivation link.",
   },
 }
+
+const SUBSCRIBE_STEPS: readonly FormStep[] = [
+  "email", "name", "slug", "broker", "team", "phone",
+  "card", "review", "welcome", "offerDowngrade", "offerDowngradeConfirm", "error",
+]
+
+const devPresets: DevPreset<SubscribeFormData>[] = [
+  { label: "→ Name", step: "name" },
+  { label: "→ Phone", step: "phone" },
+  { label: "→ Card", step: "card" },
+  { label: "→ Review", step: "review" },
+  { label: "→ Welcome", step: "welcome" },
+  { label: "→ Error", step: "error" },
+]
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mockPurchase = false }: SubscribeFlowProps) {
   const { displayStep, isTransitioning, transitionToStep} = useStepTransition<FormStep>("email")
@@ -251,17 +266,27 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
   }
 
   return (
-    <FlowWrapper
-      titleText={titleText}
-      descriptionText={descriptionText}
-      containerRef={containerRef}
-      allowReset={allowReset}
-      onReset={() => {
-        form.reset()
-        transitionToStep(startStep)
-      }}
-    >
-      {renderStep()}
-    </FlowWrapper>
+    <>
+      <FlowWrapper
+        titleText={titleText}
+        descriptionText={descriptionText}
+        containerRef={containerRef}
+        allowReset={allowReset}
+        onReset={() => {
+          form.reset()
+          transitionToStep(startStep)
+        }}
+      >
+        {renderStep()}
+      </FlowWrapper>
+      <FlowDevTools
+        flowName="Subscribe"
+        currentStep={displayStep}
+        steps={SUBSCRIBE_STEPS}
+        onGoToStep={goToStep}
+        form={form}
+        presets={devPresets}
+      />
+    </>
   )
 }

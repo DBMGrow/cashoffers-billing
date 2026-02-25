@@ -24,7 +24,15 @@ interface ReviewStepProps {
   setAllowReset: (allow: boolean) => void
 }
 
-export default function ReviewStep({ form, cardData, mockPurchase = false, onNext, onBack, onError, setAllowReset }: ReviewStepProps) {
+export default function ReviewStep({
+  form,
+  cardData,
+  mockPurchase = false,
+  onNext,
+  onBack,
+  onError,
+  setAllowReset,
+}: ReviewStepProps) {
   const router = useRouter()
   const formData = form.watch()
   const product = formData.product
@@ -32,7 +40,7 @@ export default function ReviewStep({ form, cardData, mockPurchase = false, onNex
   // Fetch products using TanStack Query
   const { getProductById } = useProducts({
     mode: "signup",
-    whitelabel: (formData.whitelabel as string) || "default"
+    whitelabel: (formData.whitelabel as string) || "default",
   })
   const productData = getProductById(product)
 
@@ -130,6 +138,8 @@ export default function ReviewStep({ form, cardData, mockPurchase = false, onNex
       coupon: formData.coupon,
       mock_purchase: mockPurchase,
     })
+
+    console.log("Purchase result:", result)
 
     if (result.code === "PUR08") {
       onError("We were unable to process your card. Please ensure your card information is correct.")
