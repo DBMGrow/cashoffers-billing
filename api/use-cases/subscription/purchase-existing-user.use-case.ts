@@ -151,28 +151,18 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       const productDuration = productData.duration || "monthly"
       const initialAmount = signupFee + renewalCost
 
-      const payment = input.context?.mockPurchase
-        ? {
-            id: `MOCK_PAYMENT_${Date.now()}`,
-            status: "COMPLETED" as const,
-            environment: "sandbox" as const,
-            amountMoney: {
-              amount: BigInt(initialAmount),
-              currency: "USD" as const,
-            },
-          }
-        : await this.deps.paymentProvider.createPayment(
-            {
-              sourceId: userCard.card_id,
-              idempotencyKey: uuidv4(),
-              amountMoney: {
-                amount: BigInt(initialAmount),
-                currency: "USD",
-              },
-              customerId: userCard.square_customer_id || undefined,
-            },
-            input.context
-          )
+      const payment = await this.deps.paymentProvider.createPayment(
+        {
+          sourceId: userCard.card_id,
+          idempotencyKey: uuidv4(),
+          amountMoney: {
+            amount: BigInt(initialAmount),
+            currency: "USD",
+          },
+          customerId: userCard.square_customer_id || undefined,
+        },
+        input.context ?? undefined
+      )
 
       if (payment.status !== "COMPLETED") {
         logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })

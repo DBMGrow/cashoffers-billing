@@ -90,8 +90,10 @@ export default function ReviewStep({
   }
 
   const handleSubmit = async () => {
-    // Create mock card data for testing if mockPurchase is true
-    const effectiveCardData = form.getValues("cardData")
+    // Use Square's sandbox test nonce in mock mode (card step is skipped)
+    const effectiveCardData = mockPurchase
+      ? { token: "cnon:card-nonce-ok", details: { card: { expMonth: 12, expYear: 2026 } } }
+      : form.getValues("cardData")
     if (!effectiveCardData) {
       onError("Please add a card.")
       return

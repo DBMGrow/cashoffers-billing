@@ -29,22 +29,15 @@ export async function createCardHelper(
   const { logger, paymentProvider, userCardRepository, eventBus } = deps
 
   try {
-    const card = input.context?.mockPurchase
-      ? {
-          id: `MOCK_CARD_${Date.now()}`,
-          cardBrand: "VISA",
-          last4: "1111",
-          environment: "sandbox" as const,
-        }
-      : await paymentProvider.createCard(
-          {
-            sourceId: input.cardToken,
-            card: {
-              cardholderName: input.cardholderName,
-            },
-          },
-          input.context
-        )
+    const card = await paymentProvider.createCard(
+      {
+        sourceId: input.cardToken,
+        card: {
+          cardholderName: input.cardholderName,
+        },
+      },
+      input.context
+    )
 
     const now = new Date()
     const userCard = await userCardRepository.create({

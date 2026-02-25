@@ -25,7 +25,7 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
     capabilities: [],
   })
 
-  const effectiveContext = body.mock_purchase ? { ...paymentContext, mockPurchase: true } : paymentContext
+  const effectiveContext = body.mock_purchase ? { ...paymentContext, testMode: true } : paymentContext
 
   try {
     const useCaseResult = await purchaseNewUserUseCase.execute({
@@ -117,7 +117,7 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
   // User identity comes from the session token resolved by authMiddleware
   const sessionUser = c.get("user")
   const paymentContext = c.get("paymentContext")
-  const effectiveContext = body.mock_purchase ? { ...paymentContext, mockPurchase: true } : paymentContext
+  const effectiveContext = body.mock_purchase ? { ...paymentContext, testMode: true } : paymentContext
 
   try {
     const useCaseResult = await purchaseExistingUserUseCase.execute({
