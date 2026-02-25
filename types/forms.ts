@@ -9,6 +9,7 @@ export interface SubscribeFormData {
   coupon: string | null
   whitelabel: string | null
   isInvestor: boolean
+  cardData: CardData | null
 }
 
 export interface CardData {

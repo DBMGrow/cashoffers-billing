@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { UseFormReturn } from "react-hook-form"
-import type { SubscribeFormData, CardData } from "@/types/forms"
+import type { SubscribeFormData } from "@/types/forms"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { usePurchase } from "@/hooks/api/usePurchase"
 import { usePurchaseFree } from "@/hooks/api/usePurchaseFree"
@@ -16,7 +16,6 @@ import { useRouter } from "next/navigation"
 
 interface ReviewStepProps {
   form: UseFormReturn<SubscribeFormData>
-  cardData: CardData | null
   mockPurchase?: boolean
   onNext: () => void
   onBack: () => void
@@ -26,7 +25,6 @@ interface ReviewStepProps {
 
 export default function ReviewStep({
   form,
-  cardData,
   mockPurchase = false,
   onNext,
   onBack,
@@ -106,7 +104,7 @@ export default function ReviewStep({
             },
           },
         }
-      : cardData
+      : form.getValues("cardData")
 
     if (!effectiveCardData) {
       onError("Please add a card.")

@@ -26,8 +26,8 @@ export default function FlowWrapper({
     <>
       <div className="w-full border-default-300 py-8 px-2 flex flex-col justify-between" style={{ minHeight }}>
         <div className="rounded">
-          <h2 className="h-[25px] text-lg">{titleText}</h2>
-          <p className="h-[15px] my-1 text-sm">{descriptionText}</p>
+          <h2 className="h-6.25 text-lg">{titleText}</h2>
+          <p className="h-3.75 my-1 text-sm">{descriptionText}</p>
         </div>
         <div className="flex w-full gap-2 py-4" ref={containerRef} style={{ opacity: 0 }}>
           {children}

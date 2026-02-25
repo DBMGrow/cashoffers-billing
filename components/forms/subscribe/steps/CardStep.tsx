@@ -1,23 +1,21 @@
 "use client"
 
 import { UseFormReturn } from "react-hook-form"
-import type { SubscribeFormData, CardData } from "@/types/forms"
+import type { SubscribeFormData } from "@/types/forms"
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk"
 
 interface CardStepProps {
   form: UseFormReturn<SubscribeFormData>
-  cardData: CardData | null
-  setCardData: (data: CardData) => void
   onNext: () => void
   onBack: () => void
 }
 
-export default function CardStep({ form, cardData, setCardData, onNext, onBack }: CardStepProps) {
+export default function CardStep({ form, onNext, onBack }: CardStepProps) {
   const paymentFormProps = {
     applicationId: process.env.NEXT_PUBLIC_SQUARE_APP_ID!,
     locationId: process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID!,
     cardTokenizeResponseReceived: async (token: any) => {
-      setCardData(token)
+      form.setValue("cardData", token)
       onNext()
     },
   }

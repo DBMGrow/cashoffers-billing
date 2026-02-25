@@ -4,11 +4,12 @@ import { useState, useMemo, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { SubscribeFormData, FormStep, WhitelabelType, CardData } from "@/types/forms"
+import type { SubscribeFormData, FormStep, WhitelabelType } from "@/types/forms"
 import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
 import useStepTransition from "@/hooks/useStepTransition"
+import { useFlowState } from "@/hooks/useFlowState"
 import FlowWrapper from "../FlowWrapper"
 import { useProducts } from "@/providers/ProductProvider"
 
@@ -26,6 +27,18 @@ import ErrorStep from "./steps/ErrorStep"
 import OfferDowngradeStep from "./steps/OfferDowngradeStep"
 import OfferDowngradeConfirmStep from "./steps/OfferDowngradeConfirmStep"
 
+const cardDataSchema = z.object({
+  token: z.string(),
+  details: z.object({
+    card: z.object({
+      expMonth: z.number(),
+      expYear: z.number(),
+      brand: z.string(),
+      lastFourDigits: z.string(),
+    }),
+  }),
+})
+
 const subscribeSchema = z.object({
   product: z.union([z.number(), z.string()]),
   email: z.string().email(),
@@ -37,6 +50,7 @@ const subscribeSchema = z.object({
   coupon: z.string().nullable(),
   whitelabel: z.string().nullable(),
   isInvestor: z.boolean(),
+  cardData: cardDataSchema.nullable(),
 })
 
 interface SubscribeFlowProps {
@@ -98,11 +112,8 @@ const devPresets: DevPreset<SubscribeFormData>[] = [
 ]
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mockPurchase = false }: SubscribeFlowProps) {
-  const { displayStep, isTransitioning, transitionToStep} = useStepTransition<FormStep>("email")
-  const [cardData, setCardData] = useState<CardData | null>(null)
-  const [allowReset, setAllowReset] = useState(true)
-  const [errorMessage, setErrorMessage] = useState("")
-  const [returnStep, setReturnStep] = useState<FormStep>("email")
+  const { displayStep, isTransitioning, transitionToStep } = useStepTransition<FormStep>("email")
+  const { allowReset, setAllowReset, errorMessage, returnStep, goToStep, goToError } = useFlowState<FormStep>(transitionToStep)
   const [productValidated, setProductValidated] = useState(false)
 
   // Fetch products using TanStack Query
@@ -119,14 +130,12 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
   useEffect(() => {
     if (!loading && !productValidated) {
       if (!selectedProduct && initialProduct !== "free" && initialProduct !== "freeinvestor") {
-        setErrorMessage("Invalid product ID. The product you selected could not be found.")
-        setReturnStep("email")
         setAllowReset(false)
-        transitionToStep("error")
+        goToError("Invalid product ID. The product you selected could not be found.", "email")
       }
       setProductValidated(true)
     }
-  }, [loading, selectedProduct, initialProduct, productValidated, transitionToStep])
+  }, [loading, selectedProduct, initialProduct, productValidated, setAllowReset, goToError])
 
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),
@@ -142,19 +151,9 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
       coupon: coupon || null,
       whitelabel: whitelabel !== "default" ? whitelabel : null,
       isInvestor,
+      cardData: null,
     },
   })
-
-  const goToStep = (step: FormStep) => {
-    transitionToStep(step)
-    setAllowReset(true)
-  }
-
-  const goToError = (message: string, returnTo: FormStep) => {
-    setErrorMessage(message)
-    setReturnStep(returnTo)
-    transitionToStep("error")
-  }
 
   const startStep: FormStep = "email"
 
@@ -227,8 +226,6 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
         return (
           <CardStep
             form={form}
-            cardData={cardData}
-            setCardData={setCardData}
             onNext={() => goToStep("review")}
             onBack={() => goToStep("phone")}
           />
@@ -237,7 +234,6 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
         return (
           <ReviewStep
             form={form}
-            cardData={cardData}
             mockPurchase={mockPurchase}
             onNext={() => goToStep("welcome")}
             onBack={() => goToStep("card")}

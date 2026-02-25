@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import type { ManageFormData } from "@/types/forms"
-import type { User } from "@/types/api"
 import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import useAnimateText from "@/hooks/useAnimateText"
 import useAnimateContainer from "@/hooks/useAnimateContainer"
 import useStepTransition from "@/hooks/useStepTransition"
+import { useFlowState } from "@/hooks/useFlowState"
+import { useUser } from "@/hooks/useUser"
 import FlowWrapper from "../FlowWrapper"
 
 // Step components
@@ -43,10 +44,8 @@ const stepConfig: Record<ManageStep, { title: string; description: string }> = {
 
 export default function ManageFlow() {
   const { displayStep, isTransitioning, transitionToStep } = useStepTransition<ManageStep>("email")
-  const [user, setUser] = useState<User | null>(null)
-  const [allowReset, setAllowReset] = useState(true)
-  const [errorMessage, setErrorMessage] = useState("")
-  const [returnStep, setReturnStep] = useState<ManageStep>("email")
+  const { allowReset, setAllowReset, errorMessage, returnStep, goToStep, goToError } = useFlowState<ManageStep>(transitionToStep)
+  const { user, setUser } = useUser()
 
   const form = useForm<ManageFormData>({
     mode: "onChange",
@@ -55,17 +54,6 @@ export default function ManageFlow() {
       password: "",
     },
   })
-
-  const goToStep = (step: ManageStep) => {
-    transitionToStep(step)
-    setAllowReset(true)
-  }
-
-  const goToError = (message: string, returnTo: ManageStep) => {
-    setErrorMessage(message)
-    setReturnStep(returnTo)
-    transitionToStep("error")
-  }
 
   const startStep: ManageStep = "email"
 

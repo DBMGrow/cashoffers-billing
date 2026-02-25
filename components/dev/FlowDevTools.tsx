@@ -32,6 +32,9 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
 }: FlowDevToolsProps<TStep, TFormData>) {
   const [isOpen, setIsOpen] = useState(false)
   const [showState, setShowState] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle")
+  const [editedJson, setEditedJson] = useState<string | null>(null)
+  const [stateError, setStateError] = useState<string | null>(null)
 
   const toggle = useCallback(() => setIsOpen((v) => !v), [])
 
@@ -60,6 +63,36 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
       onGoToStep(preset.step as TStep)
     }
     preset.onApply?.()
+  }
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(formValues, null, 2))
+      setCopyStatus("copied")
+      setTimeout(() => setCopyStatus("idle"), 1500)
+    } catch {
+      setCopyStatus("error")
+      setTimeout(() => setCopyStatus("idle"), 1500)
+    }
+  }
+
+  const handleApply = () => {
+    setStateError(null)
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(editedJson ?? "")
+    } catch {
+      setStateError("Invalid JSON")
+      return
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      setStateError("Must be a JSON object")
+      return
+    }
+    Object.entries(parsed).forEach(([key, value]) => {
+      form.setValue(key, value, { shouldValidate: true, shouldDirty: true })
+    })
+    setEditedJson(null)
   }
 
   return (
@@ -159,17 +192,52 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
 
             {/* Form State */}
             <section>
-              <button
-                onClick={() => setShowState((v) => !v)}
-                className="text-default-700 uppercase tracking-wider text-[10px] w-full text-left flex items-center justify-between hover:text-default-900 transition-colors"
-              >
-                <span>Form State</span>
-                <span className="text-default-600">{showState ? "▲" : "▼"}</span>
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setShowState((v) => !v)}
+                  className="text-default-700 uppercase tracking-wider text-[10px] flex items-center gap-1 hover:text-default-900 transition-colors"
+                >
+                  Form State
+                  <span className="text-default-600">{showState ? "▲" : "▼"}</span>
+                </button>
+                <div className="flex gap-1">
+                  {editedJson !== null ? (
+                    <>
+                      <button
+                        onClick={() => { setEditedJson(null); setStateError(null) }}
+                        className="py-0.5 px-2 bg-default-100 hover:bg-default-200 rounded text-[11px] text-default-800 transition-colors"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        onClick={handleApply}
+                        className="py-0.5 px-2 bg-primary hover:brightness-110 text-white rounded text-[11px] font-semibold transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleCopy}
+                      className="py-0.5 px-2 bg-default-100 hover:bg-default-200 rounded text-[11px] text-default-800 transition-colors"
+                    >
+                      {copyStatus === "copied" ? "Copied!" : copyStatus === "error" ? "Failed" : "Copy"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {showState && (
-                <pre className="mt-2 p-2 bg-default-100 text-default-800 rounded text-[10px] overflow-auto max-h-48 leading-relaxed">
-                  {JSON.stringify(formValues, null, 2)}
-                </pre>
+                <div className="mt-2">
+                  <textarea
+                    value={editedJson ?? JSON.stringify(formValues, null, 2)}
+                    onChange={(e) => { setEditedJson(e.target.value); setStateError(null) }}
+                    className="w-full h-48 p-2 bg-default-100 text-default-800 rounded text-[10px] leading-relaxed resize-none border border-default-300 focus:outline-none focus:border-primary font-mono"
+                  />
+                  {stateError && (
+                    <div className="text-danger text-[10px] mt-1">{stateError}</div>
+                  )}
+                </div>
               )}
             </section>
           </div>
