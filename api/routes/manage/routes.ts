@@ -5,7 +5,7 @@ import { setCookie } from "hono/cookie"
 import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { db } from "@/api/lib/database"
 import { getContainer } from "@api/container"
-import { executeUseCase } from "./helpers/use-case-handler"
+import { executeUseCase } from "../helpers/use-case-handler"
 import type { ProductData } from "@api/domain/types/product-data.types"
 import {
   CheckPlanRoute,
@@ -15,7 +15,7 @@ import {
   GetSubscriptionRoute,
   UpdateCardRoute,
   ManagePurchaseRoute
-} from "./schemas/manage.schemas"
+} from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 

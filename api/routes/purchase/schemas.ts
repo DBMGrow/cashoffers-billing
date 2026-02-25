@@ -5,7 +5,7 @@ import {
   EmailSchema,
   PositiveIntSchema,
   AmountSchema,
-} from "./common.schemas"
+} from "../helpers/common.schemas"
 
 /**
  * Purchase route schemas
@@ -19,9 +19,7 @@ import {
  * Comprehensive endpoint for creating new subscriptions (with user creation if needed)
  */
 export const PurchaseRequestSchema = z.object({
-  product_id: z.union([z.number(), z.string()]).transform((val) =>
-    typeof val === "string" ? parseInt(val, 10) : val
-  ),
+  product_id: z.union([z.number(), z.string()]).transform((val) => (typeof val === "string" ? parseInt(val, 10) : val)),
   email: EmailSchema,
   name: z.string().optional(),
   card_token: z.string().optional(),
@@ -69,13 +67,15 @@ export const PurchaseProductSchema = z.object({
 /**
  * User details (returned from API)
  */
-export const PurchaseUserSchema = z.object({
-  user_id: z.number(),
-  email: z.string(),
-  phone: z.string().nullable().optional(),
-  active: z.union([z.number(), z.boolean()]).optional(),
-  // Allow additional user fields
-}).passthrough()
+export const PurchaseUserSchema = z
+  .object({
+    user_id: z.number(),
+    email: z.string(),
+    phone: z.string().nullable().optional(),
+    active: z.union([z.number(), z.boolean()]).optional(),
+    // Allow additional user fields
+  })
+  .passthrough()
 
 /**
  * User card details

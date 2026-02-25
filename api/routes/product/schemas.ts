@@ -4,7 +4,7 @@ import {
   ErrorResponseSchema,
   ProductIdParamSchema,
   AmountSchema,
-} from "./common.schemas"
+} from "../helpers/common.schemas"
 
 /**
  * Product route schemas
@@ -19,23 +19,27 @@ export const ProductTypeSchema = z.enum(["none", "one-time", "subscription"])
  * User configuration schema for products
  * Validates the user_config structure in product.data
  */
-export const ProductUserConfigSchema = z.object({
-  is_premium: z.union([z.literal(0), z.literal(1)]),
-  role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER"]),
-  white_label_id: z.number().nullable(),
-  is_team_plan: z.boolean().optional(),
-}).strict()
+export const ProductUserConfigSchema = z
+  .object({
+    is_premium: z.union([z.literal(0), z.literal(1)]),
+    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER"]),
+    white_label_id: z.number().nullable(),
+    is_team_plan: z.boolean().optional(),
+  })
+  .strict()
 
 /**
  * Product data schema
  * Validates the structure of the data JSON field
  */
-export const ProductDataSchema = z.object({
-  signup_fee: z.number().optional(),
-  renewal_cost: z.number().optional(),
-  duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
-  user_config: ProductUserConfigSchema.optional(),
-}).passthrough() // Allow additional fields for backward compatibility
+export const ProductDataSchema = z
+  .object({
+    signup_fee: z.number().optional(),
+    renewal_cost: z.number().optional(),
+    duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+    user_config: ProductUserConfigSchema.optional(),
+  })
+  .passthrough() // Allow additional fields for backward compatibility
 
 // ==================== Request Schemas ====================
 
@@ -53,12 +57,14 @@ export const CreateProductRequestSchema = z.object({
 /**
  * Check prorated request body (existing subscription upgrade/downgrade calculation)
  */
-export const CheckProratedRequestSchema = z.object({
-  // Fields depend on checkProrated utility - keeping flexible
-  subscription_id: z.number().optional(),
-  new_amount: z.number().optional(),
-  user_id: z.number().optional(),
-}).passthrough() // Allow additional fields
+export const CheckProratedRequestSchema = z
+  .object({
+    // Fields depend on checkProrated utility - keeping flexible
+    subscription_id: z.number().optional(),
+    new_amount: z.number().optional(),
+    user_id: z.number().optional(),
+  })
+  .passthrough() // Allow additional fields
 
 // ==================== Response Schemas ====================
 
@@ -95,12 +101,14 @@ export const CreateProductResponseSchema = SuccessResponseSchema(ProductSchema)
  * Check prorated response
  */
 export const CheckProratedResponseSchema = SuccessResponseSchema(
-  z.object({
-    proratedAmount: z.number(),
-    daysRemaining: z.number().optional(),
-    oldAmount: z.number().optional(),
-    newAmount: z.number().optional(),
-  }).passthrough() // Allow additional fields from checkProrated utility
+  z
+    .object({
+      proratedAmount: z.number(),
+      daysRemaining: z.number().optional(),
+      oldAmount: z.number().optional(),
+      newAmount: z.number().optional(),
+    })
+    .passthrough() // Allow additional fields from checkProrated utility
 )
 
 // ==================== OpenAPI Route Definitions ====================

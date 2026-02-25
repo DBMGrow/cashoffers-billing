@@ -7,8 +7,8 @@ import {
   CheckSlugExistsRoute,
   SendReactivationRoute,
   GetProductsRoute,
-  GetWhitelabelsRoute
-} from "./schemas/signup.schemas"
+  GetWhitelabelsRoute,
+} from "./schemas"
 import { db } from "@/api/lib/database"
 import { setCookie } from "hono/cookie"
 import { getContainer } from "@api/container"
@@ -138,7 +138,14 @@ app.openapi(CheckUserExistsRoute, async (c) => {
       )
     }
 
-    console.log("User exists, checking status. user_id:", user.user_id, "is_premium:", user.is_premium, "active:", user.active)
+    console.log(
+      "User exists, checking status. user_id:",
+      user.user_id,
+      "is_premium:",
+      user.is_premium,
+      "active:",
+      user.active
+    )
 
     const isPremium = user.is_premium
     const active = user.active
@@ -159,11 +166,7 @@ app.openapi(CheckUserExistsRoute, async (c) => {
     console.log("Checking card and team info...")
 
     // Check card info from database
-    const userCard = await db
-      .selectFrom("UserCards")
-      .selectAll()
-      .where("user_id", "=", user.user_id)
-      .executeTakeFirst()
+    const userCard = await db.selectFrom("UserCards").selectAll().where("user_id", "=", user.user_id).executeTakeFirst()
 
     const response: any = {
       success: "success",

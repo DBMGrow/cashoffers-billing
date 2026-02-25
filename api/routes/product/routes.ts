@@ -2,7 +2,7 @@ import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { getContainer } from "@api/container"
 import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
-import { GetProductRoute, GetAllProductsRoute, CreateProductRoute, CheckProratedRoute } from "./schemas/product.schemas"
+import { GetProductRoute, GetAllProductsRoute, CreateProductRoute, CheckProratedRoute } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 

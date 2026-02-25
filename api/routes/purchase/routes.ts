@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { getContainer } from "@api/container"
-import { PurchaseRoute } from "./schemas/purchase.schemas"
+import { PurchaseRoute } from "./schemas"
 import { setCookie } from "hono/cookie"
 import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
 

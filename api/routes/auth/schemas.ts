@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { ErrorResponseSchema, EmailSchema } from "./common.schemas"
+import { ErrorResponseSchema, EmailSchema } from "@api/routes/helpers/common.schemas"
 
 /**
  * Auth route schemas
@@ -31,8 +31,7 @@ export const UserResponseSchema = z.object({
   is_premium: z.union([z.number(), z.boolean()]).optional(),
   team_id: z.number().nullable().optional(),
   whitelabel_id: z.number().nullable().optional(),
-  // Allow additional fields
-}).passthrough()
+})
 
 /**
  * Login response
@@ -87,8 +86,7 @@ export const LoginRoute = {
   },
   tags: ["Auth"],
   summary: "User login",
-  description:
-    "Authenticates user and sets authentication cookies. Proxies to auth v2 API for user verification.",
+  description: "Authenticates user and sets authentication cookies. Proxies to auth v2 API for user verification.",
 }
 
 /**

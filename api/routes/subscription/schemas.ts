@@ -7,7 +7,7 @@ import {
   PositiveIntSchema,
   EmailSchema,
   AmountSchema,
-} from "./common.schemas"
+} from "../helpers/common.schemas"
 
 /**
  * Subscription route schemas
@@ -180,8 +180,7 @@ export const GetAllSubscriptionsRoute = {
   },
   tags: ["Subscriptions"],
   summary: "Get all subscriptions",
-  description:
-    "Retrieve paginated list of all subscriptions. Requires payments_read_all permission (admin only).",
+  description: "Retrieve paginated list of all subscriptions. Requires payments_read_all permission (admin only).",
 }
 
 /**
@@ -343,8 +342,7 @@ export const DeleteSubscriptionRoute = {
   },
   tags: ["Subscriptions"],
   summary: "Delete subscription",
-  description:
-    "Deactivate a user's subscription. Requires payments_delete permission.",
+  description: "Deactivate a user's subscription. Requires payments_delete permission.",
 }
 
 /**
@@ -376,8 +374,7 @@ export const PauseSubscriptionRoute = {
   },
   tags: ["Subscriptions"],
   summary: "Pause subscription",
-  description:
-    "Pause a subscription - no charges will be processed while paused. Requires payments_create permission.",
+  description: "Pause a subscription - no charges will be processed while paused. Requires payments_create permission.",
 }
 
 /**

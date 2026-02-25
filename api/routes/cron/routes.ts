@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import subscriptionsCron from "@api/cron/subscriptionsCron"
-import { RunCronRoute, SendHealthReportRoute } from "./schemas/cron.schemas"
+import { RunCronRoute, SendHealthReportRoute } from "./schemas"
 import { getContainer } from "@api/container"
 // TODO: suspendSubscriptionsCron doesn't exist yet - need to implement or remove
 // import suspendSubscriptionsCron from "@api/cron/suspendSubscriptionsCron"

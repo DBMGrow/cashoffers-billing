@@ -3,8 +3,8 @@ import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { userCan } from "@api/utils/userCan"
 import { getContainer } from "@api/container"
-import { executeUseCase } from "./helpers/use-case-handler"
-import { GetPaymentsRoute, CreatePaymentRoute, RefundPaymentRoute } from "./schemas/payment.schemas"
+import { executeUseCase } from "../helpers/use-case-handler"
+import { GetPaymentsRoute, CreatePaymentRoute, RefundPaymentRoute } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 

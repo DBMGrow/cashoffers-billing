@@ -4,7 +4,7 @@ import {
   ErrorResponseSchema,
   PropertyTokenParamSchema,
   AmountSchema,
-} from "./common.schemas"
+} from "../helpers/common.schemas"
 
 /**
  * Property route schemas
@@ -76,6 +76,5 @@ export const UnlockPropertyRoute = {
   },
   tags: ["Property"],
   summary: "Unlock property",
-  description:
-    "Unlock a property by charging $50 to the provided card. Requires properties_unlock permission.",
+  description: "Unlock a property by charging $50 to the provided card. Requires properties_unlock permission.",
 }

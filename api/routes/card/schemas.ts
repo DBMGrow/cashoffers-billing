@@ -5,7 +5,7 @@ import {
   UserIdParamSchema,
   PositiveIntSchema,
   EmailSchema,
-} from "./common.schemas"
+} from "../helpers/common.schemas"
 
 /**
  * Card route schemas

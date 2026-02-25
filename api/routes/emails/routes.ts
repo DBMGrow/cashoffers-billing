@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { parseEmailTemplate } from "@api/infrastructure/email/sendgrid/template-parser"
-import { PreviewEmailRoute } from "./schemas/emails.schemas"
+import { PreviewEmailRoute } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 

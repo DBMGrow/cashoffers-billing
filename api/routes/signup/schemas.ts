@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { ErrorResponseSchema, EmailSchema } from "./common.schemas"
+import { ErrorResponseSchema, EmailSchema } from "../helpers/common.schemas"
 
 /**
  * Signup route schemas
@@ -94,8 +94,7 @@ export const PurchaseFreeRoute = {
   },
   tags: ["Signup"],
   summary: "Register free user",
-  description:
-    "Creates a new user account without a paid subscription. Used for free tier signups.",
+  description: "Creates a new user account without a paid subscription. Used for free tier signups.",
 }
 
 /**
@@ -156,8 +155,7 @@ export const CheckSlugExistsRoute = {
   },
   tags: ["Signup"],
   summary: "Check if slug exists",
-  description:
-    "Checks if a team slug is already taken. Used during team registration to validate slug availability.",
+  description: "Checks if a team slug is already taken. Used during team registration to validate slug availability.",
 }
 
 /**
@@ -188,14 +186,16 @@ export const ProductsResponseSchema = z.object({
  */
 export const WhitelabelsResponseSchema = z.object({
   success: z.literal("success"),
-  data: z.array(z.object({
-    whitelabel_id: z.number(),
-    code: z.string(),
-    name: z.string(),
-    primary_color: z.string().optional(),
-    secondary_color: z.string().optional(),
-    logo_url: z.string().optional(),
-  })),
+  data: z.array(
+    z.object({
+      whitelabel_id: z.number(),
+      code: z.string(),
+      name: z.string(),
+      primary_color: z.string().optional(),
+      secondary_color: z.string().optional(),
+      logo_url: z.string().optional(),
+    })
+  ),
 })
 
 /**
@@ -232,8 +232,7 @@ export const SendReactivationRoute = {
   },
   tags: ["Signup"],
   summary: "Send reactivation email",
-  description:
-    "Sends a reactivation email to inactive premium users, offering them to downgrade to a free account.",
+  description: "Sends a reactivation email to inactive premium users, offering them to downgrade to a free account.",
 }
 
 /**
@@ -263,8 +262,7 @@ export const GetProductsRoute = {
   },
   tags: ["Signup"],
   summary: "Get products",
-  description:
-    "Fetches all active products filtered by whitelabel. Used during signup to display available plans.",
+  description: "Fetches all active products filtered by whitelabel. Used during signup to display available plans.",
 }
 
 /**

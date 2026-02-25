@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { SuccessResponseSchema, ErrorResponseSchema } from "./common.schemas"
+import { SuccessResponseSchema, ErrorResponseSchema } from "../helpers/common.schemas"
 
 /**
  * Cron route schemas

@@ -2,8 +2,8 @@ import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@/api/lib/middleware/authMiddleware"
 import { getContainer } from "@api/container"
-import { executeUseCase } from "./helpers/use-case-handler"
-import { checkSubscriptionAuthorization } from "./helpers/subscription-auth"
+import { executeUseCase } from "../helpers/use-case-handler"
+import { checkSubscriptionAuthorization } from "../helpers/subscription-auth"
 import {
   GetAllSubscriptionsRoute,
   GetOwnSubscriptionRoute,
@@ -16,7 +16,7 @@ import {
   UncancelSubscriptionRoute,
   DowngradeSubscriptionRoute,
   UndowngradeSubscriptionRoute,
-} from "./schemas/subscription.schemas"
+} from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 

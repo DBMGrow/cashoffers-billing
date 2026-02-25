@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { ErrorResponseSchema } from "./common.schemas"
+import { ErrorResponseSchema } from "../helpers/common.schemas"
 
 /**
  * Email route schemas

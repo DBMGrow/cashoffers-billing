@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { setCookie, deleteCookie } from "hono/cookie"
-import { LoginRoute, LogoutRoute } from "./schemas/auth.schemas"
+import { LoginRoute, LogoutRoute } from "./schemas"
 import axios from "axios"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -27,9 +27,7 @@ app.openapi(LoginRoute, async (c) => {
     // Extract _api_token cookie from V2 response
     const setCookieHeader = response.headers["set-cookie"]
     if (setCookieHeader) {
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader.join("; ")
-        : setCookieHeader
+      const cookieString = Array.isArray(setCookieHeader) ? setCookieHeader.join("; ") : setCookieHeader
       const apiTokenMatch = cookieString.match(/_api_token=([^;]+)/)
       if (apiTokenMatch) {
         const token = apiTokenMatch[1]

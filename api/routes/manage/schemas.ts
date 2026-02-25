@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { ErrorResponseSchema } from "./common.schemas"
+import { ErrorResponseSchema } from "../helpers/common.schemas"
 
 /**
  * Manage route schemas
@@ -22,9 +22,7 @@ export const CheckPlanRequestSchema = z.object({
       .passthrough()
       .optional(),
   }),
-  productID: z.union([z.number(), z.string()]).transform((val) =>
-    typeof val === "string" ? parseInt(val, 10) : val
-  ),
+  productID: z.union([z.number(), z.string()]).transform((val) => (typeof val === "string" ? parseInt(val, 10) : val)),
 })
 
 // ==================== Response Schemas ====================
@@ -32,18 +30,20 @@ export const CheckPlanRequestSchema = z.object({
 /**
  * User details in response
  */
-export const UserResponseSchema = z.object({
-  user_id: z.number(),
-  email: z.string(),
-  name: z.string().optional(),
-  phone: z.string().nullable().optional(),
-  role: z.string().optional(),
-  active: z.union([z.number(), z.boolean()]).optional(),
-  is_premium: z.union([z.number(), z.boolean()]).optional(),
-  team_id: z.number().nullable().optional(),
-  whitelabel_id: z.number().nullable().optional(),
-  // Allow additional fields
-}).passthrough()
+export const UserResponseSchema = z
+  .object({
+    user_id: z.number(),
+    email: z.string(),
+    name: z.string().optional(),
+    phone: z.string().nullable().optional(),
+    role: z.string().optional(),
+    active: z.union([z.number(), z.boolean()]).optional(),
+    is_premium: z.union([z.number(), z.boolean()]).optional(),
+    team_id: z.number().nullable().optional(),
+    whitelabel_id: z.number().nullable().optional(),
+    // Allow additional fields
+  })
+  .passthrough()
 
 /**
  * Check plan response
@@ -171,14 +171,16 @@ export const ProductsResponseSchema = z.object({
  */
 export const WhitelabelsResponseSchema = z.object({
   success: z.literal("success"),
-  data: z.array(z.object({
-    whitelabel_id: z.number(),
-    code: z.string(),
-    name: z.string(),
-    primary_color: z.string().optional(),
-    secondary_color: z.string().optional(),
-    logo_url: z.string().optional(),
-  })),
+  data: z.array(
+    z.object({
+      whitelabel_id: z.number(),
+      code: z.string(),
+      name: z.string(),
+      primary_color: z.string().optional(),
+      secondary_color: z.string().optional(),
+      logo_url: z.string().optional(),
+    })
+  ),
 })
 
 /**
@@ -210,9 +212,7 @@ export const UpdateCardResponseSchema = z.object({
  * Purchase request schema (for plan changes)
  */
 export const ManagePurchaseRequestSchema = z.object({
-  product_id: z.union([z.number(), z.string()]).transform((val) =>
-    typeof val === "string" ? parseInt(val, 10) : val
-  ),
+  product_id: z.union([z.number(), z.string()]).transform((val) => (typeof val === "string" ? parseInt(val, 10) : val)),
   subscription_id: z.number().optional(),
 })
 
@@ -305,8 +305,7 @@ export const GetSubscriptionRoute = {
   },
   tags: ["Manage"],
   summary: "Get user's current subscription",
-  description:
-    "Fetches the authenticated user's active subscription with product details.",
+  description: "Fetches the authenticated user's active subscription with product details.",
 }
 
 /**
@@ -345,8 +344,7 @@ export const UpdateCardRoute = {
   },
   tags: ["Manage"],
   summary: "Update card on file",
-  description:
-    "Updates the user's payment card on file. Used when users want to change their billing card.",
+  description: "Updates the user's payment card on file. Used when users want to change their billing card.",
 }
 
 /**
@@ -388,6 +386,5 @@ export const ManagePurchaseRoute = {
   },
   tags: ["Manage"],
   summary: "Change subscription plan",
-  description:
-    "Changes the user's subscription to a different plan. Handles prorated charges and role validation.",
+  description: "Changes the user's subscription to a different plan. Handles prorated charges and role validation.",
 }

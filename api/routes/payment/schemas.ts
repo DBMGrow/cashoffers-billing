@@ -10,7 +10,7 @@ import {
   TransactionStatusSchema,
   TransactionTypeSchema,
   SquareEnvironmentSchema,
-} from "./common.schemas"
+} from "../helpers/common.schemas"
 
 /**
  * Payment route schemas
