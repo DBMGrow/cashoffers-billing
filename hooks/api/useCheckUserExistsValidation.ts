@@ -13,13 +13,9 @@ interface CheckUserResponse {
 export function useCheckUserExistsValidation() {
   return useMutation({
     mutationFn: async (email: string) => {
-      const { data } = await axios.get<ApiResponse<CheckUserResponse>>(
-        `/api/signup/checkuserexists/${encodeURIComponent(email)}`
-      )
-      if (data.success !== "success") {
-        throw new Error("Failed to check user")
-      }
-      return data.data
+      const { data } = await axios.get<CheckUserResponse>(`/api/signup/checkuserexists/${encodeURIComponent(email)}`)
+
+      return data
     },
   })
 }

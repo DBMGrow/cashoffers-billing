@@ -6,9 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import type { SubscribeFormData, FormStep, WhitelabelType } from "@/types/forms"
 import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
-import useAnimateText from "@/hooks/useAnimateText"
-import useAnimateContainer from "@/hooks/useAnimateContainer"
-import useStepTransition from "@/hooks/useStepTransition"
+import { useFlowAnimation } from "@/hooks/useFlowAnimation"
 import { useFlowState } from "@/hooks/useFlowState"
 import FlowWrapper from "../FlowWrapper"
 import { useProducts } from "@/providers/ProductProvider"
@@ -60,7 +58,7 @@ interface SubscribeFlowProps {
   mockPurchase?: boolean
 }
 
-const stepConfig: Record<FormStep, { title: string; description: string }> = {
+const BASE_STEP_CONFIG: Record<FormStep, { title: string; description: string }> = {
   plan: { title: "Select a Plan.", description: "Choose a plan that's right for you." },
   email: {
     title: "What is your Email?",
@@ -112,8 +110,6 @@ const devPresets: DevPreset<SubscribeFormData>[] = [
 ]
 
 export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mockPurchase = false }: SubscribeFlowProps) {
-  const { displayStep, isTransitioning, transitionToStep } = useStepTransition<FormStep>("email")
-  const { allowReset, setAllowReset, errorMessage, returnStep, goToStep, goToError } = useFlowState<FormStep>(transitionToStep)
   const [productValidated, setProductValidated] = useState(false)
 
   // Fetch products using TanStack Query
@@ -125,17 +121,6 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
   // Derive isInvestor from product data instead of hardcoding product ID
   const selectedProduct = getProductById(initialProduct)
   const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
-
-  // Check if product is invalid after products load
-  useEffect(() => {
-    if (!loading && !productValidated) {
-      if (!selectedProduct && initialProduct !== "free" && initialProduct !== "freeinvestor") {
-        setAllowReset(false)
-        goToError("Invalid product ID. The product you selected could not be found.", "email")
-      }
-      setProductValidated(true)
-    }
-  }, [loading, selectedProduct, initialProduct, productValidated, setAllowReset, goToError])
 
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),
@@ -155,14 +140,40 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
     },
   })
 
-  const startStep: FormStep = "email"
-
   const userName = form.watch("name")
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
 
-  const titleText = useAnimateText(stepConfig[displayStep]?.title || "", 0.6, 0.2, titleReplacements, isTransitioning)
-  const descriptionText = useAnimateText(stepConfig[displayStep]?.description || "", 0.8, 0.5, {}, isTransitioning)
-  const containerRef = useAnimateContainer(displayStep, isTransitioning)
+  const [errorTitle, setErrorTitle] = useState<string | undefined>(undefined)
+  const [errorDescription, setErrorDescription] = useState<string | undefined>(undefined)
+
+  const stepConfig = useMemo(() => ({
+    ...BASE_STEP_CONFIG,
+    error: {
+      title: errorTitle ?? BASE_STEP_CONFIG.error.title,
+      description: errorDescription ?? BASE_STEP_CONFIG.error.description,
+    },
+  }), [errorTitle, errorDescription])
+
+  const { displayStep, transitionToStep, titleText, descriptionText, containerRef } =
+    useFlowAnimation<FormStep>("email", stepConfig, titleReplacements)
+  const { allowReset, setAllowReset, errorMessage, returnStep, goToStep, goToError: _goToError } = useFlowState<FormStep>(transitionToStep)
+
+  const goToError = (message: string, returnTo: FormStep, title?: string, description?: string) => {
+    setErrorTitle(title)
+    setErrorDescription(description)
+    _goToError(message, returnTo)
+  }
+
+  // Check if product is invalid after products load
+  useEffect(() => {
+    if (!loading && !productValidated) {
+      if (!selectedProduct && initialProduct !== "free" && initialProduct !== "freeinvestor") {
+        setAllowReset(false)
+        goToError("Invalid product ID. The product you selected could not be found.", "email")
+      }
+      setProductValidated(true)
+    }
+  }, [loading, selectedProduct, initialProduct, productValidated, setAllowReset, goToError])
 
   const renderStep = () => {
     switch (displayStep) {
@@ -172,7 +183,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
             form={form}
             onNext={() => goToStep("name")}
             onOfferDowngrade={() => goToStep("offerDowngrade")}
-            onError={(message) => goToError(message, "email")}
+            onError={(message, title, description) => goToError(message, "email", title, description)}
             setAllowReset={setAllowReset}
           />
         )
@@ -270,7 +281,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
         allowReset={allowReset}
         onReset={() => {
           form.reset()
-          transitionToStep(startStep)
+          transitionToStep("email")
         }}
       >
         {renderStep()}

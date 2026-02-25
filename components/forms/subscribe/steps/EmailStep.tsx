@@ -11,7 +11,7 @@ interface EmailStepProps {
   form: UseFormReturn<SubscribeFormData>
   onNext: () => void
   onOfferDowngrade: () => void
-  onError: (message: string) => void
+  onError: (message: string, title?: string, description?: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
@@ -30,11 +30,14 @@ export default function EmailStep({ form, onNext, onOfferDowngrade, onError, set
 
     checkUser.mutate(email, {
       onSuccess: (data) => {
-        // Check if user should be offered downgrade (inactive premium user)
         if (data?.offerDowngrade) {
           onOfferDowngrade()
         } else if (data?.userExists) {
-          onError("This email is already in use. Please try a different email.")
+          onError(
+            "",
+            "Email Already In Use",
+            "The email you entered is already associated with an account. Please use a different email or contact support if you need help."
+          )
         } else {
           onNext()
         }

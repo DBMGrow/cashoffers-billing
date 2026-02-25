@@ -90,6 +90,31 @@ export const LoginRoute = {
 }
 
 /**
+ * GET /auth/check - Check current session
+ */
+export const CheckAuthRoute = {
+  method: "get" as const,
+  path: "/check",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: LoginResponseSchema,
+        },
+      },
+      description: "Session is valid, returns current user",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Not authenticated",
+    },
+  },
+  tags: ["Auth"],
+  summary: "Check current session",
+  description: "Returns the authenticated user based on the session cookie.",
+}
+
+/**
  * POST /auth/logout - User logout
  */
 export const LogoutRoute = {

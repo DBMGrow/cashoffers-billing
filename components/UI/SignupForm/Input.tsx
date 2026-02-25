@@ -1,9 +1,31 @@
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { useRef, useEffect } from "react"
 
-export default function Input({ placeholder, type = "text", handleSubmit, isDisabled, value, onChange, isLoading, name, testId }) {
+interface InputProps {
+  placeholder: string
+  type?: string
+  handleSubmit?: () => void
+  isDisabled?: boolean
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  isLoading?: boolean
+  name?: string
+  testId?: string
+}
+
+export default function Input({
+  placeholder,
+  type = "text",
+  handleSubmit,
+  isDisabled,
+  value,
+  onChange,
+  isLoading,
+  name,
+  testId,
+}: InputProps) {
   handleSubmit = handleSubmit || (() => console.warn("No handleSubmit provided"))
-  const ref = useRef()
+  const ref = useRef<HTMLInputElement>(null)
 
   const inputProps = {
     className:
@@ -21,7 +43,7 @@ export default function Input({ placeholder, type = "text", handleSubmit, isDisa
   useEffect(() => {
     if (ref.current) {
       setTimeout(() => {
-        ref.current.focus()
+        ref!.current!.focus()
       }, 500)
     }
   }, [ref])
@@ -30,15 +52,15 @@ export default function Input({ placeholder, type = "text", handleSubmit, isDisa
   useEffect(() => {
     const current = ref.current
 
-    const handleEnter = (e) => {
+    const handleEnter = (e: KeyboardEvent) => {
       if (e.key === "Enter" && !isDisabled) {
         handleSubmit()
       }
     }
 
-    current.addEventListener("keydown", handleEnter)
+    current!.addEventListener("keydown", handleEnter)
 
-    return () => current.removeEventListener("keydown", handleEnter)
+    return () => current!.removeEventListener("keydown", handleEnter)
   }, [handleSubmit, isDisabled])
 
   return (

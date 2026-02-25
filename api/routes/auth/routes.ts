@@ -1,7 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { setCookie, deleteCookie } from "hono/cookie"
-import { LoginRoute, LogoutRoute } from "./schemas"
+import { LoginRoute, LogoutRoute, CheckAuthRoute } from "./schemas"
+import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import axios from "axios"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -62,6 +63,16 @@ app.openapi(LoginRoute, async (c) => {
       400
     )
   }
+})
+
+/**
+ * GET /auth/check
+ * Returns current authenticated user based on session cookie
+ */
+app.use("/check", authMiddleware(null))
+app.openapi(CheckAuthRoute, async (c) => {
+  const user = c.get("user")
+  return c.json({ success: "success" as const, data: user }, 200)
 })
 
 /**

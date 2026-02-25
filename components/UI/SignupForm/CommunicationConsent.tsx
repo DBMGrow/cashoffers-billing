@@ -2,14 +2,21 @@ import Modal from "@/components/Theme/Modal"
 import { useState } from "react"
 import P from "@/components/Theme/P"
 
-export default function CommunicationConsent({ isChecked, setIsChecked }) {
+export default function CommunicationConsent({ isChecked, setIsChecked }: any) {
   const handleCheck = () => setIsChecked(!isChecked)
   const [isOpen, setIsOpen] = useState(false)
   const handleOpen = () => setIsOpen(true)
 
   return (
     <div className="flex gap-2 items-center">
-      <input type="checkbox" name="consent" id="consent" checked={isChecked} onClick={handleCheck} />
+      <input
+        type="checkbox"
+        name="consent"
+        id="consent"
+        checked={isChecked}
+        onClick={handleCheck}
+        onChange={() => {}}
+      />
       <label htmlFor="consent" className="text-caption">
         I have read and agree to the{" "}
         <button className="font-bold text-primary-color" onClick={handleOpen}>

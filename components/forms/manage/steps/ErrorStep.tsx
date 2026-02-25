@@ -11,8 +11,7 @@ export default function ErrorStep({ errorMessage, onRetry }: ErrorStepProps) {
   return (
     <div className="flex flex-col items-center justify-center space-y-6 py-8">
       <div className="text-center space-y-2">
-        <div className="text-6xl mb-4">⚠️</div>
-        <p className="text-lg max-w-md">{errorMessage}</p>
+        <p className="">{errorMessage}</p>
       </div>
 
       <ThemeButton onPress={onRetry} className="mt-4">
