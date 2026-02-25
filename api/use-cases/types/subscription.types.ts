@@ -1,4 +1,4 @@
-import type { PaymentContext } from '@api/config/config.interface'
+import type { PaymentContext } from "@api/config/config.interface"
 
 /**
  * Subscription-related DTOs (Data Transfer Objects)
@@ -202,27 +202,27 @@ export interface PurchaseSubscriptionInput {
   email: string
 
   // Card Info (optional for existing users with cards)
-  cardToken?: string
-  expMonth?: number
-  expYear?: number
-  cardholderName?: string
+  cardToken?: string | null
+  expMonth?: number | null
+  expYear?: number | null
+  cardholderName?: string | null
 
   // Existing User Auth
-  apiToken?: string
+  apiToken?: string | null
 
   // New User Info
-  name?: string
-  phone?: string
-  whitelabel?: string  // Keep for backward compatibility
-  slug?: string
-  url?: string
-  nameBroker?: string
-  nameTeam?: string
-  isInvestor?: boolean | number
+  name?: string | null
+  phone?: string | null
+  whitelabel?: string | null // Keep for backward compatibility
+  slug?: string | null
+  url?: string | null
+  nameBroker?: string | null
+  nameTeam?: string | null
+  isInvestor?: boolean | number | null
 
   // Optional
-  coupon?: string
-  context?: PaymentContext
+  coupon?: string | null
+  context?: PaymentContext | null
 }
 
 /**

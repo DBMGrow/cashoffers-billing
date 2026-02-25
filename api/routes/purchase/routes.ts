@@ -45,9 +45,7 @@ app.openapi(PurchaseRoute, async (c) => {
   })
 
   // Override context for mock purchases
-  const effectiveContext = mock_purchase
-    ? { ...paymentContext, mockPurchase: true }
-    : paymentContext
+  const effectiveContext = mock_purchase ? { ...paymentContext, mockPurchase: true } : paymentContext
 
   try {
     // Execute use case

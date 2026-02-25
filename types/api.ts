@@ -48,12 +48,11 @@ export interface PurchaseRequest {
   cardholder_name: string
   name_broker?: string | null
   name_team?: string | null
-  whitelabel?: string | null
   slug?: string | null
-  isInvestor: boolean
   api_token?: string | null
   url?: string
   coupon?: string | null
+  mock_purchase?: boolean
 }
 
 export interface PurchaseFreeRequest {
@@ -63,7 +62,6 @@ export interface PurchaseFreeRequest {
   name_broker?: string | null
   name_team?: string | null
   whitelabel?: string | null
-  isInvestor: number
   slug?: string | null
 }
 

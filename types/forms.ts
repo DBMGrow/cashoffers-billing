@@ -7,8 +7,6 @@ export interface SubscribeFormData {
   name_broker: string | null
   name_team: string | null
   coupon: string | null
-  whitelabel: string | null
-  isInvestor: boolean
   cardData: CardData | null
 }
 
@@ -44,11 +42,4 @@ export type FormStep =
   | "offerDowngrade"
   | "offerDowngradeConfirm"
 
-export type WhitelabelType =
-  | "default"
-  | "kw"
-  | "yhs"
-  | "uco"
-  | "eco"
-  | "mop"
-  | "platinum"
+export type WhitelabelType = "default" | "kw" | "yhs" | "uco" | "eco" | "mop" | "platinum"

@@ -38,7 +38,6 @@ export default function ReviewStep({
   // Fetch products using TanStack Query
   const { getProductById } = useProducts({
     mode: "signup",
-    whitelabel: (formData.whitelabel as string) || "default",
   })
   const productData = getProductById(product)
 
@@ -73,9 +72,7 @@ export default function ReviewStep({
       name: formData.name,
       name_broker: formData.name_broker,
       name_team: formData.name_team,
-      whitelabel: formData.whitelabel,
       slug: formData.slug,
-      isInvestor: product === "freeinvestor" ? 1 : 0,
     })
 
     if (result.success !== "success") {
@@ -94,18 +91,7 @@ export default function ReviewStep({
 
   const handleSubmit = async () => {
     // Create mock card data for testing if mockPurchase is true
-    const effectiveCardData = mockPurchase
-      ? {
-          token: "MOCK_CARD_TOKEN_FOR_TESTING",
-          details: {
-            card: {
-              expMonth: 12,
-              expYear: 2025,
-            },
-          },
-        }
-      : form.getValues("cardData")
-
+    const effectiveCardData = form.getValues("cardData")
     if (!effectiveCardData) {
       onError("Please add a card.")
       return
@@ -129,9 +115,7 @@ export default function ReviewStep({
       cardholder_name: formData.name,
       name_broker: formData.name_broker,
       name_team: formData.name_team,
-      whitelabel: formData.whitelabel,
       slug: formData.slug,
-      isInvestor: formData.isInvestor,
       url,
       coupon: formData.coupon,
       mock_purchase: mockPurchase,
@@ -190,7 +174,7 @@ export default function ReviewStep({
       <GeneralConsent isChecked={isGeneralChecked} setIsChecked={setIsGeneralChecked} />
       <CommunicationConsent isChecked={isCommunicationChecked} setIsChecked={setIsCommunicationChecked} />
       <InvestorConsent data={formData} isChecked={isChecked} setIsChecked={setIsChecked} />
-      <div className="w-[400px] flex justify-stretch items-stretch pt-4">
+      <div className="w-100 flex justify-stretch items-stretch pt-4">
         <ThemeButton
           color="secondary"
           isDisabled={!isChecked || !isGeneralChecked}

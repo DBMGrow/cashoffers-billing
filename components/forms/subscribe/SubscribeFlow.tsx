@@ -46,8 +46,6 @@ const subscribeSchema = z.object({
   name_broker: z.string().nullable(),
   name_team: z.string().nullable(),
   coupon: z.string().nullable(),
-  whitelabel: z.string().nullable(),
-  isInvestor: z.boolean(),
   cardData: cardDataSchema.nullable(),
 })
 
@@ -96,8 +94,18 @@ const BASE_STEP_CONFIG: Record<FormStep, { title: string; description: string }>
 }
 
 const SUBSCRIBE_STEPS: readonly FormStep[] = [
-  "email", "name", "slug", "broker", "team", "phone",
-  "card", "review", "welcome", "offerDowngrade", "offerDowngradeConfirm", "error",
+  "email",
+  "name",
+  "slug",
+  "broker",
+  "team",
+  "phone",
+  "card",
+  "review",
+  "welcome",
+  "offerDowngrade",
+  "offerDowngradeConfirm",
+  "error",
 ]
 
 const devPresets: DevPreset<SubscribeFormData>[] = [
@@ -109,18 +117,26 @@ const devPresets: DevPreset<SubscribeFormData>[] = [
   { label: "→ Error", step: "error" },
 ]
 
-export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mockPurchase = false }: SubscribeFlowProps) {
+export default function SubscribeFlow({
+  initialProduct,
+  whitelabel,
+  coupon,
+  mockPurchase = false,
+}: SubscribeFlowProps) {
   const [productValidated, setProductValidated] = useState(false)
 
   // Fetch products using TanStack Query
   const { getProductById, loading } = useProducts({
     mode: "signup",
-    whitelabel: whitelabel || "default"
+    whitelabel: whitelabel || "default",
   })
 
-  // Derive isInvestor from product data instead of hardcoding product ID
   const selectedProduct = getProductById(initialProduct)
-  const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
+
+  let name_broker: string | null = null
+  if (whitelabel === "kw") {
+    name_broker = "Keller Williams"
+  }
 
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),
@@ -131,14 +147,14 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
       name: "",
       phone: "",
       slug: null,
-      name_broker: whitelabel === "kw" ? "Keller Williams" : null,
+      name_broker,
       name_team: null,
-      coupon: coupon || null,
-      whitelabel: whitelabel !== "default" ? whitelabel : null,
-      isInvestor,
+      coupon,
       cardData: null,
     },
   })
+
+  const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
 
   const userName = form.watch("name")
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
@@ -146,17 +162,30 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
   const [errorTitle, setErrorTitle] = useState<string | undefined>(undefined)
   const [errorDescription, setErrorDescription] = useState<string | undefined>(undefined)
 
-  const stepConfig = useMemo(() => ({
-    ...BASE_STEP_CONFIG,
-    error: {
-      title: errorTitle ?? BASE_STEP_CONFIG.error.title,
-      description: errorDescription ?? BASE_STEP_CONFIG.error.description,
-    },
-  }), [errorTitle, errorDescription])
+  const stepConfig = useMemo(
+    () => ({
+      ...BASE_STEP_CONFIG,
+      error: {
+        title: errorTitle ?? BASE_STEP_CONFIG.error.title,
+        description: errorDescription ?? BASE_STEP_CONFIG.error.description,
+      },
+    }),
+    [errorTitle, errorDescription]
+  )
 
-  const { displayStep, transitionToStep, titleText, descriptionText, containerRef } =
-    useFlowAnimation<FormStep>("email", stepConfig, titleReplacements)
-  const { allowReset, setAllowReset, errorMessage, returnStep, goToStep, goToError: _goToError } = useFlowState<FormStep>(transitionToStep)
+  const { displayStep, transitionToStep, titleText, descriptionText, containerRef } = useFlowAnimation<FormStep>(
+    "email",
+    stepConfig,
+    titleReplacements
+  )
+  const {
+    allowReset,
+    setAllowReset,
+    errorMessage,
+    returnStep,
+    goToStep,
+    goToError: _goToError,
+  } = useFlowState<FormStep>(transitionToStep)
 
   const goToError = (message: string, returnTo: FormStep, title?: string, description?: string) => {
     setErrorTitle(title)
@@ -192,9 +221,15 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
           <NameStep
             form={form}
             onNext={() => {
-              if (form.getValues("isInvestor")) return goToStep("phone")
-              if (form.getValues("product") === "free" || form.getValues("product") === "freeinvestor")
+              if (isInvestor) {
                 return goToStep("phone")
+              }
+
+              const productID = form.getValues("product")
+              if (productID === "free" || productID === "freeinvestor") {
+                return goToStep("phone")
+              }
+
               return goToStep("slug")
             }}
             onBack={() => goToStep("email")}
@@ -234,13 +269,7 @@ export default function SubscribeFlow({ initialProduct, whitelabel, coupon, mock
           />
         )
       case "card":
-        return (
-          <CardStep
-            form={form}
-            onNext={() => goToStep("review")}
-            onBack={() => goToStep("phone")}
-          />
-        )
+        return <CardStep form={form} onNext={() => goToStep("review")} onBack={() => goToStep("phone")} />
       case "review":
         return (
           <ReviewStep

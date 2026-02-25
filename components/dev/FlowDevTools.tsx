@@ -82,6 +82,7 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
     try {
       parsed = JSON.parse(editedJson ?? "")
     } catch {
+      console.error("Invalid JSON:", editedJson)
       setStateError("Invalid JSON")
       return
     }
@@ -204,7 +205,10 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
                   {editedJson !== null ? (
                     <>
                       <button
-                        onClick={() => { setEditedJson(null); setStateError(null) }}
+                        onClick={() => {
+                          setEditedJson(null)
+                          setStateError(null)
+                        }}
                         className="py-0.5 px-2 bg-default-100 hover:bg-default-200 rounded text-[11px] text-default-800 transition-colors"
                       >
                         Reset
@@ -231,12 +235,13 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
                 <div className="mt-2">
                   <textarea
                     value={editedJson ?? JSON.stringify(formValues, null, 2)}
-                    onChange={(e) => { setEditedJson(e.target.value); setStateError(null) }}
+                    onChange={(e) => {
+                      setEditedJson(e.target.value)
+                      setStateError(null)
+                    }}
                     className="w-full h-48 p-2 bg-default-100 text-default-800 rounded text-[10px] leading-relaxed resize-none border border-default-300 focus:outline-none focus:border-primary font-mono"
                   />
-                  {stateError && (
-                    <div className="text-danger text-[10px] mt-1">{stateError}</div>
-                  )}
+                  {stateError && <div className="text-danger text-[10px] mt-1">{stateError}</div>}
                 </div>
               )}
             </section>
