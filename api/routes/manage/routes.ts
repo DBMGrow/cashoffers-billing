@@ -4,7 +4,8 @@ import jwt from "jsonwebtoken"
 import { setCookie } from "hono/cookie"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { db } from "@api/lib/database"
-import { getContainer } from "@api/container"
+import { calculateProratedUseCase } from "@api/use-cases/subscription"
+import { createPaymentUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
 import type { ProductData } from "@api/domain/types/product-data.types"
 import { config } from "@api/config/config.service"
@@ -357,7 +358,6 @@ app.openapi(ManagePurchaseRoute, async (c) => {
     const user = c.get("user")
     const body = c.req.valid("json")
     const { product_id, subscription_id } = body
-    const container = getContainer()
     const paymentContext = c.get("paymentContext")
 
     // 1. Fetch the new product to validate
@@ -424,7 +424,7 @@ app.openapi(ManagePurchaseRoute, async (c) => {
     }
 
     // 5. Calculate prorated charge
-    const proratedResult = await container.useCases.calculateProrated.execute({
+    const proratedResult = await calculateProratedUseCase.execute({
       productId: product_id,
       userId: user.user_id,
     })
@@ -438,7 +438,7 @@ app.openapi(ManagePurchaseRoute, async (c) => {
     // 6. Process payment if there's a charge
     let chargeDetails = null
     if (proratedAmount > 0) {
-      const paymentResult = await container.useCases.createPayment.execute({
+      const paymentResult = await createPaymentUseCase.execute({
         userId: user.user_id,
         amount: proratedAmount,
         email: user.email,

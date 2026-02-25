@@ -1,6 +1,6 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import type { SubscriptionRepository } from "@api/lib/repositories"
+import type { TransactionRepository } from "@api/lib/repositories"
 import { IUpdateSubscriptionFieldsUseCase } from "./update-subscription-fields.use-case.interface"
 import { UpdateSubscriptionFieldsInput, UpdateSubscriptionFieldsOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
@@ -8,8 +8,8 @@ import { UpdateSubscriptionFieldsInputSchema } from "../types/validation.schemas
 
 interface Dependencies {
   logger: ILogger
-  subscriptionRepository: ISubscriptionRepository
-  transactionRepository: ITransactionRepository
+  subscriptionRepository: SubscriptionRepository
+  transactionRepository: TransactionRepository
 }
 
 /**

@@ -1,5 +1,5 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import type { SubscriptionRepository } from "@api/lib/repositories"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IDeactivateSubscriptionUseCase } from "./deactivate-subscription.use-case.interface"
@@ -10,7 +10,7 @@ import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-de
 
 interface Dependencies {
   logger: ILogger
-  subscriptionRepository: ISubscriptionRepository
+  subscriptionRepository: SubscriptionRepository
   userApiClient: IUserApiClient
   eventBus: IEventBus
 }

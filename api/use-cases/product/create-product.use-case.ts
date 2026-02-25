@@ -1,5 +1,5 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { IProductRepository } from "@api/infrastructure/database/repositories/product.repository.interface"
+import type { ProductRepository } from "@api/lib/repositories"
 import { ICreateProductUseCase } from "./create-product.use-case.interface"
 import { CreateProductInput, CreateProductOutput } from "../types/product.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
@@ -7,7 +7,7 @@ import { CreateProductInputSchema } from "../types/validation.schemas"
 
 interface Dependencies {
   logger: ILogger
-  productRepository: IProductRepository
+  productRepository: ProductRepository
 }
 
 /**

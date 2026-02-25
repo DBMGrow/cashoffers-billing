@@ -1,18 +1,17 @@
-import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
-import type { DB, BillingLogs } from '@api/lib/db'
-import { IBillingLogRepository } from './billing-log.repository.interface'
+import { Kysely, Selectable, Insertable, Updateable } from "kysely"
+import type { DB, BillingLogs } from "@api/lib/db"
 
 /**
  * Billing Log Repository Implementation
  * Handles log persistence using Kysely with bulk insert support
  */
-export class BillingLogRepository implements IBillingLogRepository {
+export class BillingLogRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint): Promise<Selectable<BillingLogs> | null> {
     const result = await this.db
-      .selectFrom('BillingLogs')
-      .where('log_id', '=', Number(id))
+      .selectFrom("BillingLogs")
+      .where("log_id", "=", Number(id))
       .selectAll()
       .executeTakeFirst()
 
@@ -20,12 +19,12 @@ export class BillingLogRepository implements IBillingLogRepository {
   }
 
   async findAll(criteria?: Partial<Selectable<BillingLogs>>): Promise<Selectable<BillingLogs>[]> {
-    let query = this.db.selectFrom('BillingLogs').selectAll()
+    let query = this.db.selectFrom("BillingLogs").selectAll()
 
     if (criteria) {
       Object.entries(criteria).forEach(([key, value]) => {
         if (value !== undefined) {
-          query = query.where(key as any, '=', value)
+          query = query.where(key as any, "=", value)
         }
       })
     }
@@ -33,14 +32,12 @@ export class BillingLogRepository implements IBillingLogRepository {
     return await query.execute()
   }
 
-  async findOne(
-    criteria: Partial<Selectable<BillingLogs>>
-  ): Promise<Selectable<BillingLogs> | null> {
-    let query = this.db.selectFrom('BillingLogs').selectAll()
+  async findOne(criteria: Partial<Selectable<BillingLogs>>): Promise<Selectable<BillingLogs> | null> {
+    let query = this.db.selectFrom("BillingLogs").selectAll()
 
     Object.entries(criteria).forEach(([key, value]) => {
       if (value !== undefined) {
-        query = query.where(key as any, '=', value)
+        query = query.where(key as any, "=", value)
       }
     })
 
@@ -49,43 +46,30 @@ export class BillingLogRepository implements IBillingLogRepository {
   }
 
   async create(data: Insertable<BillingLogs>): Promise<Selectable<BillingLogs>> {
-    const result = await this.db
-      .insertInto('BillingLogs')
-      .values(data)
-      .executeTakeFirstOrThrow()
+    const result = await this.db.insertInto("BillingLogs").values(data).executeTakeFirstOrThrow()
 
     // Fetch the created record
     const created = await this.findById(Number(result.insertId))
     if (!created) {
-      throw new Error('Failed to retrieve created billing log')
+      throw new Error("Failed to retrieve created billing log")
     }
 
     return created
   }
 
-  async update(
-    id: number | bigint,
-    data: Updateable<BillingLogs>
-  ): Promise<Selectable<BillingLogs>> {
-    await this.db
-      .updateTable('BillingLogs')
-      .set(data)
-      .where('log_id', '=', Number(id))
-      .executeTakeFirstOrThrow()
+  async update(id: number | bigint, data: Updateable<BillingLogs>): Promise<Selectable<BillingLogs>> {
+    await this.db.updateTable("BillingLogs").set(data).where("log_id", "=", Number(id)).executeTakeFirstOrThrow()
 
     const updated = await this.findById(id)
     if (!updated) {
-      throw new Error('Failed to retrieve updated billing log')
+      throw new Error("Failed to retrieve updated billing log")
     }
 
     return updated
   }
 
   async delete(id: number | bigint): Promise<void> {
-    await this.db
-      .deleteFrom('BillingLogs')
-      .where('log_id', '=', Number(id))
-      .executeTakeFirstOrThrow()
+    await this.db.deleteFrom("BillingLogs").where("log_id", "=", Number(id)).executeTakeFirstOrThrow()
   }
 
   // Custom methods specific to BillingLogRepository
@@ -94,23 +78,21 @@ export class BillingLogRepository implements IBillingLogRepository {
    * Bulk insert multiple log entries
    * Critical for performance when flushing queued logs
    */
-  async createMany(
-    logs: Array<Omit<Selectable<BillingLogs>, 'log_id' | 'createdAt'>>
-  ): Promise<void> {
+  async createMany(logs: Insertable<BillingLogs>[]): Promise<void> {
     if (logs.length === 0) {
       return
     }
 
     // Kysely handles bulk inserts efficiently with a single SQL query
-    await this.db.insertInto('BillingLogs').values(logs as any).execute()
+    await this.db.insertInto("BillingLogs").values(logs).execute()
   }
 
   async findByRequestId(requestId: string): Promise<Selectable<BillingLogs>[]> {
     return await this.db
-      .selectFrom('BillingLogs')
-      .where('request_id', '=', requestId)
+      .selectFrom("BillingLogs")
+      .where("request_id", "=", requestId)
       .selectAll()
-      .orderBy('createdAt', 'asc')
+      .orderBy("createdAt", "asc")
       .execute()
   }
 
@@ -118,33 +100,33 @@ export class BillingLogRepository implements IBillingLogRepository {
     startDate: Date,
     endDate: Date,
     filters?: {
-      level?: 'debug' | 'info' | 'warn' | 'error'
-      context_type?: 'http_request' | 'cron_job' | 'event_handler' | 'background'
+      level?: "debug" | "info" | "warn" | "error"
+      context_type?: "http_request" | "cron_job" | "event_handler" | "background"
       user_id?: number
       component?: string
     }
   ): Promise<Selectable<BillingLogs>[]> {
     let query = this.db
-      .selectFrom('BillingLogs')
-      .where('createdAt', '>=', startDate)
-      .where('createdAt', '<=', endDate)
+      .selectFrom("BillingLogs")
+      .where("createdAt", ">=", startDate)
+      .where("createdAt", "<=", endDate)
       .selectAll()
-      .orderBy('createdAt', 'desc')
+      .orderBy("createdAt", "desc")
 
     if (filters?.level) {
-      query = query.where('level', '=', filters.level)
+      query = query.where("level", "=", filters.level)
     }
 
     if (filters?.context_type) {
-      query = query.where('context_type', '=', filters.context_type)
+      query = query.where("context_type", "=", filters.context_type)
     }
 
     if (filters?.user_id !== undefined) {
-      query = query.where('user_id', '=', filters.user_id)
+      query = query.where("user_id", "=", filters.user_id)
     }
 
     if (filters?.component) {
-      query = query.where('component', '=', filters.component)
+      query = query.where("component", "=", filters.component)
     }
 
     return await query.execute()
@@ -152,33 +134,30 @@ export class BillingLogRepository implements IBillingLogRepository {
 
   async findByComponent(component: string, limit = 100): Promise<Selectable<BillingLogs>[]> {
     return await this.db
-      .selectFrom('BillingLogs')
-      .where('component', '=', component)
+      .selectFrom("BillingLogs")
+      .where("component", "=", component)
       .selectAll()
-      .orderBy('createdAt', 'desc')
+      .orderBy("createdAt", "desc")
       .limit(limit)
       .execute()
   }
 
   async findByUserId(userId: number, limit = 100): Promise<Selectable<BillingLogs>[]> {
     return await this.db
-      .selectFrom('BillingLogs')
-      .where('user_id', '=', userId)
+      .selectFrom("BillingLogs")
+      .where("user_id", "=", userId)
       .selectAll()
-      .orderBy('createdAt', 'desc')
+      .orderBy("createdAt", "desc")
       .limit(limit)
       .execute()
   }
 
-  async findByLevel(
-    level: 'debug' | 'info' | 'warn' | 'error',
-    limit = 100
-  ): Promise<Selectable<BillingLogs>[]> {
+  async findByLevel(level: "debug" | "info" | "warn" | "error", limit = 100): Promise<Selectable<BillingLogs>[]> {
     return await this.db
-      .selectFrom('BillingLogs')
-      .where('level', '=', level)
+      .selectFrom("BillingLogs")
+      .where("level", "=", level)
       .selectAll()
-      .orderBy('createdAt', 'desc')
+      .orderBy("createdAt", "desc")
       .limit(limit)
       .execute()
   }
@@ -187,6 +166,6 @@ export class BillingLogRepository implements IBillingLogRepository {
 /**
  * Create a billing log repository
  */
-export const createBillingLogRepository = (db: Kysely<DB>): IBillingLogRepository => {
+export const createBillingLogRepository = (db: Kysely<DB>): BillingLogRepository => {
   return new BillingLogRepository(db)
 }

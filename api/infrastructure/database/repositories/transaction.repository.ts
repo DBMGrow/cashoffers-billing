@@ -1,12 +1,11 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, Transactions } from '@api/lib/db'
-import { ITransactionRepository } from './transaction.repository.interface'
 
 /**
  * Transaction Repository Implementation
  * Handles payment transaction records using Kysely
  */
-export class TransactionRepository implements ITransactionRepository {
+export class TransactionRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint): Promise<Selectable<Transactions> | null> {
@@ -197,6 +196,6 @@ export class TransactionRepository implements ITransactionRepository {
 /**
  * Create a transaction repository
  */
-export const createTransactionRepository = (db: Kysely<DB>): ITransactionRepository => {
+export const createTransactionRepository = (db: Kysely<DB>): TransactionRepository => {
   return new TransactionRepository(db)
 }

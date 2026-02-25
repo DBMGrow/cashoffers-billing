@@ -1,7 +1,6 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, Subscriptions } from '@api/lib/db'
-import { ISubscriptionRepository } from './subscription.repository.interface'
-import { TransactionContext } from './repository.interface'
+import { TransactionContext } from '../transaction/transaction-manager.interface'
 
 /**
  * Subscription Repository Implementation
@@ -10,7 +9,7 @@ import { TransactionContext } from './repository.interface'
  * Supports optional transaction context for all operations.
  * When a transaction context is provided, operations will be part of that transaction.
  */
-export class SubscriptionRepository implements ISubscriptionRepository {
+export class SubscriptionRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint, trx?: TransactionContext): Promise<Selectable<Subscriptions> | null> {
@@ -217,6 +216,6 @@ export class SubscriptionRepository implements ISubscriptionRepository {
 /**
  * Create a subscription repository
  */
-export const createSubscriptionRepository = (db: Kysely<DB>): ISubscriptionRepository => {
+export const createSubscriptionRepository = (db: Kysely<DB>): SubscriptionRepository => {
   return new SubscriptionRepository(db)
 }

@@ -192,7 +192,56 @@ export const DeactivateSubscriptionInputSchema = z.object({
 export type DeactivateSubscriptionInputValidated = z.infer<typeof DeactivateSubscriptionInputSchema>
 
 /**
+ * New user purchase validation schema.
+ * All card and identification fields are required.
+ */
+export const NewUserPurchaseInputSchema = z.object({
+  productId: z.union([z.number(), z.string().transform((val) => {
+    const num = parseInt(val, 10)
+    return isNaN(num) ? val : num
+  })]),
+  email: z.string().email({ message: "Invalid email address" }),
+  phone: z.string().min(1, "Phone is required"),
+  cardToken: z.string().min(1, "Card token is required"),
+  expMonth: z.number().int().min(1).max(12),
+  expYear: z.number().int(),
+  cardholderName: z.string().min(1, "Cardholder name is required"),
+  name: z.string().optional().nullable(),
+  nameBroker: z.string().optional().nullable(),
+  nameTeam: z.string().optional().nullable(),
+  whitelabel: z.string().optional().nullable(),
+  slug: z.string().optional().nullable(),
+  url: z.string().optional().nullable(),
+  isInvestor: z.union([z.boolean(), z.number()]).optional().nullable(),
+  coupon: z.string().optional().nullable(),
+})
+
+export type NewUserPurchaseInputValidated = z.infer<typeof NewUserPurchaseInputSchema>
+
+/**
+ * Existing user purchase validation schema.
+ * User identity is resolved from the session token.
+ * Card fields are optional — card on file is used if omitted.
+ */
+export const ExistingUserPurchaseInputSchema = z.object({
+  userId: z.number().int().positive("User ID must be a positive integer"),
+  productId: z.union([z.number(), z.string().transform((val) => {
+    const num = parseInt(val, 10)
+    return isNaN(num) ? val : num
+  })]),
+  email: z.string().email({ message: "Invalid email address" }),
+  cardToken: z.string().optional().nullable(),
+  expMonth: z.number().int().min(1).max(12).optional().nullable(),
+  expYear: z.number().int().optional().nullable(),
+  cardholderName: z.string().optional().nullable(),
+  coupon: z.string().optional().nullable(),
+})
+
+export type ExistingUserPurchaseInputValidated = z.infer<typeof ExistingUserPurchaseInputSchema>
+
+/**
  * Purchase subscription validation schema
+ * @deprecated Use NewUserPurchaseInputSchema or ExistingUserPurchaseInputSchema instead
  */
 export const PurchaseSubscriptionInputSchema = z.object({
   productId: z.union([z.number(), z.string().transform((val) => {
@@ -200,6 +249,7 @@ export const PurchaseSubscriptionInputSchema = z.object({
     return isNaN(num) ? val : num
   })]),
   email: z.string().email({ message: "Invalid email address" }),
+  userId: z.number().int().positive().optional(),
   name: z.string().optional(),
   cardToken: z.string().optional(),
   expMonth: z.number().int().min(1).max(12).optional(),

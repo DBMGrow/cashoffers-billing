@@ -1,15 +1,12 @@
 import axios from "axios"
-import { getContainer } from "@api/container"
+import { config } from "@api/config/config.service"
+import { logger, emailService } from "@api/lib/services"
+import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
+import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 
 export default async function subscriptionsCron() {
-  // Get container and dependencies
-  const container = getContainer()
-  const subscriptionRepository = container.repositories.subscription
-  const transactionRepository = container.repositories.transaction
-  const emailService = container.services.email
-
   // Create child logger with cron context
-  const cronLogger = container.logger.child({
+  const cronLogger = logger.child({
     component: 'subscriptionsCron',
     contextType: 'cron_job',
   })
@@ -21,20 +18,17 @@ export default async function subscriptionsCron() {
 
     cronLogger.info('Subscriptions to process', {
       count: subscriptions.length,
-      subscriptionIds: subscriptions.map((sub) => sub.subscription_id),
+      subscriptionIds: subscriptions.map((sub: any) => sub.subscription_id),
     })
 
-    const usersResponse = await axios.get(container.config.api.url + "/users/mini?page=1&limit=50000", {
+    const usersResponse = await axios.get(config.api.url + "/users/mini?page=1&limit=50000", {
       headers: {
-        "x-api-token": container.config.api.masterToken,
+        "x-api-token": config.api.masterToken,
       },
     })
     const users: any = usersResponse.data
 
     if (users?.success !== "success") throw new Error("Error fetching users")
-
-    // Get use case from container
-    const renewSubscriptionUseCase = container.useCases.renewSubscription
 
     for (const subscription of subscriptions) {
       const subscriptionData = subscription
@@ -106,7 +100,7 @@ export default async function subscriptionsCron() {
 
     // Send error notification using new email service
     await emailService.sendPlainEmail({
-      to: container.config.adminEmail,
+      to: config.adminEmail,
       subject: "Subscription Cron Error",
       text: `There was an error processing subscriptions: ${error.message}`,
       html: `<p>There was an error processing subscriptions: ${error.message}</p>`,

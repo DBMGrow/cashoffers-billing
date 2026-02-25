@@ -1,13 +1,13 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { IProductRepository } from "@api/infrastructure/database/repositories/product.repository.interface"
-import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import type { ProductRepository } from "@api/lib/repositories"
+import type { SubscriptionRepository } from "@api/lib/repositories"
 import { ICalculateProratedUseCase, CalculateProratedInput, CalculateProratedOutput } from "./calculate-prorated.use-case.interface"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 
 interface Dependencies {
   logger: ILogger
-  productRepository: IProductRepository
-  subscriptionRepository: ISubscriptionRepository
+  productRepository: ProductRepository
+  subscriptionRepository: SubscriptionRepository
 }
 
 /**

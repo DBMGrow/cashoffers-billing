@@ -2,7 +2,7 @@ import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { userCan } from "@api/utils/userCan"
-import { getContainer } from "@api/container"
+import { getPaymentsUseCase, createPaymentUseCase, refundPaymentUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
 import { GetPaymentsRoute, CreatePaymentRoute, RefundPaymentRoute } from "./schemas"
 
@@ -22,10 +22,8 @@ app.openapi(GetPaymentsRoute, async (c) => {
   const tokenOwner = c.get("token_owner")
   const readAll = all && userCan(tokenOwner, "payments_read_all")
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.getPayments.execute({
+    getPaymentsUseCase.execute({
       userId: readAll ? undefined : Number(user_id),
       page: Number(page),
       limit: Number(limit),
@@ -37,12 +35,10 @@ app.openapi(GetPaymentsRoute, async (c) => {
 // Create payment
 app.openapi(CreatePaymentRoute, async (c) => {
   const body = c.req.valid("json")
-
-  const container = getContainer()
   const paymentContext = c.get("paymentContext")
 
   return executeUseCase(c, () =>
-    container.useCases.createPayment.execute({
+    createPaymentUseCase.execute({
       userId: Number(body.user_id),
       amount: Number(body.amount),
       email: body.email || c.get("user")?.email || "",
@@ -56,12 +52,10 @@ app.openapi(CreatePaymentRoute, async (c) => {
 // Refund payment
 app.openapi(RefundPaymentRoute, async (c) => {
   const body = c.req.valid("json")
-
-  const container = getContainer()
   const paymentContext = c.get("paymentContext")
 
   return executeUseCase(c, () =>
-    container.useCases.refundPayment.execute({
+    refundPaymentUseCase.execute({
       userId: Number(body.user_id),
       squareTransactionId: body.transaction_id,
       email: body.email || c.get("user")?.email,

@@ -4,8 +4,8 @@ import type { IUserApiClient } from '@api/infrastructure/external-api/user-api.i
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 import type { SubscriptionDeactivatedEvent } from '@api/domain/events/subscription-deactivated.event'
 import type { SubscriptionPausedEvent } from '@api/domain/events/subscription-paused.event'
-import type { IWhitelabelRepository } from '@api/infrastructure/database/repositories/whitelabel.repository.interface'
-import type { ISubscriptionRepository } from '@api/infrastructure/database/repositories/subscription.repository.interface'
+import type { WhitelabelRepository } from '@api/lib/repositories'
+import type { SubscriptionRepository } from '@api/lib/repositories'
 import type { SubscriptionData } from '@api/domain/types/product-data.types'
 
 /**
@@ -19,8 +19,8 @@ import type { SubscriptionData } from '@api/domain/types/product-data.types'
 export class PremiumDeactivationHandler extends BaseEventHandler {
   constructor(
     private userApiClient: IUserApiClient,
-    private whitelabelRepository: IWhitelabelRepository,
-    private subscriptionRepository: ISubscriptionRepository,
+    private whitelabelRepository: WhitelabelRepository,
+    private subscriptionRepository: SubscriptionRepository,
     logger: ILogger
   ) {
     super(logger)

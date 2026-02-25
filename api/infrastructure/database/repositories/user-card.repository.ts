@@ -1,12 +1,11 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, UserCards } from '@api/lib/db'
-import { IUserCardRepository } from './user-card.repository.interface'
 
 /**
  * UserCard Repository Implementation
  * Handles user payment card records using Kysely
  */
-export class UserCardRepository implements IUserCardRepository {
+export class UserCardRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint): Promise<Selectable<UserCards> | null> {
@@ -138,6 +137,6 @@ export class UserCardRepository implements IUserCardRepository {
 /**
  * Create a user card repository
  */
-export const createUserCardRepository = (db: Kysely<DB>): IUserCardRepository => {
+export const createUserCardRepository = (db: Kysely<DB>): UserCardRepository => {
   return new UserCardRepository(db)
 }

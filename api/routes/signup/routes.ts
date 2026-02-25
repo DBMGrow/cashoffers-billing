@@ -13,7 +13,7 @@ import {
 } from "./schemas"
 import { db } from "@api/lib/database"
 import { setCookie } from "hono/cookie"
-import { getContainer } from "@api/container"
+import { emailService } from "@api/lib/services"
 import { checkSlugExists } from "./utils"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -303,8 +303,7 @@ app.openapi(SendReactivationRoute, async (c) => {
     const reactivationUrl = `${config.app.url}/subscribe?reactivation_token=${reactivationToken}&email=${encodeURIComponent(email)}`
 
     // Send reactivation email
-    const container = getContainer()
-    await container.services.email.sendEmail({
+    await emailService.sendEmail({
       to: email,
       subject: "Reactivate Your CashOffers Account",
       template: "accountReactivation.html",

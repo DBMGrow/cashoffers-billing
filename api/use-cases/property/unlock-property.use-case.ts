@@ -2,8 +2,8 @@ import axios from "axios"
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider, CreatePaymentRequest } from "@api/infrastructure/payment/payment-provider.interface"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
-import { IProductRepository } from "@api/infrastructure/database/repositories/product.repository.interface"
+import type { TransactionRepository } from "@api/lib/repositories"
+import type { ProductRepository } from "@api/lib/repositories"
 import { IConfigService } from "@api/config/config.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IUnlockPropertyUseCase } from "./unlock-property.use-case.interface"
@@ -17,8 +17,8 @@ interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
   emailService: IEmailService
-  transactionRepository: ITransactionRepository
-  productRepository: IProductRepository
+  transactionRepository: TransactionRepository
+  productRepository: ProductRepository
   config: IConfigService
   eventBus: IEventBus
 }

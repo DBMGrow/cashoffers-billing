@@ -1,12 +1,11 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, Products } from '@api/lib/db'
-import { IProductRepository } from './product.repository.interface'
 
 /**
  * Product Repository Implementation
  * Handles product records using Kysely
  */
-export class ProductRepository implements IProductRepository {
+export class ProductRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint): Promise<Selectable<Products> | null> {
@@ -115,6 +114,6 @@ export class ProductRepository implements IProductRepository {
 /**
  * Create a product repository
  */
-export const createProductRepository = (db: Kysely<DB>): IProductRepository => {
+export const createProductRepository = (db: Kysely<DB>): ProductRepository => {
   return new ProductRepository(db)
 }

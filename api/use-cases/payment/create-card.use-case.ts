@@ -1,8 +1,8 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
-import { IUserCardRepository } from "@api/infrastructure/database/repositories/user-card.repository.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
-import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
+import type { UserCardRepository } from "@api/lib/repositories"
+import type { TransactionRepository } from "@api/lib/repositories"
+import type { SubscriptionRepository } from "@api/lib/repositories"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { ICreateCardUseCase } from "./create-card.use-case.interface"
@@ -15,9 +15,9 @@ import { CardUpdatedEvent } from "@api/domain/events/card-updated.event"
 interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
-  userCardRepository: IUserCardRepository
-  transactionRepository: ITransactionRepository
-  subscriptionRepository: ISubscriptionRepository
+  userCardRepository: UserCardRepository
+  transactionRepository: TransactionRepository
+  subscriptionRepository: SubscriptionRepository
   emailService: IEmailService
   eventBus: IEventBus
 }

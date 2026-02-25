@@ -1,6 +1,6 @@
-import type { ITransactionRepository } from '@api/infrastructure/database/repositories/transaction.repository.interface'
-import type { ISubscriptionRepository } from '@api/infrastructure/database/repositories/subscription.repository.interface'
-import type { IBillingLogRepository } from '@api/infrastructure/database/repositories/billing-log.repository.interface'
+import type { TransactionRepository } from '@api/lib/repositories'
+import type { SubscriptionRepository } from '@api/lib/repositories'
+import type { BillingLogRepository } from '@api/lib/repositories'
 
 /**
  * Health Metrics Service
@@ -77,9 +77,9 @@ export interface FailureReason {
  */
 export class HealthMetricsService implements IHealthMetricsService {
   constructor(
-    private transactionRepository: ITransactionRepository,
-    private subscriptionRepository: ISubscriptionRepository,
-    private billingLogRepository: IBillingLogRepository
+    private transactionRepository: TransactionRepository,
+    private subscriptionRepository: SubscriptionRepository,
+    private billingLogRepository: BillingLogRepository
   ) {}
 
   async getDailyHealthMetrics(date?: Date): Promise<DailyHealthMetrics> {
@@ -122,28 +122,28 @@ export class HealthMetricsService implements IHealthMetricsService {
     )
 
     const successfulRenewals = renewalTransactions.filter(
-      (t) => t.type === 'renewal' && t.status === 'success'
+      (t: any) => t.type === 'renewal' && t.status === 'success'
     ).length
 
     const failedRenewals = renewalTransactions.filter(
-      (t) => t.type === 'renewal' && t.status === 'failed'
+      (t: any) => t.type === 'renewal' && t.status === 'failed'
     ).length
 
     const newSubscriptions = renewalTransactions.filter(
-      (t) => t.type === 'purchase' && t.status === 'success'
+      (t: any) => t.type === 'purchase' && t.status === 'success'
     ).length
 
     const cancelledSubscriptions = renewalTransactions.filter(
-      (t) => t.type === 'cancellation'
+      (t: any) => t.type === 'cancellation'
     ).length
 
     // Get current subscription counts
     const allSubscriptions = await this.subscriptionRepository.findAll()
-    const activeSubscriptions = allSubscriptions.filter((s) => s.status === 'active').length
+    const activeSubscriptions = allSubscriptions.filter((s: any) => s.status === 'active').length
     const subscriptionsInRetry = allSubscriptions.filter(
-      (s) => s.next_renewal_attempt !== null && new Date(s.next_renewal_attempt) > new Date()
+      (s: any) => s.next_renewal_attempt !== null && new Date(s.next_renewal_attempt) > new Date()
     ).length
-    const pausedSubscriptions = allSubscriptions.filter((s) => s.status === 'paused').length
+    const pausedSubscriptions = allSubscriptions.filter((s: any) => s.status === 'paused').length
 
     return {
       successfulRenewals,
@@ -163,17 +163,17 @@ export class HealthMetricsService implements IHealthMetricsService {
     )
 
     const successfulPayments = transactions.filter(
-      (t) => ['purchase', 'renewal'].includes(t.type) && t.status === 'success'
+      (t: any) => ['purchase', 'renewal'].includes(t.type) && t.status === 'success'
     )
 
     const failedPayments = transactions.filter(
-      (t) => ['purchase', 'renewal'].includes(t.type) && t.status === 'failed'
+      (t: any) => ['purchase', 'renewal'].includes(t.type) && t.status === 'failed'
     ).length
 
-    const refunds = transactions.filter((t) => t.type === 'refund').length
+    const refunds = transactions.filter((t: any) => t.type === 'refund').length
 
     const totalRevenue = successfulPayments.reduce(
-      (sum, t) => sum + Number(t.amount || 0),
+      (sum: number, t: any) => sum + Number(t.amount || 0),
       0
     )
 
@@ -192,9 +192,9 @@ export class HealthMetricsService implements IHealthMetricsService {
   private async getErrorMetrics(startDate: Date, endDate: Date) {
     const logs = await this.billingLogRepository.findByDateRange(startDate, endDate)
 
-    const errorLogs = logs.filter((log) => log.level === 'error')
+    const errorLogs = logs.filter((log: any) => log.level === 'error')
     const criticalErrors = errorLogs.filter(
-      (log) =>
+      (log: any) =>
         log.message.toLowerCase().includes('square') ||
         log.message.toLowerCase().includes('database') ||
         log.message.toLowerCase().includes('api') ||
@@ -205,7 +205,7 @@ export class HealthMetricsService implements IHealthMetricsService {
     const recentErrors: ErrorSummary[] = errorLogs
       .slice(-10)
       .reverse()
-      .map((log) => ({
+      .map((log: any) => ({
         timestamp: log.createdAt,
         level: log.level,
         component: log.component || 'unknown',
@@ -226,7 +226,7 @@ export class HealthMetricsService implements IHealthMetricsService {
       endDate
     )
 
-    const failedTransactions = transactions.filter((t) => t.status === 'failed')
+    const failedTransactions = transactions.filter((t: any) => t.status === 'failed')
 
     // Group by failure reason
     const reasonCounts = new Map<string, number>()
@@ -257,9 +257,9 @@ export class HealthMetricsService implements IHealthMetricsService {
  * Factory function to create health metrics service
  */
 export const createHealthMetricsService = (
-  transactionRepository: ITransactionRepository,
-  subscriptionRepository: ISubscriptionRepository,
-  billingLogRepository: IBillingLogRepository
+  transactionRepository: TransactionRepository,
+  subscriptionRepository: SubscriptionRepository,
+  billingLogRepository: BillingLogRepository
 ): IHealthMetricsService => {
   return new HealthMetricsService(
     transactionRepository,

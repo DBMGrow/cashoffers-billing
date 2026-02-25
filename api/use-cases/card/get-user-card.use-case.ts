@@ -1,5 +1,5 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { IUserCardRepository } from "@api/infrastructure/database/repositories/user-card.repository.interface"
+import type { UserCardRepository } from "@api/lib/repositories"
 import { IGetUserCardUseCase } from "./get-user-card.use-case.interface"
 import { GetUserCardInput, GetUserCardOutput } from "../types/card.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
@@ -7,7 +7,7 @@ import { GetUserCardInputSchema } from "../types/validation.schemas"
 
 interface Dependencies {
   logger: ILogger
-  userCardRepository: IUserCardRepository
+  userCardRepository: UserCardRepository
 }
 
 /**

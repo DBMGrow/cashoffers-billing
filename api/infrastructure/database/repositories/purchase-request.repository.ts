@@ -1,7 +1,6 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, PurchaseRequests } from '@api/lib/db'
-import { IPurchaseRequestRepository } from './purchase-request.repository.interface'
-import { TransactionContext } from './repository.interface'
+import { TransactionContext } from '../transaction/transaction-manager.interface'
 import { PurchaseRequestResults } from '@api/domain/entities/purchase-request'
 
 /**
@@ -11,7 +10,7 @@ import { PurchaseRequestResults } from '@api/domain/entities/purchase-request'
  * Supports optional transaction context for all operations.
  * When a transaction context is provided, operations will be part of that transaction.
  */
-export class PurchaseRequestRepository implements IPurchaseRequestRepository {
+export class PurchaseRequestRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint, trx?: TransactionContext): Promise<Selectable<PurchaseRequests> | null> {
@@ -240,6 +239,6 @@ export class PurchaseRequestRepository implements IPurchaseRequestRepository {
 /**
  * Create a purchase request repository
  */
-export const createPurchaseRequestRepository = (db: Kysely<DB>): IPurchaseRequestRepository => {
+export const createPurchaseRequestRepository = (db: Kysely<DB>): PurchaseRequestRepository => {
   return new PurchaseRequestRepository(db)
 }

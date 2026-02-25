@@ -111,7 +111,7 @@ export function FlowDevTools<TStep extends string, TFormData = Record<string, un
 
       {/* Panel */}
       {isOpen && (
-        <div className="absolute bottom-0 right-0 w-72 bg-white border border-default-300 rounded-lg shadow overflow-hidden">
+        <div className="absolute bottom-0 right-0 w-72 bg-white border border-default-300 rounded shadow overflow-hidden">
           {/* Header */}
           <div className="bg-default-100 px-3 py-2 flex items-center justify-between border-b border-default-300">
             <div className="flex items-center gap-2">

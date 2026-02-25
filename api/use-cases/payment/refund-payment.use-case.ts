@@ -1,7 +1,7 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import type { TransactionRepository } from "@api/lib/repositories"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import { IConfigService } from "@api/config/config.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
@@ -16,7 +16,7 @@ interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
   emailService: IEmailService
-  transactionRepository: ITransactionRepository
+  transactionRepository: TransactionRepository
   userApiClient: IUserApiClient
   config: IConfigService
   eventBus: IEventBus

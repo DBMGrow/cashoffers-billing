@@ -1,7 +1,16 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
-import { getContainer } from "@api/container"
+import {
+  getSubscriptionsUseCase,
+  updateSubscriptionFieldsUseCase,
+  createSubscriptionUseCase,
+  pauseSubscriptionUseCase,
+  resumeSubscriptionUseCase,
+  cancelOnRenewalUseCase,
+  markForDowngradeUseCase,
+  deactivateSubscriptionUseCase,
+} from "@api/use-cases/subscription"
 import { executeUseCase } from "../helpers/use-case-handler"
 import { checkSubscriptionAuthorization } from "../helpers/subscription-auth"
 import {
@@ -36,10 +45,8 @@ app.openapi(GetAllSubscriptionsRoute, async (c) => {
   const query = c.req.valid("query")
   const { page = 1, limit = 20 } = query
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.getSubscriptions.execute({
+    getSubscriptionsUseCase.execute({
       page: Number(page),
       limit: Number(limit),
     })
@@ -51,10 +58,8 @@ app.openapi(GetOwnSubscriptionRoute, async (c) => {
   const user = c.get("user")
   const { user_id } = user
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.getSubscriptions.execute({
+    getSubscriptionsUseCase.execute({
       userId: user_id,
       page: 1,
       limit: 1,
@@ -67,10 +72,8 @@ app.openapi(CreateOrUpdateSubscriptionRoute, async (c) => {
   const body = c.req.valid("json")
   const { user_id, subscription_name, amount, duration, product_id, signup_fee } = body
 
-  const container = getContainer()
-
   // Check if subscription exists
-  const existingResult = await container.useCases.getSubscriptions.execute({ userId: user_id })
+  const existingResult = await getSubscriptionsUseCase.execute({ userId: user_id })
 
   const existingSubscription =
     existingResult.success && existingResult.data.subscriptions.length > 0 ? existingResult.data.subscriptions[0] : null
@@ -78,7 +81,7 @@ app.openapi(CreateOrUpdateSubscriptionRoute, async (c) => {
   if (existingSubscription) {
     // Update existing subscription using use case
     return executeUseCase(c, () =>
-      container.useCases.updateSubscriptionFields.execute({
+      updateSubscriptionFieldsUseCase.execute({
         subscriptionId: existingSubscription.subscriptionId,
         subscriptionName: subscription_name,
         amount: amount ? Number(amount) : undefined,
@@ -92,7 +95,7 @@ app.openapi(CreateOrUpdateSubscriptionRoute, async (c) => {
   const email = user?.email || body.email || ""
 
   return executeUseCase(c, () =>
-    container.useCases.createSubscription.execute({
+    createSubscriptionUseCase.execute({
       userId: user_id,
       productId: product_id || subscription_name || "default",
       email,
@@ -107,10 +110,8 @@ app.openapi(UpdateSubscriptionRoute, async (c) => {
   const body = c.req.valid("json")
   const { subscription_id, subscription_name, amount, duration, status } = body
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.updateSubscriptionFields.execute({
+    updateSubscriptionFieldsUseCase.execute({
       subscriptionId: Number(subscription_id),
       subscriptionName: subscription_name,
       amount: amount ? Number(amount) : undefined,
@@ -126,10 +127,8 @@ app.openapi(DeleteSubscriptionRoute, async (c) => {
   const body = c.req.valid("json")
   const { user_id } = body
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.deactivateSubscription.execute({
+    deactivateSubscriptionUseCase.execute({
       userId: user_id,
     })
   )
@@ -139,10 +138,8 @@ app.openapi(DeleteSubscriptionRoute, async (c) => {
 app.openapi(PauseSubscriptionRoute, async (c) => {
   const { subscription_id } = c.req.valid("param")
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.pauseSubscription.execute({
+    pauseSubscriptionUseCase.execute({
       subscriptionId: Number(subscription_id),
     })
   )
@@ -152,10 +149,8 @@ app.openapi(PauseSubscriptionRoute, async (c) => {
 app.openapi(ResumeSubscriptionRoute, async (c) => {
   const { subscription_id } = c.req.valid("param")
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.resumeSubscription.execute({
+    resumeSubscriptionUseCase.execute({
       subscriptionId: Number(subscription_id),
     })
   )
@@ -165,7 +160,6 @@ app.openapi(ResumeSubscriptionRoute, async (c) => {
 app.openapi(CancelSubscriptionRoute, async (c) => {
   const { subscription_id } = c.req.valid("param")
 
-  const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
   if (!authResult.authorized) {
@@ -173,7 +167,7 @@ app.openapi(CancelSubscriptionRoute, async (c) => {
   }
 
   return executeUseCase(c, () =>
-    container.useCases.cancelOnRenewal.execute({
+    cancelOnRenewalUseCase.execute({
       subscriptionId: Number(subscription_id),
       cancel: true,
     })
@@ -184,7 +178,6 @@ app.openapi(CancelSubscriptionRoute, async (c) => {
 app.openapi(UncancelSubscriptionRoute, async (c) => {
   const { subscription_id } = c.req.valid("param")
 
-  const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
   if (!authResult.authorized) {
@@ -192,7 +185,7 @@ app.openapi(UncancelSubscriptionRoute, async (c) => {
   }
 
   return executeUseCase(c, () =>
-    container.useCases.cancelOnRenewal.execute({
+    cancelOnRenewalUseCase.execute({
       subscriptionId: Number(subscription_id),
       cancel: false,
     })
@@ -203,7 +196,6 @@ app.openapi(UncancelSubscriptionRoute, async (c) => {
 app.openapi(DowngradeSubscriptionRoute, async (c) => {
   const { subscription_id } = c.req.valid("param")
 
-  const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
   if (!authResult.authorized) {
@@ -211,7 +203,7 @@ app.openapi(DowngradeSubscriptionRoute, async (c) => {
   }
 
   return executeUseCase(c, () =>
-    container.useCases.markForDowngrade.execute({
+    markForDowngradeUseCase.execute({
       subscriptionId: Number(subscription_id),
       downgrade: true,
     })
@@ -222,7 +214,6 @@ app.openapi(DowngradeSubscriptionRoute, async (c) => {
 app.openapi(UndowngradeSubscriptionRoute, async (c) => {
   const { subscription_id } = c.req.valid("param")
 
-  const container = getContainer()
   const authResult = await checkSubscriptionAuthorization(c, Number(subscription_id))
 
   if (!authResult.authorized) {
@@ -230,7 +221,7 @@ app.openapi(UndowngradeSubscriptionRoute, async (c) => {
   }
 
   return executeUseCase(c, () =>
-    container.useCases.markForDowngrade.execute({
+    markForDowngradeUseCase.execute({
       subscriptionId: Number(subscription_id),
       downgrade: false,
     })

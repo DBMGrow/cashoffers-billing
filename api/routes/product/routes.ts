@@ -1,7 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { getContainer } from "@api/container"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
+import { productRepository } from "@api/lib/repositories"
+import { calculateProratedUseCase } from "@api/use-cases/subscription"
 import { GetProductRoute, GetAllProductsRoute, CreateProductRoute, CheckProratedRoute } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -14,9 +15,8 @@ app.use("/checkprorated", authMiddleware("payments_create"))
 // Get single product by ID
 app.openapi(GetProductRoute, async (c) => {
   const { product_id } = c.req.valid("param")
-  const container = getContainer()
 
-  const product = await container.repositories.product.findById(product_id)
+  const product = await productRepository.findById(product_id)
   if (!product) throw new Error("No product found")
 
   return c.json({ success: "success" as const, data: product as any }, 200)
@@ -24,10 +24,8 @@ app.openapi(GetProductRoute, async (c) => {
 
 // Get all products with optional filters
 app.openapi(GetAllProductsRoute, async (c) => {
-  const container = getContainer()
-
   // TODO: Add support for filters and sorting
-  const products = await container.repositories.product.findAll()
+  const products = await productRepository.findAll()
 
   return c.json({ success: "success" as const, data: products as any }, 200)
 })
@@ -37,9 +35,8 @@ app.openapi(CreateProductRoute, async (c) => {
   const body = c.req.valid("json")
   const { product_name, product_description, product_type, price, data } = body
 
-  const container = getContainer()
   const now = new Date()
-  const product = await container.repositories.product.create({
+  const product = await productRepository.create({
     product_name,
     product_description,
     product_type,
@@ -55,10 +52,9 @@ app.openapi(CreateProductRoute, async (c) => {
 // Check prorated amount
 app.openapi(CheckProratedRoute, async (c) => {
   const body = c.req.valid("json")
-  const container = getContainer()
 
   try {
-    const result = await container.useCases.calculateProrated.execute({
+    const result = await calculateProratedUseCase.execute({
       productId: Number(body.product_id),
       userId: Number(body.user_id),
     })

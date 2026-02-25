@@ -195,11 +195,15 @@ export interface GetSubscriptionsOutput {
 
 /**
  * Input for purchasing a subscription (comprehensive flow)
+ * @deprecated Use NewUserPurchaseInput or ExistingUserPurchaseInput instead
  */
 export interface PurchaseSubscriptionInput {
   // Product & User Info
   productId: string | number
   email: string
+
+  // When provided (existing user via session auth), skips user lookup and creation
+  userId?: number
 
   // Card Info (optional for existing users with cards)
   cardToken?: string | null
@@ -236,6 +240,46 @@ export interface PurchaseSubscriptionOutput {
   amount: number
   proratedCharge?: number
   userCreated: boolean
+}
+
+/**
+ * Input for purchasing a subscription as a new user.
+ * All card and user identification fields are required since the user doesn't exist yet.
+ */
+export interface NewUserPurchaseInput {
+  productId: string | number
+  email: string
+  phone: string
+  cardToken: string
+  expMonth: number
+  expYear: number
+  cardholderName: string
+  name?: string | null
+  nameBroker?: string | null
+  nameTeam?: string | null
+  whitelabel?: string | null
+  slug?: string | null
+  url?: string | null
+  isInvestor?: boolean | number | null
+  coupon?: string | null
+  context?: PaymentContext | null
+}
+
+/**
+ * Input for purchasing a subscription as an existing authenticated user.
+ * User identity (userId, email) is resolved from the session token.
+ * Card fields are optional — the user's card on file will be used if omitted.
+ */
+export interface ExistingUserPurchaseInput {
+  userId: number
+  productId: string | number
+  email: string
+  cardToken?: string | null
+  expMonth?: number | null
+  expYear?: number | null
+  cardholderName?: string | null
+  coupon?: string | null
+  context?: PaymentContext | null
 }
 
 /**

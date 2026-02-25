@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
-import { getContainer } from "@api/container"
+import { unlockPropertyUseCase } from "@api/use-cases/property"
 import { executeUseCase } from "../helpers/use-case-handler"
 import { UnlockPropertyRoute } from "./schemas"
 
@@ -29,11 +29,10 @@ app.openapi(UnlockPropertyRoute, async (c) => {
   const { property_token } = c.req.valid("param")
   const body = c.req.valid("json")
   const user = c.get("user")
-  const container = getContainer()
   const paymentContext = c.get("paymentContext")
 
   return executeUseCase(c, () =>
-    container.useCases.unlockProperty.execute({
+    unlockPropertyUseCase.execute({
       propertyToken: property_token,
       cardToken: body.card_token,
       userId: user?.user_id,

@@ -2,7 +2,8 @@ import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import subscriptionsCron from "@api/cron/subscriptionsCron"
 import { RunCronRoute, SendHealthReportRoute } from "./schemas"
-import { getContainer } from "@api/container"
+import { config } from "@api/config/config.service"
+import { healthReportService } from "@api/lib/services"
 // TODO: suspendSubscriptionsCron doesn't exist yet - need to implement or remove
 // import suspendSubscriptionsCron from "@api/cron/suspendSubscriptionsCron"
 
@@ -13,7 +14,7 @@ app.openapi(RunCronRoute, async (c) => {
   const body = c.req.valid("json")
   const { secret } = body
 
-  if (secret !== getContainer().config.cronSecret) {
+  if (secret !== config.cronSecret) {
     throw new Error("Unauthorized")
   }
 
@@ -28,13 +29,9 @@ app.openapi(SendHealthReportRoute, async (c) => {
   const body = c.req.valid("json")
   const { secret, date } = body
 
-  if (secret !== getContainer().config.cronSecret) {
+  if (secret !== config.cronSecret) {
     throw new Error("Unauthorized")
   }
-
-  const container = getContainer()
-  const healthReportService = container.services.healthReport
-  const config = container.config
 
   // Parse date if provided
   const reportDate = date ? new Date(date) : new Date()

@@ -1,6 +1,6 @@
 import { Context } from "hono"
 import type { HonoVariables } from "@api/types/hono"
-import { getContainer } from "@api/container"
+import { subscriptionRepository } from "@api/lib/repositories"
 
 /**
  * Check if user is authorized to perform subscription operations
@@ -14,11 +14,9 @@ export async function checkSubscriptionAuthorization(
   subscription?: any
   errorResponse?: any
 }> {
-  const container = getContainer()
-
   try {
     // Find subscription
-    const subscription = await container.repositories.subscription.findById(subscriptionId)
+    const subscription = await subscriptionRepository.findById(subscriptionId)
     if (!subscription) {
       return {
         authorized: false,

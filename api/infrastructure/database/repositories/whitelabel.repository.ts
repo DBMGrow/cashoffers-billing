@@ -1,12 +1,11 @@
 import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
 import type { DB, Whitelabels } from '@api/lib/db'
-import { IWhitelabelRepository } from './whitelabel.repository.interface'
 
 /**
  * Whitelabel Repository Implementation
  * Handles whitelabel records using Kysely
  */
-export class WhitelabelRepository implements IWhitelabelRepository {
+export class WhitelabelRepository {
   constructor(private db: Kysely<DB>) {}
 
   async findById(id: number | bigint): Promise<Selectable<Whitelabels> | null> {
@@ -108,6 +107,6 @@ export class WhitelabelRepository implements IWhitelabelRepository {
 /**
  * Create a whitelabel repository
  */
-export const createWhitelabelRepository = (db: Kysely<DB>): IWhitelabelRepository => {
+export const createWhitelabelRepository = (db: Kysely<DB>): WhitelabelRepository => {
   return new WhitelabelRepository(db)
 }

@@ -2,10 +2,10 @@ import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
-import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
-import { IProductRepository } from "@api/infrastructure/database/repositories/product.repository.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
-import { IUserCardRepository } from "@api/infrastructure/database/repositories/user-card.repository.interface"
+import type { SubscriptionRepository } from "@api/lib/repositories"
+import type { ProductRepository } from "@api/lib/repositories"
+import type { TransactionRepository } from "@api/lib/repositories"
+import type { UserCardRepository } from "@api/lib/repositories"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { ICreateSubscriptionUseCase } from "./create-subscription.use-case.interface"
 import { CreateSubscriptionInput, CreateSubscriptionOutput } from "../types/subscription.types"
@@ -20,10 +20,10 @@ interface Dependencies {
   paymentProvider: IPaymentProvider
   emailService: IEmailService
   userApiClient: IUserApiClient
-  subscriptionRepository: ISubscriptionRepository
-  productRepository: IProductRepository
-  transactionRepository: ITransactionRepository
-  userCardRepository: IUserCardRepository
+  subscriptionRepository: SubscriptionRepository
+  productRepository: ProductRepository
+  transactionRepository: TransactionRepository
+  userCardRepository: UserCardRepository
   eventBus: IEventBus
 }
 

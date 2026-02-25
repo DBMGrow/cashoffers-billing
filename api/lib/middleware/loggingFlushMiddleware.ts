@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 import { getLoggingContext } from '@api/infrastructure/logging/logging-context-store'
 import { RequestCompletedEvent } from '@api/domain/events/request-completed.event'
-import { getContainer } from '@api/container'
+import { eventBus } from '@api/lib/services'
 
 /**
  * Logging Flush Middleware
@@ -28,10 +28,6 @@ export const loggingFlushMiddleware: MiddlewareHandler = async (c, next) => {
       if (!loggingContext || loggingContext.queuedLogs.length === 0) {
         return
       }
-
-      // Get event bus from container
-      const container = getContainer()
-      const eventBus = container.services.eventBus
 
       // Publish event to flush logs
       const event = RequestCompletedEvent.create({

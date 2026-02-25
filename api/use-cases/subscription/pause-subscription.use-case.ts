@@ -1,6 +1,6 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { ISubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import type { SubscriptionRepository } from "@api/lib/repositories"
+import type { TransactionRepository } from "@api/lib/repositories"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
@@ -12,8 +12,8 @@ import { SubscriptionPausedEvent } from "@api/domain/events/subscription-paused.
 
 interface Dependencies {
   logger: ILogger
-  subscriptionRepository: ISubscriptionRepository
-  transactionRepository: ITransactionRepository
+  subscriptionRepository: SubscriptionRepository
+  transactionRepository: TransactionRepository
   emailService: IEmailService
   userApiClient: IUserApiClient
   eventBus: IEventBus

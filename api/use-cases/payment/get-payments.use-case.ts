@@ -1,5 +1,5 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import type { TransactionRepository } from "@api/lib/repositories"
 import { IGetPaymentsUseCase } from "./get-payments.use-case.interface"
 import { GetPaymentsInput, GetPaymentsOutput } from "../types/payment.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
@@ -7,7 +7,7 @@ import { GetPaymentsInputSchema } from "../types/validation.schemas"
 
 interface Dependencies {
   logger: ILogger
-  transactionRepository: ITransactionRepository
+  transactionRepository: TransactionRepository
 }
 
 /**

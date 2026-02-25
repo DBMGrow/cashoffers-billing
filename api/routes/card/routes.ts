@@ -1,7 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
-import { getContainer } from "@api/container"
+import { getUserCardUseCase, checkUserCardInfoUseCase } from "@api/use-cases/card"
+import { createCardUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
 import { GetUserCardRoute, GetUserCardInfoRoute, CreateCardRoute } from "./schemas"
 
@@ -14,10 +15,8 @@ app.use("*", authMiddleware(null))
 app.openapi(GetUserCardInfoRoute, async (c) => {
   const { user_id } = c.req.valid("param")
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.checkUserCardInfo.execute({
+    checkUserCardInfoUseCase.execute({
       userId: Number(user_id),
     })
   )
@@ -27,10 +26,8 @@ app.openapi(GetUserCardInfoRoute, async (c) => {
 app.openapi(GetUserCardRoute, async (c) => {
   const { user_id } = c.req.valid("param")
 
-  const container = getContainer()
-
   return executeUseCase(c, () =>
-    container.useCases.getUserCard.execute({
+    getUserCardUseCase.execute({
       userId: Number(user_id),
     })
   )
@@ -42,11 +39,10 @@ app.openapi(CreateCardRoute, async (c) => {
   const { user_id, card_token, exp_month, exp_year, cardholder_name } = body
 
   const user = c.get("user")
-  const container = getContainer()
   const paymentContext = c.get("paymentContext")
 
   return executeUseCase(c, () =>
-    container.useCases.createCard.execute({
+    createCardUseCase.execute({
       userId: user_id ? Number(user_id) : null,
       cardToken: card_token,
       expMonth: Number(exp_month),

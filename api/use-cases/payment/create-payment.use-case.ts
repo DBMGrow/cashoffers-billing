@@ -1,8 +1,8 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
-import { IUserCardRepository } from "@api/infrastructure/database/repositories/user-card.repository.interface"
-import { ITransactionRepository } from "@api/infrastructure/database/repositories/transaction.repository.interface"
+import type { UserCardRepository } from "@api/lib/repositories"
+import type { TransactionRepository } from "@api/lib/repositories"
 import { IConfigService } from "@api/config/config.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { ICreatePaymentUseCase } from "./create-payment.use-case.interface"
@@ -17,8 +17,8 @@ interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
   emailService: IEmailService
-  userCardRepository: IUserCardRepository
-  transactionRepository: ITransactionRepository
+  userCardRepository: UserCardRepository
+  transactionRepository: TransactionRepository
   config: IConfigService
   eventBus: IEventBus
 }

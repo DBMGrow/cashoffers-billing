@@ -1,7 +1,7 @@
-import { ILogger } from './logger.interface'
-import { IBillingLogRepository } from '@api/infrastructure/database/repositories/billing-log.repository.interface'
-import { getLoggingContext } from './logging-context-store'
-import { LogQueueEntry, LogContextType } from './logging-context.interface'
+import { ILogger } from "./logger.interface"
+import type { BillingLogRepository } from "@api/lib/repositories"
+import { getLoggingContext } from "./logging-context-store"
+import { LogQueueEntry, LogContextType } from "./logging-context.interface"
 
 /**
  * Database Logger - Decorator Pattern
@@ -19,18 +19,18 @@ export class DatabaseLogger implements ILogger {
 
   constructor(
     private wrappedLogger: ILogger,
-    private billingLogRepository: IBillingLogRepository,
+    private billingLogRepository: BillingLogRepository,
     baseContext: Record<string, unknown> = {}
   ) {
     this.baseContext = baseContext
-    this.serviceName = (baseContext.service as string) || 'cashoffers-billing'
+    this.serviceName = (baseContext.service as string) || "cashoffers-billing"
   }
 
   /**
    * Internal method to handle log persistence
    */
   private async persistLog(
-    level: 'debug' | 'info' | 'warn' | 'error',
+    level: "debug" | "info" | "warn" | "error",
     message: string,
     meta?: Record<string, unknown>,
     errorStack?: string
@@ -40,7 +40,7 @@ export class DatabaseLogger implements ILogger {
       const component = (meta?.component as string) || (this.baseContext.component as string) || null
 
       // Determine context type
-      let contextType: LogContextType = 'background'
+      let contextType: LogContextType = "background"
       if (loggingContext) {
         contextType = loggingContext.contextType
       } else if (meta?.contextType) {
@@ -61,17 +61,20 @@ export class DatabaseLogger implements ILogger {
       }
 
       // Queue or write immediately based on context
-      if (loggingContext && loggingContext.contextType === 'http_request') {
+      if (loggingContext && loggingContext.contextType === "http_request") {
         // HTTP request context - queue for later flush
         loggingContext.queuedLogs.push(logEntry)
       } else {
         // Cron/background context - write immediately
-        await this.billingLogRepository.create(logEntry as any)
+        await this.billingLogRepository.create({
+          ...logEntry,
+          metadata: logEntry.metadata ? JSON.stringify(logEntry.metadata) : null,
+        })
       }
     } catch (err) {
       // Database logging failures should not break the application
       // Log to console only
-      console.error('Failed to persist log to database:', err)
+      console.error("Failed to persist log to database:", err)
     }
   }
 
@@ -84,7 +87,7 @@ export class DatabaseLogger implements ILogger {
 
     for (const [key, value] of Object.entries(meta)) {
       // Skip internal context fields
-      if (key === 'contextType' || key === 'component') {
+      if (key === "contextType" || key === "component") {
         continue
       }
 
@@ -111,9 +114,14 @@ export class DatabaseLogger implements ILogger {
     }
 
     try {
-      await this.billingLogRepository.createMany(queuedLogs as any)
+      await this.billingLogRepository.createMany(
+        queuedLogs.map((entry) => ({
+          ...entry,
+          metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+        }))
+      )
     } catch (err) {
-      console.error('Failed to flush queued logs to database:', err)
+      console.error("Failed to flush queued logs to database:", err)
     }
   }
 
@@ -121,14 +129,14 @@ export class DatabaseLogger implements ILogger {
 
   info(message: string, meta?: Record<string, unknown>): void {
     this.wrappedLogger.info(message, meta)
-    this.persistLog('info', message, meta).catch(() => {
+    this.persistLog("info", message, meta).catch(() => {
       // Errors already logged in persistLog
     })
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {
     this.wrappedLogger.warn(message, meta)
-    this.persistLog('warn', message, meta).catch(() => {
+    this.persistLog("warn", message, meta).catch(() => {
       // Errors already logged in persistLog
     })
   }
@@ -137,14 +145,14 @@ export class DatabaseLogger implements ILogger {
     this.wrappedLogger.error(message, error, meta)
 
     const errorStack = error instanceof Error ? error.stack : undefined
-    this.persistLog('error', message, meta, errorStack).catch(() => {
+    this.persistLog("error", message, meta, errorStack).catch(() => {
       // Errors already logged in persistLog
     })
   }
 
   debug(message: string, meta?: Record<string, unknown>): void {
     this.wrappedLogger.debug(message, meta)
-    this.persistLog('debug', message, meta).catch(() => {
+    this.persistLog("debug", message, meta).catch(() => {
       // Errors already logged in persistLog
     })
   }
@@ -152,11 +160,7 @@ export class DatabaseLogger implements ILogger {
   child(context: Record<string, unknown>): ILogger {
     // Create child of wrapped logger and wrap it in a new DatabaseLogger
     const childWrappedLogger = this.wrappedLogger.child(context)
-    return new DatabaseLogger(
-      childWrappedLogger,
-      this.billingLogRepository,
-      { ...this.baseContext, ...context }
-    )
+    return new DatabaseLogger(childWrappedLogger, this.billingLogRepository, { ...this.baseContext, ...context })
   }
 }
 
@@ -165,7 +169,7 @@ export class DatabaseLogger implements ILogger {
  */
 export const createDatabaseLogger = (
   wrappedLogger: ILogger,
-  billingLogRepository: IBillingLogRepository,
+  billingLogRepository: BillingLogRepository,
   baseContext?: Record<string, unknown>
 ): ILogger => {
   return new DatabaseLogger(wrappedLogger, billingLogRepository, baseContext)
