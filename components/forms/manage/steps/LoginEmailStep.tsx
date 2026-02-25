@@ -10,7 +10,7 @@ import validateEmail from "@/components/utils/validateEmail"
 interface LoginEmailStepProps {
   form: UseFormReturn<ManageFormData>
   onNext: () => void
-  onError: (message: string) => void
+  onError: (message: string, title?: string, description?: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
@@ -30,13 +30,21 @@ export default function LoginEmailStep({ form, onNext, onError, setAllowReset }:
     checkUser.mutate(email, {
       onSuccess: (data) => {
         if (!data?.userExists) {
-          onError("There's no account linked to this email. Please try a different email.")
+          onError(
+            "",
+            "Email Not Found",
+            "We couldn't find an account with that email address. Please check for typos or try a different email."
+          )
         } else {
           onNext()
         }
       },
       onError: () => {
-        onError("Error checking user. Please try again.")
+        onError(
+          "Error checking user. Please try again.",
+          "Error",
+          "An unexpected error occurred while checking the email. Please try again."
+        )
       },
     })
   }

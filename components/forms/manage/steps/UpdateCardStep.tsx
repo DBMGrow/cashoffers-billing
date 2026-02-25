@@ -10,7 +10,7 @@ import P from "@/components/Theme/P"
 interface UpdateCardStepProps {
   user: User
   onBack: () => void
-  onError: (message: string) => void
+  onError: (message: string, title?: string, description?: string) => void
 }
 
 export default function UpdateCardStep({ user, onBack, onError }: UpdateCardStepProps) {

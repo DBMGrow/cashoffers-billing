@@ -2,6 +2,7 @@ import { db } from "@api/lib/database"
 import axios from "axios"
 import { Selectable } from "kysely"
 import { HomeuptickSubscriptions, Users } from "@api/lib/db"
+import { config } from "@api/config/config.service"
 
 /**
  * Retrieves a user from the database by their user ID.
@@ -37,7 +38,7 @@ export const getSubscriptionFromDB = async (
  * @param {string} apiKey - The API key used for authentication.
  */
 export const getClientsCount = async (apiKey: string): Promise<{ count: number }> => {
-  const clientsCount = await axios.get(`${process.env.HOMEUPTICK_URL}/api/clients/count`, {
+  const clientsCount = await axios.get(`${config.homeuptickUrl}/api/clients/count`, {
     headers: {
       "x-api-token": apiKey,
     },

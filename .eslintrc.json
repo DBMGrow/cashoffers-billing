@@ -1,3 +1,25 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "MemberExpression[object.name='process'][property.name='env']",
+        "message": "Use the config object from '@api/config/config.service' instead of process.env directly."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "api/config/config.service.ts",
+        "api/config/config.js",
+        "api/config/square.js",
+        "api/tests/setup.ts"
+      ],
+      "rules": {
+        "no-restricted-syntax": "off"
+      }
+    }
+  ]
 }

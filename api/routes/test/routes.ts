@@ -4,6 +4,7 @@ import { db } from "@api/lib/database"
 import { z } from "zod"
 import { createRoute } from "@hono/zod-openapi"
 import jwt from "jsonwebtoken"
+import { config } from "@api/config/config.service"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -11,8 +12,7 @@ const app = new OpenAPIHono<{ Variables: HonoVariables }>()
  * Generate a test API token (JWT)
  */
 function generateTestToken(userId: number, email: string): string {
-  const secret = process.env.JWT_SECRET || "test-secret"
-  return jwt.sign({ id: userId, email }, secret, { expiresIn: "24h" })
+  return jwt.sign({ id: userId, email }, config.jwtSecret, { expiresIn: "24h" })
 }
 
 /**
@@ -26,7 +26,7 @@ function generateRandomString(length: number = 16): string {
 }
 
 // Only enable test endpoints in non-production environments
-if (process.env.NODE_ENV !== "production") {
+if (config.nodeEnv !== "production") {
   /**
    * POST /test/create-user
    * Creates a test user in the database

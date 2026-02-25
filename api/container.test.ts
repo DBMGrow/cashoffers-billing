@@ -3,22 +3,7 @@ import { createContainer, getContainer, resetContainer } from './container'
 
 describe('Container', () => {
   beforeEach(() => {
-    // Setup test environment variables
-    process.env.DB_HOST = 'localhost'
-    process.env.DB_PORT = '3306'
-    process.env.DB_USER = 'test'
-    process.env.DB_PASSWORD = 'test'
-    process.env.DB_NAME = 'test'
-    process.env.SQUARE_ACCESS_TOKEN = 'test'
-    process.env.SQUARE_ENVIRONMENT = 'sandbox'
-    process.env.SQUARE_LOCATION_ID = 'test'
-    process.env.API_URL = 'http://localhost:3000'
-    process.env.API_URL_V2 = 'http://localhost:3000/v2'
-    process.env.API_MASTER_TOKEN = 'test'
-    process.env.SENDGRID_API_KEY = 'test'
-    process.env.ADMIN_EMAIL = 'admin@test.com'
-    process.env.SESSION_SECRET = 'test'
-
+    // Env vars are set in api/tests/setup.ts (via vitest setupFiles)
     resetContainer()
   })
 

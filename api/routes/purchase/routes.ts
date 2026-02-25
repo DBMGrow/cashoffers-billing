@@ -4,6 +4,7 @@ import { getContainer } from "@api/container"
 import { PurchaseRoute } from "./schemas"
 import { setCookie } from "hono/cookie"
 import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
+import { config } from "@api/config/config.service"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -96,7 +97,7 @@ app.openapi(PurchaseRoute, async (c) => {
     if (api_token) {
       setCookie(c, "_api_token", api_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: config.nodeEnv === "production",
         sameSite: "Lax",
         path: "/",
         maxAge: 60 * 60 * 24 * 30, // 30 days

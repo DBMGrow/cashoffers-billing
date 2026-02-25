@@ -45,7 +45,22 @@ export interface IConfig {
     url: string
     urlV2: string
     masterToken: string
+    key: string           // API_KEY - token for calling main auth API
+    routeAuth: string     // API_ROUTE_AUTH - main auth API base URL
+    routeAuthV2: string   // API_ROUTE_AUTH_V2 - V2 auth API base URL
+    route?: string        // API_ROUTE - internal/billing API base URL (optional)
   }
+
+  // App
+  app: {
+    url: string           // APP_URL - public app URL (e.g. billing.cashoffers.com)
+  }
+
+  // JWT
+  jwtSecret: string       // JWT_SECRET
+
+  // HomeUptick integration (optional)
+  homeuptickUrl?: string  // HOMEUPTICK_URL
 
   // Email
   sendgrid: {

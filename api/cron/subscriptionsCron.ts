@@ -24,9 +24,9 @@ export default async function subscriptionsCron() {
       subscriptionIds: subscriptions.map((sub) => sub.subscription_id),
     })
 
-    const usersResponse = await axios.get(process.env.API_URL + "/users/mini?page=1&limit=50000", {
+    const usersResponse = await axios.get(container.config.api.url + "/users/mini?page=1&limit=50000", {
       headers: {
-        "x-api-token": process.env.API_MASTER_TOKEN!,
+        "x-api-token": container.config.api.masterToken,
       },
     })
     const users: any = usersResponse.data
@@ -106,7 +106,7 @@ export default async function subscriptionsCron() {
 
     // Send error notification using new email service
     await emailService.sendPlainEmail({
-      to: process.env.ADMIN_EMAIL!,
+      to: container.config.adminEmail,
       subject: "Subscription Cron Error",
       text: `There was an error processing subscriptions: ${error.message}`,
       html: `<p>There was an error processing subscriptions: ${error.message}</p>`,

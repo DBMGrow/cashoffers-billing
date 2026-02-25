@@ -65,21 +65,30 @@ export default function ManageFlow() {
   const [errorTitle, setErrorTitle] = useState<string | undefined>(undefined)
   const [errorDescription, setErrorDescription] = useState<string | undefined>(undefined)
 
-  const stepConfig = useMemo(() => ({
-    ...BASE_STEP_CONFIG,
-    error: {
-      title: errorTitle ?? BASE_STEP_CONFIG.error.title,
-      description: errorDescription ?? BASE_STEP_CONFIG.error.description,
-    },
-  }), [errorTitle, errorDescription])
+  const stepConfig = useMemo(
+    () => ({
+      ...BASE_STEP_CONFIG,
+      error: {
+        title: errorTitle ?? BASE_STEP_CONFIG.error.title,
+        description: errorDescription ?? BASE_STEP_CONFIG.error.description,
+      },
+    }),
+    [errorTitle, errorDescription]
+  )
 
   const { displayStep, transitionToStep, titleText, descriptionText, containerRef } = useFlowAnimation<ManageStep>(
     "loading",
     stepConfig,
     titleReplacements
   )
-  const { allowReset, setAllowReset, errorMessage, returnStep, goToStep, goToError: _goToError } =
-    useFlowState<ManageStep>(transitionToStep)
+  const {
+    allowReset,
+    setAllowReset,
+    errorMessage,
+    returnStep,
+    goToStep,
+    goToError: _goToError,
+  } = useFlowState<ManageStep>(transitionToStep)
 
   const goToError = (message: string, returnTo: ManageStep, title?: string, description?: string) => {
     setErrorTitle(title)
@@ -132,7 +141,7 @@ export default function ManageFlow() {
           <LoginEmailStep
             form={form}
             onNext={() => goToStep("password")}
-            onError={(message) => goToError(message, "email")}
+            onError={(message, title, description) => goToError(message, "email", title, description)}
             setAllowReset={setAllowReset}
           />
         )
@@ -145,7 +154,7 @@ export default function ManageFlow() {
               goToStep(resolvePostLoginStep())
             }}
             onBack={() => goToStep("email")}
-            onError={(message) => goToError(message, "password")}
+            onError={(message, title, description) => goToError(message, "password", title, description)}
             setAllowReset={setAllowReset}
           />
         )
@@ -182,7 +191,7 @@ export default function ManageFlow() {
           <UpdateCardStep
             user={user!}
             onBack={() => goToStep("dashboard")}
-            onError={(message) => goToError(message, "card")}
+            onError={(message, title, description) => goToError(message, "card", title, description)}
           />
         )
       case "changePlan":
@@ -191,7 +200,7 @@ export default function ManageFlow() {
             user={user!}
             onBack={() => goToStep("subscription")}
             onSuccess={() => goToStep("subscription")}
-            onError={(message) => goToError(message, "changePlan")}
+            onError={(message, title, description) => goToError(message, "changePlan", title, description)}
           />
         )
       case "error":
@@ -211,7 +220,6 @@ export default function ManageFlow() {
         onReset={() => {
           goToStep("dashboard")
         }}
-        minHeight="350px"
       >
         {renderStep()}
       </FlowWrapper>

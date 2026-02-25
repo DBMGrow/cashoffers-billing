@@ -7,6 +7,7 @@ import { db } from "@api/lib/database"
 import { getContainer } from "@api/container"
 import { executeUseCase } from "../helpers/use-case-handler"
 import type { ProductData } from "@api/domain/types/product-data.types"
+import { config } from "@api/config/config.service"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -32,7 +33,7 @@ app.openapi(CheckPlanRoute, async (c) => {
     const responseBody: any = {}
 
     // Fetch user details to check role
-    const userResponse = await fetch(`${process.env.API_ROUTE_AUTH}/users/${subscription.user_id}`, {
+    const userResponse = await fetch(`${config.api.routeAuth}/users/${subscription.user_id}`, {
       headers: { "x-api-token": apiToken! },
     })
     const userData: any = await userResponse.json()
@@ -46,7 +47,7 @@ app.openapi(CheckPlanRoute, async (c) => {
     if (subscription?.data?.team) {
       const headers = { "x-api-token": apiToken! }
 
-      const teamResponse = await fetch(`${process.env.API_ROUTE_AUTH}/teams/${subscription.data.team_id}`, { headers })
+      const teamResponse = await fetch(`${config.api.routeAuth}/teams/${subscription.data.team_id}`, { headers })
       const team: any = await teamResponse.json()
 
       if (team.success !== "success") {
@@ -54,7 +55,7 @@ app.openapi(CheckPlanRoute, async (c) => {
       }
       responseBody.team = team.data
 
-      const url = `${process.env.API_ROUTE_AUTH}/users?team_id=${subscription.data.team_id}&active=1`
+      const url = `${config.api.routeAuth}/users?team_id=${subscription.data.team_id}&active=1`
       const teamUsersResponse = await fetch(url, { headers })
       const teamUsers: any = await teamUsersResponse.json()
 
@@ -71,8 +72,8 @@ app.openapi(CheckPlanRoute, async (c) => {
     }
 
     // Fetch product details
-    const productResponse = await fetch(`${process.env.API_ROUTE}/product/${productID}`, {
-      headers: { "x-api-token": process.env.API_KEY! },
+    const productResponse = await fetch(`${config.api.route}/product/${productID}`, {
+      headers: { "x-api-token": config.api.key },
     })
     const product: any = await productResponse.json()
 
@@ -98,11 +99,11 @@ app.openapi(CheckPlanRoute, async (c) => {
     }
 
     // Calculate prorated cost
-    const proratedResponse = await fetch(`${process.env.API_ROUTE}/product/checkprorated`, {
+    const proratedResponse = await fetch(`${config.api.route}/product/checkprorated`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-token": process.env.API_KEY!,
+        "x-api-token": config.api.key,
       },
       body: JSON.stringify({
         product_id: productID,
@@ -137,17 +138,17 @@ app.openapi(CheckTokenRoute, async (c) => {
   try {
     const { token } = c.req.valid("param")
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id?: number }
+    const decoded = jwt.verify(token, config.jwtSecret) as { id?: number }
 
     if (!decoded?.id) {
       throw new Error("Token not valid")
     }
 
     // Fetch user details
-    const url = `${process.env.API_ROUTE_AUTH}/users/${decoded.id}`
+    const url = `${config.api.routeAuth}/users/${decoded.id}`
     const userResponse = await fetch(url, {
       headers: {
-        "x-api-token": process.env.API_KEY!,
+        "x-api-token": config.api.key,
       },
     })
 
@@ -168,7 +169,7 @@ app.openapi(CheckTokenRoute, async (c) => {
     if (apiToken) {
       setCookie(c, "_api_token", apiToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: config.nodeEnv === "production",
         sameSite: "Lax",
         path: "/",
         maxAge: 60 * 60 * 24 * 30, // 30 days

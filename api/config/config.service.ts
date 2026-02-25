@@ -2,10 +2,11 @@ import { IConfig } from './config.interface'
 
 /**
  * Configuration Service
- * Single source of truth for all environment variables
+ * Single source of truth for all environment variables.
+ * Exports a singleton `config` object - do not access process.env elsewhere.
  */
-export const createConfig = (): IConfig => {
-  // Validate required environment variables (production Square credentials required)
+const buildConfig = (): IConfig => {
+  // Validate required environment variables
   const required = [
     'DB_HOST',
     'DB_USER',
@@ -16,9 +17,13 @@ export const createConfig = (): IConfig => {
     'API_URL',
     'API_URL_V2',
     'API_MASTER_TOKEN',
+    'API_KEY',
+    'API_ROUTE_AUTH',
+    'API_ROUTE_AUTH_V2',
     'SENDGRID_API_KEY',
     'DEV_EMAIL',
     'SESSION_SECRET',
+    'JWT_SECRET',
   ]
 
   const missing = required.filter((key) => !process.env[key])
@@ -31,10 +36,6 @@ export const createConfig = (): IConfig => {
   if (defaultEnv !== 'production' && defaultEnv !== 'sandbox') {
     throw new Error('SQUARE_ENVIRONMENT must be "production" or "sandbox"')
   }
-
-  // Check if sandbox credentials are provided (optional)
-  const hasSandboxCredentials =
-    !!process.env.SQUARE_SANDBOX_ACCESS_TOKEN && !!process.env.SQUARE_SANDBOX_LOCATION_ID
 
   return {
     port: parseInt(process.env.PORT || '3000', 10),
@@ -65,7 +66,19 @@ export const createConfig = (): IConfig => {
       url: process.env.API_URL!,
       urlV2: process.env.API_URL_V2!,
       masterToken: process.env.API_MASTER_TOKEN!,
+      key: process.env.API_KEY!,
+      routeAuth: process.env.API_ROUTE_AUTH!,
+      routeAuthV2: process.env.API_ROUTE_AUTH_V2!,
+      route: process.env.API_ROUTE,
     },
+
+    app: {
+      url: process.env.APP_URL || 'https://billing.cashoffers.com',
+    },
+
+    jwtSecret: process.env.JWT_SECRET!,
+
+    homeuptickUrl: process.env.HOMEUPTICK_URL,
 
     sendgrid: {
       apiKey: process.env.SENDGRID_API_KEY!,
@@ -82,3 +95,5 @@ export const createConfig = (): IConfig => {
     sessionSecret: process.env.SESSION_SECRET!,
   }
 }
+
+export const config: IConfig = buildConfig()

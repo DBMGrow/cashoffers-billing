@@ -13,7 +13,7 @@ interface LoginPasswordStepProps {
   form: UseFormReturn<ManageFormData>
   onSuccess: (user: User) => void
   onBack: () => void
-  onError: (message: string) => void
+  onError: (message: string, title?: string, description?: string) => void
   setAllowReset: (allow: boolean) => void
 }
 

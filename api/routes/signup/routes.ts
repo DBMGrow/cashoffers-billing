@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import axios from "axios"
+import { config } from "@api/config/config.service"
 import {
   PurchaseFreeRoute,
   CheckUserExistsRoute,
@@ -47,7 +48,7 @@ app.openapi(PurchaseFreeRoute, async (c) => {
 
     // Create user in auth API
     const response = await axios.post(
-      process.env.API_ROUTE_AUTH + "/users",
+      config.api.routeAuth + "/users",
       {
         email: body.email,
         name: body.name,
@@ -63,7 +64,7 @@ app.openapi(PurchaseFreeRoute, async (c) => {
       {
         headers: {
           "Content-Type": "application/json",
-          "x-api-token": process.env.API_KEY!,
+          "x-api-token": config.api.key,
         },
       }
     )
@@ -82,7 +83,7 @@ app.openapi(PurchaseFreeRoute, async (c) => {
     if (data.data?._api_token) {
       setCookie(c, "_api_token", data.data._api_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: config.nodeEnv === "production",
         sameSite: "Lax",
         path: "/",
         maxAge: 60 * 60 * 24 * 30, // 30 days
@@ -227,10 +228,10 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
     const { slug } = c.req.valid("param")
 
     const response = await axios.get(
-      `${process.env.API_ROUTE_AUTH_V2}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
+      `${config.api.routeAuthV2}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
       {
         headers: {
-          "x-api-token": process.env.API_KEY!,
+          "x-api-token": config.api.key,
         },
       }
     )
@@ -299,8 +300,7 @@ app.openapi(SendReactivationRoute, async (c) => {
       Math.random().toString(36).substring(2, 10).toUpperCase()
 
     // Build reactivation URL
-    const baseUrl = process.env.APP_URL || "https://billing.cashoffers.com"
-    const reactivationUrl = `${baseUrl}/subscribe?reactivation_token=${reactivationToken}&email=${encodeURIComponent(email)}`
+    const reactivationUrl = `${config.app.url}/subscribe?reactivation_token=${reactivationToken}&email=${encodeURIComponent(email)}`
 
     // Send reactivation email
     const container = getContainer()

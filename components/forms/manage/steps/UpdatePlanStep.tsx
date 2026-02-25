@@ -14,7 +14,7 @@ interface UpdatePlanStepProps {
   user: User
   onBack: () => void
   onSuccess: () => void
-  onError: (message: string) => void
+  onError: (message: string, title?: string, description?: string) => void
 }
 
 export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: UpdatePlanStepProps) {

@@ -4,6 +4,7 @@ import { setCookie, deleteCookie } from "hono/cookie"
 import { LoginRoute, LogoutRoute, CheckAuthRoute } from "./schemas"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import axios from "axios"
+import { config } from "@api/config/config.service"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -18,7 +19,7 @@ app.openapi(LoginRoute, async (c) => {
 
     // Proxy login request to V2 auth API
     const response = await axios.post(
-      `${process.env.API_ROUTE_AUTH_V2}/auth/login`,
+      `${config.api.routeAuthV2}/auth/login`,
       { email, password },
       {
         validateStatus: () => true, // Don't throw on any status code
@@ -35,7 +36,7 @@ app.openapi(LoginRoute, async (c) => {
         // Set the cookie on our response
         setCookie(c, "_api_token", token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: config.nodeEnv === "production",
           sameSite: "Lax",
           path: "/",
         })

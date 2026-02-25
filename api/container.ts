@@ -4,7 +4,7 @@
  */
 import { Kysely } from 'kysely'
 import type { DB } from '@api/lib/db'
-import { createConfig } from '@api/config/config.service'
+import { config } from '@api/config/config.service'
 import { createLogger } from '@api/infrastructure/logging/structured.logger'
 import { DatabaseLogger } from '@api/infrastructure/logging/database.logger'
 import { createKyselyDatabase } from '@api/infrastructure/database/kysely.factory'
@@ -150,8 +150,6 @@ export interface IContainer {
  * Create the application container
  */
 export const createContainer = (): IContainer => {
-  // Load configuration
-  const config = createConfig()
 
   // Create base logger (console only)
   const baseLogger = createLogger(

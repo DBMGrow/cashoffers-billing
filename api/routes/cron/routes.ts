@@ -13,7 +13,7 @@ app.openapi(RunCronRoute, async (c) => {
   const body = c.req.valid("json")
   const { secret } = body
 
-  if (secret !== process.env.CRON_SECRET) {
+  if (secret !== getContainer().config.cronSecret) {
     throw new Error("Unauthorized")
   }
 
@@ -28,7 +28,7 @@ app.openapi(SendHealthReportRoute, async (c) => {
   const body = c.req.valid("json")
   const { secret, date } = body
 
-  if (secret !== process.env.CRON_SECRET) {
+  if (secret !== getContainer().config.cronSecret) {
     throw new Error("Unauthorized")
   }
 
