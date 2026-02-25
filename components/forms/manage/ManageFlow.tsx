@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useSearchParams } from "next/navigation"
 import type { ManageFormData } from "@/types/forms"
@@ -9,6 +10,7 @@ import { useFlowAnimation } from "@/hooks/useFlowAnimation"
 import { useFlowState } from "@/hooks/useFlowState"
 import { useUser } from "@/hooks/useUser"
 import { useSession } from "@/hooks/api/useSession"
+import { useLogout } from "@/hooks/api/useLogout"
 import { Spinner } from "@/components/Theme/Spinner"
 import FlowWrapper from "../FlowWrapper"
 
@@ -55,6 +57,7 @@ const BASE_STEP_CONFIG: Record<ManageStep, { title: string; description: string 
 }
 
 export default function ManageFlow() {
+  const queryClient = useQueryClient()
   const { user, setUser } = useUser()
   const userName = user?.name || ""
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
@@ -85,6 +88,7 @@ export default function ManageFlow() {
   }
   const searchParams = useSearchParams()
   const { data: sessionUser, isPending: isCheckingSession } = useSession()
+  const { mutate: logout } = useLogout()
 
   const form = useForm<ManageFormData>({
     mode: "onChange",
@@ -151,6 +155,17 @@ export default function ManageFlow() {
             user={user!}
             onManageSubscription={() => goToStep("subscription")}
             onUpdateCard={() => goToStep("card")}
+            onLogout={() => {
+              logout(undefined, {
+                onSuccess: () => {
+                  setUser(null)
+                  queryClient.removeQueries({ queryKey: ["session"] })
+                  setAllowReset(false)
+                  goToStep("email")
+                },
+                onError: () => goToError("Failed to log out. Please try again.", "dashboard"),
+              })
+            }}
           />
         )
       case "subscription":
@@ -194,9 +209,7 @@ export default function ManageFlow() {
         containerRef={containerRef}
         allowReset={allowReset}
         onReset={() => {
-          form.reset()
-          setUser(null)
-          transitionToStep("email")
+          goToStep("dashboard")
         }}
         minHeight="350px"
       >

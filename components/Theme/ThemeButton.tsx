@@ -11,6 +11,7 @@ interface ThemeButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   onClick?: () => void
   children: ReactNode
   className?: string
+  innerClassName?: string
 }
 
 export function ThemeButton({
@@ -22,6 +23,7 @@ export function ThemeButton({
   onClick,
   children,
   className = "",
+  innerClassName = "",
   ...restProps
 }: ThemeButtonProps) {
   // Base styles
@@ -72,7 +74,7 @@ export function ThemeButton({
       type={restProps.type || "button"}
     >
       {/* Content */}
-      <span className={isLoading ? "invisible" : ""}>{children}</span>
+      <span className={`${isLoading ? "invisible" : ""} ${innerClassName || ""}`}>{children}</span>
 
       {/* Loading spinner overlay */}
       {isLoading && (
