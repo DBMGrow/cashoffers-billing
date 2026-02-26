@@ -11,7 +11,7 @@ export async function parseEmailTemplate(
   fields: Record<string, unknown>,
   mjmlCompiler?: IMjmlCompiler
 ): Promise<string> {
-  const templatesDir = path.join(process.cwd(), 'src', 'templates')
+  const templatesDir = path.join(process.cwd(), 'api', 'templates')
 
   try {
     // First, try to find and compile MJML template
