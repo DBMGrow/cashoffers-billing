@@ -1,7 +1,7 @@
-import { Client, Environment, ApiError } from 'square'
-import { v4 as uuidv4 } from 'uuid'
-import type { IConfig } from '@api/config/config.interface'
-import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import { Client, Environment, ApiError } from "square"
+import { v4 as uuidv4 } from "uuid"
+import type { IConfig } from "@api/config/config.interface"
+import type { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type {
   IPaymentProvider,
   CreatePaymentRequest,
@@ -11,7 +11,7 @@ import type {
   CardInfo,
   RefundPaymentRequest,
   RefundResult,
-} from '../payment-provider.interface'
+} from "../payment-provider.interface"
 
 /**
  * Square Payment Provider Implementation
@@ -19,25 +19,32 @@ import type {
  */
 export class SquarePaymentProvider implements IPaymentProvider {
   private client: Client
-  private environment: 'production' | 'sandbox'
+  private environment: "production" | "sandbox"
   private locationId: string
 
   constructor(
     config: IConfig,
     private logger: ILogger,
-    environment: 'production' | 'sandbox'
+    environment: "production" | "sandbox"
   ) {
     this.environment = environment
 
+    console.log(`Initializing SquarePaymentProvider in ${environment} environment`)
+
     // Use the appropriate config based on environment
-    const squareConfig = environment === 'production'
-      ? config.square.production
-      : config.square.sandbox
+    const squareConfig = environment === "production" ? config.square.production : config.square.sandbox
+
+    console.log("Square config loaded", {
+      environment,
+      locationId: squareConfig.locationId ? "***" : "MISSING",
+      appId: squareConfig.appId ? "***" : "MISSING",
+      accessToken: squareConfig.accessToken ? "***" : "MISSING",
+    })
 
     this.locationId = squareConfig.locationId
 
     this.client = new Client({
-      environment: environment === 'production' ? Environment.Production : Environment.Sandbox,
+      environment: environment === "production" ? Environment.Production : Environment.Sandbox,
       accessToken: squareConfig.accessToken,
     })
 
@@ -52,10 +59,10 @@ export class SquarePaymentProvider implements IPaymentProvider {
     const idempotencyKey = request.idempotencyKey || uuidv4()
 
     try {
-      this.logger.info('Creating Square payment', {
+      this.logger.info("Creating Square payment", {
         amount: request.amountMoney.amount.toString(),
         currency: request.amountMoney.currency,
-        sourceId: request.sourceId.substring(0, 8) + '...',
+        sourceId: request.sourceId.substring(0, 8) + "...",
         idempotencyKey,
       })
 
@@ -75,7 +82,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       const payment = response.result.payment
       if (!payment) {
-        throw new Error('Payment response missing payment object')
+        throw new Error("Payment response missing payment object")
       }
 
       const duration = Date.now() - startTime
@@ -91,7 +98,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
         status: payment.status!,
         amountMoney: {
           amount: BigInt(payment.amountMoney?.amount || 0),
-          currency: payment.amountMoney?.currency || 'USD',
+          currency: payment.amountMoney?.currency || "USD",
         },
         createdAt: payment.createdAt!,
         receiptUrl: payment.receiptUrl,
@@ -111,14 +118,14 @@ export class SquarePaymentProvider implements IPaymentProvider {
       }
     } catch (error) {
       const duration = Date.now() - startTime
-      this.logger.error('Square payment creation failed', error, {
+      this.logger.error("Square payment creation failed", error, {
         idempotencyKey,
         duration,
       })
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
-        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(', ')
+        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
         throw new Error(`Square API error: ${errorMessages}`)
       }
 
@@ -130,8 +137,8 @@ export class SquarePaymentProvider implements IPaymentProvider {
     const startTime = Date.now()
 
     try {
-      this.logger.info('Creating Square card', {
-        sourceId: request.sourceId.substring(0, 8) + '...',
+      this.logger.info("Creating Square card", {
+        sourceId: request.sourceId.substring(0, 8) + "...",
         customerId: request.customerId,
       })
 
@@ -143,9 +150,9 @@ export class SquarePaymentProvider implements IPaymentProvider {
         })
         customerId = customerResponse.result.customer?.id
         if (!customerId) {
-          throw new Error('Failed to create customer')
+          throw new Error("Failed to create customer")
         }
-        this.logger.debug('Created Square customer', { customerId })
+        this.logger.debug("Created Square customer", { customerId })
       }
 
       // Create card
@@ -165,7 +172,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       const card = response.result.card
       if (!card) {
-        throw new Error('Card response missing card object')
+        throw new Error("Card response missing card object")
       }
 
       const duration = Date.now() - startTime
@@ -193,11 +200,11 @@ export class SquarePaymentProvider implements IPaymentProvider {
       }
     } catch (error) {
       const duration = Date.now() - startTime
-      this.logger.error('Square card creation failed', error, { duration })
+      this.logger.error("Square card creation failed", error, { duration })
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
-        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(', ')
+        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
         throw new Error(`Square API error: ${errorMessages}`)
       }
 
@@ -207,13 +214,13 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
   async getCard(cardId: string): Promise<CardInfo> {
     try {
-      this.logger.debug('Retrieving Square card', { cardId })
+      this.logger.debug("Retrieving Square card", { cardId })
 
       const response = await this.client.cardsApi.retrieveCard(cardId)
       const card = response.result.card
 
       if (!card) {
-        throw new Error('Card not found')
+        throw new Error("Card not found")
       }
 
       return {
@@ -225,11 +232,11 @@ export class SquarePaymentProvider implements IPaymentProvider {
         enabled: card.enabled || false,
       }
     } catch (error) {
-      this.logger.error('Square card retrieval failed', error, { cardId })
+      this.logger.error("Square card retrieval failed", error, { cardId })
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
-        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(', ')
+        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
         throw new Error(`Square API error: ${errorMessages}`)
       }
 
@@ -242,7 +249,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
     const idempotencyKey = request.idempotencyKey || uuidv4()
 
     try {
-      this.logger.info('Creating Square refund', {
+      this.logger.info("Creating Square refund", {
         paymentId: request.paymentId,
         amount: request.amountMoney.amount.toString(),
         idempotencyKey,
@@ -260,7 +267,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       const refund = response.result.refund
       if (!refund) {
-        throw new Error('Refund response missing refund object')
+        throw new Error("Refund response missing refund object")
       }
 
       const duration = Date.now() - startTime
@@ -276,21 +283,21 @@ export class SquarePaymentProvider implements IPaymentProvider {
         status: refund.status!,
         amountMoney: {
           amount: BigInt(refund.amountMoney?.amount || 0),
-          currency: refund.amountMoney?.currency || 'USD',
+          currency: refund.amountMoney?.currency || "USD",
         },
         createdAt: refund.createdAt!,
         environment: this.environment,
       }
     } catch (error) {
       const duration = Date.now() - startTime
-      this.logger.error('Square refund creation failed', error, {
+      this.logger.error("Square refund creation failed", error, {
         paymentId: request.paymentId,
         duration,
       })
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
-        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(', ')
+        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
         throw new Error(`Square API error: ${errorMessages}`)
       }
 
@@ -305,7 +312,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
 export const createSquarePaymentProvider = (
   config: IConfig,
   logger: ILogger,
-  environment: 'production' | 'sandbox'
+  environment: "production" | "sandbox"
 ): IPaymentProvider => {
   return new SquarePaymentProvider(config, logger, environment)
 }

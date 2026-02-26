@@ -11,14 +11,23 @@ import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IPurchaseNewUserUseCase } from "./purchase-new-user.use-case.interface"
 import { NewUserPurchaseInput, PurchaseSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
-import { NewUserPurchaseInputSchema } from "../types/validation.schemas"
-import { ProductData } from "@api/domain/types/product-data.types"
-import { v4 as uuidv4 } from "uuid"
+import { NewUserPurchaseInputSchema, NewUserPurchaseInputValidated } from "../types/validation.schemas"
+import { ProductUserConfig } from "@api/domain/types/product-data.types"
+import type { PaymentContext } from "@api/config/config.interface"
 import { UserCreatedEvent } from "@api/domain/events/user-created.event"
-import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
-import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
-import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
-import { createCardHelper, calculateRenewalDate } from "./purchase-helpers"
+import {
+  PurchaseError,
+  parseProductId,
+  calculatePricing,
+  createPurchaseRequest,
+  validateAndParseProduct,
+  resolveCardRecord,
+  processInitialPayment,
+  createSubscriptionRecord,
+  createTransactionRecord,
+  publishPurchaseEvents,
+  createCardHelper,
+} from "./purchase-helpers"
 
 interface Dependencies {
   logger: ILogger
@@ -53,265 +62,82 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     let purchaseRequestId: number | null = null
 
     try {
-      // Validate input
+      // Validate input (before tracking — early return, no markAsFailed needed)
       const validationResult = NewUserPurchaseInputSchema.safeParse(input)
       if (!validationResult.success) {
-        const errors = validationResult.error.issues.map((issue) => issue.message).join(", ")
+        const errors = validationResult.error.issues.map((i) => i.message).join(", ")
         logger.error("New user purchase validation failed", { errors, input })
         return failure(errors, "PURCHASE_VALIDATION_ERROR")
       }
 
       const v = validationResult.data
-      const productIdNum = typeof v.productId === "number" ? v.productId : parseInt(v.productId as string, 10)
+      const productIdNum = parseProductId(v.productId)
 
-      // 0. Create PurchaseRequest for tracking (status: PENDING)
-      const purchaseRequest = await this.deps.purchaseRequestRepository.create({
-        request_uuid: uuidv4(),
-        request_type: "NEW_PURCHASE",
-        source: "API",
-        user_id: null,
+      // Track the request
+      const purchaseRequest = await createPurchaseRequest(this.deps, {
+        productIdNum,
         email: v.email,
-        product_id: productIdNum,
-        subscription_id: null,
-        request_data: JSON.stringify(v),
-        status: "PENDING",
-        idempotency_key: null,
+        userId: null,
+        input: v,
       })
       purchaseRequestId = purchaseRequest.request_id
 
-      logger.info("Processing new user purchase", {
-        purchaseRequestId,
-        productId: v.productId,
-        email: v.email,
-      })
-
+      logger.info("Processing new user purchase", { purchaseRequestId, productId: v.productId, email: v.email })
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "VALIDATING")
 
-      // 1. Validate product
-      const product = await this.deps.productRepository.findById(productIdNum)
-      if (!product) {
-        logger.warn("Product not found", { productId: v.productId })
-        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, "Product not found", "PRODUCT_NOT_FOUND")
-        return failure("Product not found", "PRODUCT_NOT_FOUND")
-      }
-
-      const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
-      const userConfig = productData.user_config
-
-      // 2. Create card first (null user_id — updated after user creation)
-      const cardResult = await createCardHelper(
-        {
-          logger: this.deps.logger,
-          paymentProvider: this.deps.paymentProvider,
-          userCardRepository: this.deps.userCardRepository,
-          eventBus: this.deps.eventBus,
-        },
-        null,
-        {
-          email: v.email,
-          cardToken: v.cardToken,
-          expMonth: v.expMonth,
-          expYear: v.expYear,
-          cardholderName: v.cardholderName,
-          context: input.context,
-        }
+      // Validate product
+      const { product, productData, userConfig } = await validateAndParseProduct(
+        this.deps,
+        productIdNum,
+        purchaseRequestId
       )
 
-      if (!cardResult.success) {
-        return failure(cardResult.error || "Card creation failed", "CARD_CREATION_FAILED")
-      }
+      // Create card and user
+      const { userId, cardIdString } = await this.createCardAndUser(
+        v,
+        input.context,
+        userConfig,
+        product.product_id,
+        purchaseRequestId
+      )
 
-      // 3. Create user in main API
-      let userId: number
-      try {
-        const newUser = await this.deps.userApiClient.createUser({
-          email: v.email,
-          phone: v.phone,
-          is_premium: userConfig?.is_premium,
-          role: userConfig?.role,
-          whitelabel_id: userConfig?.whitelabel_id ?? 4,
-        })
-        userId = newUser.id
-        logger.info("New user created", { userId })
+      // Resolve card row for payment
+      const userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
 
-        await this.deps.purchaseRequestRepository.update(purchaseRequestId, {
-          user_id: userId,
-          user_created: 1,
-        })
-
-        // Update card with the new user_id
-        const cards = await this.deps.userCardRepository.findAll({ card_id: cardResult.cardId })
-        if (cards.length > 0) {
-          await this.deps.userCardRepository.update(cards[0].id, {
-            user_id: userId,
-            updatedAt: new Date(),
-          })
-        }
-
-        await this.deps.eventBus.publish(
-          UserCreatedEvent.create({
-            userId,
-            email: v.email,
-            creationSource: "purchase_flow",
-            productId: product.product_id,
-          })
-        )
-      } catch (error) {
-        logger.error("Failed to create user", { error })
-        return failure("Failed to create user", "USER_CREATION_FAILED")
-      }
-
-      // 4. Get the card for payment
-      const cardIdString = cardResult.cardId!
-      const userCard = await this.deps.userCardRepository.findOne({ card_id: cardIdString })
-      if (!userCard) {
-        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, "Card not found", "CARD_NOT_FOUND")
-        return failure("Card not found", "CARD_NOT_FOUND")
-      }
-
-      // 5. Process initial payment
+      // Process payment
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
+      const pricing = calculatePricing(product, productData)
+      const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
 
-      const signupFee = productData.signup_fee || 0
-      const renewalCost = productData.renewal_cost || product.price
-      const productDuration = productData.duration || "monthly"
-      const initialAmount = signupFee + renewalCost
-
-      const payment = await this.deps.paymentProvider.createPayment(
-        {
-          sourceId: userCard.card_id,
-          idempotencyKey: uuidv4(),
-          amountMoney: {
-            amount: BigInt(initialAmount),
-            currency: "USD",
-          },
-          customerId: userCard.square_customer_id || undefined,
-        },
-        input.context ?? undefined
-      )
-
-      if (payment.status !== "COMPLETED") {
-        logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
-        await this.deps.purchaseRequestRepository.markAsFailed(
-          purchaseRequestId,
-          `Payment failed: ${payment.status}`,
-          "PAYMENT_FAILED"
-        )
-        return failure("Payment failed", "PAYMENT_FAILED")
-      }
-
-      // 6. Create subscription
+      // Create subscription
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
+      const subscription = await createSubscriptionRecord(this.deps, { userId, product, pricing, payment, userConfig })
 
-      const renewalDate = calculateRenewalDate(productDuration)
-      const now = new Date()
-      const subscription = await this.deps.subscriptionRepository.create({
-        user_id: userId,
-        subscription_name: product.product_name,
-        amount: renewalCost,
-        duration: productDuration as "daily" | "weekly" | "monthly" | "yearly",
-        status: "active",
-        renewal_date: renewalDate,
-        product_id: product.product_id,
-        square_environment: payment.environment,
-        cancel_on_renewal: 0,
-        downgrade_on_renewal: 0,
-        data: userConfig ? JSON.stringify({ user_config: userConfig }) : null,
-        createdAt: now,
-        updatedAt: now,
-      })
+      // Log transaction
+      const transaction = await createTransactionRecord(this.deps, { userId, product, pricing, payment })
 
-      // 7. Log transaction
-      const transaction = await this.deps.transactionRepository.create({
-        user_id: userId,
-        amount: initialAmount,
-        type: "subscription",
-        memo: `Subscription created: ${product.product_name}`,
-        status: "completed",
-        square_transaction_id: payment.id,
-        square_environment: payment.environment,
-        product_id: product.product_id,
-        data: JSON.stringify({ signupFee, renewalCost }),
-        createdAt: now,
-        updatedAt: now,
-      })
-
-      // 8. Finalize and publish events
+      // Publish events and finalize
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")
-
-      await this.deps.eventBus.publish(
-        SubscriptionCreatedEvent.create({
-          subscriptionId: subscription.subscription_id,
-          userId,
-          email: v.email,
-          productId: product.product_id,
-          productName: product.product_name,
-          amount: renewalCost,
-          initialChargeAmount: initialAmount,
-          transactionId: transaction.transaction_id,
-          cardId: cardIdString,
-          userWasCreated: true,
-          nextRenewalDate: renewalDate,
-          environment: payment.environment,
-          source: "API",
-        })
-      )
-
-      await this.deps.eventBus.publish(
-        PaymentProcessedEvent.create({
-          transactionId: transaction.transaction_id,
-          externalTransactionId: payment.id,
-          userId,
-          email: v.email,
-          amount: initialAmount,
-          currency: "USD",
-          cardId: cardIdString,
-          cardLast4: userCard.last_4,
-          paymentProvider: "Square",
-          subscriptionId: subscription.subscription_id,
-          productId: product.product_id,
-          paymentType: "subscription",
-          environment: payment.environment,
-          lineItems: [
-            { description: "Signup fee", amount: signupFee },
-            { description: "First period", amount: renewalCost },
-          ],
-        })
-      )
-
-      await this.deps.purchaseRequestRepository.markAsCompleted(
+      await publishPurchaseEvents(this.deps, {
         purchaseRequestId,
-        {
-          subscriptionId: subscription.subscription_id,
-          transactionId: transaction.transaction_id,
-          amountCharged: initialAmount,
-          cardId: cardIdString,
-        },
-        startTime
-      )
-
-      await this.deps.eventBus.publish(
-        PurchaseRequestCompletedEvent.create({
-          purchaseRequestId,
-          requestUuid: purchaseRequest.request_uuid,
-          requestType: "NEW_PURCHASE",
-          source: "API",
-          userId,
-          email: v.email,
-          productId: product.product_id,
-          subscriptionId: subscription.subscription_id,
-          transactionId: transaction.transaction_id,
-          amountCharged: initialAmount,
-          cardId: cardIdString,
-          userWasCreated: true,
-          processingDuration: new Date().getTime() - startTime.getTime(),
-        })
-      )
+        purchaseRequestUuid: purchaseRequest.request_uuid,
+        userId,
+        email: v.email,
+        product,
+        subscription,
+        transaction,
+        pricing,
+        payment,
+        cardIdString,
+        userCard,
+        userWasCreated: true,
+        startTime,
+      })
 
       logger.info("New user purchase completed successfully", {
         userId,
         subscriptionId: subscription.subscription_id,
-        amount: initialAmount,
+        amount: pricing.initialAmount,
         duration: new Date().getTime() - startTime.getTime(),
       })
 
@@ -320,26 +146,111 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         userId,
         cardId: cardIdString,
         productId: v.productId,
-        amount: initialAmount,
+        amount: pricing.initialAmount,
         proratedCharge: 0,
         userCreated: true,
       })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      logger.error("New user purchase error", {
-        error: errorMessage,
-        duration: new Date().getTime() - startTime.getTime(),
+      return this.handleError(error, purchaseRequestId, startTime)
+    }
+  }
+
+  private async createCardAndUser(
+    v: NewUserPurchaseInputValidated,
+    context: PaymentContext | null | undefined,
+    userConfig: ProductUserConfig | undefined,
+    productId: number,
+    purchaseRequestId: number
+  ): Promise<{ userId: number; cardIdString: string }> {
+    // Create card first with null userId (bound to the user after creation)
+    const cardResult = await createCardHelper(
+      {
+        logger: this.deps.logger,
+        paymentProvider: this.deps.paymentProvider,
+        userCardRepository: this.deps.userCardRepository,
+        eventBus: this.deps.eventBus,
+      },
+      null,
+      {
+        email: v.email,
+        cardToken: v.cardToken,
+        expMonth: v.expMonth,
+        expYear: v.expYear,
+        cardholderName: v.cardholderName,
+        context,
+      }
+    )
+
+    if (!cardResult.success) {
+      throw new PurchaseError(cardResult.error || "Card creation failed", "CARD_CREATION_FAILED")
+    }
+
+    // Create user in main API
+    let userId: number
+    try {
+      const newUser = await this.deps.userApiClient.createUser({
+        email: v.email,
+        phone: v.phone,
+        is_premium: userConfig?.is_premium,
+        role: userConfig?.role,
+        whitelabel_id: userConfig?.whitelabel_id ?? 4,
+      })
+      userId = newUser.id
+      this.deps.logger.info("New user created", { userId })
+
+      await this.deps.purchaseRequestRepository.update(purchaseRequestId, {
+        user_id: userId,
+        user_created: 1,
       })
 
-      if (purchaseRequestId) {
-        try {
-          await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, "PURCHASE_ERROR")
-        } catch (updateError) {
-          logger.error("Failed to update purchase request status", { updateError })
-        }
+      // Bind card to the new user
+      const cards = await this.deps.userCardRepository.findAll({ card_id: cardResult.cardId })
+      if (cards.length > 0) {
+        await this.deps.userCardRepository.update(cards[0].id, {
+          user_id: userId,
+          updatedAt: new Date(),
+        })
       }
 
-      return failure(errorMessage, "PURCHASE_ERROR")
+      await this.deps.eventBus.publish(
+        UserCreatedEvent.create({
+          userId,
+          email: v.email,
+          creationSource: "purchase_flow",
+          productId,
+        })
+      )
+    } catch (error) {
+      if (error instanceof PurchaseError) throw error
+      this.deps.logger.error("Failed to create user", { error })
+      throw new PurchaseError("Failed to create user", "USER_CREATION_FAILED")
     }
+
+    return { userId, cardIdString: cardResult.cardId! }
+  }
+
+  private async handleError(
+    error: unknown,
+    purchaseRequestId: number | null,
+    startTime: Date
+  ): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const errorCode = error instanceof PurchaseError ? error.code : "PURCHASE_ERROR"
+
+    this.deps.logger.error("New user purchase error", {
+      error: errorMessage,
+      duration: new Date().getTime() - startTime.getTime(),
+    })
+
+    // PurchaseErrors already handled markAsFailed (or intentionally skipped it)
+    if (purchaseRequestId && !(error instanceof PurchaseError)) {
+      try {
+        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, errorCode)
+      } catch (updateError) {
+        this.deps.logger.error("Failed to update purchase request status", { updateError })
+      }
+    }
+
+    return failure(errorMessage, errorCode)
   }
 }

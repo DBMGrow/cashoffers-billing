@@ -9,13 +9,21 @@ import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IPurchaseExistingUserUseCase } from "./purchase-existing-user.use-case.interface"
 import { ExistingUserPurchaseInput, PurchaseSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
-import { ExistingUserPurchaseInputSchema } from "../types/validation.schemas"
-import { ProductData } from "@api/domain/types/product-data.types"
-import { v4 as uuidv4 } from "uuid"
-import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
-import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
-import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
-import { createCardHelper, calculateRenewalDate } from "./purchase-helpers"
+import { ExistingUserPurchaseInputSchema, ExistingUserPurchaseInputValidated } from "../types/validation.schemas"
+import type { PaymentContext } from "@api/config/config.interface"
+import {
+  PurchaseError,
+  parseProductId,
+  calculatePricing,
+  createPurchaseRequest,
+  validateAndParseProduct,
+  resolveCardRecord,
+  processInitialPayment,
+  createSubscriptionRecord,
+  createTransactionRecord,
+  publishPurchaseEvents,
+  createCardHelper,
+} from "./purchase-helpers"
 
 interface Dependencies {
   logger: ILogger
@@ -47,245 +55,90 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
     let purchaseRequestId: number | null = null
 
     try {
-      // Validate input
+      // Validate input (before tracking — early return, no markAsFailed needed)
       const validationResult = ExistingUserPurchaseInputSchema.safeParse(input)
       if (!validationResult.success) {
-        const errors = validationResult.error.issues.map((issue) => issue.message).join(", ")
+        const errors = validationResult.error.issues.map((i) => i.message).join(", ")
         logger.error("Existing user purchase validation failed", { errors, input })
         return failure(errors, "PURCHASE_VALIDATION_ERROR")
       }
 
       const v = validationResult.data
-      const productIdNum = typeof v.productId === "number" ? v.productId : parseInt(v.productId as string, 10)
+      const productIdNum = parseProductId(v.productId)
 
-      // 0. Create PurchaseRequest for tracking (status: PENDING)
-      const purchaseRequest = await this.deps.purchaseRequestRepository.create({
-        request_uuid: uuidv4(),
-        request_type: "NEW_PURCHASE",
-        source: "API",
-        user_id: v.userId,
+      // Track the request
+      const purchaseRequest = await createPurchaseRequest(this.deps, {
+        productIdNum,
         email: v.email,
-        product_id: productIdNum,
-        subscription_id: null,
-        request_data: JSON.stringify(v),
-        status: "PENDING",
-        idempotency_key: null,
+        userId: v.userId,
+        input: v,
       })
       purchaseRequestId = purchaseRequest.request_id
 
-      logger.info("Processing existing user purchase", {
-        purchaseRequestId,
-        userId: v.userId,
-        productId: v.productId,
-      })
-
+      logger.info("Processing existing user purchase", { purchaseRequestId, userId: v.userId, productId: v.productId })
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "VALIDATING")
 
-      // 1. Validate product
-      const product = await this.deps.productRepository.findById(productIdNum)
-      if (!product) {
-        logger.warn("Product not found", { productId: v.productId })
-        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, "Product not found", "PRODUCT_NOT_FOUND")
-        return failure("Product not found", "PRODUCT_NOT_FOUND")
-      }
-
-      const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
-      const userConfig = productData.user_config
-
-      // 2. Resolve card: create a new one if a token was provided, otherwise use card on file
-      let cardIdString: string
-
-      if (v.cardToken && v.expMonth && v.expYear && v.cardholderName) {
-        const cardResult = await createCardHelper(
-          {
-            logger: this.deps.logger,
-            paymentProvider: this.deps.paymentProvider,
-            userCardRepository: this.deps.userCardRepository,
-            eventBus: this.deps.eventBus,
-          },
-          v.userId,
-          {
-            email: v.email,
-            cardToken: v.cardToken,
-            expMonth: v.expMonth,
-            expYear: v.expYear,
-            cardholderName: v.cardholderName,
-            context: input.context,
-          }
-        )
-
-        if (!cardResult.success) {
-          return failure(cardResult.error || "Card update failed", "CARD_UPDATE_FAILED")
-        }
-        cardIdString = cardResult.cardId!
-      } else {
-        // Use card on file
-        const userCards = await this.deps.userCardRepository.findByUserId(v.userId)
-        if (userCards.length === 0) {
-          return failure("No card found for user", "NO_CARD_FOUND")
-        }
-        if (!userCards[0].card_id) {
-          return failure("Card ID is missing", "CARD_ID_MISSING")
-        }
-        cardIdString = userCards[0].card_id
-      }
-
-      // 3. Check if user already has a subscription (for upgrade detection)
-      const existingSubscriptions = await this.deps.subscriptionRepository.findByUserId(v.userId)
-      const activeSubscription = existingSubscriptions.find(
-        (sub) => sub.status === "active" || sub.status === "suspended"
+      // Validate product
+      const { product, productData, userConfig } = await validateAndParseProduct(
+        this.deps,
+        productIdNum,
+        purchaseRequestId
       )
 
-      // 4. Get card for payment
-      const userCard = await this.deps.userCardRepository.findOne({ card_id: cardIdString })
-      if (!userCard) {
-        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, "Card not found", "CARD_NOT_FOUND")
-        return failure("Card not found", "CARD_NOT_FOUND")
-      }
+      // Resolve card (new token or card on file)
+      const cardIdString = await this.resolveCard(v, input.context)
 
-      // 5. Process initial payment
+      // Check for existing active subscription (for upgrade detection)
+      const activeSubscription = await this.findActiveSubscription(v.userId)
+
+      // Resolve card row for payment
+      const userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
+
+      // Process payment
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
+      const pricing = calculatePricing(product, productData)
+      const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
 
-      const signupFee = productData.signup_fee || 0
-      const renewalCost = productData.renewal_cost || product.price
-      const productDuration = productData.duration || "monthly"
-      const initialAmount = signupFee + renewalCost
-
-      const payment = await this.deps.paymentProvider.createPayment(
-        {
-          sourceId: userCard.card_id,
-          idempotencyKey: uuidv4(),
-          amountMoney: {
-            amount: BigInt(initialAmount),
-            currency: "USD",
-          },
-          customerId: userCard.square_customer_id || undefined,
-        },
-        input.context ?? undefined
-      )
-
-      if (payment.status !== "COMPLETED") {
-        logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
-        await this.deps.purchaseRequestRepository.markAsFailed(
-          purchaseRequestId,
-          `Payment failed: ${payment.status}`,
-          "PAYMENT_FAILED"
-        )
-        return failure("Payment failed", "PAYMENT_FAILED")
-      }
-
-      // 6. Create subscription
+      // Create subscription
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
-
-      const renewalDate = calculateRenewalDate(productDuration)
-      const now = new Date()
-      const subscription = await this.deps.subscriptionRepository.create({
-        user_id: v.userId,
-        subscription_name: product.product_name,
-        amount: renewalCost,
-        duration: productDuration as "daily" | "weekly" | "monthly" | "yearly",
-        status: "active",
-        renewal_date: renewalDate,
-        product_id: product.product_id,
-        square_environment: payment.environment,
-        cancel_on_renewal: 0,
-        downgrade_on_renewal: 0,
-        data: userConfig ? JSON.stringify({ user_config: userConfig }) : null,
-        createdAt: now,
-        updatedAt: now,
+      const subscription = await createSubscriptionRecord(this.deps, {
+        userId: v.userId,
+        product,
+        pricing,
+        payment,
+        userConfig,
       })
 
-      // 7. Log transaction
-      const transaction = await this.deps.transactionRepository.create({
-        user_id: v.userId,
-        amount: initialAmount,
-        type: "subscription",
-        memo: `Subscription created: ${product.product_name}`,
-        status: "completed",
-        square_transaction_id: payment.id,
-        square_environment: payment.environment,
-        product_id: product.product_id,
-        data: JSON.stringify({ signupFee, renewalCost }),
-        createdAt: now,
-        updatedAt: now,
+      // Log transaction
+      const transaction = await createTransactionRecord(this.deps, {
+        userId: v.userId,
+        product,
+        pricing,
+        payment,
       })
 
-      // 8. Finalize and publish events
+      // Publish events and finalize
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")
-
-      await this.deps.eventBus.publish(
-        SubscriptionCreatedEvent.create({
-          subscriptionId: subscription.subscription_id,
-          userId: v.userId,
-          email: v.email,
-          productId: product.product_id,
-          productName: product.product_name,
-          amount: renewalCost,
-          initialChargeAmount: initialAmount,
-          transactionId: transaction.transaction_id,
-          cardId: cardIdString,
-          userWasCreated: false,
-          nextRenewalDate: renewalDate,
-          environment: payment.environment,
-          source: "API",
-        })
-      )
-
-      await this.deps.eventBus.publish(
-        PaymentProcessedEvent.create({
-          transactionId: transaction.transaction_id,
-          externalTransactionId: payment.id,
-          userId: v.userId,
-          email: v.email,
-          amount: initialAmount,
-          currency: "USD",
-          cardId: cardIdString,
-          cardLast4: userCard.last_4,
-          paymentProvider: "Square",
-          subscriptionId: subscription.subscription_id,
-          productId: product.product_id,
-          paymentType: "subscription",
-          environment: payment.environment,
-          lineItems: [
-            { description: "Signup fee", amount: signupFee },
-            { description: "First period", amount: renewalCost },
-          ],
-        })
-      )
-
-      await this.deps.purchaseRequestRepository.markAsCompleted(
+      await publishPurchaseEvents(this.deps, {
         purchaseRequestId,
-        {
-          subscriptionId: subscription.subscription_id,
-          transactionId: transaction.transaction_id,
-          amountCharged: initialAmount,
-          cardId: cardIdString,
-        },
-        startTime
-      )
-
-      await this.deps.eventBus.publish(
-        PurchaseRequestCompletedEvent.create({
-          purchaseRequestId,
-          requestUuid: purchaseRequest.request_uuid,
-          requestType: "NEW_PURCHASE",
-          source: "API",
-          userId: v.userId,
-          email: v.email,
-          productId: product.product_id,
-          subscriptionId: subscription.subscription_id,
-          transactionId: transaction.transaction_id,
-          amountCharged: initialAmount,
-          cardId: cardIdString,
-          userWasCreated: false,
-          processingDuration: new Date().getTime() - startTime.getTime(),
-        })
-      )
+        purchaseRequestUuid: purchaseRequest.request_uuid,
+        userId: v.userId,
+        email: v.email,
+        product,
+        subscription,
+        transaction,
+        pricing,
+        payment,
+        cardIdString,
+        userCard,
+        userWasCreated: false,
+        startTime,
+      })
 
       logger.info("Existing user purchase completed successfully", {
         userId: v.userId,
         subscriptionId: subscription.subscription_id,
-        amount: initialAmount,
+        amount: pricing.initialAmount,
         duration: new Date().getTime() - startTime.getTime(),
       })
 
@@ -294,26 +147,82 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userId: v.userId,
         cardId: cardIdString,
         productId: v.productId,
-        amount: initialAmount,
+        amount: pricing.initialAmount,
         proratedCharge: activeSubscription ? undefined : 0,
         userCreated: false,
       })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      logger.error("Existing user purchase error", {
-        error: errorMessage,
-        duration: new Date().getTime() - startTime.getTime(),
-      })
-
-      if (purchaseRequestId) {
-        try {
-          await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, "PURCHASE_ERROR")
-        } catch (updateError) {
-          logger.error("Failed to update purchase request status", { updateError })
-        }
-      }
-
-      return failure(errorMessage, "PURCHASE_ERROR")
+      return this.handleError(error, purchaseRequestId, startTime)
     }
+  }
+
+  private async resolveCard(
+    v: ExistingUserPurchaseInputValidated,
+    context: PaymentContext | null | undefined
+  ): Promise<string> {
+    if (v.cardToken && v.expMonth && v.expYear && v.cardholderName) {
+      const cardResult = await createCardHelper(
+        {
+          logger: this.deps.logger,
+          paymentProvider: this.deps.paymentProvider,
+          userCardRepository: this.deps.userCardRepository,
+          eventBus: this.deps.eventBus,
+        },
+        v.userId,
+        {
+          email: v.email,
+          cardToken: v.cardToken,
+          expMonth: v.expMonth,
+          expYear: v.expYear,
+          cardholderName: v.cardholderName,
+          context,
+        }
+      )
+
+      if (!cardResult.success) {
+        throw new PurchaseError(cardResult.error || "Card update failed", "CARD_UPDATE_FAILED")
+      }
+      return cardResult.cardId!
+    }
+
+    // Use card on file
+    const userCards = await this.deps.userCardRepository.findByUserId(v.userId)
+    if (userCards.length === 0) {
+      throw new PurchaseError("No card found for user", "NO_CARD_FOUND")
+    }
+    if (!userCards[0].card_id) {
+      throw new PurchaseError("Card ID is missing", "CARD_ID_MISSING")
+    }
+    return userCards[0].card_id
+  }
+
+  private async findActiveSubscription(userId: number) {
+    const subscriptions = await this.deps.subscriptionRepository.findByUserId(userId)
+    return subscriptions.find((sub) => sub.status === "active" || sub.status === "suspended")
+  }
+
+  private async handleError(
+    error: unknown,
+    purchaseRequestId: number | null,
+    startTime: Date
+  ): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const errorCode = error instanceof PurchaseError ? error.code : "PURCHASE_ERROR"
+
+    this.deps.logger.error("Existing user purchase error", {
+      error: errorMessage,
+      duration: new Date().getTime() - startTime.getTime(),
+    })
+
+    // PurchaseErrors already handled markAsFailed (or intentionally skipped it)
+    if (purchaseRequestId && !(error instanceof PurchaseError)) {
+      try {
+        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, errorCode)
+      } catch (updateError) {
+        this.deps.logger.error("Failed to update purchase request status", { updateError })
+      }
+    }
+
+    return failure(errorMessage, errorCode)
   }
 }
