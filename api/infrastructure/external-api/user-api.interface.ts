@@ -43,6 +43,12 @@ export interface IUserApiClient {
    * Use this for subscription renewals to ensure users are both active and premium
    */
   activateUser(userId: number): Promise<void>
+
+  /**
+   * Abandon a user created during a failed purchase.
+   * Sets active=false and scrambles the email so the original address is freed for re-signup.
+   */
+  abandonUser(userId: number): Promise<void>
 }
 
 /**
@@ -65,6 +71,7 @@ export interface User {
  */
 export interface CreateUserRequest {
   email: string
+  name?: string
   first_name?: string
   last_name?: string
   phone?: string

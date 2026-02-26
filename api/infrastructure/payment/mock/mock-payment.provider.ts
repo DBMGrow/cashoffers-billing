@@ -71,8 +71,10 @@ export class MockPaymentProvider implements IPaymentProvider {
     }
 
     const cardId = `mock_card_${uuidv4()}`
+    const customerId = request.customerId || `mock_customer_${uuidv4()}`
     const card: CardResult = {
       id: cardId,
+      customerId,
       last4: '1234',
       cardBrand: 'VISA',
       expMonth: 12,

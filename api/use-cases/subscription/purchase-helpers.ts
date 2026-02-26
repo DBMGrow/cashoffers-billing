@@ -350,18 +350,19 @@ export async function createCardHelper(
     const card = await paymentProvider.createCard(
       {
         sourceId: input.cardToken,
+        email: input.email,
         card: {
           cardholderName: input.cardholderName,
         },
       },
-      input.context
+      input.context ?? undefined
     )
 
     const now = new Date()
     const userCard = await userCardRepository.create({
       user_id: userId,
       card_id: card.id,
-      square_customer_id: card.id,
+      square_customer_id: card.customerId,
       square_environment: card.environment,
       card_brand: card.cardBrand,
       last_4: card.last4,

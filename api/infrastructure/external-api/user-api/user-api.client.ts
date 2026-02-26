@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { v4 as uuidv4 } from 'uuid'
 import type { IConfig } from '@api/config/config.interface'
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
 import type {
@@ -110,10 +111,16 @@ export class UserApiClient implements IUserApiClient {
       return this.parseUserResponse(data)
     } catch (error) {
       const duration = Date.now() - startTime
+      const responseData = (error as any)?.response?.data
       this.logger.error('Failed to create user', error, {
         email: userData.email,
         duration,
+        responseData,
       })
+      if (responseData) {
+        const detail = typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
+        throw new Error(`Request failed with status code ${(error as any).response.status}: ${detail}`)
+      }
       throw error
     }
   }
@@ -208,6 +215,24 @@ export class UserApiClient implements IUserApiClient {
     } catch (error) {
       const duration = Date.now() - startTime
       this.logger.error('Failed to fully activate user', error, { userId, duration })
+      throw error
+    }
+  }
+
+  async abandonUser(userId: number): Promise<void> {
+    const startTime = Date.now()
+
+    try {
+      this.logger.info('Abandoning user created during failed purchase', { userId })
+
+      const scrambledEmail = `abandoned_${uuidv4()}@deleted.invalid`
+      await this.updateUser(userId, { active: false, email: scrambledEmail })
+
+      const duration = Date.now() - startTime
+      this.logger.info('User abandoned successfully', { userId, duration })
+    } catch (error) {
+      const duration = Date.now() - startTime
+      this.logger.error('Failed to abandon user', error, { userId, duration })
       throw error
     }
   }

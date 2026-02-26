@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import type {
   IUserApiClient,
   User,
@@ -104,6 +105,11 @@ export class MockUserApiClient implements IUserApiClient {
 
   async activateUser(userId: number): Promise<void> {
     await this.updateUser(userId, { active: true, is_premium: true })
+  }
+
+  async abandonUser(userId: number): Promise<void> {
+    const scrambledEmail = `abandoned_${uuidv4()}@deleted.invalid`
+    await this.updateUser(userId, { active: false, email: scrambledEmail })
   }
 
   // Test helpers

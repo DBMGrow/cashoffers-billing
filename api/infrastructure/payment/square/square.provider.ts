@@ -147,6 +147,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
       if (!customerId) {
         const customerResponse = await this.client.customersApi.createCustomer({
           idempotencyKey: uuidv4(),
+          emailAddress: request.email,
         })
         customerId = customerResponse.result.customer?.id
         if (!customerId) {
@@ -185,6 +186,7 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       return {
         id: card.id!,
+        customerId: customerId!,
         last4: card.last4!,
         cardBrand: card.cardBrand!,
         expMonth: Number(card.expMonth!),

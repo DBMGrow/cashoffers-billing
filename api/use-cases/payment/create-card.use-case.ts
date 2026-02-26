@@ -70,18 +70,16 @@ export class CreateCardUseCase implements ICreateCardUseCase {
       try {
         const card = await paymentProvider.createCard({
           sourceId: cardToken,
-          customerId: undefined, // Let Square create customer
+          email: validatedInput.email,
           card: {
             cardholderName,
           },
         }, input.context) // Pass context for environment selection (use input, not validatedInput)
         cardId = card.id
+        squareCustomerId = card.customerId
         last4 = card.last4 || ""
         cardBrand = card.cardBrand || ""
-        environment = card.environment // Track which Square environment was used
-        // Note: Square provider creates customer internally but doesn't return customerId
-        // Store the card ID as reference - could be enhanced to return customerId from provider
-        squareCustomerId = "" // Will be empty, provider doesn't return this
+        environment = card.environment
 
         if (!cardId) {
           logger.error("Square card creation returned no ID")

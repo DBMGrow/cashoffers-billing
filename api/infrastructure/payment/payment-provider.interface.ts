@@ -70,6 +70,7 @@ export interface PaymentResult {
 export interface CreateCardRequest {
   sourceId: string
   customerId?: string
+  email?: string
   card: {
     cardholderName?: string
     billingAddress?: {
@@ -83,6 +84,7 @@ export interface CreateCardRequest {
  */
 export interface CardResult {
   id: string
+  customerId: string
   last4: string
   cardBrand: string
   expMonth: number

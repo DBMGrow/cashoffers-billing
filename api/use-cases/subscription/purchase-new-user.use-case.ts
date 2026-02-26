@@ -15,8 +15,10 @@ import { NewUserPurchaseInputSchema, NewUserPurchaseInputValidated } from "../ty
 import { ProductUserConfig } from "@api/domain/types/product-data.types"
 import type { PaymentContext } from "@api/config/config.interface"
 import { UserCreatedEvent } from "@api/domain/events/user-created.event"
+import { v4 as uuidv4 } from "uuid"
 import {
   PurchaseError,
+  PurchasePricing,
   parseProductId,
   calculatePricing,
   createPurchaseRequest,
@@ -42,16 +44,28 @@ interface Dependencies {
   eventBus: IEventBus
 }
 
+interface RollbackContext {
+  paymentId: string | null
+  createdUserId: number | null
+  pricing: PurchasePricing | null
+  context: PaymentContext | null | undefined
+}
+
 /**
  * PurchaseNewUserUseCase
  *
  * Handles the complete subscription purchase flow for new users:
  * 1. Product validation
- * 2. Card creation (with null user_id, updated after user creation)
- * 3. User creation via main API
- * 4. Initial payment processing
- * 5. Subscription creation
- * 6. Event publishing (UserCreated, CardCreated, SubscriptionCreated, PaymentProcessed)
+ * 2. Card creation (with null user_id)
+ * 3. Initial payment processing
+ * 4. User creation via main API (only after payment succeeds)
+ * 5. Card binding to the new user
+ * 6. Subscription creation
+ * 7. Event publishing (UserCreated, CardCreated, SubscriptionCreated, PaymentProcessed)
+ *
+ * If anything fails after payment is charged, the payment is refunded.
+ * If anything fails after the user is created, the user is abandoned (active=false,
+ * email scrambled) so the original email address is freed for re-signup.
  */
 export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
   constructor(private readonly deps: Dependencies) {}
@@ -60,6 +74,13 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     const { logger } = this.deps
     const startTime = new Date()
     let purchaseRequestId: number | null = null
+
+    const rollback: RollbackContext = {
+      paymentId: null,
+      createdUserId: null,
+      pricing: null,
+      context: input.context,
+    }
 
     try {
       // Validate input (before tracking — early return, no markAsFailed needed)
@@ -92,25 +113,25 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         purchaseRequestId
       )
 
-      // Create card and user
-      const { userId, cardIdString } = await this.createCardAndUser(
-        v,
-        input.context,
-        userConfig,
-        product.product_id,
-        purchaseRequestId
-      )
+      // Create card (user_id remains null until after payment succeeds)
+      const cardIdString = await this.createCard(v, input.context)
 
       // Resolve card row for payment
       const userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
 
-      // Process payment
+      // Process payment BEFORE creating the user
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
       const pricing = calculatePricing(product, productData)
+      rollback.pricing = pricing
       const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
+      rollback.paymentId = payment.id
+
+      // Create user only after payment succeeds
+      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
+      const userId = await this.createUser(v, userConfig, product.product_id, purchaseRequestId, cardIdString)
+      rollback.createdUserId = userId
 
       // Create subscription
-      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
       const subscription = await createSubscriptionRecord(this.deps, { userId, product, pricing, payment, userConfig })
 
       // Log transaction
@@ -151,18 +172,14 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         userCreated: true,
       })
     } catch (error) {
-      return this.handleError(error, purchaseRequestId, startTime)
+      return this.handleError(error, purchaseRequestId, rollback, startTime)
     }
   }
 
-  private async createCardAndUser(
+  private async createCard(
     v: NewUserPurchaseInputValidated,
-    context: PaymentContext | null | undefined,
-    userConfig: ProductUserConfig | undefined,
-    productId: number,
-    purchaseRequestId: number
-  ): Promise<{ userId: number; cardIdString: string }> {
-    // Create card first with null userId (bound to the user after creation)
+    context: PaymentContext | null | undefined
+  ): Promise<string> {
     const cardResult = await createCardHelper(
       {
         logger: this.deps.logger,
@@ -185,17 +202,26 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       throw new PurchaseError(cardResult.error || "Card creation failed", "CARD_CREATION_FAILED")
     }
 
-    // Create user in main API
-    let userId: number
+    return cardResult.cardId!
+  }
+
+  private async createUser(
+    v: NewUserPurchaseInputValidated,
+    userConfig: ProductUserConfig | undefined,
+    productId: number,
+    purchaseRequestId: number,
+    cardIdString: string
+  ): Promise<number> {
     try {
       const newUser = await this.deps.userApiClient.createUser({
         email: v.email,
+        name: v.name || v.cardholderName,
         phone: v.phone,
         is_premium: userConfig?.is_premium,
         role: userConfig?.role,
         whitelabel_id: userConfig?.whitelabel_id ?? 4,
       })
-      userId = newUser.id
+      const userId = newUser.id
       this.deps.logger.info("New user created", { userId })
 
       await this.deps.purchaseRequestRepository.update(purchaseRequestId, {
@@ -204,7 +230,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       })
 
       // Bind card to the new user
-      const cards = await this.deps.userCardRepository.findAll({ card_id: cardResult.cardId })
+      const cards = await this.deps.userCardRepository.findAll({ card_id: cardIdString })
       if (cards.length > 0) {
         await this.deps.userCardRepository.update(cards[0].id, {
           user_id: userId,
@@ -220,24 +246,27 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
           productId,
         })
       )
+
+      return userId
     } catch (error) {
       if (error instanceof PurchaseError) throw error
+      const detail = error instanceof Error ? error.message : String(error)
       this.deps.logger.error("Failed to create user", { error })
-      throw new PurchaseError("Failed to create user", "USER_CREATION_FAILED")
+      throw new PurchaseError(`Failed to create user: ${detail}`, "USER_CREATION_FAILED")
     }
-
-    return { userId, cardIdString: cardResult.cardId! }
   }
 
   private async handleError(
     error: unknown,
     purchaseRequestId: number | null,
+    rollback: RollbackContext,
     startTime: Date
   ): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
+    const { logger } = this.deps
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
     const errorCode = error instanceof PurchaseError ? error.code : "PURCHASE_ERROR"
 
-    this.deps.logger.error("New user purchase error", {
+    logger.error("New user purchase error", {
       error: errorMessage,
       duration: new Date().getTime() - startTime.getTime(),
     })
@@ -247,7 +276,41 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       try {
         await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, errorCode)
       } catch (updateError) {
-        this.deps.logger.error("Failed to update purchase request status", { updateError })
+        logger.error("Failed to update purchase request status", { updateError })
+      }
+    }
+
+    // Compensating actions — errors here are logged but never block the failure response
+
+    if (rollback.paymentId && rollback.pricing) {
+      try {
+        await this.deps.paymentProvider.refundPayment(
+          {
+            paymentId: rollback.paymentId,
+            amountMoney: { amount: BigInt(rollback.pricing.initialAmount), currency: "USD" },
+            idempotencyKey: uuidv4(),
+            reason: "Purchase failed after payment processed",
+          },
+          rollback.context ?? undefined
+        )
+        logger.info("Refunded payment during purchase cleanup", { paymentId: rollback.paymentId })
+      } catch (refundError) {
+        logger.error("Failed to refund payment during cleanup — manual intervention required", {
+          paymentId: rollback.paymentId,
+          refundError,
+        })
+      }
+    }
+
+    if (rollback.createdUserId) {
+      try {
+        await this.deps.userApiClient.abandonUser(rollback.createdUserId)
+        logger.info("Abandoned user during purchase cleanup", { userId: rollback.createdUserId })
+      } catch (abandonError) {
+        logger.error("Failed to abandon user during cleanup — manual intervention required", {
+          userId: rollback.createdUserId,
+          abandonError,
+        })
       }
     }
 
