@@ -1,7 +1,10 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import axios from "axios"
+import { createElement } from "react"
+import { render } from "@react-email/render"
 import { config } from "@api/config/config.service"
+import AccountReactivationEmail from "@api/infrastructure/email/templates/account-reactivation.email"
 import {
   PurchaseFreeRoute,
   CheckUserExistsRoute,
@@ -303,14 +306,17 @@ app.openapi(SendReactivationRoute, async (c) => {
     const reactivationUrl = `${config.app.url}/subscribe?reactivation_token=${reactivationToken}&email=${encodeURIComponent(email)}`
 
     // Send reactivation email
+    const html = await render(
+      createElement(AccountReactivationEmail, {
+        name: user.name || "User",
+        reactivationUrl,
+      })
+    )
     await emailService.sendEmail({
       to: email,
       subject: "Reactivate Your CashOffers Account",
-      template: "accountReactivation.html",
-      fields: {
-        name: user.name || "User",
-        reactivation_url: reactivationUrl,
-      },
+      html,
+      templateName: "account-reactivation",
     })
 
     console.log(`Reactivation email sent to ${email} with token ${reactivationToken}`)

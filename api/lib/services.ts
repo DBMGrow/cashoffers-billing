@@ -13,7 +13,6 @@ import { KyselyTransactionManager } from "@api/infrastructure/database/transacti
 import { createSquarePaymentProvider } from "@api/infrastructure/payment/square/square.provider"
 import { createDualEnvironmentPaymentProvider } from "@api/infrastructure/payment/dual-environment-provider"
 import { createSquareErrorTranslator } from "@api/infrastructure/payment/error/square-error-translator"
-import { createMjmlCompiler } from "@api/infrastructure/email/mjml/mjml-compiler"
 import { createSendGridEmailService } from "@api/infrastructure/email/sendgrid/sendgrid.service"
 import { createSmtpEmailService } from "@api/infrastructure/email/smtp/smtp.service"
 import { createUserApiClient } from "@api/infrastructure/external-api/user-api/user-api.client"
@@ -34,8 +33,6 @@ const baseLogger = createLogger({ service: "cashoffers-billing" }, config.nodeEn
 export const logger = new DatabaseLogger(baseLogger, billingLogRepository, { service: "cashoffers-billing" })
 
 export const transactionManager = new KyselyTransactionManager(db, logger)
-
-export const mjmlCompiler = createMjmlCompiler(logger)
 
 export const eventBus = new InMemoryEventBus(logger)
 
@@ -58,8 +55,8 @@ export const paymentErrorTranslator = createSquareErrorTranslator()
 
 export const emailService =
   config.nodeEnv === 'development'
-    ? createSmtpEmailService(config, logger, mjmlCompiler)
-    : createSendGridEmailService(config, logger, mjmlCompiler)
+    ? createSmtpEmailService(config, logger)
+    : createSendGridEmailService(config, logger)
 
 export const userApiClient = createUserApiClient(config, logger)
 

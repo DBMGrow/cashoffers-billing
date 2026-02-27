@@ -582,7 +582,7 @@ describe("CreateSubscriptionUseCase", () => {
       })
     })
 
-    it("should send subscription creation email", async () => {
+    it("should publish SubscriptionCreated event (triggers subscription+payment email)", async () => {
       await useCase.execute({
         userId: 1,
         productId: "prod_1",
@@ -590,14 +590,13 @@ describe("CreateSubscriptionUseCase", () => {
         userAlreadyExists: false,
       })
 
-      const emails = emailService.getSentEmails()
-      expect(emails).toHaveLength(1)
-      expect(emails[0].to).toBe("user@test.com")
-      expect(emails[0].subject).toBe("Subscription Created")
-      expect(emails[0].template).toBe("subscriptionCreated.html")
+      const events = eventBus.getPublishedEvents()
+      const subscriptionCreated = events.find((e) => e.eventType === "SubscriptionCreated")
+      expect(subscriptionCreated).toBeDefined()
+      expect(subscriptionCreated?.payload.email).toBe("user@test.com")
     })
 
-    it("should include signup fee in email", async () => {
+    it("should include externalTransactionId in SubscriptionCreated event", async () => {
       await useCase.execute({
         userId: 1,
         productId: "prod_1",
@@ -605,8 +604,38 @@ describe("CreateSubscriptionUseCase", () => {
         userAlreadyExists: false,
       })
 
-      const emails = emailService.getSentEmails()
-      expect(emails[0].fields?.lineItems).toContain("Signup Fee")
+      const events = eventBus.getPublishedEvents()
+      const subscriptionCreated = events.find((e) => e.eventType === "SubscriptionCreated")
+      expect(subscriptionCreated?.payload.externalTransactionId).toBeTruthy()
+    })
+
+    it("should include signup fee line item in SubscriptionCreated event", async () => {
+      await useCase.execute({
+        userId: 1,
+        productId: "prod_1",
+        email: "user@test.com",
+        userAlreadyExists: false,
+      })
+
+      const events = eventBus.getPublishedEvents()
+      const subscriptionCreated = events.find((e) => e.eventType === "SubscriptionCreated")
+      const lineItems: Array<{ description: string }> = subscriptionCreated?.payload.lineItems ?? []
+      expect(lineItems.some((item) => item.description === "Signup Fee")).toBe(true)
+    })
+
+    it("should not publish a separate one-time PaymentProcessed event for subscription creation", async () => {
+      await useCase.execute({
+        userId: 1,
+        productId: "prod_1",
+        email: "user@test.com",
+        userAlreadyExists: false,
+      })
+
+      const events = eventBus.getPublishedEvents()
+      const oneTimePayment = events.find(
+        (e) => e.eventType === "PaymentProcessed" && e.payload.paymentType === "one-time"
+      )
+      expect(oneTimePayment).toBeUndefined()
     })
   })
 })

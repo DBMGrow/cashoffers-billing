@@ -1,69 +1,53 @@
 import sgMail from '@sendgrid/mail'
 import type { IConfig } from '@api/config/config.interface'
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
-import type { IMjmlCompiler } from '@api/infrastructure/email/mjml/mjml-compiler.interface'
 import type {
   IEmailService,
   SendEmailRequest,
   SendPlainEmailRequest,
 } from '../email-service.interface'
-import { parseEmailTemplate } from './template-parser'
 
 /**
  * SendGrid Email Service Implementation
- * Handles email sending via SendGrid API with MJML template support
+ * Handles email sending via SendGrid API.
+ * HTML is expected to be pre-rendered by the caller (e.g. via React Email).
  */
 export class SendGridEmailService implements IEmailService {
   constructor(
     private config: IConfig,
     private logger: ILogger,
-    private mjmlCompiler?: IMjmlCompiler
   ) {
     sgMail.setApiKey(config.sendgrid.apiKey)
-    this.logger.debug('SendGrid email service initialized', {
-      mjmlEnabled: !!mjmlCompiler,
-    })
+    this.logger.debug('SendGrid email service initialized')
   }
 
   async sendEmail(request: SendEmailRequest): Promise<void> {
     const startTime = Date.now()
 
     try {
-      this.logger.info('Sending email with template', {
+      this.logger.info('Sending email', {
         to: request.to,
-        template: request.template,
+        templateName: request.templateName,
         subject: request.subject,
       })
-
-      // Parse template with fields (MJML or HTML)
-      const html = await parseEmailTemplate(
-        request.template,
-        {
-          subject: request.subject,
-          ...request.fields,
-        },
-        this.mjmlCompiler
-      )
 
       await this.sendPlainEmail({
         to: request.to,
         subject: request.subject,
         text: request.subject,
-        html,
+        html: request.html,
       })
 
-      const duration = Date.now() - startTime
       this.logger.info('Email sent successfully', {
         to: request.to,
-        template: request.template,
-        duration,
+        templateName: request.templateName,
+        duration: Date.now() - startTime,
       })
     } catch (error) {
-      const duration = Date.now() - startTime
       this.logger.error('Email sending failed', error, {
         to: request.to,
-        template: request.template,
-        duration,
+        templateName: request.templateName,
+        duration: Date.now() - startTime,
       })
       throw error
     }
@@ -92,16 +76,14 @@ export class SendGridEmailService implements IEmailService {
 
       await sgMail.send(msg)
 
-      const duration = Date.now() - startTime
       this.logger.info('Plain email sent successfully', {
         to: request.to,
-        duration,
+        duration: Date.now() - startTime,
       })
     } catch (error) {
-      const duration = Date.now() - startTime
       this.logger.error('Plain email sending failed', error, {
         to: request.to,
-        duration,
+        duration: Date.now() - startTime,
       })
       throw error
     }
@@ -114,7 +96,6 @@ export class SendGridEmailService implements IEmailService {
 export const createSendGridEmailService = (
   config: IConfig,
   logger: ILogger,
-  mjmlCompiler?: IMjmlCompiler
 ): IEmailService => {
-  return new SendGridEmailService(config, logger, mjmlCompiler)
+  return new SendGridEmailService(config, logger)
 }

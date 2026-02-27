@@ -1,16 +1,19 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { parseEmailTemplate } from "@api/infrastructure/email/sendgrid/template-parser"
 import { PreviewEmailRoute } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
-// Preview email template
+// Email template preview was migrated from MJML to React Email.
+// Use `npm run preview:emails` to preview templates via the React Email dev server.
 app.openapi(PreviewEmailRoute, async (c) => {
-  const body = c.req.valid("json")
-  const html = await parseEmailTemplate(body.templateName, body.variables || {})
-
-  return c.html(html)
+  return c.json(
+    {
+      error: "Email template preview endpoint is no longer active.",
+      message: "Run `npm run preview:emails` to preview email templates via the React Email dev server.",
+    },
+    400
+  )
 })
 
 export const emailsRoutes = app

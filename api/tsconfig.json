@@ -12,11 +12,12 @@
     "allowJs": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "baseUrl": "..",
     "paths": {
       "@api/*": ["api/*"]
     }
   },
-  "include": ["./**/*.ts", "./**/*.js"],
+  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.js"],
   "exclude": ["node_modules"]
 }

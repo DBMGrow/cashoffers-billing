@@ -355,22 +355,21 @@ describe("CreatePaymentUseCase", () => {
       expect(transactions[0].memo).toBe("Test payment")
     })
 
-    it("should send success email by default", async () => {
+    it("should publish PaymentProcessed event with one-time type (triggers payment confirmation email)", async () => {
       await useCase.execute({
         userId: 1,
         amount: 5000,
         email: "user@test.com",
       })
 
-      const emails = emailService.getSentEmails()
-      expect(emails).toHaveLength(1)
-      expect(emails[0].to).toBe("user@test.com")
-      expect(emails[0].subject).toBe("Payment Successful")
-      expect(emails[0].template).toBe("paymentConfirm.html")
-      expect(emails[0].fields?.amount).toBe("$50.00")
+      const events = eventBus.getPublishedEvents()
+      const paymentProcessed = events.find((e) => e.eventType === "PaymentProcessed")
+      expect(paymentProcessed).toBeDefined()
+      expect(paymentProcessed?.payload.email).toBe("user@test.com")
+      expect(paymentProcessed?.payload.paymentType).toBe("one-time")
     })
 
-    it("should not send email if sendEmailOnCharge is false", async () => {
+    it("should not publish PaymentProcessed event if sendEmailOnCharge is false", async () => {
       await useCase.execute({
         userId: 1,
         amount: 5000,
@@ -378,8 +377,9 @@ describe("CreatePaymentUseCase", () => {
         sendEmailOnCharge: false,
       })
 
-      const emails = emailService.getSentEmails()
-      expect(emails).toHaveLength(0)
+      const events = eventBus.getPublishedEvents()
+      const paymentProcessed = events.find((e) => e.eventType === "PaymentProcessed")
+      expect(paymentProcessed).toBeUndefined()
     })
   })
 
@@ -436,7 +436,7 @@ describe("CreatePaymentUseCase", () => {
       expect(transactions[0].status).toBe("failed")
     })
 
-    it("should send failure email to user", async () => {
+    it("should publish PaymentFailed event (triggers failure notification)", async () => {
       paymentProvider.setNextPaymentStatus("FAILED")
 
       await useCase.execute({
@@ -445,11 +445,11 @@ describe("CreatePaymentUseCase", () => {
         email: "user@test.com",
       })
 
-      const emails = emailService.getSentEmails()
-      const userEmail = emails.find((e) => e.to === "user@test.com")
-      expect(userEmail).toBeTruthy()
-      expect(userEmail?.subject).toBe("Payment Error")
-      expect(userEmail?.template).toBe("paymentError.html")
+      const events = eventBus.getPublishedEvents()
+      const paymentFailed = events.find((e) => e.eventType === "PaymentFailed")
+      expect(paymentFailed).toBeDefined()
+      expect(paymentFailed?.payload.email).toBe("user@test.com")
+      expect(paymentFailed?.payload.paymentType).toBe("one-time")
     })
   })
 

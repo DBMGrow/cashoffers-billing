@@ -10,10 +10,9 @@ import type {
 export interface SentEmail {
   to: string
   subject: string
-  template?: string
-  text?: string
+  templateName?: string
   html?: string
-  fields?: Record<string, unknown>
+  text?: string
   sentAt: Date
 }
 
@@ -36,8 +35,8 @@ export class MockEmailService implements IEmailService {
     this.sentEmails.push({
       to: request.to,
       subject: request.subject,
-      template: request.template,
-      fields: request.fields,
+      templateName: request.templateName,
+      html: request.html,
       sentAt: new Date(),
     })
   }
@@ -69,8 +68,8 @@ export class MockEmailService implements IEmailService {
     return this.sentEmails.filter((e) => e.subject === subject)
   }
 
-  getEmailsWithTemplate(template: string): SentEmail[] {
-    return this.sentEmails.filter((e) => e.template === template)
+  getEmailsWithTemplate(templateName: string): SentEmail[] {
+    return this.sentEmails.filter((e) => e.templateName === templateName)
   }
 
   reset(): void {

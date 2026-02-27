@@ -13,8 +13,10 @@ export interface SubscriptionCreatedPayload {
   amount: number
   /** Initial charge amount (may differ from subscription amount if prorated) */
   initialChargeAmount?: number
-  /** Transaction ID if payment was processed */
+  /** Internal transaction ID if payment was processed */
   transactionId?: number
+  /** External payment provider transaction ID (e.g. Square payment ID) */
+  externalTransactionId?: string
   /** Card ID used for the subscription */
   cardId?: string
   /** Whether a new user was created as part of this subscription */

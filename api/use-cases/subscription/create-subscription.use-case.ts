@@ -149,6 +149,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
           amount: productData.renewal_cost ?? 0,
           initialChargeAmount: totalAmount,
           transactionId,
+          externalTransactionId: paymentId,
           cardId,
           nextRenewalDate: renewalDate,
           source: "API",

@@ -220,6 +220,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           productName: subscription.subscription_name || "Subscription",
           amount: totalAmount,
           transactionId: transactionId || undefined,
+          externalTransactionId: paymentId || undefined,
           cardId: cardId || undefined,
           nextRenewalDate: newRenewalDate,
           environment: paymentEnvironment,

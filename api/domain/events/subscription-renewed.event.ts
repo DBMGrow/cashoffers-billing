@@ -11,8 +11,10 @@ export interface SubscriptionRenewedPayload {
   productId: number
   productName: string
   amount: number
-  /** Transaction ID for the renewal payment */
+  /** Internal transaction ID for the renewal payment */
   transactionId?: number
+  /** External payment provider transaction ID (e.g. Square payment ID) */
+  externalTransactionId?: string
   /** Card ID used for the renewal */
   cardId?: string
   /** Previous renewal date */

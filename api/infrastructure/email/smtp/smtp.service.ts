@@ -1,17 +1,16 @@
 import nodemailer from 'nodemailer'
 import type { IConfig } from '@api/config/config.interface'
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
-import type { IMjmlCompiler } from '@api/infrastructure/email/mjml/mjml-compiler.interface'
 import type {
   IEmailService,
   SendEmailRequest,
   SendPlainEmailRequest,
 } from '../email-service.interface'
-import { parseEmailTemplate } from '../sendgrid/template-parser'
 
 /**
  * SMTP Email Service Implementation
- * For local development — routes emails through a local SMTP server (e.g. Mailpit, Mailhog)
+ * For local development — routes emails through a local SMTP server (e.g. Mailpit, Mailhog).
+ * HTML is expected to be pre-rendered by the caller (e.g. via React Email).
  */
 export class SmtpEmailService implements IEmailService {
   private transporter: nodemailer.Transporter
@@ -20,7 +19,6 @@ export class SmtpEmailService implements IEmailService {
   constructor(
     private config: IConfig,
     private logger: ILogger,
-    private mjmlCompiler?: IMjmlCompiler
   ) {
     const smtp = config.smtp
     this.fromEmail = smtp?.fromEmail ?? config.sendgrid.fromEmail
@@ -42,34 +40,28 @@ export class SmtpEmailService implements IEmailService {
     const startTime = Date.now()
 
     try {
-      this.logger.info('Sending email with template (SMTP)', {
+      this.logger.info('Sending email (SMTP)', {
         to: request.to,
-        template: request.template,
+        templateName: request.templateName,
         subject: request.subject,
       })
-
-      const html = await parseEmailTemplate(
-        request.template,
-        { subject: request.subject, ...request.fields },
-        this.mjmlCompiler
-      )
 
       await this.sendPlainEmail({
         to: request.to,
         subject: request.subject,
         text: request.subject,
-        html,
+        html: request.html,
       })
 
       this.logger.info('Email sent successfully (SMTP)', {
         to: request.to,
-        template: request.template,
+        templateName: request.templateName,
         duration: Date.now() - startTime,
       })
     } catch (error) {
       this.logger.error('Email sending failed (SMTP)', error, {
         to: request.to,
-        template: request.template,
+        templateName: request.templateName,
         duration: Date.now() - startTime,
       })
       throw error
@@ -113,7 +105,6 @@ export class SmtpEmailService implements IEmailService {
 export const createSmtpEmailService = (
   config: IConfig,
   logger: ILogger,
-  mjmlCompiler?: IMjmlCompiler
 ): IEmailService => {
-  return new SmtpEmailService(config, logger, mjmlCompiler)
+  return new SmtpEmailService(config, logger)
 }

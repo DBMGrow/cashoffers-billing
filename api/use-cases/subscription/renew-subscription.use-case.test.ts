@@ -413,17 +413,17 @@ describe("RenewSubscriptionUseCase", () => {
       expect(subscription?.renewal_date.toDateString()).toBe(expectedDate.toDateString())
     })
 
-    it("should send renewal email", async () => {
+    it("should publish SubscriptionRenewed event (triggers subscription+payment email)", async () => {
       await useCase.execute({
         subscriptionId: 1,
         email: "user@test.com",
       })
 
-      const emails = emailService.getSentEmails()
-      expect(emails).toHaveLength(1)
-      expect(emails[0].to).toBe("user@test.com")
-      expect(emails[0].subject).toBe("Subscription Renewal")
-      expect(emails[0].template).toBe("subscriptionRenewal.html")
+      const events = eventBus.getPublishedEvents()
+      const subscriptionRenewed = events.find((e) => e.eventType === "SubscriptionRenewed")
+      expect(subscriptionRenewed).toBeDefined()
+      expect(subscriptionRenewed?.payload.email).toBe("user@test.com")
+      expect(subscriptionRenewed?.payload.externalTransactionId).toBeTruthy()
     })
 
     it("should log transaction", async () => {
@@ -628,7 +628,7 @@ describe("RenewSubscriptionUseCase", () => {
       }
     })
 
-    it("should send failure email", async () => {
+    it("should publish PaymentFailed event (triggers renewal failure email)", async () => {
       paymentProvider.setNextPaymentStatus("FAILED")
 
       await useCase.execute({
@@ -636,11 +636,11 @@ describe("RenewSubscriptionUseCase", () => {
         email: "user@test.com",
       })
 
-      const emails = emailService.getSentEmails()
-      const failureEmail = emails.find((e) => e.to === "user@test.com")
-      expect(failureEmail).toBeTruthy()
-      expect(failureEmail?.subject).toBe("Subscription Renewal Failed")
-      expect(failureEmail?.template).toBe("subscriptionRenewalFailed.html")
+      const events = eventBus.getPublishedEvents()
+      const paymentFailed = events.find((e) => e.eventType === "PaymentFailed")
+      expect(paymentFailed).toBeDefined()
+      expect(paymentFailed?.payload.email).toBe("user@test.com")
+      expect(paymentFailed?.payload.paymentType).toBe("renewal")
     })
 
     it("should update next renewal attempt on failure", async () => {
