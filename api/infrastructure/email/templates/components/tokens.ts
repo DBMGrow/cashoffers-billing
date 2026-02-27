@@ -72,6 +72,6 @@ export const spacing = {
 
 export const radius = {
   sm: "4px",
-  md: "6px",
-  lg: "8px",
+  md: "8px",
+  lg: "12px",
 } as const
