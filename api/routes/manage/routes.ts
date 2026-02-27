@@ -210,21 +210,35 @@ app.openapi(GetProductsRoute, async (c) => {
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
     const compatibleRoles = userIsAgentType ? ["AGENT", "TEAMOWNER"] : ["INVESTOR"]
 
-    // Fetch all products and filter in JavaScript
-    // This is simpler than JSON path queries in Kysely
-    const allProducts = await db.selectFrom("Products").selectAll().execute()
+    // Resolve the user's whitelabel code for product filtering
+    let userWhitelabelCode: string | null = null
+    if (user.whitelabel_id) {
+      const whitelabel = await db
+        .selectFrom("Whitelabels")
+        .select("code")
+        .where("whitelabel_id", "=", user.whitelabel_id)
+        .executeTakeFirst()
+      userWhitelabelCode = whitelabel?.code ?? null
+    }
 
+    // Fetch products filtered by whitelabel_code — include products matching
+    // the user's whitelabel or products with no whitelabel set (available to all)
+    const allProducts = await db
+      .selectFrom("Products")
+      .selectAll()
+      .$if(userWhitelabelCode !== null, (qb) =>
+        qb.where((eb) =>
+          eb.or([eb("whitelabel_code", "=", userWhitelabelCode!), eb("whitelabel_code", "is", null)])
+        )
+      )
+      .execute()
+
+    // Filter by role compatibility (still done in JS — no JSON path support in Kysely)
     const filteredProducts = allProducts.filter((product: any) => {
       const productRole = product.data?.user_config?.role
-      const productWhitelabelId = product.data?.user_config?.whitelabel_id
 
       // Check role compatibility (skip if product doesn't specify a role - backward compatibility)
       if (productRole && !compatibleRoles.includes(productRole)) {
-        return false
-      }
-
-      // Check whitelabel match if both user and product have whitelabel_id
-      if (user.whitelabel_id && productWhitelabelId && productWhitelabelId !== user.whitelabel_id) {
         return false
       }
 

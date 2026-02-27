@@ -60,8 +60,9 @@ app.doc("/openapi.json", (c) => ({
     description: "Billing and subscription management service for CashOffers with Square payment processing",
   },
   servers: [
-    { url: "http://localhost:3000/api", description: "Development" },
-    { url: "https://billing-api.cashoffers.com/api", description: "Production" },
+    { url: "http://localhost:3000", description: "Development" },
+    { url: "https://billing.staging.cashoffers.pro", description: "Staging" },
+    { url: "https://billing.cashoffers.pro", description: "Production" },
   ],
 }))
 

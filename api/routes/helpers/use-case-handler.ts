@@ -20,7 +20,7 @@ export async function executeUseCase<T>(
         {
           success: "error" as const,
           error: result.error,
-          code: result.code,
+          ref: result.code,
         },
         400
       )
@@ -54,7 +54,7 @@ export function handleUseCaseResult<T>(result: UseCaseResult<T>) {
     return {
       success: "error" as const,
       error: result.error,
-      code: result.code,
+      ref: result.code,
     }
   }
 

@@ -29,17 +29,8 @@ export class SquarePaymentProvider implements IPaymentProvider {
   ) {
     this.environment = environment
 
-    console.log(`Initializing SquarePaymentProvider in ${environment} environment`)
-
     // Use the appropriate config based on environment
     const squareConfig = environment === "production" ? config.square.production : config.square.sandbox
-
-    console.log("Square config loaded", {
-      environment,
-      locationId: squareConfig.locationId ? "***" : "MISSING",
-      appId: squareConfig.appId ? "***" : "MISSING",
-      accessToken: squareConfig.accessToken ? "***" : "MISSING",
-    })
 
     this.locationId = squareConfig.locationId
 

@@ -102,7 +102,7 @@ export const PurchaseFreeRoute = {
  */
 export const CheckUserExistsRoute = {
   method: "get" as const,
-  path: "/checkuserexists/:email",
+  path: "/checkuserexists/{email}",
   request: {
     params: z.object({
       email: z.string(),
@@ -133,7 +133,7 @@ export const CheckUserExistsRoute = {
  */
 export const CheckSlugExistsRoute = {
   method: "get" as const,
-  path: "/checkslugexists/:slug",
+  path: "/checkslugexists/{slug}",
   request: {
     params: z.object({
       slug: z.string(),
@@ -305,7 +305,7 @@ export const GetUniqueSlugRoute = {
         "application/json": {
           schema: z.object({
             success: z.literal("success"),
-            data: { slug: z.string() },
+            data: z.object({ slug: z.string() }),
           }),
         },
       },

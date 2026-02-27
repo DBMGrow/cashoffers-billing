@@ -67,9 +67,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       const validatedInput = validationResult.data
 
       // Get subscription first to populate purchase request data
-      const subscription = await this.deps.subscriptionRepository.findById(
-        validatedInput.subscriptionId
-      )
+      const subscription = await this.deps.subscriptionRepository.findById(validatedInput.subscriptionId)
       if (!subscription) {
         logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
@@ -157,7 +155,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       // Process payment if amount > 0
       let paymentId: string | null = null
       let cardId: string | null = null
-      let paymentEnvironment: 'production' | 'sandbox' = 'production'
+      let paymentEnvironment: "production" | "sandbox" = "production"
       if (totalAmount > 0) {
         const paymentResult = await this.processRenewalPayment(
           subscription.user_id!,
@@ -203,7 +201,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           data: JSON.stringify({ renewalDate: newRenewalDate }),
           createdAt: now,
           updatedAt: now,
-        }, trx)
+        })
         transactionId = transaction.transaction_id
       })
 
@@ -288,11 +286,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       // Mark purchase request as failed if it was created
       if (purchaseRequestId) {
         try {
-          await this.deps.purchaseRequestRepository.markAsFailed(
-            purchaseRequestId,
-            errorMessage,
-            "RENEWAL_ERROR"
-          )
+          await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, "RENEWAL_ERROR")
         } catch (updateError) {
           logger.error("Failed to update purchase request status", { updateError })
         }
@@ -312,7 +306,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     subscriptionName: string,
     lineItems: LineItem[],
     subscriptionId: number
-  ): Promise<{ paymentId: string; cardId: string; environment: 'production' | 'sandbox' }> {
+  ): Promise<{ paymentId: string; cardId: string; environment: "production" | "sandbox" }> {
     const { logger, paymentProvider, userCardRepository, subscriptionRepository } = this.deps
 
     // Get user's card
@@ -329,37 +323,42 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     // CRITICAL: Determine environment from card and/or subscription
     // This ensures sandbox subscriptions renew with sandbox, production with production
     const subscription = await subscriptionRepository.findById(subscriptionId)
-    const environment = (userCard.square_environment || subscription?.square_environment || 'production') as 'production' | 'sandbox'
+    const environment = (userCard.square_environment || subscription?.square_environment || "production") as
+      | "production"
+      | "sandbox"
 
     // Create PaymentContext with testMode based on environment
-    const context: import('@api/config/config.interface').PaymentContext = {
-      testMode: environment === 'sandbox',
-      source: 'CRON',
+    const context: import("@api/config/config.interface").PaymentContext = {
+      testMode: environment === "sandbox",
+      source: "CRON",
       userId,
       metadata: {
         subscriptionId,
-        detectedEnvironment: environment
-      }
+        detectedEnvironment: environment,
+      },
     }
 
-    logger.info('Processing renewal payment with detected environment', {
+    logger.info("Processing renewal payment with detected environment", {
       userId,
       subscriptionId,
       environment,
-      testMode: context.testMode
+      testMode: context.testMode,
     })
 
     // Create payment with correct environment context
-    const payment = await paymentProvider.createPayment({
-      sourceId: userCard.card_id,
-      idempotencyKey: uuidv4(),
-      amountMoney: {
-        amount: BigInt(amount),
-        currency: "USD",
+    const payment = await paymentProvider.createPayment(
+      {
+        sourceId: userCard.card_id,
+        idempotencyKey: uuidv4(),
+        amountMoney: {
+          amount: BigInt(amount),
+          currency: "USD",
+        },
+        customerId: userCard.square_customer_id,
+        note: `Renewal: ${subscriptionName}`,
       },
-      customerId: userCard.square_customer_id,
-      note: `Renewal: ${subscriptionName}`,
-    }, context) // Pass context with correct testMode
+      context
+    ) // Pass context with correct testMode
 
     if (payment.status !== "COMPLETED") {
       throw new Error("Payment failed")
@@ -379,12 +378,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     }
   }
 
-
-  private async handleRenewalFailure(
-    subscriptionId: number,
-    email: string,
-    error: string
-  ): Promise<void> {
+  private async handleRenewalFailure(subscriptionId: number, email: string, error: string): Promise<void> {
     const { logger, eventBus, subscriptionRepository, transactionRepository } = this.deps
 
     try {
@@ -407,7 +401,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         type: "subscription",
         memo: `${subscription.subscription_name || "Subscription"} (failed)`,
         status: "failed",
-        square_environment: subscription.square_environment || 'production',
+        square_environment: subscription.square_environment || "production",
         data: JSON.stringify({ error }),
         createdAt: now,
         updatedAt: now,
@@ -424,7 +418,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           subscriptionId,
           productId: subscription.product_id || undefined,
           paymentType: "renewal",
-          environment: subscription.square_environment || 'production', // Include environment in event
+          environment: subscription.square_environment || "production", // Include environment in event
           errorMessage: error,
           errorCode: "RENEWAL_ERROR",
           willRetry: true,

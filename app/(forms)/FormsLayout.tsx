@@ -1,5 +1,3 @@
-"use client"
-
 import { Card, CardBody } from "@/components/Theme/Card"
 import DefaultLogo from "@/components/Theme/Logo"
 import KWLogo from "@/components/Theme/KWLogo"
@@ -8,8 +6,6 @@ import UCOLogo from "@/components/Theme/UCOLogo"
 import MOPLogo from "@/components/Theme/MOPLogo"
 import ECOLogo from "@/components/Theme/ECOLogo"
 import PlatinumLogo from "@/components/Theme/PlatinumLogo"
-import { useSearchParams } from "next/navigation"
-import InvestorLogo from "@/components/Theme/InvestorLogo"
 import { WhitelabelType } from "@/types/forms"
 
 const logoComponents: Record<WhitelabelType, React.ComponentType<{ isLight: boolean }>> = {
@@ -32,13 +28,15 @@ const themeClasses: Record<WhitelabelType, string> = {
   platinum: "theme-default",
 }
 
-export default function FormsLayoutClient({ children }: { children: React.ReactNode }) {
-  const searchParams = useSearchParams()
-  const product = searchParams.get("product")
-  const whitelabel = (searchParams.get("w") || "default") as WhitelabelType
-  const isInvestor = product === "11"
-  const LogoComponent = isInvestor ? InvestorLogo : logoComponents[whitelabel]
-  const theme = themeClasses[whitelabel]
+export default function FormsLayout({
+  children,
+  whitelabel,
+}: {
+  children: React.ReactNode
+  whitelabel: WhitelabelType
+}) {
+  const LogoComponent = logoComponents[whitelabel] ?? DefaultLogo
+  const theme = themeClasses[whitelabel] ?? "theme-default"
 
   return (
     <>

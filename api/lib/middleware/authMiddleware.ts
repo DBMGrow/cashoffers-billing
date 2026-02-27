@@ -43,7 +43,8 @@ export function authMiddleware(
     if (!apiToken) {
       return c.json({
         success: "error",
-        error: "0000B: Unauthorized - API token required"
+        error: "Unauthorized - API token required",
+        ref: "0000B",
       }, 401)
     }
 
@@ -53,7 +54,8 @@ export function authMiddleware(
     if (!tokenOwner) {
       return c.json({
         success: "error",
-        error: "0000D: Unauthorized - Invalid API token"
+        error: "Unauthorized - Invalid API token",
+        ref: "0000D",
       }, 401)
     }
 
@@ -83,7 +85,8 @@ export function authMiddleware(
     if (!user) {
       return c.json({
         success: "error",
-        error: "0000C: User not found"
+        error: "User not found",
+        ref: "0000C",
       }, 404)
     }
 
@@ -96,7 +99,8 @@ export function authMiddleware(
       if (!hasPermissions) {
         return c.json({
           success: "error",
-          error: "0000F: Unauthorized - Insufficient permissions"
+          error: "Unauthorized - Insufficient permissions",
+          ref: "0000F",
         }, 403)
       }
     }

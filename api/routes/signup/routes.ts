@@ -342,18 +342,16 @@ app.openapi(GetProductsRoute, async (c) => {
   try {
     const query = c.req.valid("query")
     const whitelabelCode = query.whitelabel || "default"
-    const whitelabelId = whitelabelIds[whitelabelCode] ?? 1
 
-    // Fetch all products and filter in JavaScript
-    const allProducts = await db.selectFrom("Products").selectAll().execute()
-
-    const filteredProducts = allProducts.filter((product: any) => {
-      const productWhitelabelId = product.data?.user_config?.whitelabel_id
-      // Include products that:
-      // 1. Have a whitelabel_id that matches the requested one
-      // 2. Don't have a whitelabel_id set (backward compatibility - available for all whitelabels)
-      return productWhitelabelId === whitelabelId || productWhitelabelId === undefined || productWhitelabelId === null
-    })
+    // Filter by whitelabel_code directly — include products matching the code
+    // or products with no code set (available for all whitelabels)
+    const filteredProducts = await db
+      .selectFrom("Products")
+      .selectAll()
+      .where((eb) =>
+        eb.or([eb("whitelabel_code", "=", whitelabelCode), eb("whitelabel_code", "is", null)])
+      )
+      .execute()
 
     return c.json(
       {

@@ -132,7 +132,7 @@ export const CheckPlanRoute = {
  */
 export const CheckTokenRoute = {
   method: "get" as const,
-  path: "/checktoken/:token",
+  path: "/checktoken/{token}",
   request: {
     params: z.object({
       token: z.string(),

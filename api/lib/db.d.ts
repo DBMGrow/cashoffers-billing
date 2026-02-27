@@ -434,6 +434,7 @@ export interface Products {
   product_name: string;
   product_type: "none" | "one-time" | "subscription";
   updatedAt: Date;
+  whitelabel_code: string | null;
 }
 
 export interface Properties {

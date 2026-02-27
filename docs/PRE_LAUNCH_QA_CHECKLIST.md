@@ -11,7 +11,6 @@
 - [ ] **User not found for token** returns `404`
 - [ ] **Insufficient permissions** returns `403` (e.g., non-admin calling `payments_read_all`)
 - [ ] **Token owner vs. target user** distinction works correctly (admin acting on behalf of another user)
-- [ ] **Test mode** (`testMode: true`) is correctly detected and only authorized for users with `payments_sandbox` capability
 - [ ] **Test mode** attempted by unauthorized user returns `403`
 - [ ] `paymentContext` is correctly attached to all authenticated route contexts
 
@@ -54,54 +53,65 @@
 ## 4. Subscription Management
 
 ### GET /subscription/ (admin — paginated list)
+
 - [ ] Requires `payments_read_all` permission
 - [ ] Pagination works (`page`, `limit` params)
 - [ ] Returns all subscriptions
 
 ### GET /subscription/single (own subscription)
+
 - [ ] No special permission required (session only)
 - [ ] Returns the authenticated user's subscription
 - [ ] Returns empty/404 if user has no subscription
 
 ### POST /subscription/ (create or update)
+
 - [ ] Requires `payments_create`
 - [ ] If subscription exists → updates fields (`subscription_name`, `amount`, `duration`)
 - [ ] If no subscription → creates new subscription
 - [ ] `signup_fee: 0` waives signup fee
 
 ### PUT /subscription/ (update fields)
+
 - [ ] Requires `payments_create`
 - [ ] Updates `subscription_id`, `subscription_name`, `amount`, `duration`, `status`
 
 ### DELETE /subscription/ (deactivate)
+
 - [ ] Requires `payments_delete`
 - [ ] Deactivates subscription by `user_id`
 
 ### PATCH /subscription/pause/:subscription_id
+
 - [ ] Requires `payments_create`
 - [ ] Sets subscription to paused state
 - [ ] Sends pause email
 
 ### PATCH /subscription/resume/:subscription_id
+
 - [ ] Requires `payments_create`
 - [ ] Resumes a paused subscription
 - [ ] Sends resume/reactivation email
 
 ### POST /subscription/cancel/:subscription_id
+
 - [ ] Self-service: user can cancel their own subscription
 - [ ] Admin can cancel any subscription
 - [ ] Sets `cancel_on_renewal: true`
 - [ ] Unauthorized user returns 403
 
 ### DELETE /subscription/cancel/:subscription_id (uncancel)
+
 - [ ] Clears `cancel_on_renewal` flag
 - [ ] Subscription auth check works correctly
 
 ### POST /subscription/downgrade/:subscription_id
+
 - [ ] Sets `downgrade_on_renewal: true`
 - [ ] Subscription auth check works correctly
 
 ### DELETE /subscription/downgrade/:subscription_id (undowngrade)
+
 - [ ] Clears `downgrade_on_renewal` flag
 
 ---
@@ -141,13 +151,16 @@
 ## 7. Card Management
 
 ### GET /card/:user_id/info
+
 - [ ] Requires session auth (no specific permissions)
 - [ ] Returns whether user has a card on file
 
 ### GET /card/:user_id
+
 - [ ] Returns full card record for user
 
 ### POST /card/
+
 - [ ] Creates new card in Square (via card token)
 - [ ] Stores card in `UserCards` table
 - [ ] `sendEmailOnUpdate: true` → sends card-updated email
@@ -159,12 +172,14 @@
 ## 8. Payment Management
 
 ### GET /payment/:user_id
+
 - [ ] Requires `payments_read`
 - [ ] With `all=true` and `payments_read_all` capability → returns all payments
 - [ ] Without `all=true` → returns only the specified user's payments
 - [ ] Pagination works (`page`, `limit`)
 
 ### POST /payment/
+
 - [ ] Requires `payments_create`
 - [ ] Creates charge against user's card on file
 - [ ] Sends payment confirmation email (`sendEmailOnCharge: true`)
@@ -172,6 +187,7 @@
 - [ ] Uses `paymentContext` for correct Square environment
 
 ### POST /payment/refund
+
 - [ ] Requires `payments_create`
 - [ ] Refunds a Square transaction by `transaction_id`
 - [ ] Sends refund email
@@ -182,20 +198,24 @@
 ## 9. Product Management
 
 ### GET /product/:product_id
+
 - [ ] Requires `payments_read`
 - [ ] Returns product by ID
 - [ ] Returns error if product not found
 
 ### GET /product/
+
 - [ ] Requires `payments_read`
 - [ ] Returns all products
 
 ### POST /product/
+
 - [ ] Requires `payments_create`
 - [ ] Creates product with `product_name`, `product_description`, `product_type`, `price`, `data`
 - [ ] `data.user_config` validated against schema (role, is_premium, white_label_id, is_team_plan)
 
 ### POST /product/checkprorated
+
 - [ ] Requires `payments_create`
 - [ ] Calculates prorated cost for plan upgrade/downgrade
 - [ ] Returns correct amount based on time remaining in billing period
@@ -206,6 +226,7 @@
 ## 10. Signup Flow
 
 ### POST /signup/purchasefree
+
 - [ ] Creates new user in auth API without a paid subscription
 - [ ] `isInvestor: true` → role = `INVITEDINVESTOR`, otherwise `AGENT`
 - [ ] Whitelabel correctly mapped from code to ID
@@ -214,6 +235,7 @@
 - [ ] Returns `warning` success for edge cases
 
 ### GET /signup/checkuserexists/:email
+
 - [ ] Returns `{ userExists: false }` for unknown email
 - [ ] Returns `{ userExists: true, offerDowngrade: true }` for premium but inactive user
 - [ ] Returns `{ userExists: true, hasCard: true }` for user with card
@@ -222,25 +244,30 @@
   - ≤6 → plan 2, ≤10 → plan 3, ≤15 → plan 4, ≤20 → plan 5, ≤50 → plan 6, ≤75 → plan 7, ≤100 → plan 8, >100 → plan 9
 
 ### GET /signup/checkslugexists/:slug
+
 - [ ] Returns `{ userExists: false }` if slug is available
 - [ ] Returns `{ userExists: true }` if slug is taken
 - [ ] Proxies to V2 auth API correctly
 
 ### POST /signup/sendreactivation
+
 - [ ] Requires user to be `is_premium: true` AND `active: false`
 - [ ] Sends reactivation email with token URL
 - [ ] Returns error if user not found
 - [ ] Returns error if user is not eligible (active or not premium)
 
 ### GET /signup/products
+
 - [ ] Returns products filtered by `whitelabel` query param
 - [ ] Products without `whitelabel_id` included for all whitelabels (backward compat)
 
 ### GET /signup/whitelabels
+
 - [ ] Returns all whitelabels with branding data
 - [ ] Falls back to default colors/logo if `data` not set
 
 ### GET /signup/getuniqueslug
+
 - [ ] Generates unique slug from `name` query param
 - [ ] Appends suffix if slug already taken
 
@@ -249,6 +276,7 @@
 ## 11. Manage Routes (Self-Service Portal)
 
 ### POST /manage/checkplan
+
 - [ ] Fetches user and validates role compatibility with new product
 - [ ] AGENT/TEAMOWNER → cannot switch to INVESTOR product (returns `ROLE_INCOMPATIBLE`)
 - [ ] INVESTOR → cannot switch to AGENT/TEAMOWNER product
@@ -258,6 +286,7 @@
 - [ ] Returns full context: `product`, `proratedCost`, `team`, `teamUsers`, `numberOfUsers`
 
 ### GET /manage/checktoken/:token
+
 - [ ] Verifies JWT token with correct secret
 - [ ] Fetches user from main API
 - [ ] Sets `_api_token` cookie on response
@@ -265,25 +294,30 @@
 - [ ] Invalid/expired token returns error
 
 ### GET /manage/products
+
 - [ ] Requires session auth
 - [ ] Filters products by user's role compatibility (AGENT/TEAMOWNER vs INVESTOR)
 - [ ] Filters products by user's `whitelabel_id`
 - [ ] Products without role or whitelabel are included (backward compat)
 
 ### GET /manage/whitelabels
+
 - [ ] Requires session auth
 - [ ] Returns all whitelabels with branding data
 
 ### GET /manage/subscription/single
+
 - [ ] Requires session auth
 - [ ] Returns user's active subscription with product details (JOIN)
 - [ ] Returns 404 if no active subscription
 
 ### POST /manage/updatecard
+
 - [ ] Requires session auth
 - [ ] ⚠️ **TODO stub** — currently logs but does not implement Square card update. **Confirm if this is blocking before go-live.**
 
 ### POST /manage/purchase (plan change)
+
 - [ ] Requires session auth
 - [ ] Validates role compatibility of new product
 - [ ] Requires `subscription_id` in body
@@ -298,16 +332,19 @@
 ## 12. Auth Routes
 
 ### POST /auth/login
+
 - [ ] Proxies login to V2 auth API
 - [ ] Sets `_api_token` cookie from V2 response
 - [ ] Returns user data on success
 - [ ] Returns error on failed credentials
 
 ### GET /auth/check
+
 - [ ] Requires session auth
 - [ ] Returns authenticated user data
 
 ### POST /auth/logout
+
 - [ ] Clears `_api_token` cookie
 - [ ] Returns success
 
