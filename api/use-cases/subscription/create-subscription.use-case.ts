@@ -152,6 +152,12 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
           cardId,
           nextRenewalDate: renewalDate,
           source: "API",
+          lineItems: [
+            ...(signupFee > 0 ? [{ description: "Signup Fee", amount: signupFee }] : []),
+            ...(productData.renewal_cost && productData.renewal_cost > 0
+              ? [{ description: product.product_name, amount: productData.renewal_cost }]
+              : []),
+          ],
         })
       )
 

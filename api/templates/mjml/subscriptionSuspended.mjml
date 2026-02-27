@@ -1,69 +1,16 @@
-<mjml>
-  <mj-head>
-    <mj-title>Subscription Suspended</mj-title>
-    <mj-preview>Your subscription has been suspended</mj-preview>
-    <mj-attributes>
-      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" />
-      <mj-text font-size="14px" color="#333333" line-height="1.6" />
-    </mj-attributes>
-  </mj-head>
-  <mj-body background-color="#f3f4f6">
-    <!-- Header -->
-    <mj-section background-color="#1e40af" padding="30px 20px">
-      <mj-column>
-        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="bold">
-          CashOffers
-        </mj-text>
-        <mj-text align="center" color="#93c5fd" font-size="14px">
-          Billing & Subscriptions
-        </mj-text>
-      </mj-column>
-    </mj-section>
-
-    <!-- Warning Icon -->
-    <mj-section background-color="#ffffff" padding="40px 20px 20px">
-      <mj-column>
-        <mj-text align="center" font-size="48px">
-          ⏸️
-        </mj-text>
-        <mj-text align="center" font-size="24px" font-weight="bold" color="#dc2626">
-          Subscription Suspended
-        </mj-text>
-      </mj-column>
-    </mj-section>
-
-    <!-- Details -->
-    <mj-section background-color="#ffffff" padding="20px">
-      <mj-column>
-        <mj-text font-size="16px" padding-bottom="20px">
-          Your subscription <strong>{{subscription}}</strong> has been suspended.
-        </mj-text>
-
-        <mj-text font-size="14px" color="#6b7280" padding-bottom="20px">
-          To reactivate your account, please update your billing information.
-        </mj-text>
-
-        <!-- Update Button -->
-        <mj-button background-color="#dc2626" color="#ffffff" font-size="16px" font-weight="600" border-radius="6px" padding="20px 0" href="{{link}}">
-          Update Billing Information
-        </mj-button>
-
-        <mj-text font-size="12px" color="#6b7280" align="center" padding-top="10px">
-          Once updated, your subscription will be reactivated
-        </mj-text>
-      </mj-column>
-    </mj-section>
-
-    <!-- Footer -->
-    <mj-section background-color="#f9fafb" padding="30px 20px">
-      <mj-column>
-        <mj-text align="center" color="#6b7280" font-size="12px">
-          Need help? Contact support@cashoffers.com
-        </mj-text>
-        <mj-text align="center" color="#9ca3af" font-size="11px" padding-top="10px">
-          © 2024 CashOffers. All rights reserved.
-        </mj-text>
-      </mj-column>
-    </mj-section>
-  </mj-body>
-</mjml>
+<mj-text font-size="22px" font-weight="700" color="#111827" padding-bottom="20px" line-height="1.3">
+  Subscription Suspended
+</mj-text>
+<mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 20px 0" />
+<mj-text font-size="15px" color="#6b7280" padding-bottom="16px">
+  Your subscription <strong>{{subscription}}</strong> has been suspended.
+</mj-text>
+<mj-text font-size="15px" color="#6b7280" padding-bottom="24px">
+  To reactivate your account, please update your billing information.
+</mj-text>
+<mj-button background-color="#dc2626" color="#ffffff" font-size="14px" font-weight="600" border-radius="6px" href="{{link}}" padding="0 0 0 0" inner-padding="13px 24px">
+  Update Billing Information
+</mj-button>
+<mj-text font-size="13px" color="#9ca3af" align="center" padding-top="16px" padding-bottom="0">
+  Once updated, your subscription will be reactivated.
+</mj-text>

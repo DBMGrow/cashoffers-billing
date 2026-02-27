@@ -15,6 +15,7 @@ import { createDualEnvironmentPaymentProvider } from "@api/infrastructure/paymen
 import { createSquareErrorTranslator } from "@api/infrastructure/payment/error/square-error-translator"
 import { createMjmlCompiler } from "@api/infrastructure/email/mjml/mjml-compiler"
 import { createSendGridEmailService } from "@api/infrastructure/email/sendgrid/sendgrid.service"
+import { createSmtpEmailService } from "@api/infrastructure/email/smtp/smtp.service"
 import { createUserApiClient } from "@api/infrastructure/external-api/user-api/user-api.client"
 import { InMemoryEventBus } from "@api/infrastructure/events/in-memory-event-bus"
 import { EmailNotificationHandler } from "@api/application/event-handlers/email-notification.handler"
@@ -55,7 +56,10 @@ export const paymentProvider = createDualEnvironmentPaymentProvider(
 
 export const paymentErrorTranslator = createSquareErrorTranslator()
 
-export const emailService = createSendGridEmailService(config, logger, mjmlCompiler)
+export const emailService =
+  config.nodeEnv === 'development'
+    ? createSmtpEmailService(config, logger, mjmlCompiler)
+    : createSendGridEmailService(config, logger, mjmlCompiler)
 
 export const userApiClient = createUserApiClient(config, logger)
 

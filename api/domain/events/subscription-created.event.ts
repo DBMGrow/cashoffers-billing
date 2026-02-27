@@ -27,6 +27,8 @@ export interface SubscriptionCreatedPayload {
   environment?: 'production' | 'sandbox'
   /** Source of the subscription (API, CRON, ADMIN) */
   source?: string
+  /** Line items for the initial charge */
+  lineItems?: Array<{ description: string; amount: number }>
 }
 
 export class SubscriptionCreatedEvent implements IDomainEvent {

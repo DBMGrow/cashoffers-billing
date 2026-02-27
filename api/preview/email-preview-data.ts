@@ -44,9 +44,26 @@ export const emailPreviews: TemplatePreview[] = [
     subject: "Welcome to CashOffers - Subscription Created",
     variables: {
       subscription: "Premium Plan",
-      amount: "$99.00",
+      amount: "$148.00",
       date: "January 31, 2024",
-      lineItems: "Premium Plan: $99.00<br>Setup Fee: $0.00",
+      lineItems: [
+        `<tr>
+        <td style="color: #374151; font-size: 13px; padding: 0 0 0 16px;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">Signup Fee</div>
+        </td>
+        <td style="text-align: right; font-size: 13px; color: #374151; padding: 0 16px 0 0;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">$49.00</div>
+        </td>
+      </tr>`,
+        `<tr>
+        <td style="color: #374151; font-size: 13px; padding: 0 0 0 16px;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">Premium Plan</div>
+        </td>
+        <td style="text-align: right; font-size: 13px; color: #374151; padding: 0 16px 0 0;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">$99.00</div>
+        </td>
+      </tr>`,
+      ].join("\n"),
     },
     description: "Sent when a new subscription is created",
   },
@@ -56,9 +73,26 @@ export const emailPreviews: TemplatePreview[] = [
     subject: "Subscription Renewed - CashOffers",
     variables: {
       subscription: "Premium Plan",
-      amount: "$99.00",
+      amount: "$148.00",
       date: "January 31, 2024",
-      lineItems: "Premium Plan: $99.00<br>HomeUptick Add-on: $49.00",
+      lineItems: [
+        `<tr>
+        <td style="color: #374151; font-size: 13px; padding: 0 0 0 16px;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">Premium Plan</div>
+        </td>
+        <td style="text-align: right; font-size: 13px; color: #374151; padding: 0 16px 0 0;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">$99.00</div>
+        </td>
+      </tr>`,
+        `<tr>
+        <td style="color: #374151; font-size: 13px; padding: 0 0 0 16px;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">HomeUptick Add-on</div>
+        </td>
+        <td style="text-align: right; font-size: 13px; color: #374151; padding: 0 16px 0 0;">
+          <div style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">$49.00</div>
+        </td>
+      </tr>`,
+      ].join("\n"),
     },
     description: "Sent when a subscription is successfully renewed",
   },

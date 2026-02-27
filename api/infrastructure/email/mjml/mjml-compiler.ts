@@ -1,13 +1,22 @@
 import mjml2html from "mjml"
 import { promises as fs } from "fs"
+import path from "path"
 import { IMjmlCompiler, MjmlCompilationResult } from "./mjml-compiler.interface"
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
+
+const LAYOUT_CONTENT_PLACEHOLDER = "{{{CONTENT}}}"
+const DEFAULT_LAYOUT_FILENAME = "_layout.mjml"
 
 /**
  * MJML Compiler Implementation
  *
  * Compiles MJML templates to responsive HTML emails
  * with variable substitution support.
+ *
+ * Templates that begin with <mjml> are compiled as standalone documents.
+ * All other templates are treated as content fragments and automatically
+ * wrapped in _layout.mjml (from the same directory). Pass layoutPath to
+ * override which layout is used.
  */
 export class MjmlCompiler implements IMjmlCompiler {
   constructor(private readonly logger: ILogger) {}
@@ -39,10 +48,37 @@ export class MjmlCompiler implements IMjmlCompiler {
     }
   }
 
-  async compileFile(templatePath: string, variables?: Record<string, string>): Promise<string> {
+  async compileFile(
+    templatePath: string,
+    variables?: Record<string, string>,
+    layoutPath?: string
+  ): Promise<string> {
     try {
       const mjml = await fs.readFile(templatePath, "utf-8")
-      return await this.compile(mjml, variables)
+      const trimmed = mjml.trimStart()
+
+      // Full MJML document — compile as-is (layout opt-out)
+      if (trimmed.startsWith("<mjml>")) {
+        return this.compile(mjml, variables)
+      }
+
+      // Content fragment — wrap in default layout
+      const effectiveLayoutPath =
+        layoutPath ?? path.join(path.dirname(templatePath), DEFAULT_LAYOUT_FILENAME)
+
+      const layoutMjml = await fs.readFile(effectiveLayoutPath, "utf-8")
+
+      // Inject fragment into layout before variable substitution
+      const combined = layoutMjml.replace(LAYOUT_CONTENT_PLACEHOLDER, trimmed)
+
+      const enrichedVariables: Record<string, string> = {
+        currentYear: String(new Date().getFullYear()),
+        emailTitle: "CashOffers",
+        emailPreview: "",
+        ...variables,
+      }
+
+      return this.compile(combined, enrichedVariables)
     } catch (error) {
       this.logger.error("Failed to read MJML file", {
         templatePath,

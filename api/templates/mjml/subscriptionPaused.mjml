@@ -1,65 +1,13 @@
-<mjml>
-  <mj-head>
-    <mj-title>Subscription Paused</mj-title>
-    <mj-preview>Your subscription has been paused</mj-preview>
-    <mj-attributes>
-      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" />
-      <mj-text font-size="14px" color="#333333" line-height="1.6" />
-    </mj-attributes>
-  </mj-head>
-  <mj-body background-color="#f3f4f6">
-    <!-- Header -->
-    <mj-section background-color="#1e40af" padding="30px 20px">
-      <mj-column>
-        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="bold">
-          CashOffers
-        </mj-text>
-        <mj-text align="center" color="#93c5fd" font-size="14px">
-          Billing & Subscriptions
-        </mj-text>
-      </mj-column>
-    </mj-section>
-
-    <!-- Icon -->
-    <mj-section background-color="#ffffff" padding="40px 20px 20px">
-      <mj-column>
-        <mj-text align="center" font-size="48px">
-          ⏸️
-        </mj-text>
-        <mj-text align="center" font-size="24px" font-weight="bold" color="#f59e0b">
-          Subscription Paused
-        </mj-text>
-      </mj-column>
-    </mj-section>
-
-    <!-- Details -->
-    <mj-section background-color="#ffffff" padding="20px">
-      <mj-column>
-        <mj-text font-size="16px" padding-bottom="20px">
-          Your subscription <strong>{{subscription}}</strong> has been paused.
-        </mj-text>
-
-        <mj-text font-size="14px" color="#6b7280" padding-bottom="20px">
-          To have your subscription reactivated, please contact our support team.
-        </mj-text>
-
-        <!-- Contact Button -->
-        <mj-button background-color="#f59e0b" color="#ffffff" font-size="16px" font-weight="600" border-radius="6px" padding="20px 0" href="mailto:support@cashoffers.com">
-          Contact Support
-        </mj-button>
-      </mj-column>
-    </mj-section>
-
-    <!-- Footer -->
-    <mj-section background-color="#f9fafb" padding="30px 20px">
-      <mj-column>
-        <mj-text align="center" color="#6b7280" font-size="12px">
-          Questions? Contact us at support@cashoffers.com
-        </mj-text>
-        <mj-text align="center" color="#9ca3af" font-size="11px" padding-top="10px">
-          © 2024 CashOffers. All rights reserved.
-        </mj-text>
-      </mj-column>
-    </mj-section>
-  </mj-body>
-</mjml>
+<mj-text font-size="22px" font-weight="700" color="#111827" padding-bottom="20px" line-height="1.3">
+  Subscription Paused
+</mj-text>
+<mj-divider border-color="#e5e7eb" border-width="1px" padding="0 0 20px 0" />
+<mj-text font-size="15px" color="#6b7280" padding-bottom="16px">
+  Your subscription <strong>{{subscription}}</strong> has been paused.
+</mj-text>
+<mj-text font-size="15px" color="#6b7280" padding-bottom="24px">
+  To have your subscription reactivated, please contact our support team.
+</mj-text>
+<mj-button background-color="#d97706" color="#ffffff" font-size="14px" font-weight="600" border-radius="6px" href="mailto:support@cashoffers.com" padding="0 0 0 0" inner-padding="13px 24px">
+  Contact Support
+</mj-button>

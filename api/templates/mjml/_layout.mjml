@@ -1,0 +1,39 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{emailTitle}}</mj-title>
+    <mj-preview>{{emailPreview}}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" />
+      <mj-text font-size="15px" color="#374151" line-height="1.6" padding="0 0 16px 0" />
+      <mj-section padding="0" />
+    </mj-attributes>
+    <mj-style>
+      .detail-table { border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#f7f7f7">
+    <!-- Brand Header -->
+    <mj-section padding="40px 16px 0">
+      <mj-column>
+        <mj-text font-size="18px" font-weight="700" color="#111827" padding="0" letter-spacing="0.2px">
+          CashOffers
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <!-- Main Card -->
+    <mj-section padding="20px 16px 0">
+      <mj-column background-color="#ffffff" border-radius="8px" padding="32px 28px">
+        {{{CONTENT}}}
+      </mj-column>
+    </mj-section>
+    <!-- Footer -->
+    <mj-section padding="20px 16px 48px">
+      <mj-column>
+        <mj-text align="center" color="#9ca3af" font-size="12px" line-height="1.8" padding-bottom="0">
+          Questions? Contact us at <a href="mailto:support@cashoffers.com" style="color:#6b7280;text-decoration:none;">support@cashoffers.com</a><br>
+          &copy; {{currentYear}} CashOffers. All rights reserved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

@@ -60,6 +60,42 @@ export class EmailNotificationHandler extends BaseEventHandler {
       : ''
   }
 
+  /**
+   * Format an amount in cents as a USD currency string
+   */
+  private formatCurrency(amountInCents: number): string {
+    return `$${(amountInCents / 100).toFixed(2)}`
+  }
+
+  /**
+   * Format current date as a human-readable string
+   */
+  private formatDate(): string {
+    return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
+  /**
+   * Build HTML table rows for line items to inject into the receipt-style email table
+   */
+  private formatLineItemsHtml(lineItems?: Array<{ description: string; amount: number }>): string {
+    if (!lineItems || lineItems.length === 0) return ''
+    return lineItems
+      .map((item, index) => {
+        const isLast = index === lineItems.length - 1
+        const borderColor = isLast ? '#e5e7eb' : '#f3f4f6'
+        const formattedAmount = this.formatCurrency(item.amount)
+        return `<tr>
+        <td style="color: #374151; font-size: 13px; padding: 0 0 0 16px;">
+          <div style="padding: 10px 0; border-bottom: 1px solid ${borderColor};">${item.description}</div>
+        </td>
+        <td style="text-align: right; font-size: 13px; color: #374151; padding: 0 16px 0 0;">
+          <div style="padding: 10px 0; border-bottom: 1px solid ${borderColor};">${formattedAmount}</div>
+        </td>
+      </tr>`
+      })
+      .join('\n')
+  }
+
   async handle(event: IDomainEvent): Promise<void> {
     switch (event.eventType) {
       case 'SubscriptionCreated':
@@ -110,7 +146,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
   ): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, productName, amount, initialChargeAmount, environment } = event.payload
+        const { email, productName, amount, initialChargeAmount, environment, lineItems } = event.payload
+        const chargedAmount = initialChargeAmount ?? amount
 
         this.logger.info('Sending subscription created email', {
           email,
@@ -123,9 +160,10 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject('Welcome to CashOffers!', environment),
           template: 'subscriptionCreated.html',
           fields: {
-            productName,
-            amount: (initialChargeAmount || amount) / 100,
-            subscriptionId: event.payload.subscriptionId,
+            subscription: productName,
+            amount: this.formatCurrency(chargedAmount),
+            date: this.formatDate(),
+            lineItems: this.formatLineItemsHtml(lineItems),
             environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })
@@ -140,7 +178,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   ): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, productName, amount, nextRenewalDate, environment } = event.payload
+        const { email, productName, amount, environment, lineItems } = event.payload
 
         this.logger.info('Sending subscription renewal email', {
           email,
@@ -153,10 +191,10 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject('Your CashOffers Subscription Has Been Renewed', environment),
           template: 'subscriptionRenewal.html',
           fields: {
-            productName,
-            amount: amount / 100,
-            nextRenewalDate: nextRenewalDate?.toISOString(),
-            subscriptionId: event.payload.subscriptionId,
+            subscription: productName,
+            amount: this.formatCurrency(amount),
+            date: this.formatDate(),
+            lineItems: this.formatLineItemsHtml(lineItems),
             environmentDisclaimer: this.getEnvironmentDisclaimer(environment),
           },
         })

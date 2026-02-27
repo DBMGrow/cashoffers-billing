@@ -161,14 +161,10 @@ describe("MjmlCompiler", () => {
   })
 
   describe("compileFile", () => {
-    it("should compile existing MJML file", async () => {
-      const templatePath = path.join(
-        process.cwd(),
-        "src",
-        "templates",
-        "mjml",
-        "payment-confirmation.mjml"
-      )
+    const templatesDir = path.join(process.cwd(), "api", "templates", "mjml")
+
+    it("should compile fragment template wrapped in default layout", async () => {
+      const templatePath = path.join(templatesDir, "payment-confirmation.mjml")
 
       const html = await compiler.compileFile(templatePath, {
         amount: "$250.00",
@@ -180,30 +176,65 @@ describe("MjmlCompiler", () => {
       expect(html).toContain("TXN-12345")
       expect(html).toContain("2024-01-15")
       expect(html).toContain("<!doctype html>")
+      // Layout footer should be injected automatically
+      expect(html).toContain("support@cashoffers.com")
+      expect(html).toContain("CashOffers")
     })
 
-    it("should throw error for non-existent file", async () => {
-      const fakePath = path.join(
-        process.cwd(),
-        "src",
-        "templates",
-        "mjml",
-        "non-existent.mjml"
-      )
+    it("should apply default emailTitle and currentYear from layout", async () => {
+      const templatePath = path.join(templatesDir, "refund.mjml")
 
-      await expect(
-        compiler.compileFile(fakePath, {})
-      ).rejects.toThrow("Failed to read MJML file")
+      const html = await compiler.compileFile(templatePath, {
+        amount: "$50.00",
+        date: "2024-01-15",
+      })
+
+      expect(html).toContain("<!doctype html>")
+      expect(html).toContain(String(new Date().getFullYear()))
     })
 
-    it("should compile payment error template", async () => {
-      const templatePath = path.join(
-        process.cwd(),
-        "src",
-        "templates",
-        "mjml",
-        "payment-error.mjml"
-      )
+    it("should allow overriding emailTitle via variables", async () => {
+      const templatePath = path.join(templatesDir, "refund.mjml")
+
+      const html = await compiler.compileFile(templatePath, {
+        amount: "$50.00",
+        date: "2024-01-15",
+        emailTitle: "Your Refund Confirmation",
+      })
+
+      expect(html).toContain("Your Refund Confirmation")
+    })
+
+    it("should compile standalone template as-is (layout opt-out)", async () => {
+      const templatePath = path.join(templatesDir, "daily-health-report.mjml")
+
+      const html = await compiler.compileFile(templatePath, {
+        emailTitle: "Health Report",
+        reportDate: "2024-01-15",
+        totalRenewalsToday: "5",
+        successfulRenewals: "4",
+        failedRenewals: "1",
+        totalRevenueToday: "$500.00",
+        pendingRetries: "1",
+        activeSubscriptions: "100",
+        pausedSubscriptions: "2",
+        cancelledSubscriptions: "1",
+        newSubscriptionsToday: "3",
+        successRate: "80%",
+        systemStatus: "healthy",
+        databaseStatus: "ok",
+        squareApiStatus: "ok",
+        sendgridStatus: "ok",
+        recentErrors: "none",
+        upcomingRenewals24h: "10",
+      })
+
+      expect(html).toContain("<!doctype html>")
+      expect(html).toContain("Health Report")
+    })
+
+    it("should compile payment error template as fragment", async () => {
+      const templatePath = path.join(templatesDir, "payment-error.mjml")
 
       const html = await compiler.compileFile(templatePath, {
         amount: "$250.00",
@@ -217,6 +248,14 @@ describe("MjmlCompiler", () => {
       expect(html).toContain("Your card was declined by your bank")
       expect(html).toContain("Try a different payment method")
       expect(html).toContain("<!doctype html>")
+    })
+
+    it("should throw error for non-existent file", async () => {
+      const fakePath = path.join(templatesDir, "non-existent.mjml")
+
+      await expect(
+        compiler.compileFile(fakePath, {})
+      ).rejects.toThrow("Failed to read MJML file")
     })
   })
 

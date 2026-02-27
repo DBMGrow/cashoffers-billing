@@ -93,6 +93,16 @@ const buildConfig = (): IConfig => {
     },
 
     adminEmail: process.env.ADMIN_EMAIL || process.env.DEV_EMAIL!, // Backward compatibility
+
+    smtp: {
+      host: process.env.SMTP_HOST || "localhost",
+      port: parseInt(process.env.SMTP_PORT || "1025", 10),
+      secure: process.env.SMTP_SECURE === "true",
+      user: process.env.SMTP_USER || undefined,
+      pass: process.env.SMTP_PASS || undefined,
+      fromEmail: process.env.SMTP_FROM_EMAIL || undefined,
+    },
+
     cronSecret: process.env.CRON_SECRET || "default-cron-secret",
   }
 }

@@ -25,6 +25,8 @@ export interface SubscriptionRenewedPayload {
   attemptNumber?: number
   /** Whether this was a retry after a failed attempt */
   wasRetry?: boolean
+  /** Line items for the renewal charge */
+  lineItems?: Array<{ description: string; amount: number }>
 }
 
 export class SubscriptionRenewedEvent implements IDomainEvent {

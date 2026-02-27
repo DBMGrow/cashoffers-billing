@@ -37,7 +37,7 @@ async function generatePreviews() {
   const logger = new ConsoleLogger()
   const compiler = new MjmlCompiler(logger)
 
-  const templatesDir = path.join(process.cwd(), "src", "templates", "mjml")
+  const templatesDir = path.join(process.cwd(), "api", "templates", "mjml")
   const previewsDir = path.join(process.cwd(), "email-previews")
 
   // Create previews directory
@@ -67,12 +67,7 @@ async function generatePreviews() {
       const outputPath = path.join(previewsDir, fileName)
 
       // Wrap in a nice preview frame
-      const wrappedHtml = createPreviewWrapper(
-        preview.name,
-        preview.subject,
-        preview.description,
-        html
-      )
+      const wrappedHtml = createPreviewWrapper(preview.name, preview.subject, preview.description, html)
 
       await fs.writeFile(outputPath, wrappedHtml, "utf-8")
 
@@ -91,23 +86,14 @@ async function generatePreviews() {
 
   // Generate index page
   const indexHtml = createIndexPage(generatedPreviews)
-  await fs.writeFile(
-    path.join(previewsDir, "index.html"),
-    indexHtml,
-    "utf-8"
-  )
+  await fs.writeFile(path.join(previewsDir, "index.html"), indexHtml, "utf-8")
 
   logger.info(`\n✓ Generated ${generatedPreviews.length} email previews`)
   logger.info(`✓ Open: email-previews/index.html`)
   logger.info(`\nYou can open the index in your browser to view all templates.`)
 }
 
-function createPreviewWrapper(
-  name: string,
-  subject: string,
-  description: string,
-  emailHtml: string
-): string {
+function createPreviewWrapper(name: string, subject: string, description: string, emailHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

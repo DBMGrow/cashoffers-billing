@@ -222,7 +222,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           transactionId: transactionId || undefined,
           cardId: cardId || undefined,
           nextRenewalDate: newRenewalDate,
-          environment: paymentEnvironment, // Include environment in event
+          environment: paymentEnvironment,
+          lineItems: lineItems.map((item) => ({ description: item.item, amount: item.price })),
         })
       )
 

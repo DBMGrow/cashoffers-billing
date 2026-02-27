@@ -78,6 +78,16 @@ export interface IConfig {
   // Deprecated - use email.devEmail instead (defaults to devEmail if adminEmail not set)
   adminEmail: string
 
+  // SMTP (local development only)
+  smtp?: {
+    host: string
+    port: number
+    secure: boolean
+    user?: string
+    pass?: string
+    fromEmail?: string
+  }
+
   // Cron
   cronSecret: string
 }

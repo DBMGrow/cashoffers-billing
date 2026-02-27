@@ -24,11 +24,20 @@ export interface IMjmlCompiler {
   /**
    * Compile MJML file to HTML
    *
+   * Templates that begin with <mjml> are compiled as standalone documents.
+   * All other templates are treated as content fragments and automatically
+   * wrapped in _layout.mjml (from the same directory).
+   *
    * @param templatePath Path to MJML template file
    * @param variables Optional variables to inject into template
+   * @param layoutPath Optional path to override the default layout
    * @returns Compiled HTML email
    */
-  compileFile(templatePath: string, variables?: Record<string, string>): Promise<string>
+  compileFile(
+    templatePath: string,
+    variables?: Record<string, string>,
+    layoutPath?: string
+  ): Promise<string>
 }
 
 /**
