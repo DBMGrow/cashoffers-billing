@@ -5,11 +5,14 @@ import { EmailText } from './components/email-text'
 import { SummaryTable } from './components/summary-table'
 import { SummaryRow } from './components/summary-row'
 import { ActionButton } from './components/action-button'
+import { InfoBox } from './components/info-box'
 
 export interface SubscriptionRenewalFailedEmailProps {
   subscription: string
   date: string
   link: string
+  /** Amount that was attempted, if known */
+  amount?: string
   isSandbox?: boolean
 }
 
@@ -17,6 +20,7 @@ export default function SubscriptionRenewalFailedEmail({
   subscription,
   date,
   link,
+  amount,
   isSandbox,
 }: SubscriptionRenewalFailedEmailProps) {
   return (
@@ -28,18 +32,21 @@ export default function SubscriptionRenewalFailedEmail({
       <EmailHeading>Subscription Renewal Failed</EmailHeading>
       <EmailDivider />
       <EmailText>
-        There was an issue renewing your subscription. Please update your billing information to
-        avoid service interruption.
+        We were unable to renew your subscription. Please update your billing information to
+        restore access and avoid suspension.
       </EmailText>
 
       <SummaryTable>
+        <SummaryRow isHeader label="Renewal Details" value="" />
         <SummaryRow label="Subscription" value={subscription} />
-        <SummaryRow label="Date" value={date} bordered={false} />
+        <SummaryRow label="Failed On" value={date} />
+        {amount && <SummaryRow isTotal label="Amount Due" value={amount} bordered={false} />}
       </SummaryTable>
 
-      <EmailText style={{ marginTop: '20px' }}>
-        Please confirm your billing information is correct and update it if needed.
-      </EmailText>
+      <InfoBox variant="warning" title="Action required">
+        Update your payment method below, then contact your bank to authorize the charge if needed.
+        Your subscription will be suspended if this is not resolved.
+      </InfoBox>
 
       <ActionButton href={link} variant="danger">
         Update Billing Information
@@ -56,4 +63,5 @@ SubscriptionRenewalFailedEmail.PreviewProps = {
   subscription: 'Premium Monthly',
   date: 'January 31, 2024',
   link: 'https://billing.cashoffers.com/payment',
+  amount: '$99.00',
 } satisfies SubscriptionRenewalFailedEmailProps

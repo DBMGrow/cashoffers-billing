@@ -38,10 +38,7 @@ function ProductCard({ product, whitelabel = "iop" }: ProductCardProps) {
             <p>{product.product_description || "Premium subscription plan"}</p>
           </div>
         </div>
-        <Link
-          className="w-full flex flex-col"
-          href={"/subscribe?product=" + product.product_id + (whitelabel ? `&w=${whitelabel}` : "")}
-        >
+        <Link className="w-full flex flex-col" href={`/${whitelabel}/subscribe/${product.product_id}`}>
           <ThemeButton color="primary">Sign Up</ThemeButton>
         </Link>
       </CardBody>

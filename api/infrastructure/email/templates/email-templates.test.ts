@@ -164,26 +164,42 @@ describe('SubscriptionRenewalFailedEmail', () => {
 // ─── Subscription Cancelled ─────────────────────────────────────────────────
 
 describe('SubscriptionCancelledEmail', () => {
-  it('renders user name and email', async () => {
+  it('renders subscription name and cancellation heading', async () => {
     const html = await renderTemplate(SubscriptionCancelledEmail, {
-      name: 'John Doe',
-      email: 'john.doe@example.com',
+      subscription: 'Premium Monthly',
     })
-    expect(html).toContain('John Doe')
-    expect(html).toContain('john.doe@example.com')
+    expect(html).toContain('Premium Monthly')
+    expect(html).toContain('Cancellation')
+  })
+
+  it('renders effective date when provided', async () => {
+    const html = await renderTemplate(SubscriptionCancelledEmail, {
+      subscription: 'Premium Monthly',
+      effectiveDate: 'February 28, 2024',
+    })
+    expect(html).toContain('February 28, 2024')
   })
 })
 
 // ─── Subscription Downgraded ────────────────────────────────────────────────
 
 describe('SubscriptionDowngradedEmail', () => {
-  it('renders user name and email', async () => {
+  it('renders current subscription name', async () => {
     const html = await renderTemplate(SubscriptionDowngradedEmail, {
-      name: 'Jane Smith',
-      email: 'jane.smith@example.com',
+      subscription: 'Premium Annual',
     })
-    expect(html).toContain('Jane Smith')
-    expect(html).toContain('jane.smith@example.com')
+    expect(html).toContain('Premium Annual')
+    expect(html).toContain('Downgrade')
+  })
+
+  it('renders target plan and effective date when provided', async () => {
+    const html = await renderTemplate(SubscriptionDowngradedEmail, {
+      subscription: 'Premium Annual',
+      targetPlan: 'Premium Monthly',
+      effectiveDate: 'February 28, 2024',
+    })
+    expect(html).toContain('Premium Monthly')
+    expect(html).toContain('February 28, 2024')
   })
 })
 

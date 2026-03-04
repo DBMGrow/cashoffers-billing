@@ -1,7 +1,6 @@
 import FormsLayout from "@/app/(forms)/FormsLayout"
 import { WhitelabelType } from "@/types/forms"
-
-const validWhitelabelCodes: WhitelabelType[] = ["default", "kw", "yhs", "uco", "eco", "mop", "platinum"]
+import { db } from "@api/lib/database"
 
 interface WhitelabelLayoutProps {
   children: React.ReactNode
@@ -10,9 +9,19 @@ interface WhitelabelLayoutProps {
 
 export default async function WhitelabelLayout({ children, params }: WhitelabelLayoutProps) {
   const { whitelabel_code } = await params
-  const whitelabel = validWhitelabelCodes.includes(whitelabel_code as WhitelabelType)
-    ? (whitelabel_code as WhitelabelType)
-    : "default"
 
-  return <FormsLayout whitelabel={whitelabel}>{children}</FormsLayout>
+  const row = await db
+    .selectFrom("Whitelabels")
+    .select(["code", "data"])
+    .where("code", "=", whitelabel_code)
+    .executeTakeFirst()
+
+  const whitelabel = (row?.code ?? "default") as WhitelabelType
+  const branding = row?.data as { primary_color?: string; secondary_color?: string; logo_url?: string } | null
+
+  return (
+    <FormsLayout whitelabel={whitelabel} branding={branding}>
+      {children}
+    </FormsLayout>
+  )
 }

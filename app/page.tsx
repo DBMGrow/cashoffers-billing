@@ -5,7 +5,7 @@ import { Card, CardBody } from "@/components/Theme/Card"
 import Pricing from "@/components/UI/LandingPage/Pricing"
 import Link from "next/link"
 
-export default function Home() {
+export default function Home({ whitelabel }: { whitelabel?: string }) {
   return (
     <div>
       <div className="fixed w-screen h-screen bg-default-100 -z-10"></div>
@@ -27,7 +27,7 @@ export default function Home() {
             <div className="pt-10 w-full text-center">
               <h2>Pricing</h2>
             </div>
-            <Pricing whitelabel="default" />
+            <Pricing whitelabel={whitelabel || "default"} />
           </CardBody>
         </Card>
       </section>

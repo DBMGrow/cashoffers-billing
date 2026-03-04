@@ -19,7 +19,7 @@ import type { SubscriptionDowngradedEvent } from '@api/domain/events/subscriptio
 import SubscriptionCreatedEmail from '@api/infrastructure/email/templates/subscription-created.email'
 import SubscriptionRenewalEmail from '@api/infrastructure/email/templates/subscription-renewal.email'
 import PaymentConfirmationEmail from '@api/infrastructure/email/templates/payment-confirmation.email'
-import SubscriptionRenewalFailedEmail from '@api/infrastructure/email/templates/subscription-renewal-failed.email'
+import PaymentErrorEmail from '@api/infrastructure/email/templates/payment-error.email'
 import RefundEmail from '@api/infrastructure/email/templates/refund.email'
 import CardUpdatedEmail from '@api/infrastructure/email/templates/card-updated.email'
 import SubscriptionSuspendedEmail from '@api/infrastructure/email/templates/subscription-suspended.email'
@@ -230,19 +230,23 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentFailed(event: PaymentFailedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, errorMessage, environment } = event.payload
+        const { email, amount, errorMessage, errorCode, errorCategory, subscriptionId, cardLast4, environment } = event.payload
 
         this.logger.info('Sending payment failed email', {
           email,
-          subscriptionId: event.payload.subscriptionId,
+          subscriptionId,
           environment,
         })
 
         const html = await render(
-          <SubscriptionRenewalFailedEmail
-            subscription={`Subscription #${event.payload.subscriptionId}`}
+          <PaymentErrorEmail
+            amount={this.formatCurrency(amount)}
+            errorMessage={errorMessage}
+            declineReason={errorCode ?? errorCategory}
+            subscription={subscriptionId ? `Subscription #${subscriptionId}` : undefined}
+            cardLast4={cardLast4}
+            updatePaymentUrl="https://billing.cashoffers.com"
             date={this.formatDate()}
-            link="https://billing.cashoffers.com"
             isSandbox={this.isSandbox(environment)}
           />
         )
@@ -251,7 +255,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           to: email,
           subject: this.formatSubject('Payment Failed - Action Required', environment),
           html,
-          templateName: 'subscription-renewal-failed',
+          templateName: 'payment-error',
         })
       },
       event,
@@ -262,7 +266,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentRefunded(event: PaymentRefundedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, environment } = event.payload
+        const { email, amount, environment, externalRefundId } = event.payload
 
         this.logger.info('Sending payment refunded email', {
           email,
@@ -273,7 +277,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
         const html = await render(
           <RefundEmail
             amount={this.formatCurrency(amount)}
-            date={new Date().toLocaleDateString()}
+            date={this.formatDate()}
+            transactionId={externalRefundId}
             isSandbox={this.isSandbox(environment)}
           />
         )
@@ -357,7 +362,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePropertyUnlocked(event: PropertyUnlockedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, externalTransactionId } = event.payload
+        const { email, amount, externalTransactionId, propertyAddress } = event.payload
 
         this.logger.info('Sending property unlocked email', {
           email,
@@ -368,7 +373,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
           <PaymentConfirmationEmail
             amount={this.formatCurrency(amount)}
             transactionID={externalTransactionId}
-            date={new Date().toLocaleDateString()}
+            date={this.formatDate()}
+            description={propertyAddress ? `Property Unlock — ${propertyAddress}` : 'Property Unlock'}
           />
         )
 
@@ -405,6 +411,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           <SubscriptionSuspendedEmail
             subscription={subscriptionName ?? 'your subscription'}
             link="https://billing.cashoffers.com"
+            date={this.formatDate()}
           />
         )
 
@@ -438,7 +445,10 @@ export class EmailNotificationHandler extends BaseEventHandler {
         })
 
         const html = await render(
-          <SubscriptionPausedEmail subscription={subscriptionName ?? 'your subscription'} />
+          <SubscriptionPausedEmail
+            subscription={subscriptionName ?? 'your subscription'}
+            date={this.formatDate()}
+          />
         )
 
         await this.emailService.sendEmail({
@@ -456,7 +466,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionCancelled(event: SubscriptionCancelledEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, subscriptionName } = event.payload
+        const { email, subscriptionName, effectiveDate } = event.payload
 
         if (!email) {
           this.logger.debug('No email provided for subscription cancellation notification', {
@@ -470,12 +480,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
-        // This is an admin notification — send to admin with user info
-        // TODO: once admin email config is available in events, use it here
         const html = await render(
           <SubscriptionCancelledEmail
-            name={email}
-            email={email}
+            subscription={subscriptionName ?? 'your subscription'}
+            effectiveDate={
+              effectiveDate
+                ? effectiveDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                : undefined
+            }
           />
         )
 
@@ -494,7 +506,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionDowngraded(event: SubscriptionDowngradedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, currentSubscriptionName } = event.payload
+        const { email, currentSubscriptionName, targetProductName, effectiveDate } = event.payload
 
         if (!email) {
           this.logger.debug('No email provided for subscription downgrade notification', {
@@ -508,12 +520,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
-        // This is an admin notification — send to admin with user info
-        // TODO: once admin email config is available in events, use it here
         const html = await render(
           <SubscriptionDowngradedEmail
-            name={email}
-            email={email}
+            subscription={currentSubscriptionName ?? 'your subscription'}
+            targetPlan={targetProductName}
+            effectiveDate={
+              effectiveDate
+                ? effectiveDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                : undefined
+            }
           />
         )
 

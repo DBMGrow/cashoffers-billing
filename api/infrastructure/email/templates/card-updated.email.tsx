@@ -4,6 +4,7 @@ import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
 import { SummaryTable } from './components/summary-table'
 import { SummaryRow } from './components/summary-row'
+import { InfoBox } from './components/info-box'
 
 export interface CardUpdatedEmailProps {
   /** Message describing the card action (added vs. updated) */
@@ -35,9 +36,10 @@ export default function CardUpdatedEmail({
         <SummaryRow label="Updated On" value={date} bordered={false} />
       </SummaryTable>
 
-      <EmailText variant="muted" style={{ marginTop: '20px', marginBottom: '0' }}>
-        If you have any questions about this update, please contact support.
-      </EmailText>
+      <InfoBox variant="info" title="Didn't make this change?">
+        If you did not make this change, please contact our support team at
+        support@cashoffers.com immediately to secure your account.
+      </InfoBox>
     </StandardEmail>
   )
 }

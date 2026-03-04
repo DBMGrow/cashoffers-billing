@@ -9,6 +9,7 @@ export interface SubscriptionPlanUpdatedEmailProps {
   subscription: string
   amount: string
   date: string
+  transactionID?: string
   isSandbox?: boolean
 }
 
@@ -16,6 +17,7 @@ export default function SubscriptionPlanUpdatedEmail({
   subscription,
   amount,
   date,
+  transactionID,
   isSandbox,
 }: SubscriptionPlanUpdatedEmailProps) {
   return (
@@ -26,16 +28,26 @@ export default function SubscriptionPlanUpdatedEmail({
     >
       <EmailHeading>Subscription Plan Updated</EmailHeading>
       <EmailDivider />
-      <EmailText>Your subscription plan has been changed.</EmailText>
+      <EmailText>
+        Your subscription plan has been changed successfully. Your new plan is now active.
+      </EmailText>
 
       <SummaryTable>
-        <SummaryRow label="Subscription" value={subscription} />
-        <SummaryRow label="Renewal Amount" value={amount} isTotal />
-        <SummaryRow label="Next Renewal Date" value={date} bordered={false} />
+        <SummaryRow label="Effective Date" value={date} bordered={false} />
+        {transactionID && (
+          <SummaryRow label="Transaction ID" value={transactionID} bordered={false} />
+        )}
+      </SummaryTable>
+
+      <SummaryTable>
+        <SummaryRow isHeader label="Plan Details" value="" />
+        <SummaryRow label="New Plan" value={subscription} />
+        <SummaryRow label="Next Renewal Date" value={date} />
+        <SummaryRow isTotal label="Renewal Amount" value={amount} bordered={false} />
       </SummaryTable>
 
       <EmailText variant="muted" style={{ marginTop: '20px', marginBottom: '0' }}>
-        Your new plan is now active.
+        Your next renewal will be charged at the amount shown above.
       </EmailText>
     </StandardEmail>
   )
@@ -45,4 +57,5 @@ SubscriptionPlanUpdatedEmail.PreviewProps = {
   subscription: 'Premium Monthly',
   amount: '$99.00',
   date: 'February 28, 2024',
+  transactionID: 'txn_1234567890',
 } satisfies SubscriptionPlanUpdatedEmailProps

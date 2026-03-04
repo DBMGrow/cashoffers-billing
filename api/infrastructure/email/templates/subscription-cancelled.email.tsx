@@ -2,40 +2,54 @@ import { StandardEmail } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
+import { SummaryTable } from './components/summary-table'
+import { SummaryRow } from './components/summary-row'
 
 export interface SubscriptionCancelledEmailProps {
-  /** Admin recipient name for context */
-  name: string
-  /** User email for context */
-  email: string
+  subscription: string
+  /** Date when access ends / cancellation takes effect */
+  effectiveDate?: string
+  isSandbox?: boolean
 }
 
 /**
- * Admin notification sent when a user sets their subscription to cancel on renewal.
- * This email goes to the admin, not the user.
+ * User notification sent when their subscription is set to cancel on renewal.
  */
 export default function SubscriptionCancelledEmail({
-  name,
-  email,
+  subscription,
+  effectiveDate,
+  isSandbox,
 }: SubscriptionCancelledEmailProps) {
   return (
     <StandardEmail
-      title="Subscription Cancellation"
-      preview={`${name} has set their subscription to cancel on renewal.`}
+      title="Subscription Cancellation Scheduled"
+      preview={`Your ${subscription} subscription is scheduled to cancel at the end of your billing period.`}
+      isSandbox={isSandbox}
     >
-      <EmailHeading>Subscription Cancellation</EmailHeading>
+      <EmailHeading>Subscription Cancellation Scheduled</EmailHeading>
       <EmailDivider />
       <EmailText>
-        The user <strong>{name}</strong> ({email}) has set their subscription to cancel on renewal.
+        Your subscription has been set to cancel. You will continue to have full access until the
+        end of your current billing period — no further charges will be made after that date.
       </EmailText>
-      <EmailText variant="muted" style={{ marginBottom: '0' }}>
-        The subscription will remain active until the end of the current billing period.
+
+      <SummaryTable>
+        <SummaryRow isHeader label="Cancellation Details" value="" />
+        <SummaryRow label="Subscription" value={subscription} />
+        {effectiveDate && (
+          <SummaryRow label="Access Ends On" value={effectiveDate} bordered={false} />
+        )}
+      </SummaryTable>
+
+      <EmailText variant="muted" style={{ marginTop: '20px', marginBottom: '0' }}>
+        If you change your mind, please contact our support team before the cancellation takes
+        effect.
       </EmailText>
     </StandardEmail>
   )
 }
 
 SubscriptionCancelledEmail.PreviewProps = {
-  name: 'Jane Smith',
-  email: 'jane.smith@example.com',
+  subscription: 'Premium Monthly',
+  effectiveDate: 'February 28, 2024',
 } satisfies SubscriptionCancelledEmailProps
