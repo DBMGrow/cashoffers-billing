@@ -3,6 +3,7 @@
 import { UseFormReturn } from "react-hook-form"
 import type { SubscribeFormData } from "@/types/forms"
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk"
+import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 interface CardStepProps {
   form: UseFormReturn<SubscribeFormData>
@@ -11,6 +12,12 @@ interface CardStepProps {
 }
 
 export default function CardStep({ form, onNext, onBack }: CardStepProps) {
+  const { currentWhitelabel } = useWhitelabel()
+
+  console.log(currentWhitelabel)
+
+  const primaryColor = currentWhitelabel?.primary_color || "#4d9cb9"
+
   const paymentFormProps = {
     applicationId: process.env.NEXT_PUBLIC_SQUARE_APP_ID!,
     locationId: process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID!,
@@ -22,7 +29,7 @@ export default function CardStep({ form, onNext, onBack }: CardStepProps) {
 
   const buttonProps = {
     style: {
-      backgroundColor: "#4d9cb9",
+      backgroundColor: primaryColor,
       borderRadius: "0.5rem",
       boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
     },

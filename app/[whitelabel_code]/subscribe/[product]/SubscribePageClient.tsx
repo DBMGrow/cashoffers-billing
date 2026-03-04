@@ -3,6 +3,7 @@
 import SubscribeFlow from "@/components/forms/subscribe/SubscribeFlow"
 import { useSearchParams } from "next/navigation"
 import { WhitelabelType } from "@/types/forms"
+import { WhitelabelProvider } from "@/providers/WhitelabelProvider"
 
 interface SubscribePageClientProps {
   whitelabel: WhitelabelType
@@ -15,8 +16,8 @@ export default function SubscribePageClient({ whitelabel, product }: SubscribePa
   const mockPurchase = searchParams.get("mock_purchase") === "true"
 
   return (
-    <>
+    <WhitelabelProvider initialWhitelabel={whitelabel}>
       <SubscribeFlow initialProduct={product} whitelabel={whitelabel} coupon={coupon} mockPurchase={mockPurchase} />
-    </>
+    </WhitelabelProvider>
   )
 }

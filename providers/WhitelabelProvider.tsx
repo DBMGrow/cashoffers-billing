@@ -17,9 +17,11 @@ export interface WhitelabelBrandingData {
 export interface Whitelabel {
   whitelabel_id: number
   code: string
+  logo_url: string | null
   name: string
+  primary_color: string | null
+  secondary_color: string | null
   suspension_behavior: "DEACTIVATE_USER" | "DOWNGRADE_TO_FREE"
-  data?: WhitelabelBrandingData | null
 }
 
 interface WhitelabelContextType {
@@ -31,22 +33,16 @@ interface WhitelabelContextType {
   refetch: () => void
 }
 
-const WhitelabelContext = createContext<WhitelabelContextType | undefined>(
-  undefined
-)
+const WhitelabelContext = createContext<WhitelabelContextType | undefined>(undefined)
 
 interface WhitelabelProviderProps {
   children: ReactNode
   initialWhitelabel?: string
 }
 
-export function WhitelabelProvider({
-  children,
-  initialWhitelabel = "default",
-}: WhitelabelProviderProps) {
+export function WhitelabelProvider({ children, initialWhitelabel = "default" }: WhitelabelProviderProps) {
   const [whitelabels, setWhitelabels] = useState<Whitelabel[]>([])
-  const [currentWhitelabel, setCurrentWhitelabel] =
-    useState<Whitelabel | null>(null)
+  const [currentWhitelabel, setCurrentWhitelabel] = useState<Whitelabel | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,9 +63,7 @@ export function WhitelabelProvider({
         setWhitelabels(data.data)
 
         // Set initial whitelabel
-        const initial = data.data.find(
-          (wl: Whitelabel) => wl.code === initialWhitelabel
-        )
+        const initial = data.data.find((wl: Whitelabel) => wl.code === initialWhitelabel)
         setCurrentWhitelabel(initial || data.data[0] || null)
       } else {
         throw new Error(data.error || "Failed to load whitelabels")
