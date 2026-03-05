@@ -14,8 +14,6 @@ interface CardStepProps {
 export default function CardStep({ form, onNext, onBack }: CardStepProps) {
   const { currentWhitelabel } = useWhitelabel()
 
-  console.log(currentWhitelabel)
-
   const primaryColor = currentWhitelabel?.primary_color || "#4d9cb9"
 
   const paymentFormProps = {

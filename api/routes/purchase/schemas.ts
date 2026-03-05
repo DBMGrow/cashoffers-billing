@@ -75,14 +75,13 @@ export const PurchaseProductSchema = z.object({
 /**
  * User details (returned from API)
  */
-export const PurchaseUserSchema = z
-  .object({
-    user_id: z.number(),
-    email: z.string(),
-    phone: z.string().nullable().optional(),
-    active: z.union([z.number(), z.boolean()]).optional(),
-  })
-  .passthrough()
+export const PurchaseUserSchema = z.object({
+  user_id: z.number(),
+  email: z.string(),
+  phone: z.string().nullable().optional(),
+  active: z.union([z.number(), z.boolean()]).optional(),
+  reset_token: z.string(),
+})
 
 /**
  * User card details

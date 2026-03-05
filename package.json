@@ -20,7 +20,9 @@
     "preview:emails": "email dev --dir api/infrastructure/email/templates",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p api/tsconfig.json",
     "typecheck:api": "tsc --noEmit -p api/tsconfig.json",
-    "typecheck:next": "tsc --noEmit -p tsconfig.json"
+    "typecheck:next": "tsc --noEmit -p tsconfig.json",
+    "migrate:product-config": "npx tsx api/scripts/migrate-product-user-config.ts",
+    "migrate:whitelabel-marketing": "npx tsx api/scripts/migrate-whitelabel-marketing-website.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",

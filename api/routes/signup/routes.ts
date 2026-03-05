@@ -18,6 +18,8 @@ import { db } from "@api/lib/database"
 import { setCookie } from "hono/cookie"
 import { emailService } from "@api/lib/services"
 import { checkSlugExists } from "./utils"
+import { generateResetToken } from "@api/utils/generate-reset-token"
+import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -43,9 +45,7 @@ app.openapi(PurchaseFreeRoute, async (c) => {
     const whitelabelId = whitelabelIds[body.whitelabel || "default"] ?? 1
 
     // Generate reset token
-    const resetToken =
-      Math.random().toString(36).substring(2, 10).toUpperCase() +
-      Math.random().toString(36).substring(2, 10).toUpperCase()
+    const resetToken = generateResetToken()
 
     const role = body.isInvestor ? "INVITEDINVESTOR" : "AGENT"
 
@@ -61,6 +61,7 @@ app.openapi(PurchaseFreeRoute, async (c) => {
         slug: body.slug,
         role,
         reset_token: resetToken,
+        reset_created: formatMySQLDatetime(),
         is_premium: 0,
         whitelabel_id: whitelabelId,
       },
@@ -385,6 +386,7 @@ app.openapi(GetWhitelabelsRoute, async (c) => {
       primary_color: wl.data?.primary_color || "#4d9cb9",
       secondary_color: wl.data?.secondary_color || "#ec8b33",
       logo_url: wl.data?.logo_url || "/assets/logos/default-logo.png",
+      marketing_website: wl.data?.marketing_website || "/",
     }))
 
     return c.json(

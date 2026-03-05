@@ -3,6 +3,7 @@ import { BaseEventHandler } from '@api/infrastructure/events/base-event-handler'
 import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
 import type { IEmailService } from '@api/infrastructure/email/email-service.interface'
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
+import { whitelabelResolverService } from '@api/lib/services'
 import type { SubscriptionCreatedEvent } from '@api/domain/events/subscription-created.event'
 import type { SubscriptionRenewedEvent } from '@api/domain/events/subscription-renewed.event'
 import type { PaymentProcessedEvent } from '@api/domain/events/payment-processed.event'
@@ -123,7 +124,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, productName, amount, initialChargeAmount, environment, lineItems, externalTransactionId } = event.payload
+        const { email, userId, productName, amount, initialChargeAmount, environment, lineItems, externalTransactionId } = event.payload
         const chargedAmount = initialChargeAmount ?? amount
 
         this.logger.info('Sending subscription created email', {
@@ -131,6 +132,9 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
           environment,
         })
+
+        // Fetch whitelabel for this user
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
         const html = await render(
           <SubscriptionCreatedEmail
@@ -140,6 +144,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             date={this.formatDate()}
             transactionID={externalTransactionId}
             isSandbox={this.isSandbox(environment)}
+            whitelabel={whitelabelInfo.branding}
           />
         )
 
@@ -158,13 +163,16 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionRenewed(event: SubscriptionRenewedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, productName, amount, environment, lineItems, externalTransactionId } = event.payload
+        const { email, userId, productName, amount, environment, lineItems, externalTransactionId } = event.payload
 
         this.logger.info('Sending subscription renewal email', {
           email,
           subscriptionId: event.payload.subscriptionId,
           environment,
         })
+
+        // Fetch whitelabel for this user
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
         const html = await render(
           <SubscriptionRenewalEmail
@@ -174,6 +182,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             date={this.formatDate()}
             transactionID={externalTransactionId}
             isSandbox={this.isSandbox(environment)}
+            whitelabel={whitelabelInfo.branding}
           />
         )
 

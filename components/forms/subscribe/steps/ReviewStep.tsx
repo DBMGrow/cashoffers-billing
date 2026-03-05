@@ -56,12 +56,8 @@ export default function ReviewStep({
   const monthlyPrice = (productData?.data?.renewal_cost || 0) / 100
   const signupFeeAmount = (productData?.data?.signup_fee || 0) / 100
 
-  // Apply coupon logic
-  let signupFee = signupFeeAmount > 0
-  if (formData.coupon === "CPStart" || product === 12) signupFee = false
-
   const productPrice = monthlyPrice
-  const priceToday = signupFee ? productPrice + signupFeeAmount : productPrice
+  const priceToday = productPrice + signupFeeAmount
 
   const handleSubmitFree = async () => {
     setAllowReset(false)
@@ -87,6 +83,22 @@ export default function ReviewStep({
     }
 
     onNext()
+  }
+
+  const isCardError = (code?: string): boolean => {
+    const cardErrorCodes = [
+      "CARD_CREATION_FAILED",
+      "PUR08",
+      "CARD_DECLINED",
+      "CVV_FAILURE",
+      "ADDRESS_VERIFICATION_FAILURE",
+      "INSUFFICIENT_FUNDS",
+      "EXPIRED_CARD",
+      "INVALID_CARD",
+      "INVALID_EXPIRATION",
+      "CARD_NOT_SUPPORTED",
+    ]
+    return code ? cardErrorCodes.includes(code) : false
   }
 
   const handleSubmit = async () => {
@@ -125,16 +137,22 @@ export default function ReviewStep({
 
     console.log("Purchase result:", result)
 
-    if (result.code === "PUR08") {
-      onError("We were unable to process your card. Please ensure your card information is correct.")
-      setAllowReset(true)
+    if (result.success !== "success") {
+      // Card error - user should confirm their billing info and retry
+      if (isCardError(result.code)) {
+        onError("We were unable to process your card. Please verify your card information and try again.")
+        setAllowReset(true)
+        return
+      }
+
+      // System error - redirect to generic error page
+      router.push(process.env.NEXT_PUBLIC_DASHBOARD_URL + "/error?type=system")
       return
     }
 
-    if (result.success !== "success") {
-      onError("Error processing payment. Please try again.")
-      setAllowReset(true)
-      return
+    const resetToken = result.data?.user?.reset_token
+    if (resetToken) {
+      router.push(process.env.NEXT_PUBLIC_DASHBOARD_URL + "/login/welcome?token=" + resetToken)
     }
 
     onNext()

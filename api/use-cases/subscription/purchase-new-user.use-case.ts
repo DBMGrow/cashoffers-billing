@@ -30,6 +30,8 @@ import {
   publishPurchaseEvents,
   createCardHelper,
 } from "./purchase-helpers"
+import { generateResetToken } from "@api/utils/generate-reset-token"
+import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
 
 interface Dependencies {
   logger: ILogger
@@ -213,6 +215,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     cardIdString: string
   ): Promise<number> {
     try {
+      const resetToken = generateResetToken()
+
       const newUser = await this.deps.userApiClient.createUser({
         email: v.email,
         name: v.name || v.cardholderName,
@@ -220,6 +224,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         is_premium: userConfig?.is_premium,
         role: userConfig?.role,
         whitelabel_id: userConfig?.whitelabel_id ?? 4,
+        reset_token: resetToken,
+        reset_created: formatMySQLDatetime(),
       })
       const userId = newUser.id
       this.deps.logger.info("New user created", { userId })

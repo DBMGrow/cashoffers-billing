@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -12,6 +12,7 @@ export interface SubscriptionDowngradedEmailProps {
   /** Date when the downgrade takes effect */
   effectiveDate?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 /**
@@ -22,12 +23,14 @@ export default function SubscriptionDowngradedEmail({
   targetPlan,
   effectiveDate,
   isSandbox,
+  whitelabel,
 }: SubscriptionDowngradedEmailProps) {
   return (
     <StandardEmail
       title="Subscription Downgrade Scheduled"
       preview={`Your ${subscription} subscription is scheduled to change at the end of your billing period.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Subscription Downgrade Scheduled</EmailHeading>
       <EmailDivider />

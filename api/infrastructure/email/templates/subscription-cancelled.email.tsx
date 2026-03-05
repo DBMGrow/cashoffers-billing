@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -10,6 +10,7 @@ export interface SubscriptionCancelledEmailProps {
   /** Date when access ends / cancellation takes effect */
   effectiveDate?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 /**
@@ -19,12 +20,14 @@ export default function SubscriptionCancelledEmail({
   subscription,
   effectiveDate,
   isSandbox,
+  whitelabel,
 }: SubscriptionCancelledEmailProps) {
   return (
     <StandardEmail
       title="Subscription Cancellation Scheduled"
       preview={`Your ${subscription} subscription is scheduled to cancel at the end of your billing period.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Subscription Cancellation Scheduled</EmailHeading>
       <EmailDivider />

@@ -25,6 +25,7 @@ import { PremiumDeactivationHandler } from "@api/application/event-handlers/prem
 import { createHealthMetricsService } from "@api/domain/services/health-metrics.service"
 import { createHealthReportService } from "@api/domain/services/health-report.service"
 import { createCriticalAlertService } from "@api/domain/services/critical-alert.service"
+import { createWhitelabelResolverService } from "@api/domain/services/whitelabel-resolver.service"
 
 // Base logger (console only — no DB dependency)
 const baseLogger = createLogger({ service: "cashoffers-billing" }, config.nodeEnv === "production" ? "info" : "debug")
@@ -69,6 +70,8 @@ export const healthMetricsService = createHealthMetricsService(
 export const healthReportService = createHealthReportService(healthMetricsService, emailService, logger)
 
 export const criticalAlertService = createCriticalAlertService(emailService, config, logger)
+
+export const whitelabelResolverService = createWhitelabelResolverService(db)
 
 // Register event handlers
 const emailNotificationHandler = new EmailNotificationHandler(emailService, logger)

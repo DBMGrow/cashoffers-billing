@@ -64,6 +64,7 @@ export interface User {
   is_premium: boolean
   created_at: string
   updated_at: string
+  reset_token?: string
 }
 
 /**
@@ -80,4 +81,7 @@ export interface CreateUserRequest {
   is_premium?: 0 | 1
   role?: string
   whitelabel_id?: number
+  // Password reset fields
+  reset_token?: string
+  reset_created?: string
 }

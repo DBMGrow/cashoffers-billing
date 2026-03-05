@@ -275,6 +275,7 @@ app.openapi(GetWhitelabelsRoute, async (c) => {
       primary_color: wl.data?.primary_color || "#4d9cb9",
       secondary_color: wl.data?.secondary_color || "#ec8b33",
       logo_url: wl.data?.logo_url || "/assets/logos/default-logo.png",
+      marketing_website: wl.data?.marketing_website || "/",
     }))
 
     return c.json(

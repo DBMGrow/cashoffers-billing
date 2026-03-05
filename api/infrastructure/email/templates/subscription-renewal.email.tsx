@@ -1,4 +1,4 @@
-import { StandardEmail } from "./components/standard-email"
+import { StandardEmail, type WhitelabelBrandingProps } from "./components/standard-email"
 import { EmailHeading } from "./components/email-heading"
 import { EmailDivider } from "./components/email-divider"
 import { EmailText } from "./components/email-text"
@@ -13,6 +13,7 @@ export interface SubscriptionRenewalEmailProps {
   date: string
   transactionID?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 export default function SubscriptionRenewalEmail({
@@ -22,12 +23,14 @@ export default function SubscriptionRenewalEmail({
   date,
   transactionID,
   isSandbox,
+  whitelabel,
 }: SubscriptionRenewalEmailProps) {
   return (
     <StandardEmail
       title="Subscription Renewed"
       preview={`Your ${subscription} subscription has been renewed. ${amount} charged.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Subscription Renewed</EmailHeading>
       <EmailDivider />

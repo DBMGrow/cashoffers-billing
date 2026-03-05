@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -10,18 +10,21 @@ export interface SubscriptionPausedEmailProps {
   subscription: string
   date?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 export default function SubscriptionPausedEmail({
   subscription,
   date,
   isSandbox,
+  whitelabel,
 }: SubscriptionPausedEmailProps) {
   return (
     <StandardEmail
       title="Subscription Paused"
       preview={`Your ${subscription} subscription has been paused.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Subscription Paused</EmailHeading>
       <EmailDivider />

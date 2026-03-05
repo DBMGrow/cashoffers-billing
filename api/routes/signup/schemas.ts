@@ -194,6 +194,7 @@ export const WhitelabelsResponseSchema = z.object({
       primary_color: z.string().optional(),
       secondary_color: z.string().optional(),
       logo_url: z.string().optional(),
+      marketing_website: z.string().optional(),
     })
   ),
 })
