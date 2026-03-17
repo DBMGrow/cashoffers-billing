@@ -37,6 +37,8 @@ export default function authMiddleware(permissions, options) {
     let permissionsCheck = true
     if (permissions) permissionsCheck = permissions.every((permission) => tokenOwnerCaps.includes(permission))
 
+    console.log("user", { user }, { permissionsCheck }, { authCheck })
+
     if (!authCheck) return res.json({ success: "error", error: "0000E: Unauthorized" })
     if (!permissionsCheck) return res.json({ success: "error", error: "0000F: Unauthorized" })
 
