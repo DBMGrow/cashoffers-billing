@@ -1,15 +1,18 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { TransactionRepository } from "@api/lib/repositories"
+import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IResumeSubscriptionUseCase } from "./resume-subscription.use-case.interface"
 import { ResumeSubscriptionInput, ResumeSubscriptionOutput } from "../types/subscription.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { ResumeSubscriptionInputSchema } from "../types/validation.schemas"
+import { SubscriptionResumedEvent } from "@api/domain/events/subscription-resumed.event"
 
 interface Dependencies {
   logger: ILogger
   subscriptionRepository: SubscriptionRepository
   transactionRepository: TransactionRepository
+  eventBus?: IEventBus
 }
 
 /**
@@ -18,14 +21,16 @@ interface Dependencies {
  * Resumes a suspended subscription with:
  * - Input validation
  * - Subscription lookup and validation
+ * - Renewal date adjustment based on time paused
  * - Status update to "active"
  * - Transaction logging
+ * - SubscriptionResumedEvent published
  */
 export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: ResumeSubscriptionInput): Promise<UseCaseResult<ResumeSubscriptionOutput>> {
-    const { logger, subscriptionRepository, transactionRepository } = this.deps
+    const { logger, subscriptionRepository, transactionRepository, eventBus } = this.deps
     const startTime = Date.now()
 
     try {
@@ -56,12 +61,31 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         return failure("Only suspended subscriptions can be resumed", "INVALID_STATUS")
       }
 
-      // Update subscription status
       const now = new Date()
-      const updated = await subscriptionRepository.update(validatedInput.subscriptionId, {
+
+      // Calculate adjusted renewal date if suspension_date is available
+      let newRenewalDate: Date | undefined
+      if (subscription.suspension_date && subscription.renewal_date) {
+        const suspensionDate = new Date(subscription.suspension_date)
+        const originalRenewalDate = new Date(subscription.renewal_date)
+        const daysRemaining = Math.round(
+          (originalRenewalDate.getTime() - suspensionDate.getTime()) / (1000 * 60 * 60 * 24)
+        )
+        newRenewalDate = new Date(now)
+        newRenewalDate.setDate(now.getDate() + daysRemaining)
+      }
+
+      // Update subscription status
+      const updateData: Record<string, unknown> = {
         status: "active",
+        suspension_date: null,
         updatedAt: now,
-      })
+      }
+      if (newRenewalDate) {
+        updateData.renewal_date = newRenewalDate
+      }
+
+      const updated = await subscriptionRepository.update(validatedInput.subscriptionId, updateData as any)
 
       // Log transaction
       await transactionRepository.create({
@@ -75,8 +99,20 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         updatedAt: now,
       })
 
+      // Publish SubscriptionResumedEvent
+      if (eventBus) {
+        await eventBus.publish(
+          SubscriptionResumedEvent.create({
+            subscriptionId: subscription.subscription_id,
+            userId: subscription.user_id,
+            newRenewalDate,
+          })
+        )
+      }
+
       logger.info("Subscription resumed successfully", {
         subscriptionId: validatedInput.subscriptionId,
+        newRenewalDate,
         duration: Date.now() - startTime,
       })
 

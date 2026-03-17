@@ -68,6 +68,7 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
       const now = new Date()
       const updated = await subscriptionRepository.update(validatedInput.subscriptionId, {
         status: "suspended",
+        suspension_date: now,
         updatedAt: now,
       })
 

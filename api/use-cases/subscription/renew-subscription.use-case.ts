@@ -17,6 +17,9 @@ import { SubscriptionMapper } from "@api/domain"
 import { SubscriptionRenewedEvent } from "@api/domain/events/subscription-renewed.event"
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PaymentFailedEvent } from "@api/domain/events/payment-failed.event"
+import { SubscriptionPausedEvent } from "@api/domain/events/subscription-paused.event"
+import type { IHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.interface"
+import type { ProductData } from "@api/domain/types/product-data.types"
 
 interface Dependencies {
   logger: ILogger
@@ -29,6 +32,7 @@ interface Dependencies {
   config: IConfigService
   transactionManager: ITransactionManager
   eventBus: IEventBus
+  homeUptickApiClient?: IHomeUptickApiClient
 }
 
 interface LineItem {
@@ -111,8 +115,32 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
       let totalAmount = subscription.amount || 0
 
-      // TODO: Add HomeUptick addon support when we have the service abstraction
-      // For now, we'll just use the base subscription amount
+      // Add HomeUptick addon charge if enabled in product data
+      const subscriptionData = subscription.data ? JSON.parse(subscription.data as string) : {}
+      const productData: ProductData | undefined = subscriptionData?.productData
+      const huConfig = productData?.homeuptick
+
+      if (huConfig?.enabled && this.deps.homeUptickApiClient) {
+        const baseContacts = huConfig.base_contacts ?? 100
+        const contactsPerTier = huConfig.contacts_per_tier ?? 1000
+        const pricePerTier = huConfig.price_per_tier ?? 0
+
+        const contacts = await this.deps.homeUptickApiClient.getClientCount(subscription.user_id!)
+
+        let tier = 1
+        if (contacts > baseContacts) {
+          tier = Math.ceil((contacts - baseContacts) / contactsPerTier) + 1
+        }
+
+        const huAddon = (tier - 1) * pricePerTier
+        if (huAddon > 0) {
+          totalAmount += huAddon
+          lineItems.push({
+            item: `HomeUptick — Tier ${tier} (${contacts} contacts)`,
+            price: huAddon,
+          })
+        }
+      }
 
       // Convert to domain entity
       const subscriptionEntity = SubscriptionMapper.toDomain(subscription as any)
@@ -389,6 +417,31 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       // Update next renewal attempt with escalating retry logic
       const nextAttempt = this.calculateNextRetryAttempt(subscription.next_renewal_attempt)
       const now = new Date()
+
+      if (nextAttempt === null) {
+        // Auto-suspend after too many retries
+        await subscriptionRepository.update(subscriptionId, {
+          status: 'suspended',
+          next_renewal_attempt: null,
+          suspension_date: now,
+          updatedAt: now,
+        } as any)
+
+        await eventBus.publish(
+          SubscriptionPausedEvent.create({
+            subscriptionId,
+            userId: subscription.user_id!,
+            email,
+            reason: 'payment_failed',
+            pausedBy: 'system',
+            previousStatus: 'active',
+          })
+        )
+
+        logger.info("Subscription auto-suspended after repeated payment failures", { subscriptionId })
+        return
+      }
+
       await subscriptionRepository.update(subscriptionId, {
         next_renewal_attempt: nextAttempt,
         updatedAt: now,
@@ -436,30 +489,33 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     }
   }
 
-  private calculateNextRetryAttempt(lastAttempt: Date | null): Date {
+  private calculateNextRetryAttempt(lastAttempt: Date | null): Date | null {
     const today = new Date()
 
     if (!lastAttempt) {
-      // First failure, retry in 1 day
+      // First failure: retry in 1 day
       const nextAttempt = new Date(today)
       nextAttempt.setDate(today.getDate() + 1)
       return nextAttempt
     }
 
-    // Calculate days since last attempt
     const daysWaited = (today.getTime() - new Date(lastAttempt).getTime()) / (1000 * 60 * 60 * 24)
 
-    let daysToAdd = 7 // Default to 7 days
-
-    if (daysWaited <= 1) {
-      daysToAdd = 1 // First retry after 1 day
-    } else if (daysWaited <= 4) {
-      daysToAdd = 3 // Second retry after 3 days
+    if (daysWaited < 2) {
+      // 2nd failure (~1 day gap): retry in 3 days
+      const nextAttempt = new Date(today)
+      nextAttempt.setDate(today.getDate() + 3)
+      return nextAttempt
     }
-    // After that, retry every 7 days
 
-    const nextAttempt = new Date(today)
-    nextAttempt.setDate(today.getDate() + daysToAdd)
-    return nextAttempt
+    if (daysWaited < 7) {
+      // 3rd failure (~3-6 day gap): retry in 7 days
+      const nextAttempt = new Date(today)
+      nextAttempt.setDate(today.getDate() + 7)
+      return nextAttempt
+    }
+
+    // 4th failure (7+ days gap): auto-suspend
+    return null
   }
 }

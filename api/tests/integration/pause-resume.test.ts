@@ -150,6 +150,7 @@ describe('ResumeSubscriptionUseCase — renewal date adjustment', () => {
       logger,
       subscriptionRepository: subscriptionRepository as any,
       transactionRepository: transactionRepository as any,
+      eventBus,
     })
   })
 
