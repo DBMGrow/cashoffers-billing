@@ -90,6 +90,9 @@ export interface IConfig {
 
   // Cron
   cronSecret: string
+
+  // Webhooks
+  webhookSecret?: string
 }
 
 /**

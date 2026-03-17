@@ -522,6 +522,44 @@ export const DowngradeSubscriptionRoute = {
 }
 
 /**
+ * POST /subscription/retry-renewal/:subscription_id - Admin: immediately retry renewal
+ */
+export const RetryRenewalRoute = {
+  method: "post" as const,
+  path: "/retry-renewal/{subscription_id}",
+  request: {
+    params: SubscriptionIdParamSchema,
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SuccessResponseSchema(
+            z.object({ subscriptionId: z.number(), success: z.boolean() })
+          ),
+        },
+      },
+      description: "Renewal retried",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request or subscription not found",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Forbidden - admin only",
+    },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Internal server error",
+    },
+  },
+  tags: ["Subscriptions"],
+  summary: "Retry renewal (admin)",
+  description: "Immediately retry renewal for a subscription. Requires payments_create permission (admin).",
+}
+
+/**
  * POST /subscription/undowngrade/:subscription_id - Remove downgrade flag
  */
 export const UndowngradeSubscriptionRoute = {

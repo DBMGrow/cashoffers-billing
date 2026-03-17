@@ -104,6 +104,8 @@ const buildConfig = (): IConfig => {
     },
 
     cronSecret: process.env.CRON_SECRET || "default-cron-secret",
+
+    webhookSecret: process.env.CASHOFFERS_WEBHOOK_SECRET,
   }
 }
 

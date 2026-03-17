@@ -10,7 +10,9 @@ import {
   cancelOnRenewalUseCase,
   markForDowngradeUseCase,
   deactivateSubscriptionUseCase,
+  renewSubscriptionUseCase,
 } from "@api/use-cases/subscription"
+import { subscriptionRepository } from "@api/lib/repositories"
 import { executeUseCase } from "../helpers/use-case-handler"
 import { checkSubscriptionAuthorization } from "../helpers/subscription-auth"
 import {
@@ -25,6 +27,7 @@ import {
   UncancelSubscriptionRoute,
   DowngradeSubscriptionRoute,
   UndowngradeSubscriptionRoute,
+  RetryRenewalRoute,
 } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -226,6 +229,27 @@ app.openapi(UndowngradeSubscriptionRoute, async (c) => {
       downgrade: false,
     })
   )
+})
+
+// Retry renewal (admin)
+app.use("/retry-renewal/:subscription_id", authMiddleware("payments_create"))
+app.openapi(RetryRenewalRoute, async (c) => {
+  const { subscription_id } = c.req.valid("param")
+  const subscriptionId = Number(subscription_id)
+
+  const sub = await subscriptionRepository.findById(subscriptionId)
+  if (!sub) {
+    return c.json({ success: "error" as const, error: "Subscription not found", code: "NOT_FOUND" }, 400 as const)
+  }
+
+  const user = c.get("user")
+  const email = user?.email || ""
+
+  const result = await renewSubscriptionUseCase.execute({ subscriptionId, email })
+  return c.json({
+    success: "success" as const,
+    data: { subscriptionId, success: result.success },
+  }, 200 as const)
 })
 
 export const subscriptionRoutes = app

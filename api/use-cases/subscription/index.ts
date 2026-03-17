@@ -1,4 +1,4 @@
-import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient } from '@api/lib/services'
+import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient } from '@api/lib/services'
 import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository } from '@api/lib/repositories'
 import { CreateSubscriptionUseCase } from './create-subscription.use-case'
 import { RenewSubscriptionUseCase } from './renew-subscription.use-case'
@@ -36,6 +36,7 @@ export const renewSubscriptionUseCase = new RenewSubscriptionUseCase({
   config: configService,
   transactionManager,
   eventBus,
+  homeUptickApiClient,
 })
 
 export const pauseSubscriptionUseCase = new PauseSubscriptionUseCase({
@@ -51,6 +52,7 @@ export const resumeSubscriptionUseCase = new ResumeSubscriptionUseCase({
   logger,
   subscriptionRepository,
   transactionRepository,
+  eventBus,
 })
 
 export const cancelOnRenewalUseCase = new CancelOnRenewalUseCase({

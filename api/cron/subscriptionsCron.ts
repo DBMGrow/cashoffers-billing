@@ -1,8 +1,9 @@
 import axios from "axios"
 import { config } from "@api/config/config.service"
-import { logger, emailService } from "@api/lib/services"
+import { logger, emailService, eventBus } from "@api/lib/services"
 import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
+import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 
 export default async function subscriptionsCron() {
   // Create child logger with cron context
@@ -94,6 +95,37 @@ export default async function subscriptionsCron() {
           subscriptionId: subscriptionData.subscription_id,
         })
       }
+    }
+    // Expire trials whose renewal_date has passed
+    try {
+      const expiredTrials = await subscriptionRepository.findExpiredTrials(new Date())
+      cronLogger.info('Expired trials to process', { count: expiredTrials.length })
+
+      for (const trial of expiredTrials) {
+        try {
+          const now = new Date()
+          await subscriptionRepository.update(trial.subscription_id, {
+            status: 'cancelled',
+            updatedAt: now,
+          } as any)
+
+          await eventBus.publish(
+            SubscriptionCancelledEvent.create({
+              subscriptionId: trial.subscription_id,
+              userId: trial.user_id!,
+              subscriptionName: trial.subscription_name ?? undefined,
+              reason: 'trial_expired',
+              cancelOnRenewal: false,
+            })
+          )
+
+          cronLogger.info('Expired trial cancelled', { subscriptionId: trial.subscription_id })
+        } catch (err: any) {
+          cronLogger.error('Failed to expire trial', err, { subscriptionId: trial.subscription_id })
+        }
+      }
+    } catch (err: any) {
+      cronLogger.error('Error processing expired trials', err)
     }
   } catch (error: any) {
     cronLogger.error('Fatal error in subscriptions cron', error)

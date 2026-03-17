@@ -20,6 +20,8 @@ import { authRoutes } from "./routes/auth/routes"
 import { signupRoutes } from "./routes/signup/routes"
 import { manageRoutes } from "./routes/manage/routes"
 import { testRoutes } from "./routes/test/routes"
+import { webhookRoutes } from "./routes/webhooks/routes"
+import "./lib/late-handlers"
 
 // Import middleware
 import { errorHandler } from "./lib/middleware/errorHandler"
@@ -50,9 +52,10 @@ app.route("/auth", authRoutes)
 app.route("/signup", signupRoutes)
 app.route("/manage", manageRoutes)
 app.route("/test", testRoutes)
+app.route("/webhooks", webhookRoutes)
 
 // OpenAPI documentation endpoints
-app.doc("/openapi.json", (c) => ({
+app.doc("/openapi.json", (_c) => ({
   openapi: "3.0.0",
   info: {
     title: "CashOffers Billing API",

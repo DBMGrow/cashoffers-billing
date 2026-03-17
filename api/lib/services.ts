@@ -3,7 +3,6 @@ import {
   billingLogRepository,
   transactionRepository,
   subscriptionRepository,
-  whitelabelRepository,
 } from "@api/lib/repositories"
 import { config } from "@api/config/config.service"
 import type { IConfigService } from "@api/config/config.interface"
@@ -20,8 +19,9 @@ import { InMemoryEventBus } from "@api/infrastructure/events/in-memory-event-bus
 import { EmailNotificationHandler } from "@api/application/event-handlers/email-notification.handler"
 import { TransactionLoggingHandler } from "@api/application/event-handlers/transaction-logging.handler"
 import { LogFlushHandler } from "@api/application/event-handlers/log-flush.handler"
-import { PremiumActivationHandler } from "@api/application/event-handlers/premium-activation.handler"
-import { PremiumDeactivationHandler } from "@api/application/event-handlers/premium-deactivation.handler"
+import { CashOffersAccountHandler } from "@api/application/service-handlers/cashoffers/cashoffers-account.handler"
+import { HomeUptickAccountHandler } from "@api/application/service-handlers/homeuptick/homeuptick-account.handler"
+import { createHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.client"
 import { createHealthMetricsService } from "@api/domain/services/health-metrics.service"
 import { createHealthReportService } from "@api/domain/services/health-report.service"
 import { createCriticalAlertService } from "@api/domain/services/critical-alert.service"
@@ -60,6 +60,7 @@ export const emailService =
     : createSendGridEmailService(config, logger)
 
 export const userApiClient = createUserApiClient(config, logger)
+export const homeUptickApiClient = createHomeUptickApiClient(config, logger)
 
 export const healthMetricsService = createHealthMetricsService(
   transactionRepository,
@@ -77,13 +78,8 @@ export const whitelabelResolverService = createWhitelabelResolverService(db)
 const emailNotificationHandler = new EmailNotificationHandler(emailService, logger)
 const transactionLoggingHandler = new TransactionLoggingHandler(transactionRepository, logger)
 const logFlushHandler = new LogFlushHandler(logger as DatabaseLogger, logger)
-const premiumActivationHandler = new PremiumActivationHandler(userApiClient, logger)
-const premiumDeactivationHandler = new PremiumDeactivationHandler(
-  userApiClient,
-  whitelabelRepository,
-  subscriptionRepository,
-  logger
-)
+const cashOffersAccountHandler = new CashOffersAccountHandler(userApiClient, logger)
+const homeUptickAccountHandler = new HomeUptickAccountHandler(homeUptickApiClient, logger)
 
 eventBus.subscribe("SubscriptionCreated", emailNotificationHandler)
 eventBus.subscribe("SubscriptionRenewed", emailNotificationHandler)
@@ -98,11 +94,23 @@ eventBus.subscribe("PaymentFailed", transactionLoggingHandler)
 
 eventBus.subscribe("RequestCompleted", logFlushHandler)
 
-eventBus.subscribe("SubscriptionCreated", premiumActivationHandler)
-eventBus.subscribe("SubscriptionRenewed", premiumActivationHandler)
+// CashOffers account management (replaces PremiumActivation/Deactivation handlers)
+eventBus.subscribe("SubscriptionCreated", cashOffersAccountHandler)
+eventBus.subscribe("SubscriptionRenewed", cashOffersAccountHandler)
+eventBus.subscribe("SubscriptionResumed", cashOffersAccountHandler)
+eventBus.subscribe("SubscriptionUpgraded", cashOffersAccountHandler)
+eventBus.subscribe("SubscriptionPaused", cashOffersAccountHandler)
+eventBus.subscribe("SubscriptionDeactivated", cashOffersAccountHandler)
+eventBus.subscribe("SubscriptionCancelled", cashOffersAccountHandler)
 
-eventBus.subscribe("SubscriptionDeactivated", premiumDeactivationHandler)
-eventBus.subscribe("SubscriptionPaused", premiumDeactivationHandler)
+// HomeUptick account management
+eventBus.subscribe("SubscriptionCreated", homeUptickAccountHandler)
+eventBus.subscribe("SubscriptionRenewed", homeUptickAccountHandler)
+eventBus.subscribe("SubscriptionResumed", homeUptickAccountHandler)
+eventBus.subscribe("SubscriptionPaused", homeUptickAccountHandler)
+eventBus.subscribe("SubscriptionDeactivated", homeUptickAccountHandler)
+eventBus.subscribe("SubscriptionCancelled", homeUptickAccountHandler)
+
 
 export const configService: IConfigService = {
   get: (key: string) => {

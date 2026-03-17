@@ -162,7 +162,7 @@ export class SubscriptionRepository {
     }, trx)
   }
 
-  async markForDowngrade(id: number, downgradeToProductId: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
+  async markForDowngrade(id: number, _downgradeToProductId: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>> {
     return await this.update(id, {
       downgrade_on_renewal: 1,
       // Note: downgrade_to_product_id doesn't exist in schema, storing in meta or data
@@ -195,6 +195,16 @@ export class SubscriptionRepository {
           eb('renewal_date', '<=', date)
         ])
       )
+      .selectAll()
+      .execute()
+  }
+
+  async findExpiredTrials(date: Date, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    return await db
+      .selectFrom('Subscriptions')
+      .where('status', '=', 'trial')
+      .where('renewal_date', '<=', date)
       .selectAll()
       .execute()
   }
