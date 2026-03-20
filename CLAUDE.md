@@ -1,259 +1,40 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Billing and subscription management service for CashOffers. Handles payment processing (Square), subscription lifecycle, and user configuration.
 
-## Project Overview
+**Read [docs/README.md](docs/README.md) before making changes.**
 
-This is a billing and subscription management service for CashOffers, built with Express.js and MySQL. It handles payment processing through Square, subscription lifecycle management, and integrates with a separate main API for user data.
+## Code Rules
 
-## Development Commands
-
-### Running the Application
-
-```bash
-npm run dev          # Start with hot-reload using tsx --watch
-npm start            # Start without hot-reload
-```
-
-### Building and Testing
-
-```bash
-npm run build        # Type-check TypeScript (no build artifacts, noEmit: true)
-npm test             # Run test suite with Vitest
-```
-
-### Database
-
-```bash
-npm run codegen      # Generate Kysely types from database schema to api/lib/db.d.ts
-```
-
-### Email Templates
-
-```bash
-npm run preview:emails   # Generate HTML previews of all MJML email templates
-```
-
-After generating previews, open `email-previews/index.html` in your browser to view all templates with desktop/mobile toggle.
+- **No `process.env` in application code** — use `@api/config/config.service`
+- **`@api/` alias** for all backend imports (no relative paths)
+- **Amounts in cents** — $25.00 = `2500`
+- **Business logic in use cases** — routes are thin, never put logic in route handlers
+- TypeScript is type-check only (`noEmit: true`) — no build artifacts
 
 ## Architecture
 
-### Core Payment Flow
+Clean Architecture: Routes → Use Cases → Domain → Infrastructure
 
-The service orchestrates complex payment workflows involving user creation, card management, and subscription handling:
-
-1. **New User Purchase** (`api/routes/purchase.js`):
-   - Validates product and user existence
-   - Creates card via Square API if needed
-   - Creates new user in main API if they don't exist
-   - Handles prorated charges for subscription upgrades
-   - Creates subscription via `handlePurchase`
-
-2. **Subscription Management** (`api/routes/subscription.js`):
-   - CRUD operations for subscriptions
-   - Pause/resume functionality
-   - Cancel/downgrade on renewal flags
-   - Self-service actions with permission checks
-
-3. **Payment Processing** (`api/utils/createPayment.js`):
-   - Square API integration for charges
-   - Transaction logging
-   - Email notifications
-   - Line-item support for multi-part charges
-
-### Subscription Renewal System
-
-Subscription renewals are handled by a cron job (`api/cron/subscriptionsCron.js`) that:
-
-- Finds subscriptions due for renewal
-- Fetches user data from main API
-- Processes payment via `handlePaymentOfSubscription`
-- Handles addon subscriptions (e.g., HomeUptick)
-- Updates renewal dates
-- Implements retry logic with escalating intervals (1 day, 3 days, then 7 days)
-- Skips inactive users
-
-Key behaviors:
-
-- Subscriptions with `cancel_on_renewal: true` are cancelled instead of renewed
-- Subscriptions with `downgrade_on_renewal: true` are downgraded
-- Failed payments trigger retry scheduling via `updateNextRenewalAttempt`
-
-### Authentication & Authorization
-
-`api/middleware/authMiddleware.js` implements a capability-based permission system:
-
-- Validates requests against main API's user data
-- Supports permission strings (e.g., `"payments_create"`)
-- `allowSelf: true` option allows users to access their own data
-- Token owner vs. resource owner distinction (allows admins to act on behalf of users)
-
-### External Dependencies
-
-- **Square API** (`api/config/square.js`): Payment processing
-- **Main API**: User management, fetched via `process.env.API_URL`
-- **SendGrid** (`api/utils/sendEmail.js`): Email notifications with HTML templates in `api/templates/`
-
-### Module Aliases
-
-TypeScript and runtime both use `@api/` alias for `api/` directory:
-
-- Import backend code with `@api/utils/foo` instead of relative paths
-- Frontend code uses `@/` for root-level imports (Next.js convention)
-- Configured in `tsconfig.json` and `vitest.config.ts`
-
-### Product-Driven User Configuration
-
-The billing service uses a product-driven approach where products define the user configuration they provide:
-
-#### Data Structure
-
-Products and subscriptions store configuration in their `data` JSON fields:
-
-**Products.data** (`api/domain/types/product-data.types.ts`):
-```typescript
-{
-  signup_fee?: number          // One-time fee in cents
-  renewal_cost?: number        // Recurring cost in cents
-  duration?: string            // "daily" | "weekly" | "monthly" | "yearly"
-  user_config?: {
-    is_premium: 0 | 1          // Premium status
-    role: string               // "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER"
-    white_label_id: number | null
-    is_team_plan?: boolean     // For role mapping logic
-  }
-}
+```
+api/routes/        HTTP handlers (thin)
+api/use-cases/     Business workflow orchestration
+api/domain/        Entities, value objects, services (pure logic)
+api/infrastructure/ DB, Square, SendGrid, external APIs
+api/cron/          Subscription renewal scheduler
 ```
 
-**Subscriptions.data** (copied from product, can be customized per subscription):
-```typescript
-{
-  user_config?: {
-    // Same structure as product user_config
-  }
-}
-```
+Docs: [system/architecture.md](docs/system/architecture.md)
 
-#### Purchase Flow
+## Key Docs
 
-When users purchase subscriptions (`api/use-cases/subscription/purchase-subscription.use-case.ts`):
-
-1. Product `user_config` is extracted from `product.data`
-2. For new users, the config is passed to the main API's `createUser`:
-   - `is_premium` → sets premium status
-   - `role` → assigns user role
-   - `whitelabel_id` → assigns white label
-3. The `user_config` is stored in `subscription.data` for later reference
-
-#### Role Mapping for Plan Transitions
-
-Special logic applies when upgrading/downgrading between single and team plans (`api/domain/services/role-mapper.ts`):
-
-- **Single → Team**: Role becomes `TEAMOWNER` (regardless of product's base role)
-- **Team → Single**: Role becomes `AGENT` (regardless of product's base role)
-- **Same plan type**: Use product's configured role
-
-#### Subscription Lifecycle
-
-**Regular Renewals** (`api/use-cases/subscription/renew-subscription.use-case.ts`):
-- Do NOT update user configuration
-- Users maintain their current state
-
-**Upgrades/Downgrades** (future implementation):
-- Will read `user_config` from new product
-- Apply role mapping logic for plan type transitions
-- Update user in main API with new configuration
-
-**Suspensions** (future implementation):
-- Will revert user to non-premium state
-- Preserve white label assignment
-
-#### Migration Strategy
-
-The system is backward compatible:
-
-- Existing subscriptions without `data.user_config` continue working
-- Products without `user_config` allow purchases (all fields optional)
-- Main API handles optional `is_premium`/`role`/`whitelabel_id` fields
-- When creating/updating subscriptions, fall back to reading `product.data.user_config` if `subscription.data.user_config` is null
-
-#### Creating Products with User Configuration
-
-Use the POST `/product` endpoint with proper `user_config`:
-
-```json
-{
-  "product_name": "Premium Monthly",
-  "product_type": "subscription",
-  "price": 25000,
-  "data": {
-    "signup_fee": 0,
-    "renewal_cost": 25000,
-    "duration": "monthly",
-    "user_config": {
-      "is_premium": 1,
-      "role": "AGENT",
-      "white_label_id": 1,
-      "is_team_plan": false
-    }
-  }
-}
-```
-
-The schema validates `user_config` structure automatically (`api/routes/schemas/product.schemas.ts`).
-
-## Key Patterns
-
-### Error Handling
-
-- Uses `express-async-errors` for automatic async error catching
-- `CodedError` class for structured errors with error codes
-- `handleErrors` utility centralizes error responses and admin notifications
-
-### Email Notifications
-
-All emails use HTML templates with field substitution:
-
-```javascript
-await sendEmail({
-  to: email,
-  subject: "...",
-  template: "subscriptionRenewal.html",
-  fields: { amount, date, subscription, lineItems },
-})
-```
-
-### Transaction Logging
-
-Every payment operation logs to the Transaction table for audit trail, including failures.
-
-### Prorated Charges
-
-When upgrading subscriptions, `checkProrated` calculates the difference between old and new subscription amounts based on time remaining in the billing period.
-
-## Environment Configuration
-
-Required environment variables (see `.env`):
-
-- `SQUARE_ACCESS_TOKEN`, `SQUARE_ENVIRONMENT`: Square API credentials
-- `API_URL`, `API_URL_V2`, `API_MASTER_TOKEN`: Main API connection
-- `ADMIN_EMAIL`: Error notifications
-- `SENDGRID_API_KEY`: Email service
-- Database connection: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-
-## Testing
-
-Tests located in `api/tests/unit/` using Vitest. Current coverage focuses on utility functions like `getHomeUptickSubscription`.
-
-To run a single test file:
-
-```bash
-npx vitest run api/tests/unit/getHomeUptickSubscription.test.ts
-```
-
-## Important Notes
-
-- Amount values are in cents (e.g., 25000 = $250.00)
-- User `active` field in main API determines if subscription renewals are processed
-- BigInt values are serialized to strings via `config/startup.js` prototype extension
-- The service uses both `.js` (JavaScript) and `.ts` (TypeScript) files, with TypeScript configured for type-checking only (`noEmit: true`)
+| Topic                      | Doc                                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Subscription lifecycle     | [business/capabilities/subscription-lifecycle.md](docs/business/capabilities/subscription-lifecycle.md)   |
+| Payment retry rules        | [business/rules/payment-retry-rules.md](docs/business/rules/payment-retry-rules.md)                       |
+| Role mapping rules         | [business/rules/role-mapping-rules.md](docs/business/rules/role-mapping-rules.md)                         |
+| Product-driven user config | [business/decisions/product-driven-user-config.md](docs/business/decisions/product-driven-user-config.md) |
+| Renewal flow               | [system/data-flows/renewal-flow.md](docs/system/data-flows/renewal-flow.md)                               |
+| Purchase flow              | [system/data-flows/purchase-flow.md](docs/system/data-flows/purchase-flow.md)                             |
+| Known TODOs                | [development/quality/todos.md](docs/development/quality/todos.md)                                         |
+| Discrepancies              | [development/quality/discrepancies.md](docs/development/quality/discrepancies.md)                         |
