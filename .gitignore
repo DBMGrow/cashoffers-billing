@@ -73,11 +73,11 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
-.env
+# .env is committed (non-secret defaults template)
+# .env.development / .env.staging / .env.production are committed encrypted
+.env.local
 .env*.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.keys
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -131,8 +131,6 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
-
-.env.keys
 
 # macOS
 .DS_Store

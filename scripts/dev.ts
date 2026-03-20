@@ -4,8 +4,9 @@
  * Usage: yarn dev:tools <command> [options]
  */
 
-import "dotenv/config"
 import { Command } from "commander"
+import { spawnSync } from "child_process"
+import path from "path"
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -418,5 +419,35 @@ program
   .command("cleanup <user_id>")
   .description("Delete user and all associated data (transactions, subscriptions, cards)")
   .action(cmdCleanup)
+
+// ─── env subcommand group ─────────────────────────────────────────────────────
+
+const envCmd = program
+  .command("env")
+  .description("Manage encrypted environment secrets")
+
+function spawnEnvScript(script: string, args: string[] = []) {
+  const scriptPath = path.join(__dirname, "env", script)
+  const result = spawnSync("npx", ["tsx", scriptPath, ...args], { stdio: "inherit" })
+  if (result.status !== 0) process.exit(result.status ?? 1)
+}
+
+envCmd
+  .command("setup")
+  .description("First-time setup: retrieve key from Keeper, write to shell profile")
+  .option("--env <environment>", "Target environment (development, staging, production)", "development")
+  .action((opts) => spawnEnvScript("setup.ts", ["--env", opts.env]))
+
+envCmd
+  .command("edit")
+  .description("Interactive TUI: add, edit, or delete secrets")
+  .option("--env <environment>", "Target environment (development, staging, production)", "development")
+  .action((opts) => spawnEnvScript("edit.tsx", ["--env", opts.env]))
+
+envCmd
+  .command("rotate")
+  .description("Rotate encryption keys with guided post-rotation checklist")
+  .option("--env <environment>", "Target environment (development, staging, production)", "development")
+  .action((opts) => spawnEnvScript("rotate.tsx", ["--env", opts.env]))
 
 program.parseAsync(process.argv)

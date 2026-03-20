@@ -1,4 +1,3 @@
-import "dotenv/config"
 import "./config/startup"
 
 import { OpenAPIHono } from "@hono/zod-openapi"

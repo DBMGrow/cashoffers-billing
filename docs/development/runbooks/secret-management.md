@@ -28,13 +28,15 @@ Opens an interactive terminal UI (Ink). By default opens the `development` envir
 ```
 
 **Controls:**
-- `↑ / ↓` — navigate
+- `↑ / ↓` — navigate (list scrolls automatically when entries exceed terminal height)
 - `Enter` — edit selected key
 - `R` — toggle reveal/mask all values
 - `D` — delete selected key (prompts for confirmation)
 - `A` — add new key/value pair
 - `S` — save and re-encrypt the file
 - `Q` — quit without saving
+
+The header shows a position counter (`1/32`) so you always know where you are in a long list. `↑ N more above` / `↓ N more below` indicators appear at the list boundaries when content is scrolled.
 
 **To edit staging secrets:**
 

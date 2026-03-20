@@ -1,0 +1,61 @@
+#!/usr/bin/env sh
+# pre-commit hook — blocks unencrypted secrets and .env.keys from being committed
+#
+# Installed by yarn install via scripts/install-hooks.js
+
+set -e
+
+# ─── Block .env.keys ──────────────────────────────────────────────────────────
+
+if git diff --cached --name-only | grep -q '\.env\.keys'; then
+  echo ""
+  echo "  ✗ COMMIT BLOCKED: .env.keys is staged."
+  echo ""
+  echo "  Private keys must never be committed to the repo."
+  echo "  They live in Keeper: CashOffers > Billing / Env Keys"
+  echo ""
+  echo "  To remove it from staging:"
+  echo "    git reset HEAD .env.keys"
+  echo "    echo '.env.keys' >> .gitignore"
+  echo ""
+  exit 1
+fi
+
+# ─── Scan for plaintext secrets ───────────────────────────────────────────────
+
+# Only scan staged .env files (not .env.development / .env.staging / .env.production
+# since those should always be encrypted by dotenvx)
+STAGED_ENV_FILES=$(git diff --cached --name-only | grep -E '^\.env(\.[a-z]+)?$' | grep -v -E '\.(development|staging|production)$' || true)
+
+if [ -n "$STAGED_ENV_FILES" ]; then
+  # Run dotenvx scan on each staged .env file
+  for f in $STAGED_ENV_FILES; do
+    if npx dotenvx scan "$f" 2>&1 | grep -q "unencrypted"; then
+      echo ""
+      echo "  ✗ COMMIT BLOCKED: $f appears to contain unencrypted secrets."
+      echo ""
+      echo "  Encrypt it with: npx dotenvx encrypt -f $f"
+      echo ""
+      exit 1
+    fi
+  done
+fi
+
+# ─── Ensure encrypted env files aren't accidentally replaced with plaintext ───
+
+for ENV_FILE in .env.development .env.staging .env.production; do
+  if git diff --cached --name-only | grep -q "^${ENV_FILE}$"; then
+    # File is staged — check it has the dotenvx public key header
+    CONTENT=$(git show ":${ENV_FILE}" 2>/dev/null || true)
+    if [ -n "$CONTENT" ] && ! echo "$CONTENT" | grep -q "DOTENV_PUBLIC_KEY"; then
+      echo ""
+      echo "  ✗ COMMIT BLOCKED: ${ENV_FILE} does not appear to be encrypted."
+      echo ""
+      echo "  Encrypt it with: npx dotenvx encrypt -f ${ENV_FILE}"
+      echo ""
+      exit 1
+    fi
+  fi
+done
+
+exit 0

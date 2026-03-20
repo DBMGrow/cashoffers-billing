@@ -39,7 +39,9 @@ Manage encrypted secrets. All encryption/decryption is handled automatically —
 
 | Command | Description |
 |---|---|
-| `env setup` | First-time setup: retrieve key from Keeper, write to shell profile |
+| `env setup` | Set up `DOTENV_PRIVATE_KEY_DEVELOPMENT` — retrieve from Keeper, validate, write to shell profile |
+| `env setup --env staging` | Set up `DOTENV_PRIVATE_KEY_STAGING` |
+| `env setup --env production` | Set up `DOTENV_PRIVATE_KEY_PRODUCTION` — prompts for confirmation first |
 | `env edit` | Interactive TUI: add, edit, or delete secrets in `.env.development` |
 | `env edit --env staging` | Edit staging secrets (requires `DOTENV_PRIVATE_KEY_STAGING`) |
 | `env edit --env production` | Edit production secrets — prompts for confirmation first |

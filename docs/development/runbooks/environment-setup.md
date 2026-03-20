@@ -43,6 +43,21 @@ For local development you need: **`DOTENV_PRIVATE_KEY_DEVELOPMENT`**
 
 Paste the value when the `env setup` command prompts you. You do not need the staging or production keys for local development.
 
+---
+
+## Setting up staging or production keys
+
+If you need to edit staging or production secrets, run setup for that environment:
+
+```bash
+yarn dev:tools env setup --env staging
+yarn dev:tools env setup --env production
+```
+
+The flow is identical to development setup — the command prompts for the key, validates it decrypts the target env file, and writes it to your shell profile. Production setup includes an extra confirmation prompt.
+
+Once set up, the corresponding `env edit` and `env rotate` commands will work for that environment.
+
 ### 4. Start the dev server
 
 ```bash
