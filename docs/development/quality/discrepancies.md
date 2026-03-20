@@ -100,5 +100,5 @@ Known mismatches, unclear rules, stubs, and things requiring investigation.
 **Description**: The canonical list of permission strings (e.g., `payments_create`) lives in the main CashOffers API, not in this repo. This makes it hard to audit authorization.
 
 **Next action**:
-- [ ] Document known permission strings in [Authorization Rules](../../business/rules/authorization-rules.md)
+- [ ] Document known permission strings in [Authorization Rules](../../business/rules/authorization-rules)
 - [ ] Confirm list with main API team

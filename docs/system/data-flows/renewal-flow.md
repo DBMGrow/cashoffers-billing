@@ -5,31 +5,32 @@ External scheduler → POST `/api/cron/subscriptions` with `CRON_SECRET` header
 
 ## Flow
 
-```
-SubscriptionsCron
-  1. Query DB: subscriptions where next_renewal_at <= now AND status IN (active, free_trial)
-  2. For each subscription:
-     a. GET user from Main API
-        → if user.active == false: SKIP
-     b. Check flags:
-        → cancel_on_renewal: deactivate subscription, SKIP payment
-        → downgrade_on_renewal: downgrade to target product, SKIP normal payment
-     c. If free_trial + trial_ends_at expired:
-        → Attempt payment for renewal_cost
-        → On success: status = active
-        → On failure: status = inactive, retry not applicable
-     d. Normal renewal:
-        → RenewSubscriptionUseCase
-            → CreatePaymentUseCase → Square
-            → Log transaction
-            → Update next_renewal_at (+ duration)
-            → Emit SubscriptionRenewed → send email
-        → On failure:
-            → Log failure
-            → Emit PaymentFailed → send failure email
-            → updateNextRenewalAttempt (retry schedule)
-  3. Check for HomeUptick addon:
-     → If exists: fetch tier from HomeUptick API, charge accordingly
+```mermaid
+flowchart TD
+  A([Cron: POST /api/cron/subscriptions]) --> B[Query DB\nnext_renewal_at <= now\nstatus IN active, free_trial]
+  B --> C{User active\nin Main API?}
+  C -- No --> SKIP([Skip])
+  C -- Yes --> E{cancel_on_renewal?}
+  E -- Yes --> F[Deactivate subscription] --> DONE
+  E -- No --> G{downgrade_on_renewal?}
+  G -- Yes --> H[Downgrade to target product] --> DONE
+  G -- No --> I{free_trial +\ntrial_ends_at expired?}
+  I -- Yes --> J{HomeUptick addon?}
+  J -- Yes --> J2[Fetch tier from HomeUptick API\ncharge accordingly]
+  J -- No --> J3[Attempt payment\nfor renewal_cost]
+  J2 --> K{Success?}
+  J3 --> K
+  K -- Yes --> L[status = active\nLog + update next_renewal_at\nEmit SubscriptionRenewed → email] --> DONE
+  K -- No --> M[status = inactive\nLog failure\nEmit PaymentFailed → failure email\nupdateNextRenewalAttempt] --> DONE
+  I -- No --> N[RenewSubscriptionUseCase]
+  N --> HU{HomeUptick addon?}
+  HU -- Yes --> S[Fetch tier from HomeUptick API\ncharge accordingly]
+  HU -- No --> O[CreatePaymentUseCase → Square]
+  S --> P{Success?}
+  O --> P
+  P -- Yes --> Q[Log + update next_renewal_at\nEmit SubscriptionRenewed → email] --> DONE
+  P -- No --> R[Log failure\nEmit PaymentFailed → failure email\nupdateNextRenewalAttempt] --> DONE
+  DONE([Done])
 ```
 
 ## Retry Schedule

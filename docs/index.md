@@ -1,4 +1,4 @@
-# CashOffers Billing — Docs
+# CashOffers Billing
 
 This is the single source of truth for business logic, system behavior, and development workflow.
 
@@ -7,6 +7,7 @@ This is the single source of truth for business logic, system behavior, and deve
 ## Agent Workflow (Read This First)
 
 Before making any change:
+
 1. **Read** the relevant capability or rule doc
 2. **Check** the scenario if one exists
 3. **Make your changes**
@@ -16,6 +17,7 @@ Before making any change:
 Docs must stay current. Code and docs change together.
 
 Truth order when there is a conflict:
+
 1. Decisions (explicit choices made)
 2. Business docs (capabilities + rules)
 3. Scenarios
@@ -41,39 +43,39 @@ Truth order when there is a conflict:
     /scenarios            ← key workflows, linked to tests
     /runbooks             ← how to run, test, debug
     /quality              ← coverage tracking, discrepancies, todos
-  /_templates             ← copy these when adding new docs
+  /templates             ← copy these when adding new docs
 ```
 
 ---
 
 ## Business
 
-| Doc | Description |
-|-----|-------------|
-| [Capabilities](business/capabilities/) | What the system does from a user perspective |
-| [Rules](business/rules/) | Constraints and invariants the system enforces |
-| [Decisions](business/decisions/) | Why things are built the way they are |
+| Doc                                    | Description                                    |
+| -------------------------------------- | ---------------------------------------------- |
+| [Capabilities](business/capabilities/) | What the system does from a user perspective   |
+| [Rules](business/rules/)               | Constraints and invariants the system enforces |
+| [Decisions](business/decisions/)       | Why things are built the way they are          |
 
 ---
 
 ## System
 
-| Doc | Description |
-|-----|-------------|
-| [Architecture](system/architecture.md) | Layers, tech stack, module structure |
-| [Components](system/components/) | Major internal components |
-| [Integrations](system/integrations/) | Square, SendGrid, Main API, HomeUptick |
-| [Data Flows](system/data-flows/) | Key flows: purchase, renewal, webhooks |
+| Doc                                    | Description                            |
+| -------------------------------------- | -------------------------------------- |
+| [Architecture](system/architecture) | Layers, tech stack, module structure   |
+| [Components](system/components/)       | Major internal components              |
+| [Integrations](system/integrations/)   | Square, SendGrid, Main API, HomeUptick |
+| [Data Flows](system/data-flows/)       | Key flows: purchase, renewal, webhooks |
 
 ---
 
 ## Development
 
-| Doc | Description |
-|-----|-------------|
-| [Scenarios](development/scenarios/) | Business workflows with test/CLI coverage |
-| [Runbooks](development/runbooks/) | Local setup, testing, dev tools |
-| [Quality](development/quality/) | Integration test coverage, discrepancies, todos |
+| Doc                                 | Description                                     |
+| ----------------------------------- | ----------------------------------------------- |
+| [Scenarios](development/scenarios/) | Business workflows with test/CLI coverage       |
+| [Runbooks](development/runbooks/)   | Local setup, testing, dev tools                 |
+| [Quality](development/quality/)     | Integration test coverage, discrepancies, todos |
 
 ---
 

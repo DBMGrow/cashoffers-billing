@@ -24,7 +24,7 @@ When a user purchases a subscription, their account in the main API is automatic
 - User config is **not updated** — users keep their current state.
 
 ### Role Mapping for Plan Transitions
-See [Role Mapping Rules](../rules/role-mapping-rules.md).
+See [Role Mapping Rules](../rules/role-mapping-rules).
 
 ## Data Structure
 
@@ -46,10 +46,10 @@ See [Role Mapping Rules](../rules/role-mapping-rules.md).
 - `is_team_plan: true` → triggers TEAMOWNER role on single→team upgrade
 
 ## Related Rules
-- [Role Mapping Rules](../rules/role-mapping-rules.md)
+- [Role Mapping Rules](../rules/role-mapping-rules)
 
 ## Related Scenarios
-- [New User Purchase](../../development/scenarios/new-user-purchase.md)
+- [New User Purchase](../../development/scenarios/new-user-purchase)
 
 ## Current vs Intended Behavior
 - Upgrade/downgrade user config update is **not yet implemented**.

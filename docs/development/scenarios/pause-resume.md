@@ -23,7 +23,7 @@ A user or admin pauses a subscription temporarily. The subscription is later res
 - Billing resumes from resume date
 
 ## Linked Rules
-- [Subscription Rules](../../business/rules/subscription-rules.md)
+- [Subscription Rules](../../business/rules/subscription-rules)
 
 ## Integration Test
 - Status: yes

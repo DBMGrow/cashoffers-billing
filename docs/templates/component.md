@@ -19,7 +19,7 @@ One-paragraph description.
 - How are errors surfaced?
 
 ## Related Capabilities
-- [Capability: Name](../../business/capabilities/name.md)
+- [Capability: Name](../../business/capabilities/name)
 
 ## Gaps vs Intended Behavior
 > Any known issues, stubs, or TODOs?

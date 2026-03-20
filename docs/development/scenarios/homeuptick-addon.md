@@ -26,7 +26,7 @@ A user with a HomeUptick addon subscription has both their main subscription and
 - User's tier changed → new cost applied on this renewal
 
 ## Linked Rules
-- [Subscription Rules](../../business/rules/subscription-rules.md)
+- [Subscription Rules](../../business/rules/subscription-rules)
 
 ## Integration Test
 - Status: yes

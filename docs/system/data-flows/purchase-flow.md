@@ -2,36 +2,53 @@
 
 ## New User Purchase
 
-```
-Frontend (checkout form)
-  → POST /api/purchase/new-user
-      Body: { productId, cardNonce, email, name, whitelabelId }
-  → PurchaseNewUserUseCase
-      1. Validate product exists and is available
-      2. CreateCardUseCase → Square (tokenize card nonce)
-      3. CreateUserUseCase → Main API (create user with user_config)
-      4. CreatePaymentUseCase → Square (charge signup_fee if > 0)
-         → Log transaction
-         → Emit PaymentProcessed → (handler) send email
-      5. CreateSubscriptionUseCase
-         → Save subscription with next_renewal_at
-         → Emit SubscriptionCreated → (handler) send confirmation email
-  ← { subscriptionId, userId }
+```mermaid
+sequenceDiagram
+  participant FE as Frontend
+  participant API as /api/purchase/new-user
+  participant Square
+  participant MainAPI as Main API
+  participant DB
+
+  FE->>API: POST { productId, cardNonce, email, name, whitelabelId }
+  API->>API: Validate product
+  API->>Square: CreateCard (tokenize nonce)
+  Square-->>API: cardId
+  API->>MainAPI: CreateUser (with user_config)
+  MainAPI-->>API: userId
+  opt signup_fee > 0
+    API->>Square: CreatePayment (signup_fee)
+    Square-->>API: payment success
+    API->>DB: Log transaction
+    API->>API: Emit PaymentProcessed → email
+  end
+  API->>DB: CreateSubscription (next_renewal_at = now + duration)
+  API->>API: Emit SubscriptionCreated → confirmation email
+  API-->>FE: { subscriptionId, userId }
 ```
 
 ## Existing User Purchase
 
-```
-Frontend
-  → POST /api/purchase/existing-user
-      Body: { userId, productId, cardNonce }
-  → PurchaseExistingUserUseCase
-      1. Validate product and user
-      2. CreateCardUseCase (if new card provided)
-      3. CalculateProratedUseCase (if upgrading)
-      4. CreatePaymentUseCase → Square (charge + prorate)
-      5. CreateSubscriptionUseCase
-  ← { subscriptionId }
+```mermaid
+sequenceDiagram
+  participant FE as Frontend
+  participant API as /api/purchase/existing-user
+  participant Square
+  participant DB
+
+  FE->>API: POST { userId, productId, cardNonce }
+  API->>API: Validate product + user
+  opt new card provided
+    API->>Square: CreateCard
+    Square-->>API: cardId
+  end
+  opt upgrading
+    API->>API: CalculateProrated
+  end
+  API->>Square: CreatePayment (charge + prorate)
+  Square-->>API: payment success
+  API->>DB: CreateSubscription
+  API-->>FE: { subscriptionId }
 ```
 
 ## Key Files

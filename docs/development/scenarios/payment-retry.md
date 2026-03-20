@@ -25,7 +25,7 @@ When a renewal payment fails, the system retries at escalating intervals before 
 - After final failure: subscription suspended (pending automation)
 
 ## Linked Rules
-- [Payment Retry Rules](../../business/rules/payment-retry-rules.md)
+- [Payment Retry Rules](../../business/rules/payment-retry-rules)
 
 ## Integration Test
 - Status: yes

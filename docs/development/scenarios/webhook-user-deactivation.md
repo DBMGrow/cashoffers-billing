@@ -23,7 +23,7 @@ When the main CashOffers API deactivates a user, their subscription renewals are
 - Duplicate webhook → idempotent
 
 ## Linked Rules
-- [Subscription Rules](../../business/rules/subscription-rules.md)
+- [Subscription Rules](../../business/rules/subscription-rules)
 
 ## Integration Test
 - Status: yes

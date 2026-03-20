@@ -39,9 +39,9 @@ Runs on a schedule to process subscription renewals, trial expirations, and paym
 - Cron endpoint not called → renewals silently missed
 
 ## Related Capabilities
-- [Subscription Lifecycle](../../business/capabilities/subscription-lifecycle.md)
-- [Free Trials](../../business/capabilities/free-trials.md)
-- [HomeUptick Integration](../../business/capabilities/homeuptick-integration.md)
+- [Subscription Lifecycle](../../business/capabilities/subscription-lifecycle)
+- [Free Trials](../../business/capabilities/free-trials)
+- [HomeUptick Integration](../../business/capabilities/homeuptick-integration)
 
 ## Gaps vs Intended Behavior
 - Suspension cron (`suspendSubscriptionsCron`) is stubbed — not yet implemented

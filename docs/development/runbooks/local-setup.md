@@ -83,4 +83,4 @@ SSH_KEY_PATH=~/.ssh/your_key
 - **Square errors**: Verify `SQUARE_ENVIRONMENT` matches your token type
 
 ## dotenvx Note
-The project plans to migrate to dotenvx for encrypted secrets. When that happens, setup steps here will change. See [dotenvx decision](../../business/decisions/dotenvx-todo.md).
+The project plans to migrate to dotenvx for encrypted secrets. When that happens, setup steps here will change. See [dotenvx decision](../../business/decisions/dotenvx-todo).

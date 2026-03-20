@@ -24,7 +24,7 @@ A user decides to cancel. Their subscription stays active until the end of the b
 - User changes mind: call `POST /api/subscription/:id/uncancel` to remove flag
 
 ## Linked Rules
-- [Subscription Rules](../../business/rules/subscription-rules.md)
+- [Subscription Rules](../../business/rules/subscription-rules)
 
 ## Integration Test
 - Status: yes

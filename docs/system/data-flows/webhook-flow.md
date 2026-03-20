@@ -2,13 +2,18 @@
 
 ## CashOffers Webhook (User Activation/Deactivation)
 
-```
-Main CashOffers API
-  → POST /api/webhooks
-      Body: { type: "user.activated" | "user.deactivated", userId }
-  → WebhookHandler (api/application/webhook-handlers/)
-      → Record user active state (or rely on real-time check at renewal)
-      → Emit domain event if applicable
+```mermaid
+sequenceDiagram
+  participant Main as Main CashOffers API
+  participant Billing as /api/webhooks
+  participant Handler as WebhookHandler
+
+  Main->>Billing: POST { type: "user.activated" | "user.deactivated", userId }
+  Billing->>Handler: route to handler
+  Handler->>Handler: record user active state
+  opt event applicable
+    Handler->>Handler: emit domain event
+  end
 ```
 
 **Effect on renewals**: The cron job reads user `active` status from the main API at renewal time. A deactivated user is skipped.
@@ -20,4 +25,4 @@ Main CashOffers API
 
 ## Square Webhooks
 
-Square sends payment events (payment completed, refunded, etc.) to a configured endpoint. Current status of Square webhook handler is unclear — see [Discrepancies](../../development/quality/discrepancies.md).
+Square sends payment events (payment completed, refunded, etc.) to a configured endpoint. Current status of Square webhook handler is unclear — see [Discrepancies](../../development/quality/discrepancies).

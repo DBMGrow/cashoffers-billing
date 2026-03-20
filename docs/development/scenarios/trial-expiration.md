@@ -29,8 +29,8 @@ A free trial subscription expires and either converts to a paid subscription or 
 - Subscription inactive, failure logged, no charge
 
 ## Linked Rules
-- [Subscription Rules](../../business/rules/subscription-rules.md)
-- [Payment Retry Rules](../../business/rules/payment-retry-rules.md)
+- [Subscription Rules](../../business/rules/subscription-rules)
+- [Payment Retry Rules](../../business/rules/payment-retry-rules)
 
 ## Integration Test
 - Status: yes

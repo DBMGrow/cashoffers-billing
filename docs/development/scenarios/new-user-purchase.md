@@ -29,8 +29,8 @@ A brand-new user subscribes to a CashOffers plan, creating their account and sta
 - Product has no signup fee → no charge, subscription created directly
 
 ## Linked Rules
-- [Role Mapping Rules](../../business/rules/role-mapping-rules.md)
-- [Authorization Rules](../../business/rules/authorization-rules.md)
+- [Role Mapping Rules](../../business/rules/role-mapping-rules)
+- [Authorization Rules](../../business/rules/authorization-rules)
 
 ## Integration Test
 - Status: partial (no full new-user flow test found)

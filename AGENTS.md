@@ -6,11 +6,13 @@ Billing and subscription management service for CashOffers. Handles payment proc
 
 ## Code Rules
 
-- **No `process.env` in application code** — use `@api/config/config.service`
-- **`@api/` alias** for all backend imports (no relative paths)
-- **Amounts in cents** — $25.00 = `2500`
-- **Business logic in use cases** — routes are thin, never put logic in route handlers
-- TypeScript is type-check only (`noEmit: true`) — no build artifacts
+1. Work docs-first and keep them in sync. All work starts from docs. Docs define business logic first, then implementation, and are continuously updated with progress and decisions.
+2. Plan before coding. Write a concise plan outlining changes, tests, and assumptions before touching code.
+3. Make small, focused changes. Implement the minimum needed in clean, reviewable increments—no unrelated refactors.
+4. Follow existing patterns and don’t guess. Adhere to repo conventions and resolve ambiguity from docs or context; explicitly state any assumptions.
+5. Test thoroughly at all levels. Every feature includes unit and integration tests (and e2e where needed), covering edge cases and failures.
+6. Build for production from the start. Include validation, error handling, logging, observability, and safe rollout considerations in every feature.
+7. Keep everything complete and consistent. A feature isn’t done until code, tests, docs, and developer tooling (e.g., CLI support) are all updated and aligned.
 
 ## Architecture
 

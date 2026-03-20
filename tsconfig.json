@@ -35,6 +35,8 @@
     "hooks/**/*.tsx",
     "providers/**/*.ts",
     "providers/**/*.tsx",
+    "lib/**/*.ts",
+    ".source/**/*.ts",
     "types/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"

@@ -35,7 +35,7 @@ CreatePaymentUseCase
 - Network timeout → treated as failure
 
 ## Related Capabilities
-- [Payment Processing](../../business/capabilities/payment-processing.md)
+- [Payment Processing](../../business/capabilities/payment-processing)
 
 ## Gaps vs Intended Behavior
 - Card update via manage endpoint is not implemented (TODO in `api/routes/manage/routes.ts:346`)

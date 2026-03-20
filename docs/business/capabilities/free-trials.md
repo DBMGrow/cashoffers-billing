@@ -27,11 +27,11 @@ Users can start a subscription on a free trial period. When the trial ends, the 
 - Trial with `cancel_on_renewal` flag → cancel instead of converting
 
 ## Related Rules
-- [Subscription Rules](../rules/subscription-rules.md)
-- [Payment Retry Rules](../rules/payment-retry-rules.md)
+- [Subscription Rules](../rules/subscription-rules)
+- [Payment Retry Rules](../rules/payment-retry-rules)
 
 ## Related Scenarios
-- [Trial Expiration](../../development/scenarios/trial-expiration.md)
+- [Trial Expiration](../../development/scenarios/trial-expiration)
 
 ## Current vs Intended Behavior
 - Trial expiration is handled by the main subscription cron.

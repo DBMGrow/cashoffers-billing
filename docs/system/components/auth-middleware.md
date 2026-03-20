@@ -37,4 +37,4 @@ Validates every incoming API request by verifying the JWT token against the main
 - Missing permission → 403
 
 ## Gaps vs Intended Behavior
-- Canonical list of permission strings lives in main API — not documented here. See [Authorization Rules](../../business/rules/authorization-rules.md).
+- Canonical list of permission strings lives in main API — not documented here. See [Authorization Rules](../../business/rules/authorization-rules).

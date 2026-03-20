@@ -17,5 +17,5 @@ HOMEUPTICK_URL=https://...
 
 ## Notes
 - HomeUptick addon is a separate subscription record in our DB
-- Tier-based renewal cost has a known TODO — see [HomeUptick Integration capability](../../business/capabilities/homeuptick-integration.md)
+- Tier-based renewal cost has a known TODO — see [HomeUptick Integration capability](../../business/capabilities/homeuptick-integration)
 - If HomeUptick API is unavailable, addon renewal fails independently of main subscription

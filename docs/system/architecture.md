@@ -8,37 +8,15 @@ CashOffers Billing is a full-stack application:
 
 ## Layers (Clean Architecture)
 
-```
-┌─────────────────────────────────────────┐
-│  Frontend (Next.js + React)             │
-│  /app, /components, /hooks              │
-└────────────────┬────────────────────────┘
-                 │ HTTP
-┌────────────────▼────────────────────────┐
-│  Routes (Hono + OpenAPIHono)            │
-│  /api/routes/**                         │
-│  Thin handlers: validate → delegate     │
-└────────────────┬────────────────────────┘
-                 │
-┌────────────────▼────────────────────────┐
-│  Use Cases                              │
-│  /api/use-cases/**                      │
-│  Business workflow orchestration        │
-└────────────────┬────────────────────────┘
-                 │
-┌────────────────▼────────────────────────┐
-│  Domain                                 │
-│  /api/domain/**                         │
-│  Entities, value objects, services,     │
-│  domain events — pure business logic    │
-└────────────────┬────────────────────────┘
-                 │
-┌────────────────▼────────────────────────┐
-│  Infrastructure                         │
-│  /api/infrastructure/**                 │
-│  DB (Kysely), Square, SendGrid,         │
-│  external APIs, logging                 │
-└─────────────────────────────────────────┘
+```mermaid
+graph TD
+  FE["Frontend\nNext.js + React\n/app, /components, /hooks"]
+  R["Routes\nHono + OpenAPIHono\n/api/routes/**\nvalidate → delegate"]
+  UC["Use Cases\n/api/use-cases/**\nbusiness workflow orchestration"]
+  D["Domain\n/api/domain/**\nentities, value objects, services\npure business logic"]
+  I["Infrastructure\n/api/infrastructure/**\nDB · Square · SendGrid · external APIs · logging"]
+
+  FE -->|HTTP| R --> UC --> D --> I
 ```
 
 ## Tech Stack

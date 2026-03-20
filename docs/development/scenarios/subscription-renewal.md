@@ -32,8 +32,8 @@ An active subscription is automatically renewed by the cron job.
 - `downgrade_on_renewal` → downgrade instead of charge
 
 ## Linked Rules
-- [Subscription Rules](../../business/rules/subscription-rules.md)
-- [Payment Retry Rules](../../business/rules/payment-retry-rules.md)
+- [Subscription Rules](../../business/rules/subscription-rules)
+- [Payment Retry Rules](../../business/rules/payment-retry-rules)
 
 ## Integration Test
 - Status: yes

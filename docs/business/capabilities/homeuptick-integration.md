@@ -25,7 +25,7 @@ Users on certain plans can have an add-on HomeUptick subscription that is manage
 - User's HomeUptick tier changes → new cost on next renewal
 
 ## Related Scenarios
-- [HomeUptick Addon Renewal](../../development/scenarios/homeuptick-addon.md)
+- [HomeUptick Addon Renewal](../../development/scenarios/homeuptick-addon)
 
 ## Current vs Intended Behavior
 - HomeUptick tier-based renewal has a known TODO in `renew-subscription.use-case.ts:114`

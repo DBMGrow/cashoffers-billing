@@ -17,7 +17,7 @@ Users are charged for subscriptions and one-time purchases via Square. Failed pa
 5. On failure: log failure, send failure email, schedule retry
 
 ### Retry Logic
-See [Payment Retry Rules](../rules/payment-retry-rules.md).
+See [Payment Retry Rules](../rules/payment-retry-rules).
 
 ### Refund
 1. Look up original transaction
@@ -36,10 +36,10 @@ See [Payment Retry Rules](../rules/payment-retry-rules.md).
 - Refund after subscription is cancelled → allowed by admin only
 
 ## Related Rules
-- [Payment Retry Rules](../rules/payment-retry-rules.md)
+- [Payment Retry Rules](../rules/payment-retry-rules)
 
 ## Related Scenarios
-- [Payment Retry](../../development/scenarios/payment-retry.md)
+- [Payment Retry](../../development/scenarios/payment-retry)
 
 ## Current vs Intended Behavior
 - All payments go through Square. No other processor is supported.

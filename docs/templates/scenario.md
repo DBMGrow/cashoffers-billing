@@ -20,7 +20,7 @@ What should be true after the scenario completes?
 - What if user doesn't exist?
 
 ## Linked Rules
-- [Rule: Name](../../business/rules/name.md)
+- [Rule: Name](../../business/rules/name)
 
 ## Integration Test
 - Status: yes / no / partial

@@ -61,20 +61,20 @@ free_trial → active → paused
 
 ## Edge Cases
 - User is inactive in main API → skip renewal (no payment, no update)
-- Payment fails → schedule retry (see [Payment Retry Rules](../rules/payment-retry-rules.md))
+- Payment fails → schedule retry (see [Payment Retry Rules](../rules/payment-retry-rules))
 - HomeUptick addon subscriptions are separate subscriptions linked to the main one
 - Free trial expiration triggers its own cron path
 
 ## Related Rules
-- [Subscription Rules](../rules/subscription-rules.md)
-- [Payment Retry Rules](../rules/payment-retry-rules.md)
-- [Role Mapping Rules](../rules/role-mapping-rules.md)
+- [Subscription Rules](../rules/subscription-rules)
+- [Payment Retry Rules](../rules/payment-retry-rules)
+- [Role Mapping Rules](../rules/role-mapping-rules)
 
 ## Related Scenarios
-- [New User Purchase](../../development/scenarios/new-user-purchase.md)
-- [Subscription Renewal](../../development/scenarios/subscription-renewal.md)
-- [Pause Resume](../../development/scenarios/pause-resume.md)
-- [Cancel on Renewal](../../development/scenarios/cancel-on-renewal.md)
+- [New User Purchase](../../development/scenarios/new-user-purchase)
+- [Subscription Renewal](../../development/scenarios/subscription-renewal)
+- [Pause Resume](../../development/scenarios/pause-resume)
+- [Cancel on Renewal](../../development/scenarios/cancel-on-renewal)
 
 ## Current vs Intended Behavior
 - Renewals do **not** re-apply user configuration (role, premium). This is intentional for regular renewals.

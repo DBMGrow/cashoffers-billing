@@ -24,7 +24,7 @@ The billing system reacts to user state changes in the main CashOffers API. When
 - Duplicate webhook delivery → idempotent handling required
 
 ## Related Scenarios
-- [Webhook User Deactivation](../../development/scenarios/webhook-user-deactivation.md)
+- [Webhook User Deactivation](../../development/scenarios/webhook-user-deactivation)
 
 ## Current vs Intended Behavior
 - CashOffers webhook handler exists at `api/routes/webhooks/routes.ts`

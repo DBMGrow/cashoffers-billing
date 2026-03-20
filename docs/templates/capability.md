@@ -16,10 +16,10 @@ Step-by-step description of the expected behavior.
 - What happens when Y fails?
 
 ## Related Rules
-- [Rule: Name](../rules/name.md)
+- [Rule: Name](../rules/name)
 
 ## Related Scenarios
-- [Scenario: Name](../../development/scenarios/name.md)
+- [Scenario: Name](../../development/scenarios/name)
 
 ## Current vs Intended Behavior
 > Note any known gaps between what the code does and what is intended.

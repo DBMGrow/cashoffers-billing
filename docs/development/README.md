@@ -28,17 +28,17 @@ yarn test
 yarn dev:tools
 ```
 
-See [Local Setup](runbooks/local-setup.md) for full setup instructions.
+See [Local Setup](runbooks/local-setup) for full setup instructions.
 
 ## Scenarios
 
 | Scenario | Integration Test | Dev CLI |
 |----------|-----------------|---------|
-| [New User Purchase](scenarios/new-user-purchase.md) | partial | yes |
-| [Subscription Renewal](scenarios/subscription-renewal.md) | yes | yes |
-| [Trial Expiration](scenarios/trial-expiration.md) | yes | yes |
-| [Payment Retry](scenarios/payment-retry.md) | yes | yes |
-| [Pause / Resume](scenarios/pause-resume.md) | yes | no |
-| [Cancel on Renewal](scenarios/cancel-on-renewal.md) | yes | no |
-| [HomeUptick Addon](scenarios/homeuptick-addon.md) | yes | no |
-| [Webhook Deactivation](scenarios/webhook-user-deactivation.md) | yes | no |
+| [New User Purchase](scenarios/new-user-purchase) | partial | yes |
+| [Subscription Renewal](scenarios/subscription-renewal) | yes | yes |
+| [Trial Expiration](scenarios/trial-expiration) | yes | yes |
+| [Payment Retry](scenarios/payment-retry) | yes | yes |
+| [Pause / Resume](scenarios/pause-resume) | yes | no |
+| [Cancel on Renewal](scenarios/cancel-on-renewal) | yes | no |
+| [HomeUptick Addon](scenarios/homeuptick-addon) | yes | no |
+| [Webhook Deactivation](scenarios/webhook-user-deactivation) | yes | no |
