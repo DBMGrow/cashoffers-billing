@@ -1,43 +1,11 @@
 #!/usr/bin/env tsx
 /**
  * Dev CLI — CashOffers Billing Developer Tools
- *
- * Usage (server must be running on localhost:3000):
- *
- *   tsx scripts/dev.ts system                              — System overview
- *   tsx scripts/dev.ts state <user_id>                    — Full user state dump
- *   tsx scripts/dev.ts scenario <name> [email]            — Create a test scenario
- *   tsx scripts/dev.ts set-state <sub_id> [field=value…]  — Patch subscription fields
- *   tsx scripts/dev.ts cron-preview                       — What would cron do?
- *   tsx scripts/dev.ts cron-run <user_id> [email]         — Run renewal for one user
- *   tsx scripts/dev.ts webhook <type> <user_id>           — Fire a CashOffers webhook
- *   tsx scripts/dev.ts cleanup <user_id>                  — Delete user and all related data
- *   tsx scripts/dev.ts help                               — Show this message
- *
- * Scenarios:
- *   renewal-due         Active sub with renewal_date in the past → cron will charge
- *   payment-retry-1     Failed once, next_renewal_attempt overdue → cron will retry
- *   payment-retry-2     Failed twice, simulating second retry window
- *   trial-expiring      Trial expiring in 9 days → cron sends warning email
- *   trial-expired       Trial past expiry → cron cancels it
- *   cancel-on-renewal   cancel_on_renewal=true → cron cancels, not charges
- *   downgrade-on-renewal downgrade_on_renewal=true → cron skips
- *   paused              Subscription in paused state
- *
- * set-state fields:
- *   renewal_date=<ISO>           e.g. 2025-01-01T00:00:00Z
- *   next_renewal_attempt=<ISO>   or next_renewal_attempt=null to clear
- *   cancel_on_renewal=true|false
- *   downgrade_on_renewal=true|false
- *   status=active|trial|paused|cancelled
- *   square_environment=production|sandbox
- *   amount=<cents>               e.g. amount=25000
- *
- * Webhook types:
- *   user.deactivated    user.activated    user.created
+ * Usage: yarn dev:tools <command> [options]
  */
 
 import "dotenv/config"
+import { Command } from "commander"
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +22,6 @@ const C = {
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
   cyan: "\x1b[36m",
-  white: "\x1b[37m",
   gray: "\x1b[90m",
 }
 
@@ -98,7 +65,7 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
     })
   } catch (err: any) {
     console.error(red(`\n✗ Could not connect to ${BASE_URL}`))
-    console.error(dim("  Make sure the dev server is running: npm run dev"))
+    console.error(dim("  Make sure the dev server is running: yarn dev"))
     console.error(dim(`  Error: ${err?.message ?? String(err)}\n`))
     process.exit(1)
   }
@@ -166,7 +133,6 @@ async function cmdSystem() {
 }
 
 async function cmdState(userId: string) {
-  if (!userId) { console.error(red("Usage: state <user_id>")); process.exit(1) }
   header(`User State — ID ${userId}`)
   const data = await api("GET", `/state/${userId}`)
 
@@ -182,7 +148,7 @@ async function cmdState(userId: string) {
   if (!data.card) {
     console.log(dim("  No card on file"))
   } else {
-    console.log(`  ${green(data.card.display)}  ${dim(`(${data.card.environment})`)}`);
+    console.log(`  ${green(data.card.display)}  ${dim(`(${data.card.environment})`)}`)
   }
 
   section("Subscriptions")
@@ -224,15 +190,9 @@ async function cmdState(userId: string) {
   console.log()
 }
 
-async function cmdScenario(scenario: string, email?: string) {
-  if (!scenario) {
-    console.error(red("Usage: scenario <name> [email]"))
-    console.error(dim("Available: renewal-due, payment-retry-1, payment-retry-2, trial-expiring, trial-expired, cancel-on-renewal, downgrade-on-renewal, paused"))
-    process.exit(1)
-  }
-
+async function cmdScenario(scenario: string, options: { email?: string }) {
   header(`Creating scenario: ${scenario}`)
-  const data = await api("POST", "/scenarios", { scenario, email })
+  const data = await api("POST", "/scenarios", { scenario, email: options.email })
 
   console.log(green("\n✓ Scenario created\n"))
   kv("Scenario", data.scenario, 2)
@@ -246,18 +206,12 @@ async function cmdScenario(scenario: string, email?: string) {
   section("Next steps")
   console.log(`  ${yellow(data.next_steps)}`)
 
-  console.log(`\n  ${dim("→")} ${cyan(`tsx scripts/dev.ts state ${data.user_id}`)}`)
-  console.log(`  ${dim("→")} ${cyan(`tsx scripts/dev.ts cleanup ${data.user_id}`)}`)
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${data.user_id}`)}`)
+  console.log(`  ${dim("→")} ${cyan(`yarn dev:tools cleanup ${data.user_id}`)}`)
   console.log()
 }
 
 async function cmdSetState(subId: string, pairs: string[]) {
-  if (!subId || pairs.length === 0) {
-    console.error(red("Usage: set-state <sub_id> [field=value…]"))
-    console.error(dim("Fields: renewal_date, next_renewal_attempt, cancel_on_renewal, downgrade_on_renewal, status, square_environment, amount"))
-    process.exit(1)
-  }
-
   const patch: Record<string, any> = {}
   for (const pair of pairs) {
     const eq = pair.indexOf("=")
@@ -335,12 +289,11 @@ async function cmdCronPreview() {
   console.log()
 }
 
-async function cmdCronRun(userId: string, email?: string) {
-  if (!userId) { console.error(red("Usage: cron-run <user_id> [email]")); process.exit(1) }
+async function cmdCronRun(userId: string, options: { email?: string }) {
   header(`Run Renewal — User ${userId}`)
   console.log(yellow("\n⚠  This triggers real payment logic. Ensure a sandbox card is on file.\n"))
 
-  const data = await api("POST", `/cron/run-for-user/${userId}`, email ? { email } : {})
+  const data = await api("POST", `/cron/run-for-user/${userId}`, options.email ? { email: options.email } : {})
 
   console.log(green("✓ Renewal executed\n"))
   kv("Subscription ID", data.subscription_id, 2)
@@ -349,23 +302,11 @@ async function cmdCronRun(userId: string, email?: string) {
     console.log(`\n  ${dim("Result:")}`)
     console.log("  " + JSON.stringify(data.result, null, 2).split("\n").join("\n  "))
   }
-  console.log(`\n  ${dim("→")} ${cyan(`tsx scripts/dev.ts state ${userId}`)}`)
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${userId}`)}`)
   console.log()
 }
 
 async function cmdWebhook(type: string, userId: string) {
-  const validTypes = ["user.deactivated", "user.activated", "user.created"]
-  if (!type || !userId) {
-    console.error(red(`Usage: webhook <type> <user_id>`))
-    console.error(dim(`Types: ${validTypes.join(", ")}`))
-    process.exit(1)
-  }
-  if (!validTypes.includes(type)) {
-    console.error(red(`Unknown type: ${type}`))
-    console.error(dim(`Valid: ${validTypes.join(", ")}`))
-    process.exit(1)
-  }
-
   header(`Fire Webhook — ${type} → user:${userId}`)
   const data = await api("POST", "/webhook/cashoffers", { type, userId: parseInt(userId, 10) })
 
@@ -382,12 +323,11 @@ async function cmdWebhook(type: string, userId: string) {
     console.log(`\n  ${dim("No subscription status changes detected")}`)
   }
 
-  console.log(`\n  ${dim("→")} ${cyan(`tsx scripts/dev.ts state ${userId}`)}`)
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${userId}`)}`)
   console.log()
 }
 
 async function cmdCleanup(userId: string) {
-  if (!userId) { console.error(red("Usage: cleanup <user_id>")); process.exit(1) }
   header(`Cleanup — User ${userId}`)
   const data = await api("DELETE", `/cleanup/${userId}`)
 
@@ -398,23 +338,30 @@ async function cmdCleanup(userId: string) {
   console.log()
 }
 
-function cmdHelp() {
-  console.log(`
-${bold("CashOffers Billing — Dev CLI")}
-${dim("Server must be running on localhost:3000")}
+// ─── CLI Definition ───────────────────────────────────────────────────────────
 
-${bold("Commands:")}
-  ${cyan("system")}                              System overview (counts, failures, pending renewals)
-  ${cyan("state")} <user_id>                    Full user state: subscriptions, card, transactions
-  ${cyan("scenario")} <name> [email]            Create a named test scenario
-  ${cyan("set-state")} <sub_id> [field=value…]  Patch subscription fields directly
-  ${cyan("cron-preview")}                        What would cron do right now? (dry-run)
-  ${cyan("cron-run")} <user_id> [email]         Run renewal logic for one user (triggers payment)
-  ${cyan("webhook")} <type> <user_id>           Fire a CashOffers webhook event
-  ${cyan("cleanup")} <user_id>                  Delete user and all associated data
-  ${cyan("help")}                               Show this message
+const program = new Command()
 
-${bold("Scenarios:")}
+program
+  .name("dev-tools")
+  .description("CashOffers Billing — Developer CLI (server must be running on localhost:3000)")
+  .version("1.0.0")
+
+program
+  .command("system")
+  .description("System overview: counts, failures, pending renewals")
+  .action(cmdSystem)
+
+program
+  .command("state <user_id>")
+  .description("Full user state: subscriptions, card, transactions")
+  .action(cmdState)
+
+program
+  .command("scenario <name>")
+  .description("Create a named test scenario")
+  .addHelpText("after", `
+Scenarios:
   renewal-due            Active sub overdue → cron will charge
   payment-retry-1        Failed once, retry overdue → cron will retry
   payment-retry-2        Failed twice, second retry window
@@ -422,53 +369,54 @@ ${bold("Scenarios:")}
   trial-expired          Trial past expiry → cron cancels
   cancel-on-renewal      Marked for cancel → cron cancels, not charges
   downgrade-on-renewal   Marked for downgrade → cron skips
-  paused                 Subscription in paused state
+  paused                 Subscription in paused state`)
+  .option("-e, --email <email>", "Email address for the test user")
+  .action(cmdScenario)
 
-${bold("set-state fields:")}
+program
+  .command("set-state <sub_id> [fields...]")
+  .description("Patch subscription fields directly (field=value pairs)")
+  .addHelpText("after", `
+Fields:
   renewal_date=<ISO>           e.g. renewal_date=2025-01-01T00:00:00Z
   next_renewal_attempt=<ISO>   or next_renewal_attempt=null to clear
   cancel_on_renewal=true|false
   downgrade_on_renewal=true|false
   status=active|trial|paused|cancelled
   square_environment=production|sandbox
-  amount=<cents>               e.g. amount=25000
+  amount=<cents>               e.g. amount=25000`)
+  .action(cmdSetState)
 
-${bold("Webhook types:")}
-  user.deactivated   user.activated   user.created
+program
+  .command("cron-preview")
+  .description("Dry-run: what would cron do right now?")
+  .action(cmdCronPreview)
 
-${bold("Examples:")}
-  tsx scripts/dev.ts system
-  tsx scripts/dev.ts scenario renewal-due alice@test.com
-  tsx scripts/dev.ts cron-preview
-  tsx scripts/dev.ts cron-run 42
-  tsx scripts/dev.ts set-state 7 renewal_date=2025-01-01T00:00:00Z next_renewal_attempt=null
-  tsx scripts/dev.ts webhook user.deactivated 42
-  tsx scripts/dev.ts state 42
-  tsx scripts/dev.ts cleanup 42
-`)
-}
+program
+  .command("cron-run <user_id>")
+  .description("Run renewal logic for one user (triggers real payment logic)")
+  .option("-e, --email <email>", "Override email address")
+  .action(cmdCronRun)
 
-// ─── Entrypoint ───────────────────────────────────────────────────────────────
-
-;(async () => {
-  const [, , cmd, ...args] = process.argv
-
-  switch (cmd) {
-    case "system":         await cmdSystem(); break
-    case "state":          await cmdState(args[0]); break
-    case "scenario":       await cmdScenario(args[0], args[1]); break
-    case "set-state":      await cmdSetState(args[0], args.slice(1)); break
-    case "cron-preview":   await cmdCronPreview(); break
-    case "cron-run":       await cmdCronRun(args[0], args[1]); break
-    case "webhook":        await cmdWebhook(args[0], args[1]); break
-    case "cleanup":        await cmdCleanup(args[0]); break
-    case "help":
-    case "--help":
-    case "-h":
-    case undefined:        cmdHelp(); break
-    default:
-      console.error(red(`Unknown command: ${cmd}`))
-      console.error(dim("Run 'tsx scripts/dev.ts help' for usage"))
+program
+  .command("webhook <type> <user_id>")
+  .description("Fire a CashOffers webhook event")
+  .addHelpText("after", `
+Types:
+  user.deactivated   user.activated   user.created`)
+  .action((type, userId) => {
+    const validTypes = ["user.deactivated", "user.activated", "user.created"]
+    if (!validTypes.includes(type)) {
+      console.error(red(`Unknown webhook type: ${type}`))
+      console.error(dim(`Valid types: ${validTypes.join(", ")}`))
       process.exit(1)
-  }
-})()
+    }
+    return cmdWebhook(type, userId)
+  })
+
+program
+  .command("cleanup <user_id>")
+  .description("Delete user and all associated data (transactions, subscriptions, cards)")
+  .action(cmdCleanup)
+
+program.parseAsync(process.argv)
