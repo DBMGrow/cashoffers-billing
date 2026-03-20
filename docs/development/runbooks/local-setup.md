@@ -1,51 +1,37 @@
 # Runbook: Local Setup
 
 ## Prerequisites
+
 - Node.js v18+
 - Yarn
 - MySQL 8.0+
-- Access to `.env` file (ask a teammate or see `.env.example`)
+- Access to the Keeper vault: `CashOffers > Billing / Env Keys`
 
 ## Steps
 
-### 1. Install Dependencies
+### 1. Install dependencies
+
 ```bash
 yarn install
 ```
 
-### 2. Configure Environment
+This also installs the pre-commit git hook that blocks unencrypted secrets from being committed.
+
+### 2. Configure environment
+
 ```bash
-cp .env.example .env
-# Fill in values — see Critical Variables below
+yarn dev:tools env setup
 ```
 
-**Critical variables:**
-```bash
-DB_HOST=localhost
-DB_USER=root
-DB_PASS=your_password
-DB_NAME=cashoffers_billing
+This command retrieves nothing automatically — it guides you to copy `DOTENV_PRIVATE_KEY_DEVELOPMENT` from Keeper, validates it, and writes it to your shell profile so you never need to do it again.
 
-SQUARE_ENVIRONMENT=sandbox
-SQUARE_ACCESS_TOKEN=...
-NEXT_PUBLIC_SQUARE_APP_ID=...
-NEXT_PUBLIC_SQUARE_LOCATION_ID=...
+See the full [environment setup runbook](environment-setup) for details, troubleshooting, and what to do when keys rotate.
 
-API_URL=http://localhost:8000
-API_URL_V2=http://localhost:8000/v2
-API_MASTER_TOKEN=...
+### 3. Database setup
 
-SENDGRID_API_KEY=...
-SEND_EMAILS=false   # disable emails locally
-DEV_EMAIL=you@example.com
-
-CRON_SECRET=local-secret
-```
-
-### 3. Database Setup
 ```bash
 # Ensure MySQL is running
-brew services start mysql  # Mac
+brew services start mysql
 
 # Create database
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS cashoffers_billing;"
@@ -54,33 +40,35 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS cashoffers_billing;"
 yarn codegen
 ```
 
-### 4. Start Development Server
+### 4. Start development server
+
 ```bash
 yarn dev
 ```
 
 - Frontend: http://localhost:3000
 - API: http://localhost:3000/api
-- API Docs: http://localhost:3000/api/docs
 
-## SSH Tunnel (for staging DB access)
+`dotenvx` decrypts `.env.development` at startup using the key in your shell. Both the Next.js frontend and Hono API share the same decrypted environment — no dual-file loading.
+
+---
+
+## SSH tunnel (staging DB access)
+
 ```bash
 yarn tunnel        # SSH tunnel only
-yarn dev:tunnel    # SSH tunnel + dev server
+yarn dev           # dev server (tunnel starts automatically if SSH_MODE is set)
 ```
 
-Configure in `.env`:
-```bash
-SSH_MODE=true
-SSH_DROPLET_IP=...
-SSH_KEY_PATH=~/.ssh/your_key
-```
+SSH config (`SSH_DROPLET_IP`, `SSH_KEY_PATH`, etc.) lives in `.env.development` and is already encrypted there.
+
+---
 
 ## Troubleshooting
-- **DB connection fails**: Check MySQL is running + `.env` credentials
-- **TypeScript path errors**: Run `yarn codegen`, restart TS server in IDE
-- **Hot reload not working**: Delete `.next/` and restart `yarn dev`
-- **Square errors**: Verify `SQUARE_ENVIRONMENT` matches your token type
 
-## dotenvx Note
-The project plans to migrate to dotenvx for encrypted secrets. When that happens, setup steps here will change. See [dotenvx decision](../../business/decisions/dotenvx-todo).
+- **"Missing required environment variables"** — run `yarn dev:tools env setup`
+- **"Failed to decrypt"** — wrong key; check Keeper and re-run `yarn dev:tools env setup`
+- **TypeScript path errors** — run `yarn codegen`, restart TS server in IDE
+- **Hot reload not working** — delete `.next/` and restart `yarn dev`
+- **Square errors** — verify `SQUARE_ENVIRONMENT` in `.env.development` matches your token type
+- **Key stopped working after rotation** — get the new key from Keeper and re-run `yarn dev:tools env setup`

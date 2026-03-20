@@ -82,11 +82,16 @@ Truth order when there is a conflict:
 ## Quick Reference
 
 ```bash
-yarn dev              # Start dev server (hot reload)
+yarn dev              # Start dev server (hot reload, decrypts .env.development)
 yarn test             # Run all tests
 yarn dev:tools        # Development CLI
 yarn preview:emails   # Preview email templates
 yarn codegen          # Regenerate DB types from schema
+
+# Secret management (first-time and ongoing)
+yarn dev:tools env setup         # Onboarding: retrieve key from Keeper, write to shell
+yarn dev:tools env edit          # Ink TUI: add / edit / delete secrets
+yarn dev:tools env rotate        # Rotate keys with guided checklist
 ```
 
 Config: never use `process.env` directly — import from `@api/config/config.service`.
