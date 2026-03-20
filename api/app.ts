@@ -20,6 +20,7 @@ import { authRoutes } from "./routes/auth/routes"
 import { signupRoutes } from "./routes/signup/routes"
 import { manageRoutes } from "./routes/manage/routes"
 import { testRoutes } from "./routes/test/routes"
+import { devRoutes } from "./routes/dev/routes"
 import { webhookRoutes } from "./routes/webhooks/routes"
 import "./lib/late-handlers"
 
@@ -52,6 +53,7 @@ app.route("/auth", authRoutes)
 app.route("/signup", signupRoutes)
 app.route("/manage", manageRoutes)
 app.route("/test", testRoutes)
+app.route("/dev", devRoutes)
 app.route("/webhooks", webhookRoutes)
 
 // OpenAPI documentation endpoints

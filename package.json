@@ -25,7 +25,8 @@
     "typecheck:api": "tsc --noEmit -p api/tsconfig.json",
     "typecheck:next": "tsc --noEmit -p tsconfig.json",
     "migrate:product-config": "npx tsx api/scripts/migrate-product-user-config.ts",
-    "migrate:whitelabel-marketing": "npx tsx api/scripts/migrate-whitelabel-marketing-website.ts"
+    "migrate:whitelabel-marketing": "npx tsx api/scripts/migrate-whitelabel-marketing-website.ts",
+    "dev:tools": "tsx scripts/dev.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
@@ -44,6 +45,7 @@
     "@types/uuid": "^10.0.0",
     "axios": "^1.7.7",
     "bcrypt": "^6.0.0",
+    "commander": "^14.0.3",
     "dotenv": "^16.3.1",
     "form-data": "^4.0.5",
     "gsap": "^3.14.2",

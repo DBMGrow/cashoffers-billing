@@ -7,11 +7,11 @@ import path from "path"
 const mode = process.env.SSH_MODE
 let sshKeyPath = process.env.SSH_KEY_PATH
 const sshKeyContent = process.env.SSH_PRIVATE_KEY ?? null
-const dbHost = mode === "staging" ? process.env.DB_HOST_STAGING : process.env.DB_HOST_PRODUCTION
-const dbPort = process.env.DB_PORT || "3306"
+const dbHost = mode === "staging" ? process.env.SSH_DB_HOST_STAGING : process.env.SSH_DB_HOST_PRODUCTION
+const dbPort = process.env.SSH_DB_PORT || "3306"
 const sshUser = process.env.SSH_USER || "root"
-const dropletIp = process.env.DROPLET_IP
-const localPort = process.env.LOCAL_PORT || "5432"
+const dropletIp = process.env.SSH_DROPLET_IP
+const localPort = process.env.SSH_LOCAL_PORT || "5432"
 
 if (!dbHost) {
   console.error("ERROR: DB_HOST is required (set DB_HOST_PRODUCTION or DB_HOST_STAGING)")
