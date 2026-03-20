@@ -148,3 +148,11 @@ email-previews/
 
 test-results/
 playwright-report/
+
+# Yarn Berry
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

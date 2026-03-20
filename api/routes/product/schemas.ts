@@ -22,9 +22,43 @@ export const ProductTypeSchema = z.enum(["none", "one-time", "subscription"])
 export const ProductUserConfigSchema = z
   .object({
     is_premium: z.union([z.literal(0), z.literal(1)]),
-    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER"]),
+    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER", "SHELL"]),
     white_label_id: z.number().nullable(),
     is_team_plan: z.boolean().optional(),
+  })
+  .strict()
+
+/**
+ * CashOffers module configuration schema
+ */
+export const CashOffersConfigSchema = z
+  .object({
+    managed: z.boolean(),
+    user_config: ProductUserConfigSchema.optional(),
+  })
+  .strict()
+
+/**
+ * HomeUptick free trial configuration schema
+ */
+export const HomeUptickFreeTrialSchema = z
+  .object({
+    enabled: z.boolean(),
+    contacts: z.number().int().positive(),
+    duration_days: z.number().int().positive(),
+  })
+  .strict()
+
+/**
+ * HomeUptick module configuration schema
+ */
+export const HomeUptickConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    base_contacts: z.number().int().nonnegative().optional(),
+    contacts_per_tier: z.number().int().positive().optional(),
+    price_per_tier: z.number().int().nonnegative().optional(),
+    free_trial: HomeUptickFreeTrialSchema.optional(),
   })
   .strict()
 
@@ -38,6 +72,8 @@ export const ProductDataSchema = z
     renewal_cost: z.number().optional(),
     duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
     user_config: ProductUserConfigSchema.optional(),
+    cashoffers: CashOffersConfigSchema.optional(),
+    homeuptick: HomeUptickConfigSchema.optional(),
   })
   .passthrough() // Allow additional fields for backward compatibility
 

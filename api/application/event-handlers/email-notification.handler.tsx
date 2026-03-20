@@ -18,6 +18,7 @@ import type { SubscriptionCancelledEvent } from '@api/domain/events/subscription
 import type { SubscriptionDowngradedEvent } from '@api/domain/events/subscription-downgraded.event'
 
 import SubscriptionCreatedEmail from '@api/infrastructure/email/templates/subscription-created.email'
+import TrialWelcomeEmail from '@api/infrastructure/email/templates/trial-welcome.email'
 import SubscriptionRenewalEmail from '@api/infrastructure/email/templates/subscription-renewal.email'
 import PaymentConfirmationEmail from '@api/infrastructure/email/templates/payment-confirmation.email'
 import PaymentErrorEmail from '@api/infrastructure/email/templates/payment-error.email'
@@ -124,7 +125,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, userId, productName, amount, initialChargeAmount, environment, lineItems, externalTransactionId } = event.payload
+        const { email, userId, productName, amount, initialChargeAmount, environment, lineItems, externalTransactionId, nextRenewalDate } = event.payload
         const chargedAmount = initialChargeAmount ?? amount
 
         this.logger.info('Sending subscription created email', {
@@ -135,6 +136,34 @@ export class EmailNotificationHandler extends BaseEventHandler {
 
         // Fetch whitelabel for this user
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
+        // Check if this is a free trial (amount=0, product name contains "Trial")
+        const isTrial = amount === 0 && (productName?.toLowerCase().includes('trial') || false)
+
+        if (isTrial && nextRenewalDate) {
+          const productData = event.metadata?.productData as any
+          const trialDays = productData?.homeuptick?.free_trial?.duration_days ?? 90
+          const expirationDate = new Date(nextRenewalDate).toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric',
+          })
+
+          const html = await render(
+            <TrialWelcomeEmail
+              trialDays={trialDays}
+              expirationDate={expirationDate}
+              isSandbox={this.isSandbox(environment)}
+              whitelabel={whitelabelInfo.branding}
+            />
+          )
+
+          await this.emailService.sendEmail({
+            to: email,
+            subject: this.formatSubject('Welcome to Your Free Trial!', environment),
+            html,
+            templateName: 'trial-welcome',
+          })
+          return
+        }
 
         const html = await render(
           <SubscriptionCreatedEmail
@@ -239,13 +268,37 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentFailed(event: PaymentFailedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, errorMessage, errorCode, errorCategory, subscriptionId, cardLast4, environment } = event.payload
+        const { email, amount, errorMessage, errorCode, errorCategory, subscriptionId, cardLast4, environment, willRetry, nextRetryDate } = event.payload
 
         this.logger.info('Sending payment failed email', {
           email,
           subscriptionId,
           environment,
+          willRetry,
         })
+
+        // Determine urgency based on retry context
+        let urgency: 'first' | 'second' | 'final' | undefined
+        if (willRetry && nextRetryDate) {
+          const daysUntilRetry = Math.round(
+            (new Date(nextRetryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          )
+          if (daysUntilRetry <= 2) urgency = 'first'
+          else if (daysUntilRetry <= 5) urgency = 'second'
+          else urgency = 'final'
+        } else if (!willRetry) {
+          urgency = 'final'
+        }
+
+        const nextRetryDateStr = nextRetryDate
+          ? new Date(nextRetryDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          : undefined
+
+        const subject = !willRetry
+          ? 'Subscription Suspended - Payment Failed'
+          : urgency === 'final'
+            ? 'Final Payment Attempt - Action Required'
+            : 'Payment Failed - Action Required'
 
         const html = await render(
           <PaymentErrorEmail
@@ -257,12 +310,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
             updatePaymentUrl="https://billing.cashoffers.com"
             date={this.formatDate()}
             isSandbox={this.isSandbox(environment)}
+            willRetry={willRetry}
+            nextRetryDate={nextRetryDateStr}
+            urgency={urgency}
           />
         )
 
         await this.emailService.sendEmail({
           to: email,
-          subject: this.formatSubject('Payment Failed - Action Required', environment),
+          subject: this.formatSubject(subject, environment),
           html,
           templateName: 'payment-error',
         })

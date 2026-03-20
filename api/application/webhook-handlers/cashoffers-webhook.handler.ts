@@ -1,13 +1,18 @@
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
+import type { ProductRepository } from "@api/lib/repositories"
+import type { TransactionRepository } from "@api/lib/repositories"
 import type { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
+import type { ProductData } from "@api/domain/types/product-data.types"
 
 interface Dependencies {
   logger: ILogger
   userApiClient: IUserApiClient
   subscriptionRepository: SubscriptionRepository
+  productRepository?: ProductRepository
+  transactionRepository?: TransactionRepository
   eventBus: IEventBus
 }
 
@@ -88,7 +93,7 @@ export class CashOffersWebhookHandler {
   }
 
   private async handleUserCreated(userId: number): Promise<void> {
-    const { subscriptionRepository, userApiClient, eventBus, logger } = this.deps
+    const { subscriptionRepository, userApiClient, eventBus, logger, productRepository } = this.deps
 
     const existing = await subscriptionRepository.findByUserId(userId)
     const hasActiveSub = existing.some((s) =>
@@ -100,34 +105,63 @@ export class CashOffersWebhookHandler {
       const user = await userApiClient.getUser(userId)
       if (!user) return
 
+      // Look up free trial product for productData metadata
+      let productData: ProductData | undefined
+      let productId = 0
+      if (productRepository && 'findFreeTrialProduct' in productRepository) {
+        try {
+          const freeTrialProduct = await (productRepository as any).findFreeTrialProduct()
+          if (freeTrialProduct) {
+            productId = freeTrialProduct.product_id
+            productData = typeof freeTrialProduct.data === 'string'
+              ? JSON.parse(freeTrialProduct.data)
+              : freeTrialProduct.data
+          }
+        } catch {
+          logger.warn('Could not find free trial product, using defaults')
+        }
+      }
+
+      // Default productData for free trial if no product found
+      if (!productData) {
+        productData = {
+          cashoffers: { managed: true, user_config: { role: 'SHELL', is_premium: 0, whitelabel_id: null } },
+          homeuptick: { enabled: true, free_trial: { enabled: true, contacts: 100, duration_days: 90 } },
+        }
+      }
+
       const now = new Date()
+      const durationDays = productData.homeuptick?.free_trial?.duration_days ?? 90
       const renewalDate = new Date(now)
-      renewalDate.setDate(now.getDate() + 90)
+      renewalDate.setDate(now.getDate() + durationDays)
 
       const created = await subscriptionRepository.create({
         user_id: userId,
+        product_id: productId || undefined,
         subscription_name: 'Free Trial',
         amount: 0,
         status: 'trial',
         renewal_date: renewalDate,
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
+        data: JSON.stringify({ productData }),
         createdAt: now,
         updatedAt: now,
       } as any)
 
       const subscriptionId = (created as any)?.subscription_id ?? 0
 
+      // Attach productData in metadata so CO/HU handlers can provision correctly
       await eventBus.publish(
         SubscriptionCreatedEvent.create({
           subscriptionId,
           userId,
           email: (user as any).email ?? '',
-          productId: 0,
+          productId,
           productName: 'Free Trial',
           amount: 0,
           nextRenewalDate: renewalDate,
-        })
+        }, { productData })
       )
     } catch (error) {
       logger.error("Failed to create free trial via webhook", {

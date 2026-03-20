@@ -1,6 +1,7 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { TransactionRepository } from "@api/lib/repositories"
+import type { WhitelabelRepository } from "@api/lib/repositories"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
@@ -9,6 +10,7 @@ import { PauseSubscriptionInput, PauseSubscriptionOutput } from "../types/subscr
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { PauseSubscriptionInputSchema } from "../types/validation.schemas"
 import { SubscriptionPausedEvent } from "@api/domain/events/subscription-paused.event"
+import type { ProductData, SubscriptionData } from "@api/domain/types/product-data.types"
 
 interface Dependencies {
   logger: ILogger
@@ -17,6 +19,7 @@ interface Dependencies {
   emailService: IEmailService
   userApiClient: IUserApiClient
   eventBus: IEventBus
+  whitelabelRepository?: WhitelabelRepository
 }
 
 /**
@@ -31,6 +34,34 @@ interface Dependencies {
  */
 export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
+
+  private async buildSuspensionMetadata(subscription: any): Promise<Record<string, unknown>> {
+    const metadata: Record<string, unknown> = {}
+
+    // Extract productData from subscription.data
+    try {
+      const subData: SubscriptionData = subscription.data
+        ? (typeof subscription.data === 'string' ? JSON.parse(subscription.data) : subscription.data)
+        : {}
+      if (subData.productData) {
+        metadata.productData = subData.productData
+      }
+
+      // Resolve suspension strategy from whitelabel
+      const whitelabelId = subData.user_config?.whitelabel_id
+        ?? subData.productData?.cashoffers?.user_config?.whitelabel_id
+      if (whitelabelId && this.deps.whitelabelRepository) {
+        const behavior = await this.deps.whitelabelRepository.getSuspensionBehavior(whitelabelId)
+        if (behavior) {
+          metadata.suspensionStrategy = behavior
+        }
+      }
+    } catch {
+      this.deps.logger.warn('Failed to extract suspension metadata from subscription data')
+    }
+
+    return metadata
+  }
 
   async execute(input: PauseSubscriptionInput): Promise<UseCaseResult<PauseSubscriptionOutput>> {
     const { logger, subscriptionRepository, transactionRepository, userApiClient, eventBus } = this.deps
@@ -93,6 +124,9 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
         logger.warn("Failed to fetch user email", { userId: subscription.user_id, error })
       }
 
+      // Resolve suspension strategy and product data for event metadata
+      const metadata = await this.buildSuspensionMetadata(subscription)
+
       // Publish SubscriptionPausedEvent (triggers email and premium deactivation)
       await eventBus.publish(
         SubscriptionPausedEvent.create({
@@ -103,7 +137,7 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
           reason: 'user_request',
           pausedBy: 'user',
           previousStatus: 'active',
-        })
+        }, metadata)
       )
 
       logger.info("Subscription paused successfully", {

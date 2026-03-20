@@ -29,6 +29,9 @@ export class HomeUptickAccountHandler implements IEventHandler {
         case 'SubscriptionResumed':
           await this.handleResumed(event)
           break
+        case 'SubscriptionUpgraded':
+          await this.handleUpgraded(event)
+          break
         case 'SubscriptionPaused':
         case 'SubscriptionDeactivated':
         case 'SubscriptionCancelled':
@@ -84,6 +87,29 @@ export class HomeUptickAccountHandler implements IEventHandler {
 
     const payload = event.payload as any
     await this.huApiClient.activateAccount(payload.userId)
+  }
+
+  private async handleUpgraded(event: IDomainEvent): Promise<void> {
+    const payload = event.payload as any
+    const userId = payload.userId
+    const toProductData = payload.toProductData as ProductData | undefined
+
+    if (!toProductData?.homeuptick?.enabled) {
+      // If the new product doesn't have HU enabled, deactivate the account
+      const fromProductData = payload.fromProductData as ProductData | undefined
+      if (fromProductData?.homeuptick?.enabled) {
+        await this.huApiClient.deactivateAccount(userId)
+      }
+      return
+    }
+
+    // New product has HU enabled — activate and update contact limit if configured
+    await this.huApiClient.activateAccount(userId)
+
+    const huConfig = toProductData.homeuptick
+    if (huConfig.base_contacts !== undefined) {
+      await this.huApiClient.setContactLimit(userId, huConfig.base_contacts)
+    }
   }
 
   private async handleDeactivation(event: IDomainEvent): Promise<void> {

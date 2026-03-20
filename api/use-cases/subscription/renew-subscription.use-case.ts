@@ -236,7 +236,10 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       // Update status to FINALIZING
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")
 
-      // Publish domain events for subscription renewal
+      // Publish domain events for subscription renewal (include productData in metadata for handlers)
+      const renewMetadata: Record<string, unknown> = {}
+      if (productData) renewMetadata.productData = productData
+
       await this.deps.eventBus.publish(
         SubscriptionRenewedEvent.create({
           subscriptionId: validatedInput.subscriptionId,
@@ -251,7 +254,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           nextRenewalDate: newRenewalDate,
           environment: paymentEnvironment,
           lineItems: lineItems.map((item) => ({ description: item.item, amount: item.price })),
-        })
+        }, renewMetadata)
       )
 
       // Publish payment processed event if payment was made
@@ -427,6 +430,15 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           updatedAt: now,
         } as any)
 
+        // Build metadata with productData for suspension handlers
+        const suspendMetadata: Record<string, unknown> = {}
+        try {
+          const subData = subscription.data ? JSON.parse(subscription.data as string) : {}
+          if (subData.productData) suspendMetadata.productData = subData.productData
+          const wlId = subData.user_config?.whitelabel_id ?? subData.productData?.cashoffers?.user_config?.whitelabel_id
+          if (wlId) suspendMetadata.suspensionStrategy = 'DEACTIVATE_USER' // Default for auto-suspend
+        } catch { /* ignore parse errors */ }
+
         await eventBus.publish(
           SubscriptionPausedEvent.create({
             subscriptionId,
@@ -435,7 +447,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
             reason: 'payment_failed',
             pausedBy: 'system',
             previousStatus: 'active',
-          })
+          }, suspendMetadata)
         )
 
         logger.info("Subscription auto-suspended after repeated payment failures", { subscriptionId })

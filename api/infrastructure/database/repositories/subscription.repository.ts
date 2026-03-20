@@ -209,6 +209,25 @@ export class SubscriptionRepository {
       .execute()
   }
 
+  /**
+   * Find trial subscriptions expiring within a given number of days from now.
+   * Used for sending trial expiration warning emails (e.g., 10 days before expiry).
+   */
+  async findTrialsExpiringSoon(withinDays: number, trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    const now = new Date()
+    const futureDate = new Date(now)
+    futureDate.setDate(now.getDate() + withinDays)
+
+    return await db
+      .selectFrom('Subscriptions')
+      .where('status', '=', 'trial')
+      .where('renewal_date', '>', now)
+      .where('renewal_date', '<=', futureDate)
+      .selectAll()
+      .execute()
+  }
+
   async findByEnvironment(
     environment: 'production' | 'sandbox',
     trx?: TransactionContext

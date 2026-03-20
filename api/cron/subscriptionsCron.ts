@@ -1,9 +1,13 @@
 import axios from "axios"
+import { createElement } from "react"
+import { render } from "@react-email/render"
 import { config } from "@api/config/config.service"
 import { logger, emailService, eventBus } from "@api/lib/services"
 import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
+import TrialExpiringEmail from "@api/infrastructure/email/templates/trial-expiring.email"
+import TrialExpiredEmail from "@api/infrastructure/email/templates/trial-expired.email"
 
 export default async function subscriptionsCron() {
   // Create child logger with cron context
@@ -119,6 +123,22 @@ export default async function subscriptionsCron() {
             })
           )
 
+          // Send trial-expired email
+          const trialUser = users?.data?.find((u: any) => u.user_id === trial.user_id)
+          if (trialUser?.email) {
+            try {
+              const html = await render(createElement(TrialExpiredEmail, {}))
+              await emailService.sendEmail({
+                to: trialUser.email,
+                subject: 'Your Free Trial Has Expired',
+                html,
+                templateName: 'trial-expired',
+              })
+            } catch (emailErr: any) {
+              cronLogger.warn('Failed to send trial expired email', { userId: trial.user_id, error: emailErr.message })
+            }
+          }
+
           cronLogger.info('Expired trial cancelled', { subscriptionId: trial.subscription_id })
         } catch (err: any) {
           cronLogger.error('Failed to expire trial', err, { subscriptionId: trial.subscription_id })
@@ -126,6 +146,43 @@ export default async function subscriptionsCron() {
       }
     } catch (err: any) {
       cronLogger.error('Error processing expired trials', err)
+    }
+
+    // Send trial warning emails (10 days before expiry)
+    try {
+      const expiringTrials = await subscriptionRepository.findTrialsExpiringSoon(10)
+      cronLogger.info('Trials expiring soon', { count: expiringTrials.length })
+
+      for (const trial of expiringTrials) {
+        try {
+          const trialUser = users?.data?.find((u: any) => u.user_id === trial.user_id)
+          if (!trialUser?.email) continue
+
+          const renewalDate = new Date(trial.renewal_date!)
+          const daysRemaining = Math.max(1, Math.ceil(
+            (renewalDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          ))
+          const expirationDate = renewalDate.toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric',
+          })
+
+          const html = await render(
+            createElement(TrialExpiringEmail, { daysRemaining, expirationDate })
+          )
+          await emailService.sendEmail({
+            to: trialUser.email,
+            subject: `Your Free Trial Expires in ${daysRemaining} Days`,
+            html,
+            templateName: 'trial-expiring',
+          })
+
+          cronLogger.info('Sent trial warning email', { userId: trial.user_id, daysRemaining })
+        } catch (err: any) {
+          cronLogger.warn('Failed to send trial warning email', { userId: trial.user_id, error: err.message })
+        }
+      }
+    } catch (err: any) {
+      cronLogger.error('Error processing trial warnings', err)
     }
   } catch (error: any) {
     cronLogger.error('Fatal error in subscriptions cron', error)

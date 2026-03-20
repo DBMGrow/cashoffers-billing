@@ -21,6 +21,7 @@ import { TransactionLoggingHandler } from "@api/application/event-handlers/trans
 import { LogFlushHandler } from "@api/application/event-handlers/log-flush.handler"
 import { CashOffersAccountHandler } from "@api/application/service-handlers/cashoffers/cashoffers-account.handler"
 import { HomeUptickAccountHandler } from "@api/application/service-handlers/homeuptick/homeuptick-account.handler"
+import { AdminAlertHandler } from "@api/application/event-handlers/admin-alert.handler"
 import { createHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.client"
 import { createHealthMetricsService } from "@api/domain/services/health-metrics.service"
 import { createHealthReportService } from "@api/domain/services/health-report.service"
@@ -78,8 +79,10 @@ export const whitelabelResolverService = createWhitelabelResolverService(db)
 const emailNotificationHandler = new EmailNotificationHandler(emailService, logger)
 const transactionLoggingHandler = new TransactionLoggingHandler(transactionRepository, logger)
 const logFlushHandler = new LogFlushHandler(logger as DatabaseLogger, logger)
-const cashOffersAccountHandler = new CashOffersAccountHandler(userApiClient, logger)
-const homeUptickAccountHandler = new HomeUptickAccountHandler(homeUptickApiClient, logger)
+const rawCashOffersAccountHandler = new CashOffersAccountHandler(userApiClient, logger)
+const rawHomeUptickAccountHandler = new HomeUptickAccountHandler(homeUptickApiClient, logger)
+const cashOffersAccountHandler = new AdminAlertHandler(rawCashOffersAccountHandler, criticalAlertService, 'CashOffersAccountHandler', logger)
+const homeUptickAccountHandler = new AdminAlertHandler(rawHomeUptickAccountHandler, criticalAlertService, 'HomeUptickAccountHandler', logger)
 
 eventBus.subscribe("SubscriptionCreated", emailNotificationHandler)
 eventBus.subscribe("SubscriptionRenewed", emailNotificationHandler)
@@ -107,6 +110,7 @@ eventBus.subscribe("SubscriptionCancelled", cashOffersAccountHandler)
 eventBus.subscribe("SubscriptionCreated", homeUptickAccountHandler)
 eventBus.subscribe("SubscriptionRenewed", homeUptickAccountHandler)
 eventBus.subscribe("SubscriptionResumed", homeUptickAccountHandler)
+eventBus.subscribe("SubscriptionUpgraded", homeUptickAccountHandler)
 eventBus.subscribe("SubscriptionPaused", homeUptickAccountHandler)
 eventBus.subscribe("SubscriptionDeactivated", homeUptickAccountHandler)
 eventBus.subscribe("SubscriptionCancelled", homeUptickAccountHandler)

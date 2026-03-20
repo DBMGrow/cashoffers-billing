@@ -1,5 +1,6 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
+import type { WhitelabelRepository } from "@api/lib/repositories"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IDeactivateSubscriptionUseCase } from "./deactivate-subscription.use-case.interface"
@@ -7,12 +8,14 @@ import { DeactivateSubscriptionInput, DeactivateSubscriptionOutput } from "../ty
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { DeactivateSubscriptionInputSchema } from "../types/validation.schemas"
 import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-deactivated.event"
+import type { SubscriptionData } from "@api/domain/types/product-data.types"
 
 interface Dependencies {
   logger: ILogger
   subscriptionRepository: SubscriptionRepository
   userApiClient: IUserApiClient
   eventBus: IEventBus
+  whitelabelRepository?: WhitelabelRepository
 }
 
 /**
@@ -26,6 +29,32 @@ interface Dependencies {
  */
 export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
+
+  private async buildSuspensionMetadata(subscription: any): Promise<Record<string, unknown>> {
+    const metadata: Record<string, unknown> = {}
+
+    try {
+      const subData: SubscriptionData = subscription.data
+        ? (typeof subscription.data === 'string' ? JSON.parse(subscription.data) : subscription.data)
+        : {}
+      if (subData.productData) {
+        metadata.productData = subData.productData
+      }
+
+      const whitelabelId = subData.user_config?.whitelabel_id
+        ?? subData.productData?.cashoffers?.user_config?.whitelabel_id
+      if (whitelabelId && this.deps.whitelabelRepository) {
+        const behavior = await this.deps.whitelabelRepository.getSuspensionBehavior(whitelabelId)
+        if (behavior) {
+          metadata.suspensionStrategy = behavior
+        }
+      }
+    } catch {
+      this.deps.logger.warn('Failed to extract suspension metadata from subscription data')
+    }
+
+    return metadata
+  }
 
   async execute(input: DeactivateSubscriptionInput): Promise<UseCaseResult<DeactivateSubscriptionOutput>> {
     const { logger, subscriptionRepository, userApiClient, eventBus } = this.deps
@@ -71,6 +100,9 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
         updatedAt: new Date(),
       })
 
+      // Resolve suspension strategy and product data for event metadata
+      const metadata = await this.buildSuspensionMetadata(subscription)
+
       // Publish SubscriptionDeactivatedEvent (triggers premium deactivation and email)
       await eventBus.publish(
         SubscriptionDeactivatedEvent.create({
@@ -81,7 +113,7 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
           reason: 'manual',
           deactivatedBy: 'admin',
           previousStatus: previousStatus || undefined,
-        })
+        }, metadata)
       )
 
       logger.info("Subscription deactivated successfully", {

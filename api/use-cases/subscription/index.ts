@@ -1,5 +1,5 @@
 import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient } from '@api/lib/services'
-import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository } from '@api/lib/repositories'
+import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository, whitelabelRepository } from '@api/lib/repositories'
 import { CreateSubscriptionUseCase } from './create-subscription.use-case'
 import { RenewSubscriptionUseCase } from './renew-subscription.use-case'
 import { PauseSubscriptionUseCase } from './pause-subscription.use-case'
@@ -46,6 +46,7 @@ export const pauseSubscriptionUseCase = new PauseSubscriptionUseCase({
   emailService,
   userApiClient,
   eventBus,
+  whitelabelRepository,
 })
 
 export const resumeSubscriptionUseCase = new ResumeSubscriptionUseCase({
@@ -61,6 +62,7 @@ export const cancelOnRenewalUseCase = new CancelOnRenewalUseCase({
   emailService,
   userApiClient,
   eventBus,
+  whitelabelRepository,
 })
 
 export const markForDowngradeUseCase = new MarkForDowngradeUseCase({
@@ -111,6 +113,7 @@ export const deactivateSubscriptionUseCase = new DeactivateSubscriptionUseCase({
   subscriptionRepository,
   userApiClient,
   eventBus,
+  whitelabelRepository,
 })
 
 export const calculateProratedUseCase = new CalculateProratedUseCase({

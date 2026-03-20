@@ -3,7 +3,7 @@ import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { config } from "@api/config/config.service"
 import { logger, eventBus, userApiClient } from "@api/lib/services"
-import { subscriptionRepository } from "@api/lib/repositories"
+import { subscriptionRepository, productRepository, transactionRepository } from "@api/lib/repositories"
 import { CashOffersWebhookHandler } from "@api/application/webhook-handlers/cashoffers-webhook.handler"
 import { CashOffersWebhookRoute } from "./schemas"
 
@@ -13,6 +13,8 @@ const webhookHandler = new CashOffersWebhookHandler({
   logger,
   userApiClient,
   subscriptionRepository,
+  productRepository,
+  transactionRepository,
   eventBus,
 })
 
@@ -45,6 +47,23 @@ app.openapi(CashOffersWebhookRoute, async (c) => {
     body = JSON.parse(rawBody)
   } catch {
     return c.json({ success: "error" as const, error: "Invalid JSON body" }, 400)
+  }
+
+  // Audit log the webhook event
+  const now = new Date()
+  try {
+    await transactionRepository.create({
+      user_id: body.userId || 0,
+      amount: 0,
+      type: 'webhook',
+      memo: `Webhook: ${body.type}`,
+      status: 'completed',
+      data: JSON.stringify({ webhookType: body.type, userId: body.userId, receivedAt: now.toISOString() }),
+      createdAt: now,
+      updatedAt: now,
+    })
+  } catch (logErr) {
+    logger.warn('Failed to log webhook event', { error: logErr instanceof Error ? logErr.message : String(logErr) })
   }
 
   await webhookHandler.handle(body as any)

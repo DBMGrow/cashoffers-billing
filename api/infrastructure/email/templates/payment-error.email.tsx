@@ -17,6 +17,28 @@ export interface PaymentErrorEmailProps {
   updatePaymentUrl: string
   date: string
   isSandbox?: boolean
+  /** Whether the system will automatically retry */
+  willRetry?: boolean
+  /** When the next retry will happen */
+  nextRetryDate?: string
+  /** Urgency level: 'first' | 'second' | 'final' */
+  urgency?: 'first' | 'second' | 'final'
+}
+
+function getUrgencyMessage(urgency?: string, nextRetryDate?: string, willRetry?: boolean): string {
+  if (!willRetry) {
+    return 'This was the final attempt. Your subscription has been suspended due to repeated payment failures. Update your payment method to restore access.'
+  }
+  switch (urgency) {
+    case 'first':
+      return `We'll automatically retry your payment${nextRetryDate ? ` on ${nextRetryDate}` : ' soon'}. To avoid interruption, please update your payment method.`
+    case 'second':
+      return `This is the second time we've been unable to process your payment. We'll retry once more${nextRetryDate ? ` on ${nextRetryDate}` : ''}. Please update your payment method to avoid suspension.`
+    case 'final':
+      return `This is our final retry attempt${nextRetryDate ? ` — scheduled for ${nextRetryDate}` : ''}. If this payment fails again, your subscription will be automatically suspended.`
+    default:
+      return 'Please update your payment method to avoid any service interruption.'
+  }
 }
 
 export default function PaymentErrorEmail({
@@ -29,18 +51,23 @@ export default function PaymentErrorEmail({
   updatePaymentUrl,
   date,
   isSandbox,
+  willRetry,
+  nextRetryDate,
+  urgency,
 }: PaymentErrorEmailProps) {
+  const urgencyVariant = urgency === 'final' || !willRetry ? 'danger' as const : 'warning' as const
+  const heading = urgency === 'final' ? 'Final Payment Attempt' : !willRetry ? 'Subscription Suspended' : 'Payment Failed'
+
   return (
     <StandardEmail
-      title="Payment Failed"
+      title={heading}
       preview={`We couldn't process your payment of ${amount}. Please update your billing information.`}
       isSandbox={isSandbox}
     >
-      <EmailHeading>Payment Failed</EmailHeading>
+      <EmailHeading>{heading}</EmailHeading>
       <EmailDivider />
       <EmailText>
-        We were unable to process your payment of <strong>{amount}</strong>. Please update your
-        payment method to avoid any service interruption.
+        We were unable to process your payment of <strong>{amount}</strong>.
       </EmailText>
 
       <SummaryTable>
@@ -57,9 +84,8 @@ export default function PaymentErrorEmail({
         />
       </SummaryTable>
 
-      <InfoBox variant="warning" title="Steps to resolve">
-        Update your payment method below, or contact your bank to authorize the charge and verify
-        your card details are correct.
+      <InfoBox variant={urgencyVariant} title={urgency === 'final' ? 'Urgent: Action required' : 'Action required'}>
+        {getUrgencyMessage(urgency, nextRetryDate, willRetry)}
       </InfoBox>
 
       <ActionButton href={updatePaymentUrl} variant="danger">
