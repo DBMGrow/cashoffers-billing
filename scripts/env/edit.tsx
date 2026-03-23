@@ -76,7 +76,7 @@ function loadEntries(envName: string): EnvEntry[] {
 function saveEntry(envName: string, key: string, value: string): void {
   const file = ENV_FILE_MAP[envName]
   const escaped = value.replace(/"/g, '\\"')
-  execSync(`npx dotenvx set ${key}="${escaped}" -f ${file}`, {
+  execSync(`npx dotenvx set ${key} "${escaped}" -f ${file}`, {
     env: { ...process.env },
     stdio: ["pipe", "pipe", "pipe"],
   })
@@ -86,7 +86,7 @@ function deleteEntry(envName: string, key: string): void {
   const file = ENV_FILE_MAP[envName]
   // dotenvx doesn't have a delete command; we use `set` with empty string
   // which sets the key to blank (encrypted empty). This preserves the key schema.
-  execSync(`npx dotenvx set ${key}="" -f ${file}`, {
+  execSync(`npx dotenvx set ${key} "" -f ${file}`, {
     env: { ...process.env },
     stdio: ["pipe", "pipe", "pipe"],
   })

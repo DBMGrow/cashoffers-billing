@@ -450,4 +450,16 @@ envCmd
   .option("--env <environment>", "Target environment (development, staging, production)", "development")
   .action((opts) => spawnEnvScript("rotate.tsx", ["--env", opts.env]))
 
+envCmd
+  .command("decrypt")
+  .description("Decrypt env file to plaintext for bulk editing (re-encrypt when done)")
+  .option("--env <environment>", "Target environment (development, staging, production)", "development")
+  .action((opts) => spawnEnvScript("decrypt.ts", ["--env", opts.env]))
+
+envCmd
+  .command("encrypt")
+  .description("Re-encrypt env file after bulk editing")
+  .option("--env <environment>", "Target environment (development, staging, production)", "development")
+  .action((opts) => spawnEnvScript("encrypt.ts", ["--env", opts.env]))
+
 program.parseAsync(process.argv)
