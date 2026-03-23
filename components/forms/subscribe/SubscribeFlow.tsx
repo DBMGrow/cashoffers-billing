@@ -10,6 +10,7 @@ import { useFlowAnimation } from "@/hooks/useFlowAnimation"
 import { useFlowState } from "@/hooks/useFlowState"
 import FlowWrapper from "../FlowWrapper"
 import { useProducts } from "@/providers/ProductProvider"
+import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 // Step components
 import EmailStep from "./steps/EmailStep"
@@ -126,6 +127,8 @@ export default function SubscribeFlow({
   const [productValidated, setProductValidated] = useState(false)
 
   // Fetch products using TanStack Query
+  const { currentWhitelabel } = useWhitelabel()
+
   const { getProductById, loading } = useProducts({
     mode: "signup",
     whitelabel: whitelabel || "default",
@@ -284,7 +287,13 @@ export default function SubscribeFlow({
       case "welcome":
         return <WelcomeStep form={form} />
       case "error":
-        return <ErrorStep errorMessage={errorMessage} onRetry={() => goToStep(returnStep)} />
+        return (
+          <ErrorStep
+            errorMessage={errorMessage}
+            onRetry={() => goToStep(returnStep)}
+            retryHref={!allowReset ? currentWhitelabel?.marketing_website : null}
+          />
+        )
       case "offerDowngrade":
         return (
           <OfferDowngradeStep

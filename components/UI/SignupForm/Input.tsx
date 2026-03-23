@@ -41,12 +41,17 @@ export default function Input({
 
   // focus on after 0.5 seconds
   useEffect(() => {
-    if (ref.current) {
-      setTimeout(() => {
-        ref!.current!.focus()
-      }, 500)
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (!cancelled && ref.current) {
+        ref.current.focus()
+      }
+    }, 500)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
     }
-  }, [ref])
+  }, [])
 
   // handle enter key on ref
   useEffect(() => {
@@ -58,9 +63,10 @@ export default function Input({
       }
     }
 
-    current!.addEventListener("keydown", handleEnter)
+    if (!current) return
+    current.addEventListener("keydown", handleEnter)
 
-    return () => current!.removeEventListener("keydown", handleEnter)
+    return () => current.removeEventListener("keydown", handleEnter)
   }, [handleSubmit, isDisabled])
 
   return (

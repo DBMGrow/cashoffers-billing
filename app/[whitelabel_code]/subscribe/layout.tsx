@@ -1,5 +1,4 @@
 import FormsLayout from "@/app/(forms)/FormsLayout"
-import { WhitelabelType } from "@/types/forms"
 import { db } from "@api/lib/database"
 
 interface WhitelabelLayoutProps {
@@ -16,11 +15,10 @@ export default async function WhitelabelLayout({ children, params }: WhitelabelL
     .where("code", "=", whitelabel_code)
     .executeTakeFirst()
 
-  const whitelabel = (row?.code ?? "default") as WhitelabelType
   const branding = row?.data as { primary_color?: string; secondary_color?: string; logo_url?: string } | null
 
   return (
-    <FormsLayout whitelabel={whitelabel} branding={branding}>
+    <FormsLayout branding={branding}>
       {children}
     </FormsLayout>
   )

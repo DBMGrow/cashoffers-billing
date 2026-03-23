@@ -23,68 +23,7 @@
     --color-default-900: #1a202c;
   }
 
-  .theme-yhs {
-    --color-primary: #164d86;
-    --color-secondary: #b12029;
-    --color-white: #ffffff;
-    --color-black: #000000;
-    --color-success: #000000;
-    --color-warning: #f4ba41;
-    --color-danger: #ec8b33;
-    --color-background: #ffffff;
-    --color-foreground: #112f45;
-    --color-default-100: #f7fafc;
-    --color-default-200: #edf2f7;
-    --color-default-300: #e2e8f0;
-    --color-default-400: #cbd5e0;
-    --color-default-500: #a0aec0;
-    --color-default-600: #718096;
-    --color-default-700: #4a5568;
-    --color-default-800: #2d3748;
-    --color-default-900: #1a202c;
-  }
 
-  .theme-kw {
-    --color-primary: #3c3c3c;
-    --color-secondary: #c50032;
-    --color-white: #ffffff;
-    --color-black: #000000;
-    --color-success: #000000;
-    --color-warning: #f4ba41;
-    --color-danger: #ec8b33;
-    --color-background: #ffffff;
-    --color-foreground: #112f45;
-    --color-default-100: #f7fafc;
-    --color-default-200: #edf2f7;
-    --color-default-300: #e2e8f0;
-    --color-default-400: #cbd5e0;
-    --color-default-500: #a0aec0;
-    --color-default-600: #718096;
-    --color-default-700: #4a5568;
-    --color-default-800: #2d3748;
-    --color-default-900: #1a202c;
-  }
-
-  .theme-uco {
-    --color-primary: #164d86;
-    --color-secondary: #c20f19;
-    --color-white: #ffffff;
-    --color-black: #000000;
-    --color-success: #000000;
-    --color-warning: #f4ba41;
-    --color-danger: #ec8b33;
-    --color-background: #ffffff;
-    --color-foreground: #112f45;
-    --color-default-100: #f7fafc;
-    --color-default-200: #edf2f7;
-    --color-default-300: #e2e8f0;
-    --color-default-400: #cbd5e0;
-    --color-default-500: #a0aec0;
-    --color-default-600: #718096;
-    --color-default-700: #4a5568;
-    --color-default-800: #2d3748;
-    --color-default-900: #1a202c;
-  }
 }
 
 @theme inline {

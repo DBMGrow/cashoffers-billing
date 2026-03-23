@@ -6,6 +6,7 @@ Practical guides for building, testing, and debugging the system.
 
 | Section | Description |
 |---------|-------------|
+| [QA Test Plan](qa-test-plan) | **Go-live migration QA** — every process, lifecycle, edge case, and how to test it |
 | [Scenarios](scenarios/) | Business workflows with test and CLI coverage status |
 | [Runbooks](runbooks/) | Setup, testing, dev tools, database |
 | [Quality](quality/) | Integration test coverage, discrepancies, todos |

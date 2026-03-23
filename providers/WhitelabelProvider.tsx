@@ -22,6 +22,7 @@ export interface Whitelabel {
   primary_color: string | null
   secondary_color: string | null
   suspension_behavior: "DEACTIVATE_USER" | "DOWNGRADE_TO_FREE"
+  marketing_website: string | null
 }
 
 interface WhitelabelContextType {
