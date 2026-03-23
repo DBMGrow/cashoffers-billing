@@ -51,7 +51,7 @@ app.openapi(PurchaseFreeRoute, async (c) => {
 
     // Create user in auth API
     const response = await axios.post(
-      config.api.routeAuth + "/users",
+      config.api.url + "/users",
       {
         email: body.email,
         name: body.name,
@@ -232,7 +232,7 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
     const { slug } = c.req.valid("param")
 
     const response = await axios.get(
-      `${config.api.routeAuthV2}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
+      `${config.api.url}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
       {
         headers: {
           "x-api-token": config.api.key,

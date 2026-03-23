@@ -45,11 +45,8 @@ export interface IConfig {
   // External APIs
   api: {
     url: string
-    urlV2: string
     masterToken: string
     key: string // API_KEY - token for calling main auth API
-    routeAuth: string // API_ROUTE_AUTH - main auth API base URL
-    routeAuthV2: string // API_ROUTE_AUTH_V2 - V2 auth API base URL
     route?: string // API_ROUTE - internal/billing API base URL (optional)
   }
 

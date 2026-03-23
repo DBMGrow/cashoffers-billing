@@ -115,6 +115,36 @@ export const CheckAuthRoute = {
 }
 
 /**
+ * GET /auth/jwt/verify/:token - Verify JWT token
+ */
+export const VerifyJwtRoute = {
+  method: "get" as const,
+  path: "/jwt/verify/:token",
+  request: {
+    params: z.object({
+      token: z.string().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: LoginResponseSchema,
+        },
+      },
+      description: "Token is valid, returns user data",
+    },
+    401: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Invalid or expired token",
+    },
+  },
+  tags: ["Auth"],
+  summary: "Verify JWT token",
+  description: "Verifies a JWT token locally and returns the associated user.",
+}
+
+/**
  * POST /auth/logout - User logout
  */
 export const LogoutRoute = {

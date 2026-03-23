@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation"
 interface ReviewStepProps {
   form: UseFormReturn<SubscribeFormData>
   mockPurchase?: boolean
+  whitelabel?: string
   onNext: () => void
   onBack: () => void
   onError: (message: string) => void
@@ -26,6 +27,7 @@ interface ReviewStepProps {
 export default function ReviewStep({
   form,
   mockPurchase = false,
+  whitelabel,
   onNext,
   onBack,
   onError,
@@ -38,6 +40,7 @@ export default function ReviewStep({
   // Fetch products using TanStack Query
   const { getProductById } = useProducts({
     mode: "signup",
+    whitelabel,
   })
   const productData = getProductById(product)
 

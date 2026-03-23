@@ -16,11 +16,8 @@ const buildConfig = (): IConfig => {
     "NEXT_PUBLIC_SQUARE_LOCATION_ID",
     "NEXT_PUBLIC_SQUARE_APP_ID",
     "API_URL",
-    "API_URL_V2",
     "API_MASTER_TOKEN",
     "API_KEY",
-    "API_ROUTE_AUTH",
-    "API_ROUTE_AUTH_V2",
     "SENDGRID_API_KEY",
     "DEV_EMAIL",
     "JWT_SECRET",
@@ -66,11 +63,8 @@ const buildConfig = (): IConfig => {
 
     api: {
       url: process.env.API_URL!,
-      urlV2: process.env.API_URL_V2!,
       masterToken: process.env.API_MASTER_TOKEN!,
       key: process.env.API_KEY!,
-      routeAuth: process.env.API_ROUTE_AUTH!,
-      routeAuthV2: process.env.API_ROUTE_AUTH_V2!,
       route: process.env.API_ROUTE,
     },
 

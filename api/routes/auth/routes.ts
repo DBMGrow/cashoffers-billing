@@ -1,8 +1,10 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { setCookie, deleteCookie } from "hono/cookie"
-import { LoginRoute, LogoutRoute, CheckAuthRoute } from "./schemas"
+import { LoginRoute, LogoutRoute, CheckAuthRoute, VerifyJwtRoute } from "./schemas"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
+import { getUserFromToken } from "@api/utils/getUserFromToken"
+import jwt from "jsonwebtoken"
 import axios from "axios"
 import { config } from "@api/config/config.service"
 
@@ -19,7 +21,7 @@ app.openapi(LoginRoute, async (c) => {
 
     // Proxy login request to V2 auth API
     const response = await axios.post(
-      `${config.api.routeAuthV2}/auth/login`,
+      `${config.api.url}/auth/login`,
       { email, password },
       {
         validateStatus: () => true, // Don't throw on any status code
@@ -64,6 +66,36 @@ app.openapi(LoginRoute, async (c) => {
       400
     )
   }
+})
+
+/**
+ * GET /auth/jwt/verify/:token
+ * Verifies a JWT token locally and returns the associated user
+ */
+app.openapi(VerifyJwtRoute, async (c) => {
+  const { token } = c.req.valid("param")
+
+  let payload: any
+  try {
+    payload = jwt.verify(token, config.jwtSecret)
+  } catch {
+    return c.json({ success: "error" as const, error: "Invalid or expired token" }, 401)
+  }
+
+  const apiToken: string | undefined = payload?.api_token
+  if (!apiToken) {
+    return c.json({ success: "error" as const, error: "Invalid token payload" }, 401)
+  }
+
+  const user = await getUserFromToken(apiToken)
+  if (!user) {
+    return c.json({ success: "error" as const, error: "User not found" }, 401)
+  }
+
+  return c.json({
+    success: "success" as const,
+    data: { ...user, name: user.name ?? undefined },
+  }, 200)
 })
 
 /**

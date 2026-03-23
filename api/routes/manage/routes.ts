@@ -34,7 +34,7 @@ app.openapi(CheckPlanRoute, async (c) => {
     const responseBody: any = {}
 
     // Fetch user details to check role
-    const userResponse = await fetch(`${config.api.routeAuth}/users/${subscription.user_id}`, {
+    const userResponse = await fetch(`${config.api.url}/users/${subscription.user_id}`, {
       headers: { "x-api-token": apiToken! },
     })
     const userData: any = await userResponse.json()
@@ -48,7 +48,7 @@ app.openapi(CheckPlanRoute, async (c) => {
     if (subscription?.data?.team) {
       const headers = { "x-api-token": apiToken! }
 
-      const teamResponse = await fetch(`${config.api.routeAuth}/teams/${subscription.data.team_id}`, { headers })
+      const teamResponse = await fetch(`${config.api.url}/teams/${subscription.data.team_id}`, { headers })
       const team: any = await teamResponse.json()
 
       if (team.success !== "success") {
@@ -56,7 +56,7 @@ app.openapi(CheckPlanRoute, async (c) => {
       }
       responseBody.team = team.data
 
-      const url = `${config.api.routeAuth}/users?team_id=${subscription.data.team_id}&active=1`
+      const url = `${config.api.url}/users?team_id=${subscription.data.team_id}&active=1`
       const teamUsersResponse = await fetch(url, { headers })
       const teamUsers: any = await teamUsersResponse.json()
 
@@ -146,7 +146,7 @@ app.openapi(CheckTokenRoute, async (c) => {
     }
 
     // Fetch user details
-    const url = `${config.api.routeAuth}/users/${decoded.id}`
+    const url = `${config.api.url}/users/${decoded.id}`
     const userResponse = await fetch(url, {
       headers: {
         "x-api-token": config.api.key,

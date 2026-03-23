@@ -278,6 +278,7 @@ export default function SubscribeFlow({
           <ReviewStep
             form={form}
             mockPurchase={mockPurchase}
+            whitelabel={whitelabel || "default"}
             onNext={() => goToStep("welcome")}
             onBack={() => goToStep("card")}
             onError={(message) => goToError(message, "review")}
