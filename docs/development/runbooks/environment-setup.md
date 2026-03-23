@@ -108,14 +108,37 @@ Never access `process.env` directly — always import from `@api/config/config.s
 
 ---
 
-## SSH tunnel (staging database access)
+## Using `.env.local` for personal overrides
+
+`.env.local` is gitignored and never committed. Use it to override variables from `.env.development` for your local setup — for example, switching the SSH tunnel target or pointing to a local database.
 
 ```bash
-yarn tunnel        # SSH tunnel only
-yarn dev           # includes tunnel if SSH_MODE is set
+# .env.local (example)
+SSH_MODE=production
+SSH_KEY_PATH=/Users/you/.ssh/my_key
+DATABASE_URL=mysql://...
 ```
 
-SSH tunnel config lives in `.env.development` — the keys (`SSH_DROPLET_IP`, `SSH_KEY_PATH`, etc.) are already encrypted there.
+The `dev` and `tunnel` scripts load `.env.development` first, then `.env.local` with `--overload`, so values in `.env.local` always win. Without `--overload`, dotenvx treats the first loaded value as the winner — that's why the flag is required here.
+
+---
+
+## SSH tunnel (staging or production database access)
+
+```bash
+yarn tunnel        # SSH tunnel only (uses SSH_MODE from env)
+yarn dev           # starts Next.js + tunnel together
+```
+
+SSH tunnel config lives in `.env.development`. To override the target environment, set `SSH_MODE` in `.env.local`:
+
+```bash
+# .env.local
+SSH_MODE=staging     # connect to staging DB
+# SSH_MODE=production  # connect to production DB
+```
+
+The relevant variables are `SSH_MODE`, `SSH_KEY_PATH`, `SSH_DROPLET_IP`, `SSH_DB_HOST_STAGING`, `SSH_DB_HOST_PRODUCTION`, and `SSH_DB_PORT`.
 
 ---
 

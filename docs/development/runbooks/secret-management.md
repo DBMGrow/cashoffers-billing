@@ -62,6 +62,37 @@ Requires `DOTENV_PRIVATE_KEY_PRODUCTION` and shows a confirmation prompt before 
 
 ---
 
+## Bulk editing (decrypt → edit → encrypt)
+
+For large changes (many secrets at once), use the decrypt/encrypt workflow instead of the interactive editor.
+
+```bash
+yarn dev:tools env decrypt
+```
+
+This writes plaintext values back into the env file so you can edit it directly. **Do not commit the file while it is decrypted.**
+
+After editing:
+
+```bash
+yarn dev:tools env encrypt
+```
+
+This re-encrypts all plaintext values in place and confirms the file is safe to commit. The command will warn you if the file is staged in git before encryption completes.
+
+For non-default environments:
+
+```bash
+yarn dev:tools env decrypt --env staging
+yarn dev:tools env encrypt --env staging
+```
+
+Production decrypt requires typing `"yes, decrypt production"` to proceed.
+
+> **Tip:** For adding or changing individual secrets, prefer `env edit` — it's safer since secrets are never written as plaintext.
+
+---
+
 ## Rotating keys
 
 Run when: a developer leaves the team, a key may have been exposed, or as a periodic security practice.

@@ -45,6 +45,12 @@ Manage encrypted secrets. All encryption/decryption is handled automatically —
 | `env edit` | Interactive TUI: add, edit, or delete secrets in `.env.development` |
 | `env edit --env staging` | Edit staging secrets (requires `DOTENV_PRIVATE_KEY_STAGING`) |
 | `env edit --env production` | Edit production secrets — prompts for confirmation first |
+| `env decrypt` | Decrypt `.env.development` to plaintext for bulk editing — **do not commit** |
+| `env decrypt --env staging` | Decrypt staging env file |
+| `env decrypt --env production` | Decrypt production env file — requires typed confirmation |
+| `env encrypt` | Re-encrypt `.env.development` after bulk editing — safe to commit |
+| `env encrypt --env staging` | Re-encrypt staging env file |
+| `env encrypt --env production` | Re-encrypt production env file |
 | `env rotate` | Rotate all environment keys with guided post-rotation checklist |
 | `env rotate --env <env>` | Rotate a single environment |
 
@@ -63,4 +69,6 @@ See [environment setup](environment-setup) and [secret management](secret-manage
 - `scripts/dev.ts` — CLI entrypoint and command definitions
 - `scripts/env/setup.ts` — `env setup` flow
 - `scripts/env/edit.tsx` — `env edit` Ink TUI
+- `scripts/env/decrypt.ts` — `env decrypt` bulk-edit helper
+- `scripts/env/encrypt.ts` — `env encrypt` re-encryption after bulk edit
 - `scripts/env/rotate.tsx` — `env rotate` Ink guided flow
