@@ -6,7 +6,8 @@ import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interfac
  */
 export interface SubscriptionCreatedPayload {
   subscriptionId: number
-  userId: number
+  /** userId is optional when user provisioning is deferred (new-user purchase flow) */
+  userId?: number
   email: string
   productId: number
   productName: string

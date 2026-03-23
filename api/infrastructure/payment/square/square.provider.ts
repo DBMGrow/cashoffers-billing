@@ -1,4 +1,5 @@
 import { Client, Environment, ApiError } from "square"
+import { SquareApiError } from "../error/payment-error.types"
 import { v4 as uuidv4 } from "uuid"
 import type { IConfig } from "@api/config/config.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
@@ -116,8 +117,9 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
+        const primaryCode = errors[0]?.code || "UNKNOWN"
         const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
-        throw new Error(`Square API error: ${errorMessages}`)
+        throw new SquareApiError(`Square API error: ${errorMessages}`, primaryCode, errors)
       }
 
       throw error
@@ -197,8 +199,9 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
+        const primaryCode = errors[0]?.code || "UNKNOWN"
         const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
-        throw new Error(`Square API error: ${errorMessages}`)
+        throw new SquareApiError(`Square API error: ${errorMessages}`, primaryCode, errors)
       }
 
       throw error
@@ -229,8 +232,9 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
+        const primaryCode = errors[0]?.code || "UNKNOWN"
         const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
-        throw new Error(`Square API error: ${errorMessages}`)
+        throw new SquareApiError(`Square API error: ${errorMessages}`, primaryCode, errors)
       }
 
       throw error
@@ -290,8 +294,9 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
       if (error instanceof ApiError) {
         const errors = error.result?.errors || []
+        const primaryCode = errors[0]?.code || "UNKNOWN"
         const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
-        throw new Error(`Square API error: ${errorMessages}`)
+        throw new SquareApiError(`Square API error: ${errorMessages}`, primaryCode, errors)
       }
 
       throw error

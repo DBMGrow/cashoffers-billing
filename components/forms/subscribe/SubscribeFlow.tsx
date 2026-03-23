@@ -282,6 +282,11 @@ export default function SubscribeFlow({
             onNext={() => goToStep("welcome")}
             onBack={() => goToStep("card")}
             onError={(message) => goToError(message, "review")}
+            onCardError={(message) => {
+              form.setValue("cardData", null)
+              setAllowReset(true)
+              goToError(message, "card")
+            }}
             setAllowReset={setAllowReset}
           />
         )

@@ -8,8 +8,13 @@ import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { purchaseNewUserUseCase, purchaseExistingUserUseCase } from "@api/use-cases/subscription"
 import { productRepository, userCardRepository } from "@api/lib/repositories"
 import { userApiClient } from "@api/lib/services"
+import { isUserFacingError } from "@api/use-cases/subscription/purchase-helpers"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
+
+function purchaseErrorStatus(code: string | undefined): 400 | 500 {
+  return isUserFacingError(code) ? 400 : 500
+}
 
 // POST /purchase/existing — requires session auth (x-api-token header or _api_token cookie)
 app.use("/existing", authMiddleware(null))
@@ -54,19 +59,21 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
           error: useCaseResult.error,
           code: useCaseResult.code,
         },
-        400
+        purchaseErrorStatus(useCaseResult.code)
       )
     }
 
     const data = useCaseResult.data
 
+    const userId = data.userId  // null when provisioning was deferred
+
     const [product, user, userCards] = await Promise.all([
       productRepository.findById(typeof body.product_id === "number" ? body.product_id : parseInt(body.product_id, 10)),
-      userApiClient.getUser(data.userId),
-      userCardRepository.findByUserId(data.userId),
+      userId != null ? userApiClient.getUser(userId) : Promise.resolve(null),
+      userId != null ? userCardRepository.findByUserId(userId) : Promise.resolve([]),
     ])
 
-    // Set session cookie for the newly created user if their api_token is available
+    // Set session cookie only when we have a real user with an api_token
     const newUserApiToken = (user as any)?._api_token
     if (newUserApiToken) {
       setCookie(c, "_api_token", newUserApiToken, {
@@ -90,8 +97,9 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
           },
           product: product as any,
           user: user as any,
-          userCard: userCards.length > 0 ? (userCards[0] as any) : null,
+          userCard: (userCards as any[]).length > 0 ? (userCards as any[])[0] : null,
           userCreated: data.userCreated,
+          userProvisioned: data.userProvisioned,
           proratedCharge: data.proratedCharge,
         },
         environment: (paymentContext?.testMode ? "sandbox" : "production") as "sandbox" | "production",
@@ -139,7 +147,7 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
           error: useCaseResult.error,
           code: useCaseResult.code,
         },
-        400
+        purchaseErrorStatus(useCaseResult.code)
       )
     }
 

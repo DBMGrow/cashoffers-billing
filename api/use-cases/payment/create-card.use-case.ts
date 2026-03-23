@@ -6,6 +6,7 @@ import type { SubscriptionRepository } from "@api/lib/repositories"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { ICreateCardUseCase } from "./create-card.use-case.interface"
+import { SquareApiError } from "@api/infrastructure/payment/error/payment-error.types"
 import { CreateCardInput, CreateCardOutput } from "../types/payment.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CreateCardInputSchema } from "../types/validation.schemas"
@@ -88,7 +89,8 @@ export class CreateCardUseCase implements ICreateCardUseCase {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error"
         logger.error("Failed to create card in Square", { error: errorMessage })
-        return failure("Failed to create card in payment provider", "SQUARE_CARD_CREATION_ERROR")
+        const errorCode = error instanceof SquareApiError ? error.squareCode : "SQUARE_CARD_CREATION_ERROR"
+        return failure(errorMessage, errorCode)
       }
 
       // Create or update card in database

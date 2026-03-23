@@ -132,6 +132,9 @@ export class SubscriptionRepository {
       .where('status', '=', 'active')
       .where('renewal_date', '<=', date)
       .where('cancel_on_renewal', '=', 0)
+      // Exclude subscriptions without a bound user — pending_provisioning subscriptions
+      // have no user account yet and cannot be renewed until manually resolved.
+      .where('user_id', 'is not', null)
       .selectAll()
       .orderBy('renewal_date', 'asc')
       .execute()
@@ -195,7 +198,25 @@ export class SubscriptionRepository {
           eb('renewal_date', '<=', date)
         ])
       )
+      // Exclude subscriptions without a bound user — pending_provisioning subscriptions
+      // have no user account yet and cannot be renewed until manually resolved.
+      .where('user_id', 'is not', null)
       .selectAll()
+      .execute()
+  }
+
+  /**
+   * Find subscriptions where user provisioning failed after payment.
+   * These require manual intervention to create the user account and bind it.
+   */
+  async findPendingProvisioning(trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+
+    return await db
+      .selectFrom('Subscriptions')
+      .where('provisioning_status', '=', 'pending_provisioning')
+      .selectAll()
+      .orderBy('createdAt', 'asc')
       .execute()
   }
 

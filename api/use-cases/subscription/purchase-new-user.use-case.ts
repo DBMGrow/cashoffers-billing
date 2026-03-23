@@ -15,7 +15,11 @@ import { NewUserPurchaseInputSchema, NewUserPurchaseInputValidated } from "../ty
 import { ProductUserConfig } from "@api/domain/types/product-data.types"
 import type { PaymentContext } from "@api/config/config.interface"
 import { UserCreatedEvent } from "@api/domain/events/user-created.event"
+import { UserProvisioningFailedEvent } from "@api/domain/events/user-provisioning-failed.event"
+import { createElement } from "react"
+import { render } from "@react-email/render"
 import { v4 as uuidv4 } from "uuid"
+import UserProvisioningFailedEmail from "@api/infrastructure/email/templates/user-provisioning-failed.email"
 import {
   PurchaseError,
   PurchasePricing,
@@ -29,6 +33,8 @@ import {
   createTransactionRecord,
   publishPurchaseEvents,
   createCardHelper,
+  isUserFacingError,
+  sendSystemErrorAlert,
 } from "./purchase-helpers"
 import { generateResetToken } from "@api/utils/generate-reset-token"
 import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
@@ -44,30 +50,39 @@ interface Dependencies {
   transactionRepository: TransactionRepository
   purchaseRequestRepository: PurchaseRequestRepository
   eventBus: IEventBus
+  /** Email address to notify when user provisioning fails after a successful payment */
+  adminAlertEmail: string
 }
 
 interface RollbackContext {
   paymentId: string | null
-  createdUserId: number | null
   pricing: PurchasePricing | null
   context: PaymentContext | null | undefined
+  /** Once true, the subscription exists and the refund gate is closed */
+  subscriptionCreated: boolean
 }
+
+type ProvisioningResult =
+  | { success: true; userId: number }
+  | { success: false; reason: string }
 
 /**
  * PurchaseNewUserUseCase
  *
- * Handles the complete subscription purchase flow for new users:
- * 1. Product validation
- * 2. Card creation (with null user_id)
- * 3. Initial payment processing
- * 4. User creation via main API (only after payment succeeds)
- * 5. Card binding to the new user
- * 6. Subscription creation
- * 7. Event publishing (UserCreated, CardCreated, SubscriptionCreated, PaymentProcessed)
+ * Payment-first architecture:
+ * 1. Validate product
+ * 2. Create card via Square
+ * 3. Process payment
+ * 4. Create subscription (user_id = null, provisioning_status = null)
+ * 5. Create transaction record
+ * 6. Attempt user provisioning (non-blocking)
+ *    - Success → bind card + update subscription.user_id → emit UserCreated
+ *    - Failure → mark subscription as pending_provisioning, send admin alert, return success
+ * 7. Publish events and finalize
  *
- * If anything fails after payment is charged, the payment is refunded.
- * If anything fails after the user is created, the user is abandoned (active=false,
- * email scrambled) so the original email address is freed for re-signup.
+ * If anything fails before the subscription is created, the payment is refunded.
+ * Once the subscription exists, no refund is issued — the subscription record is
+ * the source of truth for what was purchased.
  */
 export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
   constructor(private readonly deps: Dependencies) {}
@@ -76,16 +91,18 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     const { logger } = this.deps
     const startTime = new Date()
     let purchaseRequestId: number | null = null
+    let capturedEmail: string | null = null
+    let capturedProductId: string | number | null = null
 
     const rollback: RollbackContext = {
       paymentId: null,
-      createdUserId: null,
       pricing: null,
       context: input.context,
+      subscriptionCreated: false,
     }
 
     try {
-      // Validate input (before tracking — early return, no markAsFailed needed)
+      // Validate input (early return — no purchase request yet)
       const validationResult = NewUserPurchaseInputSchema.safeParse(input)
       if (!validationResult.success) {
         const errors = validationResult.error.issues.map((i) => i.message).join(", ")
@@ -95,6 +112,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
 
       const v = validationResult.data
       const productIdNum = parseProductId(v.productId)
+      capturedEmail = v.email
+      capturedProductId = v.productId
 
       // Track the request
       const purchaseRequest = await createPurchaseRequest(this.deps, {
@@ -115,29 +134,46 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         purchaseRequestId
       )
 
-      // Create card (user_id remains null until after payment succeeds)
+      // Create card (user_id remains null until after provisioning succeeds)
       const cardIdString = await this.createCard(v, input.context)
 
       // Resolve card row for payment
       const userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
 
-      // Process payment BEFORE creating the user
+      // Process payment
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
       const pricing = calculatePricing(product, productData)
       rollback.pricing = pricing
       const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
       rollback.paymentId = payment.id
 
-      // Create user only after payment succeeds
+      // Create subscription before user exists — refund gate closes here
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
-      const userId = await this.createUser(v, userConfig, product.product_id, purchaseRequestId, cardIdString)
-      rollback.createdUserId = userId
-
-      // Create subscription
-      const subscription = await createSubscriptionRecord(this.deps, { userId, product, pricing, payment, userConfig })
+      const subscription = await createSubscriptionRecord(this.deps, {
+        userId: null,
+        product,
+        pricing,
+        payment,
+        userConfig,
+      })
+      rollback.subscriptionCreated = true
 
       // Log transaction
-      const transaction = await createTransactionRecord(this.deps, { userId, product, pricing, payment })
+      const transaction = await createTransactionRecord(this.deps, {
+        userId: null,
+        product,
+        pricing,
+        payment,
+      })
+
+      // Attempt user provisioning — non-blocking, never throws
+      const provisioning = await this.attemptUserProvisioning(v, userConfig, product.product_id, {
+        purchaseRequestId,
+        subscriptionId: subscription.subscription_id,
+        cardIdString,
+      })
+
+      const userId = provisioning.success ? provisioning.userId : null
 
       // Publish events and finalize
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")
@@ -153,13 +189,14 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         payment,
         cardIdString,
         userCard,
-        userWasCreated: true,
+        userWasCreated: provisioning.success,
         startTime,
       })
 
-      logger.info("New user purchase completed successfully", {
+      logger.info("New user purchase completed", {
         userId,
         subscriptionId: subscription.subscription_id,
+        userProvisioned: provisioning.success,
         amount: pricing.initialAmount,
         duration: new Date().getTime() - startTime.getTime(),
       })
@@ -171,10 +208,14 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         productId: v.productId,
         amount: pricing.initialAmount,
         proratedCharge: 0,
-        userCreated: true,
+        userCreated: provisioning.success,
+        userProvisioned: provisioning.success,
       })
     } catch (error) {
-      return this.handleError(error, purchaseRequestId, rollback, startTime)
+      return this.handleError(error, purchaseRequestId, rollback, startTime, {
+        email: capturedEmail,
+        productId: capturedProductId,
+      })
     }
   }
 
@@ -201,19 +242,29 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     )
 
     if (!cardResult.success) {
-      throw new PurchaseError(cardResult.error || "Card creation failed", "CARD_CREATION_FAILED")
+      throw new PurchaseError(cardResult.error || "Card creation failed", cardResult.squareCode || "CARD_CREATION_FAILED")
     }
 
     return cardResult.cardId!
   }
 
-  private async createUser(
+  /**
+   * Attempts to create the user account in the main API and bind them to the
+   * subscription and card. Never throws — provisioning failure is handled
+   * gracefully by marking the subscription as pending_provisioning and alerting admin.
+   */
+  private async attemptUserProvisioning(
     v: NewUserPurchaseInputValidated,
     userConfig: ProductUserConfig | undefined,
     productId: number,
-    purchaseRequestId: number,
-    cardIdString: string
-  ): Promise<number> {
+    context: {
+      purchaseRequestId: number
+      subscriptionId: number
+      cardIdString: string
+    }
+  ): Promise<ProvisioningResult> {
+    const { logger } = this.deps
+
     try {
       const resetToken = generateResetToken()
 
@@ -228,15 +279,11 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         reset_created: formatMySQLDatetime(),
       })
       const userId = newUser.id
-      this.deps.logger.info("New user created", { userId })
 
-      await this.deps.purchaseRequestRepository.update(purchaseRequestId, {
-        user_id: userId,
-        user_created: 1,
-      })
+      logger.info("User provisioned successfully", { userId, subscriptionId: context.subscriptionId })
 
       // Bind card to the new user
-      const cards = await this.deps.userCardRepository.findAll({ card_id: cardIdString })
+      const cards = await this.deps.userCardRepository.findAll({ card_id: context.cardIdString })
       if (cards.length > 0) {
         await this.deps.userCardRepository.update(cards[0].id, {
           user_id: userId,
@@ -244,21 +291,108 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         })
       }
 
+      // Bind subscription to the new user
+      await this.deps.subscriptionRepository.update(context.subscriptionId, {
+        user_id: userId,
+        provisioning_status: "provisioned",
+        updatedAt: new Date(),
+      })
+
+      // Update purchase request with the new user id
+      await this.deps.purchaseRequestRepository.update(context.purchaseRequestId, {
+        user_id: userId,
+        user_created: 1,
+      })
+
+      // Publish UserCreated event
       await this.deps.eventBus.publish(
         UserCreatedEvent.create({
           userId,
           email: v.email,
           creationSource: "purchase_flow",
           productId,
+          subscriptionId: context.subscriptionId,
         })
       )
 
-      return userId
+      return { success: true, userId }
     } catch (error) {
-      if (error instanceof PurchaseError) throw error
-      const detail = error instanceof Error ? error.message : String(error)
-      this.deps.logger.error("Failed to create user", { error })
-      throw new PurchaseError(`Failed to create user: ${detail}`, "USER_CREATION_FAILED")
+      const reason = error instanceof Error ? error.message : String(error)
+      logger.error("User provisioning failed after successful payment", {
+        email: v.email,
+        subscriptionId: context.subscriptionId,
+        purchaseRequestId: context.purchaseRequestId,
+        error: reason,
+      })
+
+      // Mark subscription as needing manual intervention
+      try {
+        await this.deps.subscriptionRepository.update(context.subscriptionId, {
+          provisioning_status: "pending_provisioning",
+          updatedAt: new Date(),
+        })
+      } catch (updateError) {
+        logger.error("Failed to mark subscription as pending_provisioning", {
+          subscriptionId: context.subscriptionId,
+          updateError,
+        })
+      }
+
+      // Publish observable event for monitoring
+      try {
+        await this.deps.eventBus.publish(
+          UserProvisioningFailedEvent.create({
+            subscriptionId: context.subscriptionId,
+            purchaseRequestId: context.purchaseRequestId,
+            email: v.email,
+            productId,
+            cardId: context.cardIdString,
+            errorMessage: reason,
+          })
+        )
+      } catch (eventError) {
+        logger.error("Failed to publish UserProvisioningFailed event", { eventError })
+      }
+
+      // Alert admin
+      await this.alertProvisioningFailure({
+        email: v.email,
+        subscriptionId: context.subscriptionId,
+        purchaseRequestId: context.purchaseRequestId,
+        productId,
+        errorDetail: reason,
+      })
+
+      return { success: false, reason }
+    }
+  }
+
+  private async alertProvisioningFailure(params: {
+    email: string
+    subscriptionId: number
+    purchaseRequestId: number
+    productId: number
+    errorDetail: string
+  }): Promise<void> {
+    try {
+      const html = await render(
+        createElement(UserProvisioningFailedEmail, {
+          subscriptionId: params.subscriptionId,
+          purchaseRequestId: params.purchaseRequestId,
+          email: params.email,
+          productId: params.productId,
+          errorDetail: params.errorDetail,
+          occurredAt: new Date().toISOString(),
+        })
+      )
+      await this.deps.emailService.sendEmail({
+        to: this.deps.adminAlertEmail,
+        subject: `[ACTION REQUIRED] User provisioning failed — subscription #${params.subscriptionId}`,
+        html,
+        templateName: "user-provisioning-failed",
+      })
+    } catch (alertError) {
+      this.deps.logger.error("Failed to send provisioning failure admin alert", { alertError, ...params })
     }
   }
 
@@ -266,18 +400,17 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     error: unknown,
     purchaseRequestId: number | null,
     rollback: RollbackContext,
-    startTime: Date
+    startTime: Date,
+    context: { email: string | null; productId: string | number | null }
   ): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
     const { logger } = this.deps
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const errorStack = error instanceof Error ? error.stack : undefined
     const errorCode = error instanceof PurchaseError ? error.code : "PURCHASE_ERROR"
+    const durationMs = new Date().getTime() - startTime.getTime()
 
-    logger.error("New user purchase error", {
-      error: errorMessage,
-      duration: new Date().getTime() - startTime.getTime(),
-    })
+    logger.error("New user purchase error", { error: errorMessage, duration: durationMs })
 
-    // PurchaseErrors already handled markAsFailed (or intentionally skipped it)
     if (purchaseRequestId && !(error instanceof PurchaseError)) {
       try {
         await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, errorCode)
@@ -286,9 +419,10 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       }
     }
 
-    // Compensating actions — errors here are logged but never block the failure response
-
-    if (rollback.paymentId && rollback.pricing) {
+    // Refund only if payment was charged AND the subscription was NOT yet created.
+    // Once subscriptionCreated = true, the subscription is the source of truth —
+    // no refund is issued for provisioning failures.
+    if (rollback.paymentId && rollback.pricing && !rollback.subscriptionCreated) {
       try {
         await this.deps.paymentProvider.refundPayment(
           {
@@ -308,16 +442,27 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       }
     }
 
-    if (rollback.createdUserId) {
-      try {
-        await this.deps.userApiClient.abandonUser(rollback.createdUserId)
-        logger.info("Abandoned user during purchase cleanup", { userId: rollback.createdUserId })
-      } catch (abandonError) {
-        logger.error("Failed to abandon user during cleanup — manual intervention required", {
-          userId: rollback.createdUserId,
-          abandonError,
-        })
-      }
+    // Alert developer for system errors (not user-fixable card/input errors)
+    if (!isUserFacingError(errorCode)) {
+      await sendSystemErrorAlert(
+        {
+          emailService: this.deps.emailService,
+          logger,
+          adminAlertEmail: this.deps.adminAlertEmail,
+        },
+        {
+          flow: "new-user-purchase",
+          errorCode,
+          errorMessage,
+          errorStack,
+          purchaseRequestId,
+          productId: context.productId,
+          email: context.email,
+          paymentId: rollback.paymentId,
+          subscriptionCreated: rollback.subscriptionCreated,
+          durationMs,
+        }
+      )
     }
 
     return failure(errorMessage, errorCode)

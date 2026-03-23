@@ -1,5 +1,6 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
+import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import type { ProductRepository } from "@api/lib/repositories"
 import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { UserCardRepository } from "@api/lib/repositories"
@@ -23,17 +24,21 @@ import {
   createTransactionRecord,
   publishPurchaseEvents,
   createCardHelper,
+  isUserFacingError,
+  sendSystemErrorAlert,
 } from "./purchase-helpers"
 
 interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
+  emailService: IEmailService
   productRepository: ProductRepository
   subscriptionRepository: SubscriptionRepository
   userCardRepository: UserCardRepository
   transactionRepository: TransactionRepository
   purchaseRequestRepository: PurchaseRequestRepository
   eventBus: IEventBus
+  adminAlertEmail: string
 }
 
 /**
@@ -53,6 +58,10 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
     const { logger } = this.deps
     const startTime = new Date()
     let purchaseRequestId: number | null = null
+    let capturedEmail: string | null = null
+    let capturedProductId: string | number | null = null
+    let capturedUserId: number | null = null
+    let capturedPaymentId: string | null = null
 
     try {
       // Validate input (before tracking — early return, no markAsFailed needed)
@@ -65,6 +74,9 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
 
       const v = validationResult.data
       const productIdNum = parseProductId(v.productId)
+      capturedEmail = v.email
+      capturedProductId = v.productId
+      capturedUserId = v.userId
 
       // Track the request
       const purchaseRequest = await createPurchaseRequest(this.deps, {
@@ -98,6 +110,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
       const pricing = calculatePricing(product, productData)
       const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
+      capturedPaymentId = payment.id
 
       // Create subscription
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
@@ -152,7 +165,12 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userCreated: false,
       })
     } catch (error) {
-      return this.handleError(error, purchaseRequestId, startTime)
+      return this.handleError(error, purchaseRequestId, startTime, {
+        email: capturedEmail,
+        productId: capturedProductId,
+        userId: capturedUserId,
+        paymentId: capturedPaymentId,
+      })
     }
   }
 
@@ -180,7 +198,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       )
 
       if (!cardResult.success) {
-        throw new PurchaseError(cardResult.error || "Card update failed", "CARD_UPDATE_FAILED")
+        throw new PurchaseError(cardResult.error || "Card creation failed", cardResult.squareCode || "CARD_CREATION_FAILED")
       }
       return cardResult.cardId!
     }
@@ -204,15 +222,20 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
   private async handleError(
     error: unknown,
     purchaseRequestId: number | null,
-    startTime: Date
+    startTime: Date,
+    context: {
+      email: string | null
+      productId: string | number | null
+      userId: number | null
+      paymentId: string | null
+    }
   ): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const errorStack = error instanceof Error ? error.stack : undefined
     const errorCode = error instanceof PurchaseError ? error.code : "PURCHASE_ERROR"
+    const durationMs = new Date().getTime() - startTime.getTime()
 
-    this.deps.logger.error("Existing user purchase error", {
-      error: errorMessage,
-      duration: new Date().getTime() - startTime.getTime(),
-    })
+    this.deps.logger.error("Existing user purchase error", { error: errorMessage, duration: durationMs })
 
     // PurchaseErrors already handled markAsFailed (or intentionally skipped it)
     if (purchaseRequestId && !(error instanceof PurchaseError)) {
@@ -221,6 +244,30 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       } catch (updateError) {
         this.deps.logger.error("Failed to update purchase request status", { updateError })
       }
+    }
+
+    // Alert developer for system errors (not user-fixable card/input errors)
+    if (!isUserFacingError(errorCode)) {
+      await sendSystemErrorAlert(
+        {
+          emailService: this.deps.emailService,
+          logger: this.deps.logger,
+          adminAlertEmail: this.deps.adminAlertEmail,
+        },
+        {
+          flow: "existing-user-purchase",
+          errorCode,
+          errorMessage,
+          errorStack,
+          purchaseRequestId,
+          productId: context.productId,
+          email: context.email,
+          userId: context.userId,
+          paymentId: context.paymentId,
+          subscriptionCreated: false, // existing user flow has no partial-state gate
+          durationMs,
+        }
+      )
     }
 
     return failure(errorMessage, errorCode)

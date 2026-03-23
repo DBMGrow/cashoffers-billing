@@ -36,6 +36,7 @@ export enum SquareErrorCode {
   // Card issues
   EXPIRED_CARD = "EXPIRED_CARD",
   INVALID_CARD = "INVALID_CARD",
+  INVALID_CARD_DATA = "INVALID_CARD_DATA",
   INVALID_EXPIRATION = "INVALID_EXPIRATION",
   CARD_NOT_SUPPORTED = "CARD_NOT_SUPPORTED",
 
@@ -80,6 +81,22 @@ export interface PaymentError {
 
   /** Whether the user should contact support */
   contactSupport: boolean
+}
+
+/**
+ * Structured error thrown by the Square payment provider.
+ * Carries the primary Square error code as a typed property so
+ * upstream callers can route on it without parsing the message string.
+ */
+export class SquareApiError extends Error {
+  constructor(
+    message: string,
+    public readonly squareCode: string,
+    public readonly squareErrors: Array<{ code: string; detail: string; category?: string }>
+  ) {
+    super(message)
+    this.name = "SquareApiError"
+  }
 }
 
 /**

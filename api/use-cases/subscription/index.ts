@@ -1,4 +1,5 @@
 import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient } from '@api/lib/services'
+import { config } from '@api/config/config.service'
 import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository, whitelabelRepository } from '@api/lib/repositories'
 import { CreateSubscriptionUseCase } from './create-subscription.use-case'
 import { RenewSubscriptionUseCase } from './renew-subscription.use-case'
@@ -95,17 +96,20 @@ export const purchaseNewUserUseCase = new PurchaseNewUserUseCase({
   transactionRepository,
   purchaseRequestRepository,
   eventBus,
+  adminAlertEmail: config.adminEmail,
 })
 
 export const purchaseExistingUserUseCase = new PurchaseExistingUserUseCase({
   logger,
   paymentProvider,
+  emailService,
   productRepository,
   subscriptionRepository,
   userCardRepository,
   transactionRepository,
   purchaseRequestRepository,
   eventBus,
+  adminAlertEmail: config.adminEmail,
 })
 
 export const deactivateSubscriptionUseCase = new DeactivateSubscriptionUseCase({

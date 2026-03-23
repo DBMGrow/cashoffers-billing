@@ -1453,6 +1453,13 @@ export interface Subscriptions {
    */
   next_renewal_attempt: Date | null;
   product_id: number | null;
+  /**
+   * NULL = no deferred provisioning needed (existing user purchase or legacy).
+   * 'provisioned' = user was created and bound after subscription was created.
+   * 'pending_provisioning' = user creation failed; needs manual intervention.
+   * See migration 007_subscriptions_nullable_user_id.sql
+   */
+  provisioning_status: "provisioned" | "pending_provisioning" | null;
   renewal_date: Date;
   square_environment: Generated<"production" | "sandbox" | null>;
   status: string | null;
@@ -1460,7 +1467,7 @@ export interface Subscriptions {
   subscription_name: string;
   suspension_date: Date | null;
   updatedAt: Date;
-  user_id: number;
+  user_id: number | null;
 }
 
 export interface SubscriptionsDash {

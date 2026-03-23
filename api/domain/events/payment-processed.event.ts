@@ -9,8 +9,8 @@ export interface PaymentProcessedPayload {
   transactionId: number
   /** External payment provider transaction ID */
   externalTransactionId: string
-  /** User ID who made the payment */
-  userId: number
+  /** User ID who made the payment. Optional when user provisioning is deferred. */
+  userId?: number
   /** User email */
   email: string
   /** Amount charged in cents */

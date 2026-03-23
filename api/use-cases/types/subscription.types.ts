@@ -234,12 +234,15 @@ export interface PurchaseSubscriptionInput {
  */
 export interface PurchaseSubscriptionOutput {
   subscriptionId: number
-  userId: number
+  /** null when user provisioning was deferred (new-user purchase, provisioning failed) */
+  userId: number | null
   cardId: string
   productId: string | number
   amount: number
   proratedCharge?: number
   userCreated: boolean
+  /** true when the user account exists and is bound to the subscription */
+  userProvisioned: boolean
 }
 
 /**

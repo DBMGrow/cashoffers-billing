@@ -21,6 +21,7 @@ interface ReviewStepProps {
   onNext: () => void
   onBack: () => void
   onError: (message: string) => void
+  onCardError: (message: string) => void
   setAllowReset: (allow: boolean) => void
 }
 
@@ -31,6 +32,7 @@ export default function ReviewStep({
   onNext,
   onBack,
   onError,
+  onCardError,
   setAllowReset,
 }: ReviewStepProps) {
   const router = useRouter()
@@ -88,21 +90,31 @@ export default function ReviewStep({
     onNext()
   }
 
-  const isCardError = (code?: string): boolean => {
-    const cardErrorCodes = [
-      "CARD_CREATION_FAILED",
-      "PUR08",
-      "CARD_DECLINED",
-      "CVV_FAILURE",
-      "ADDRESS_VERIFICATION_FAILURE",
-      "INSUFFICIENT_FUNDS",
-      "EXPIRED_CARD",
-      "INVALID_CARD",
-      "INVALID_EXPIRATION",
-      "CARD_NOT_SUPPORTED",
-    ]
-    return code ? cardErrorCodes.includes(code) : false
+  const CARD_ERROR_MESSAGES: Record<string, string> = {
+    INSUFFICIENT_FUNDS:
+      "Your card was declined due to insufficient funds. Please check your balance or try a different card.",
+    CVV_FAILURE: "The security code (CVV) you entered doesn't match. Please double-check and try again.",
+    ADDRESS_VERIFICATION_FAILURE:
+      "The billing address doesn't match your card records. Please check your billing address and try again.",
+    EXPIRED_CARD: "Your card has expired. Please use a different card.",
+    INVALID_CARD: "Your card number is invalid. Please check your card details and try again.",
+    INVALID_EXPIRATION: "The expiration date is invalid. Please check your card details and try again.",
+    CARD_NOT_SUPPORTED: "This card type is not supported. Please try a Visa, Mastercard, or American Express.",
+    CARD_DECLINED: "Your card was declined. Please try a different card or contact your bank.",
+    GENERIC_DECLINE: "Your card was declined. Please try a different card or contact your bank.",
+    PAN_FAILURE: "Your card number could not be verified. Please check your card details and try again.",
+    CARDHOLDER_INSUFFICIENT_PERMISSIONS:
+      "Your card issuer has blocked this transaction. Please contact your bank or use a different card.",
+    INVALID_CARD_DATA: "Your card information is invalid. Please check your card details and try again.",
+    CARD_CREATION_FAILED: "Invalid card. Please check your card details and try again.",
+    PUR08: "Your card was declined. Please try a different card or contact your bank.",
   }
+
+  const isCardError = (code?: string): boolean => (code ? code in CARD_ERROR_MESSAGES : false)
+
+  const getCardErrorMessage = (code?: string): string =>
+    (code && CARD_ERROR_MESSAGES[code]) ||
+    "We were unable to process your card. Please verify your card information and try again."
 
   const handleSubmit = async () => {
     // Use Square's sandbox test nonce in mock mode (card step is skipped)
@@ -121,35 +133,41 @@ export default function ReviewStep({
       url = window.location.href
     } catch (error) {}
 
-    const result = await purchaseMutation.mutateAsync({
-      product_id: product,
-      email: formData.email,
-      phone: formData.phone,
-      name: formData.name,
-      card_token: effectiveCardData.token,
-      exp_month: effectiveCardData.details.card.expMonth,
-      exp_year: effectiveCardData.details.card.expYear,
-      cardholder_name: formData.name,
-      name_broker: formData.name_broker,
-      name_team: formData.name_team,
-      slug: formData.slug,
-      url,
-      coupon: formData.coupon,
-      mock_purchase: mockPurchase,
-    })
+    let result
+    try {
+      result = await purchaseMutation.mutateAsync({
+        product_id: product,
+        email: formData.email,
+        phone: formData.phone,
+        name: formData.name,
+        card_token: effectiveCardData.token,
+        exp_month: effectiveCardData.details.card.expMonth,
+        exp_year: effectiveCardData.details.card.expYear,
+        cardholder_name: formData.name,
+        name_broker: formData.name_broker,
+        name_team: formData.name_team,
+        slug: formData.slug,
+        url,
+        coupon: formData.coupon,
+        mock_purchase: mockPurchase,
+      })
+    } catch (error) {
+      // Network failure or unexpected error before any response
+      onError("Something went wrong. Please try again. If the problem persists, please contact support.")
+      return
+    }
 
     console.log("Purchase result:", result)
 
     if (result.success !== "success") {
-      // Card error - user should confirm their billing info and retry
+      // Card error - send user back to card form to re-enter payment info
       if (isCardError(result.code)) {
-        onError("We were unable to process your card. Please verify your card information and try again.")
-        setAllowReset(true)
+        onCardError(getCardErrorMessage(result.code))
         return
       }
 
-      // System error - redirect to generic error page
-      router.push(process.env.NEXT_PUBLIC_DASHBOARD_URL + "/error?type=system")
+      // System error - show error step
+      onError("Something went wrong. Please try again. If the problem persists, please contact support.")
       return
     }
 

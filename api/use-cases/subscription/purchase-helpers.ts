@@ -1,5 +1,9 @@
+import { createElement } from "react"
+import { render } from "@react-email/render"
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
+import { IEmailService } from "@api/infrastructure/email/email-service.interface"
+import PurchaseSystemErrorEmail from "@api/infrastructure/email/templates/purchase-system-error.email"
 import type {
   UserCardRepository,
   ProductRepository,
@@ -8,6 +12,7 @@ import type {
   PurchaseRequestRepository,
 } from "@api/lib/repositories"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
+import { SquareApiError } from "@api/infrastructure/payment/error/payment-error.types"
 import { CardCreatedEvent } from "@api/domain/events/card-created.event"
 import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
@@ -15,6 +20,112 @@ import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-reque
 import type { PaymentContext } from "@api/config/config.interface"
 import { ProductData, ProductUserConfig } from "@api/domain/types/product-data.types"
 import { v4 as uuidv4 } from "uuid"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error classification — single source of truth for both routes and use cases
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Error codes that are the customer's fault and can be fixed by retrying
+ * with corrected input (e.g., new card). These return 400 at the route
+ * layer and do NOT trigger a developer alert email.
+ */
+export const USER_FACING_ERROR_CODES = new Set([
+  "PURCHASE_VALIDATION_ERROR",
+  "CARD_CREATION_FAILED",
+  "CARD_DECLINED",
+  "CVV_FAILURE",
+  "ADDRESS_VERIFICATION_FAILURE",
+  "INSUFFICIENT_FUNDS",
+  "EXPIRED_CARD",
+  "INVALID_CARD",
+  "INVALID_EXPIRATION",
+  "CARD_NOT_SUPPORTED",
+  "GENERIC_DECLINE",
+  "PAN_FAILURE",
+  "CARDHOLDER_INSUFFICIENT_PERMISSIONS",
+  "INVALID_CARD_DATA",
+  "PUR08",
+])
+
+export function isUserFacingError(code: string | undefined): boolean {
+  return !!code && USER_FACING_ERROR_CODES.has(code)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sendSystemErrorAlert
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SystemErrorAlertParams {
+  flow: "new-user-purchase" | "existing-user-purchase"
+  errorCode: string
+  errorMessage: string
+  errorStack?: string
+  purchaseRequestId: number | null
+  productId?: string | number | null
+  email?: string | null
+  userId?: number | null
+  /** Square payment ID if one was charged before the failure */
+  paymentId?: string | null
+  /** Whether the subscription was already created before the failure */
+  subscriptionCreated?: boolean
+  durationMs: number
+}
+
+/**
+ * Sends a verbose developer alert for system-level purchase failures.
+ * Never throws — failures are logged only.
+ */
+export async function sendSystemErrorAlert(
+  deps: { emailService: IEmailService; logger: ILogger; adminAlertEmail: string },
+  params: SystemErrorAlertParams
+): Promise<void> {
+  const {
+    flow,
+    errorCode,
+    errorMessage,
+    errorStack,
+    purchaseRequestId,
+    productId,
+    email,
+    userId,
+    paymentId,
+    subscriptionCreated,
+    durationMs,
+  } = params
+
+  const subject = `[SYSTEM ERROR] Purchase failure — ${errorCode} — ${flow}`
+  const occurredAt = new Date().toISOString()
+  const refundIssued = !!paymentId && !subscriptionCreated
+
+  try {
+    const html = await render(
+      createElement(PurchaseSystemErrorEmail, {
+        flow,
+        errorCode,
+        errorMessage,
+        errorStack,
+        purchaseRequestId,
+        productId,
+        email,
+        userId,
+        paymentId,
+        subscriptionCreated,
+        refundIssued,
+        durationMs,
+        occurredAt,
+      })
+    )
+    await deps.emailService.sendEmail({
+      to: deps.adminAlertEmail,
+      subject,
+      html,
+      templateName: "purchase-system-error",
+    })
+  } catch (alertError) {
+    deps.logger.error("Failed to send system error alert email", { alertError, errorCode, purchaseRequestId })
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PurchaseError
@@ -136,30 +247,39 @@ export async function processInitialPayment(
   context: PaymentContext | null | undefined,
   purchaseRequestId: number
 ) {
-  const payment = await deps.paymentProvider.createPayment(
-    {
-      sourceId: userCard.card_id!,
-      idempotencyKey: uuidv4(),
-      amountMoney: {
-        amount: BigInt(pricing.initialAmount),
-        currency: "USD",
+  try {
+    const payment = await deps.paymentProvider.createPayment(
+      {
+        sourceId: userCard.card_id!,
+        idempotencyKey: uuidv4(),
+        amountMoney: {
+          amount: BigInt(pricing.initialAmount),
+          currency: "USD",
+        },
+        customerId: userCard.square_customer_id || undefined,
       },
-      customerId: userCard.square_customer_id || undefined,
-    },
-    context ?? undefined
-  )
-
-  if (payment.status !== "COMPLETED") {
-    deps.logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
-    await deps.purchaseRequestRepository.markAsFailed(
-      purchaseRequestId,
-      `Payment failed: ${payment.status}`,
-      "PAYMENT_FAILED"
+      context ?? undefined
     )
-    throw new PurchaseError("Payment failed", "PAYMENT_FAILED")
-  }
 
-  return payment
+    if (payment.status !== "COMPLETED") {
+      deps.logger.error("Initial payment failed", { paymentId: payment.id, status: payment.status })
+      await deps.purchaseRequestRepository.markAsFailed(
+        purchaseRequestId,
+        `Payment failed: ${payment.status}`,
+        "PAYMENT_FAILED"
+      )
+      throw new PurchaseError("Payment failed", "PAYMENT_FAILED")
+    }
+
+    return payment
+  } catch (error) {
+    if (error instanceof PurchaseError) throw error
+    if (error instanceof SquareApiError) {
+      await deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, error.message, error.squareCode)
+      throw new PurchaseError(error.message, error.squareCode)
+    }
+    throw error
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,7 +289,8 @@ export async function processInitialPayment(
 export async function createSubscriptionRecord(
   deps: { subscriptionRepository: SubscriptionRepository },
   params: {
-    userId: number
+    /** null when user provisioning is deferred (new-user purchase flow) */
+    userId: number | null
     product: { product_id: number; product_name: string; price: number }
     pricing: PurchasePricing
     payment: { environment: "production" | "sandbox" }
@@ -202,7 +323,8 @@ export async function createSubscriptionRecord(
 export async function createTransactionRecord(
   deps: { transactionRepository: TransactionRepository },
   params: {
-    userId: number
+    /** null when user provisioning is deferred (new-user purchase flow) */
+    userId: number | null
     product: { product_id: number; product_name: string }
     pricing: PurchasePricing
     payment: { id: string; environment: "production" | "sandbox" }
@@ -236,7 +358,8 @@ export async function publishPurchaseEvents(
   params: {
     purchaseRequestId: number
     purchaseRequestUuid: string
-    userId: number
+    /** null when user provisioning is deferred */
+    userId: number | null
     email: string
     product: { product_id: number; product_name: string }
     subscription: { subscription_id: number; renewal_date: Date | null }
@@ -252,7 +375,7 @@ export async function publishPurchaseEvents(
   await deps.eventBus.publish(
     SubscriptionCreatedEvent.create({
       subscriptionId: params.subscription.subscription_id,
-      userId: params.userId,
+      userId: params.userId ?? undefined,
       email: params.email,
       productId: params.product.product_id,
       productName: params.product.product_name,
@@ -271,7 +394,7 @@ export async function publishPurchaseEvents(
     PaymentProcessedEvent.create({
       transactionId: params.transaction.transaction_id,
       externalTransactionId: params.payment.id,
-      userId: params.userId,
+      userId: params.userId ?? undefined,
       email: params.email,
       amount: params.pricing.initialAmount,
       currency: "USD",
@@ -306,7 +429,7 @@ export async function publishPurchaseEvents(
       requestUuid: params.purchaseRequestUuid,
       requestType: "NEW_PURCHASE",
       source: "API",
-      userId: params.userId,
+      userId: params.userId ?? undefined,
       email: params.email,
       productId: params.product.product_id,
       subscriptionId: params.subscription.subscription_id,
@@ -343,7 +466,7 @@ export async function createCardHelper(
   deps: CreateCardDeps,
   userId: number | null,
   input: CreateCardInput
-): Promise<{ success: boolean; cardId?: string; error?: string }> {
+): Promise<{ success: boolean; cardId?: string; error?: string; squareCode?: string }> {
   const { logger, paymentProvider, userCardRepository, eventBus } = deps
 
   try {
@@ -392,7 +515,9 @@ export async function createCardHelper(
     return { success: true, cardId: userCard.card_id }
   } catch (error) {
     logger.error("Card creation failed", { error, userId })
-    return { success: false, error: error instanceof Error ? error.message : "Card creation failed" }
+    const message = error instanceof Error ? error.message : "Card creation failed"
+    const squareCode = error instanceof SquareApiError ? error.squareCode : undefined
+    return { success: false, error: message, squareCode }
   }
 }
 

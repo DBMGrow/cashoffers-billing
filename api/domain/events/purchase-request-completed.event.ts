@@ -13,8 +13,8 @@ export interface PurchaseRequestCompletedPayload {
   requestType: string
   /** Source of request (API, CRON, ADMIN) */
   source: string
-  /** User ID */
-  userId: number
+  /** User ID. Optional when user provisioning is deferred. */
+  userId?: number
   /** User email */
   email: string
   /** Product ID */
