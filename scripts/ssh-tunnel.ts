@@ -1,4 +1,3 @@
-import "dotenv/config"
 import { spawn } from "child_process"
 import { writeFileSync, unlinkSync, existsSync } from "fs"
 import os from "os"

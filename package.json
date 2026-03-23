@@ -6,8 +6,8 @@
   "packageManager": "yarn@4.13.0",
   "scripts": {
     "dev": "dotenvx run --env-file=.env.development -- sh -c 'fumadocs-mdx && next dev'",
-    "dev:tunnel": "dotenvx run --env-file=.env.development -- sh -c 'yarn tunnel & fumadocs-mdx && next dev'",
-    "tunnel": "dotenvx run --env-file=.env.development -- tsx scripts/ssh-tunnel.ts",
+    "dev:tunnel": "dotenvx run --env-file=.env.development --env-file=.env.local --overload -- sh -c 'yarn tunnel & fumadocs-mdx && next dev'",
+    "tunnel": "dotenvx run --env-file=.env.development --env-file=.env.local --overload -- tsx scripts/ssh-tunnel.ts",
     "build": "next build",
     "start": "dotenvx run --env-file=.env.production -- next start",
     "start:staging": "dotenvx run --env-file=.env.staging -- next start",
