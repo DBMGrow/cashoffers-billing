@@ -345,6 +345,34 @@ async function cmdCleanup(userId: string) {
   console.log()
 }
 
+async function cmdBreakCard(userId: string) {
+  header(`Break Card — User ${userId}`)
+  const data = await api("POST", `/card/${userId}/break`)
+
+  console.log(red("\n✗ Card broken\n"))
+  kv("User ID", data.user_id, 2)
+  if (data.previous_card) {
+    kv("Previous card", `${data.previous_card.card_brand} ****${data.previous_card.last_4}`, 2)
+  }
+  kv("Current card", `${data.current_card.card_brand} ****${data.current_card.last_4}`, 2)
+  console.log(`\n  ${yellow(data.message)}`)
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools cron-run ${userId}`)}  ${dim("(will fail)")}`)
+  console.log(`  ${dim("→")} ${cyan(`yarn dev:tools fix-card ${userId}`)}   ${dim("(to restore)")}`)
+  console.log()
+}
+
+async function cmdFixCard(userId: string) {
+  header(`Fix Card — User ${userId}`)
+  const data = await api("POST", `/card/${userId}/fix`)
+
+  console.log(green("\n✓ Card restored\n"))
+  kv("User ID", data.user_id, 2)
+  kv("Card", `${data.card.card_brand} ****${data.card.last_4}`, 2)
+  console.log(`\n  ${green(data.message)}`)
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools cron-run ${userId}`)}  ${dim("(will succeed)")}`)
+  console.log()
+}
+
 // ─── CLI Definition ───────────────────────────────────────────────────────────
 
 const program = new Command()
@@ -370,8 +398,10 @@ program
   .addHelpText("after", `
 Scenarios:
   renewal-due            Active sub overdue → cron will charge
+  payment-failure        Active sub overdue with BROKEN card → cron will fail
   payment-retry-1        Failed once, retry overdue → cron will retry
   payment-retry-2        Failed twice, second retry window
+  payment-retry-3        Failed three times → next failure auto-suspends
   trial-expiring         Trial expiring in 9 days → cron sends warning
   trial-expired          Trial past expiry → cron cancels
   cancel-on-renewal      Marked for cancel → cron cancels, not charges
@@ -425,6 +455,16 @@ program
   .command("cleanup <user_id>")
   .description("Delete user and all associated data (transactions, subscriptions, cards)")
   .action(cmdCleanup)
+
+program
+  .command("break-card <user_id>")
+  .description("Replace user's card with an invalid one (forces payment failures)")
+  .action(cmdBreakCard)
+
+program
+  .command("fix-card <user_id>")
+  .description("Restore user's card with a valid sandbox card (payments will succeed)")
+  .action(cmdFixCard)
 
 // ─── env subcommand group ─────────────────────────────────────────────────────
 

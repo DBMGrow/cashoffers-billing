@@ -70,6 +70,11 @@ export class EmailNotificationHandler extends BaseEventHandler {
     return { ...whitelabelInfo.branding, name: whitelabelInfo.name }
   }
 
+  /** Extract the sender display name from resolved whitelabel info */
+  private fromName(whitelabelInfo: { name: string } | null | undefined): string | undefined {
+    return whitelabelInfo?.name
+  }
+
   private formatCurrency(amountInCents: number): string {
     return `$${(amountInCents / 100).toFixed(2)}`
   }
@@ -185,6 +190,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             subject: this.formatSubject('Welcome to Your Free Trial!', environment),
             html,
             templateName: 'trial-welcome',
+            fromName: this.fromName(whitelabelInfo),
           })
           return
         }
@@ -206,6 +212,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject(`Welcome to ${whitelabelInfo.name}!`, environment),
           html,
           templateName: 'subscription-created',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -253,6 +260,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject(`Your ${whitelabelInfo.name} Subscription Has Been Renewed`, environment),
           html,
           templateName: 'subscription-renewal',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -294,6 +302,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject('Payment Successful', environment),
           html,
           templateName: 'payment-confirmation',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -363,6 +372,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject(subject, environment),
           html,
           templateName: 'payment-error',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -399,6 +409,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject('Payment Refunded', environment),
           html,
           templateName: 'refund',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -434,6 +445,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject('A Card Was Added to Your Account', environment),
           html,
           templateName: 'card-updated',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -469,6 +481,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: this.formatSubject('The Card on Your Account Was Updated', environment),
           html,
           templateName: 'card-updated',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -503,6 +516,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: 'Property Unlocked',
           html,
           templateName: 'payment-confirmation',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -543,9 +557,10 @@ export class EmailNotificationHandler extends BaseEventHandler {
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Your Subscription Has Been Deactivated',
+          subject: 'Your Subscription Has Been Suspended',
           html,
           templateName: 'subscription-suspended',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -587,6 +602,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: 'Your Subscription Has Been Paused',
           html,
           templateName: 'subscription-paused',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -631,6 +647,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: 'Your Subscription Will Be Cancelled',
           html,
           templateName: 'subscription-cancelled',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,
@@ -676,6 +693,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subject: 'Your Subscription Will Be Downgraded',
           html,
           templateName: 'subscription-downgraded',
+          fromName: this.fromName(whitelabelInfo),
         })
       },
       event,

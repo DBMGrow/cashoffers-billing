@@ -14,6 +14,8 @@
  *   POST /dev/cron/run-for-user/:user_id     — Run renewal for one user only
  *   POST /dev/webhook/cashoffers             — Fire a signed webhook event
  *   DELETE /dev/cleanup/:user_id             — Remove user and all related data
+ *   POST /dev/card/:user_id/break           — Replace card with invalid one (forces payment failures)
+ *   POST /dev/card/:user_id/fix             — Restore card with valid sandbox card
  */
 
 import { createHmac } from "crypto"
@@ -304,8 +306,10 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
   const ScenarioSchema = z.object({
     scenario: z.enum([
       "renewal-due",
+      "payment-failure",
       "payment-retry-1",
       "payment-retry-2",
+      "payment-retry-3",
       "trial-expiring",
       "trial-expired",
       "cancel-on-renewal",
@@ -379,6 +383,16 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         description: "Active subscription with renewal_date 2 hours in the past.",
         next_steps: "Run POST /api/cron/run (with CRON_SECRET) or POST /api/dev/cron/run-for-user/:user_id to trigger renewal charge.",
       },
+      "payment-failure": {
+        status: "active",
+        renewal_date: new Date(now.getTime() - 2 * 3600_000),
+        next_renewal_attempt: null,
+        cancel_on_renewal: 0,
+        downgrade_on_renewal: 0,
+        suspension_date: null,
+        description: "Active subscription overdue for renewal with an INVALID card on file. Running cron will trigger a real payment failure → retry scheduling → failure email.",
+        next_steps: "Run: yarn dev:tools cron-run <user_id>. Payment will fail, next_renewal_attempt will be set to +1 day, and a PaymentFailed event fires.",
+      },
       "payment-retry-1": {
         status: "active",
         renewal_date: new Date(now.getTime() - 2 * 86_400_000),
@@ -398,6 +412,16 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         suspension_date: null,
         description: "Subscription that failed payment twice. Simulating second retry window.",
         next_steps: "Run POST /api/dev/cron/run-for-user/:user_id to trigger the retry.",
+      },
+      "payment-retry-3": {
+        status: "active",
+        renewal_date: new Date(now.getTime() - 12 * 86_400_000),
+        next_renewal_attempt: new Date(now.getTime() - 3600_000),
+        cancel_on_renewal: 0,
+        downgrade_on_renewal: 0,
+        suspension_date: null,
+        description: "Subscription that failed payment three times (7+ day gap). Next failure triggers auto-suspension.",
+        next_steps: "Run: yarn dev:tools break-card <user_id> then yarn dev:tools cron-run <user_id>. Subscription will be SUSPENDED (status → suspended, suspension_date set).",
       },
       "trial-expiring": {
         status: "trial",
@@ -476,40 +500,72 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     const subscriptionId = Number(subResult.insertId)
 
     // Create a sandbox card on file so renewal/payment scenarios can charge
-    let cardInfo: { card_id: string; square_customer_id: string; last_4: string; card_brand: string } | null = null
+    // For payment-failure scenarios, store an invalid card_id so Square rejects the charge
+    const useInvalidCard = scenario === "payment-failure"
+    let cardInfo: { card_id: string; square_customer_id: string; last_4: string; card_brand: string; broken: boolean } | null = null
     try {
-      const cardResult = await paymentProvider.createCard(
-        {
-          sourceId: "cnon:card-nonce-ok",
-          email: resolvedEmail,
-          card: { cardholderName: resolvedName },
-        },
-        { testMode: true, source: "ADMIN", userId }
-      )
+      if (useInvalidCard) {
+        // Store a fake card record — Square will reject charges against this card_id
+        const now2 = new Date()
+        await db
+          .insertInto("UserCards")
+          .values({
+            user_id: userId,
+            card_id: "ccof:INVALID_FOR_TESTING",
+            square_customer_id: "cust:INVALID_FOR_TESTING",
+            last_4: "0000",
+            card_brand: "NONE",
+            exp_month: "12",
+            exp_year: "2099",
+            cardholder_name: "DEV TEST (broken card)",
+            square_environment: "sandbox",
+            createdAt: now2,
+            updatedAt: now2,
+          })
+          .executeTakeFirstOrThrow()
 
-      const now2 = new Date()
-      await db
-        .insertInto("UserCards")
-        .values({
-          user_id: userId,
+        cardInfo = {
+          card_id: "ccof:INVALID_FOR_TESTING",
+          square_customer_id: "cust:INVALID_FOR_TESTING",
+          last_4: "0000",
+          card_brand: "NONE",
+          broken: true,
+        }
+      } else {
+        const cardResult = await paymentProvider.createCard(
+          {
+            sourceId: "cnon:card-nonce-ok",
+            email: resolvedEmail,
+            card: { cardholderName: resolvedName },
+          },
+          { testMode: true, source: "ADMIN", userId }
+        )
+
+        const now2 = new Date()
+        await db
+          .insertInto("UserCards")
+          .values({
+            user_id: userId,
+            card_id: cardResult.id,
+            square_customer_id: cardResult.customerId,
+            last_4: cardResult.last4,
+            card_brand: cardResult.cardBrand,
+            exp_month: String(cardResult.expMonth),
+            exp_year: String(cardResult.expYear),
+            cardholder_name: cardResult.cardholderName ?? null,
+            square_environment: "sandbox",
+            createdAt: now2,
+            updatedAt: now2,
+          })
+          .executeTakeFirstOrThrow()
+
+        cardInfo = {
           card_id: cardResult.id,
           square_customer_id: cardResult.customerId,
           last_4: cardResult.last4,
           card_brand: cardResult.cardBrand,
-          exp_month: String(cardResult.expMonth),
-          exp_year: String(cardResult.expYear),
-          cardholder_name: cardResult.cardholderName ?? null,
-          square_environment: "sandbox",
-          createdAt: now2,
-          updatedAt: now2,
-        })
-        .executeTakeFirstOrThrow()
-
-      cardInfo = {
-        card_id: cardResult.id,
-        square_customer_id: cardResult.customerId,
-        last_4: cardResult.last4,
-        card_brand: cardResult.cardBrand,
+          broken: false,
+        }
       }
     } catch (err: any) {
       // Card creation is best-effort — log but don't fail the scenario
@@ -881,6 +937,129 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
           subscriptions: Number(subDel[0]?.numDeletedRows ?? 0),
           cards: Number(cardDel[0]?.numDeletedRows ?? 0),
         },
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POST /dev/card/:user_id/break — Replace card with invalid one to force payment failures
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.post("/card/:user_id/break", async (c) => {
+    const userId = parseInt(c.req.param("user_id"), 10)
+
+    const existingCard = await db
+      .selectFrom("UserCards")
+      .where("user_id", "=", userId)
+      .select(["card_id", "last_4", "card_brand"])
+      .executeTakeFirst()
+
+    if (!existingCard) {
+      return c.json({ success: "error", error: `No card found for user ${userId}` }, 404)
+    }
+
+    if (existingCard.card_id === "ccof:INVALID_FOR_TESTING") {
+      return c.json({
+        success: "success",
+        data: { message: "Card is already broken", user_id: userId },
+      })
+    }
+
+    const previousCard = {
+      card_id: existingCard.card_id,
+      last_4: existingCard.last_4,
+      card_brand: existingCard.card_brand,
+    }
+
+    const now = new Date()
+    await db
+      .updateTable("UserCards")
+      .set({
+        card_id: "ccof:INVALID_FOR_TESTING",
+        square_customer_id: "cust:INVALID_FOR_TESTING",
+        last_4: "0000",
+        card_brand: "NONE",
+        cardholder_name: "DEV TEST (broken card)",
+        updatedAt: now,
+      })
+      .where("user_id", "=", userId)
+      .execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        user_id: userId,
+        previous_card: previousCard,
+        current_card: { card_id: "ccof:INVALID_FOR_TESTING", last_4: "0000", card_brand: "NONE" },
+        message: "Card replaced with invalid card_id. Next payment attempt will fail.",
+        hint: "Run yarn dev:tools cron-run " + userId + " to trigger a payment failure.",
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POST /dev/card/:user_id/fix — Restore a broken card with a valid sandbox card
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.post("/card/:user_id/fix", async (c) => {
+    const userId = parseInt(c.req.param("user_id"), 10)
+
+    const existingCard = await db
+      .selectFrom("UserCards")
+      .where("user_id", "=", userId)
+      .select(["card_id"])
+      .executeTakeFirst()
+
+    if (!existingCard) {
+      return c.json({ success: "error", error: `No card found for user ${userId}` }, 404)
+    }
+
+    const user = await db
+      .selectFrom("Users")
+      .where("user_id", "=", userId)
+      .select(["email", "name"])
+      .executeTakeFirst()
+
+    if (!user) {
+      return c.json({ success: "error", error: `User ${userId} not found` }, 404)
+    }
+
+    // Create a real sandbox card via Square
+    const cardResult = await paymentProvider.createCard(
+      {
+        sourceId: "cnon:card-nonce-ok",
+        email: user.email,
+        card: { cardholderName: user.name ?? "Dev Test" },
+      },
+      { testMode: true, source: "ADMIN", userId }
+    )
+
+    const now = new Date()
+    await db
+      .updateTable("UserCards")
+      .set({
+        card_id: cardResult.id,
+        square_customer_id: cardResult.customerId,
+        last_4: cardResult.last4,
+        card_brand: cardResult.cardBrand,
+        exp_month: String(cardResult.expMonth),
+        exp_year: String(cardResult.expYear),
+        cardholder_name: cardResult.cardholderName ?? null,
+        updatedAt: now,
+      })
+      .where("user_id", "=", userId)
+      .execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        user_id: userId,
+        card: {
+          card_id: cardResult.id,
+          last_4: cardResult.last4,
+          card_brand: cardResult.cardBrand,
+        },
+        message: "Card restored with a valid sandbox card. Next payment attempt will succeed.",
       },
     })
   })

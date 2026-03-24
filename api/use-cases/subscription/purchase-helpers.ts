@@ -170,6 +170,7 @@ export async function sendCustomerPurchaseErrorEmail(
       subject: `Issue with your ${brandName} signup`,
       html,
       templateName: "purchase-error-customer",
+      fromName: brandName,
     })
   } catch (alertError) {
     deps.logger.error("Failed to send customer purchase error email", { alertError, email })

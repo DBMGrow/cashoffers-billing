@@ -330,44 +330,111 @@ yarn test api/tests/integration/cashoffers-module.test.ts
 
 **Retry schedule:**
 
-| Attempt     | Wait Time | `next_renewal_attempt` set to    |
-| ----------- | --------- | -------------------------------- |
-| 1st failure | +1 day    | now + 1 day                      |
-| 2nd failure | +3 days   | now + 3 days                     |
-| 3rd failure | +7 days   | now + 7 days                     |
-| 4th failure | Suspend   | **NOT YET AUTOMATED** (TODO-002) |
+| Attempt     | Wait Time | `next_renewal_attempt` set to |
+| ----------- | --------- | ----------------------------- |
+| 1st failure | +1 day    | now + 1 day                   |
+| 2nd failure | +3 days   | now + 3 days                  |
+| 3rd failure | +7 days   | now + 7 days                  |
+| 4th failure | Suspend   | Auto-suspended (status → `suspended`, `suspension_date` set) |
 
 ### Edge Cases
 
-| Case                                  | Expected Behavior                                | How to Test                       |
-| ------------------------------------- | ------------------------------------------------ | --------------------------------- |
-| User updates card during retry window | New card used on next retry attempt              | Update card, then cron-run        |
-| Card update triggers immediate retry  | CardUpdated event → retry handler fires          | Update card via manage flow       |
-| All retries exhausted                 | Suspension (currently manual — TODO-002)         | Run through all 3 retry scenarios |
-| User cancels during retry window      | cancel_on_renewal flag respected on next attempt | Set cancel flag during retry      |
+| Case                                  | Expected Behavior                                | How to Test                                         |
+| ------------------------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| User updates card during retry window | New card used on next retry attempt               | `break-card`, cron-run (fail), `fix-card`, cron-run |
+| All retries exhausted → auto-suspend  | Status → `suspended`, `suspension_date` set       | Scenario `payment-retry-3` + `break-card` + cron    |
+| User cancels during retry window      | `cancel_on_renewal` flag respected on next attempt | `set-state` cancel flag during retry                |
 
 ### How to Test
 
-**Dev CLI:**
+> **Key concept:** The `payment-failure` scenario and `break-card` command store an invalid
+> card ID so that Square rejects the charge. This triggers the **real** failure path:
+> retry scheduling, failed transaction logging, and PaymentFailed event/email.
+> Use `fix-card` to restore a working sandbox card when you want payments to succeed again.
+
+#### A. First payment failure (triggers retry-1)
 
 ```bash
-# Create subscription in first retry state
-yarn dev:tools scenario payment-retry-1
+# 1. Create subscription with a broken card — renewal is already overdue
+yarn dev:tools scenario payment-failure
+# → note the user_id
 
-# Verify retry window
-yarn dev:tools state <user_id>
-
-# Create second retry state
-yarn dev:tools scenario payment-retry-2
-
-# Run cron to trigger retry
+# 2. Run cron — payment will FAIL against the invalid card
 yarn dev:tools cron-run <user_id>
+# → expect: error response, "Square API error" or similar
 
-# Manually advance through retry states
-yarn dev:tools set-state <sub_id> next_renewal_attempt=2025-01-01T00:00:00Z
+# 3. Verify state: next_renewal_attempt set to ~+1 day, failed transaction logged
+yarn dev:tools state <user_id>
+# → subscription still active, next_renewal_attempt is tomorrow
+# → Transactions section shows a "failed" entry
 ```
 
-**Integration test:**
+#### B. Walk through the full retry escalation
+
+```bash
+# 1. Start from scenario above (or create fresh)
+yarn dev:tools scenario payment-failure
+
+# 2. First failure → schedules retry in 1 day
+yarn dev:tools cron-run <user_id>
+
+# 3. Fast-forward: make retry window due now
+yarn dev:tools set-state <sub_id> next_renewal_attempt=2020-01-01T00:00:00Z
+
+# 4. Second failure → schedules retry in 3 days
+yarn dev:tools cron-run <user_id>
+
+# 5. Fast-forward again
+yarn dev:tools set-state <sub_id> next_renewal_attempt=2020-01-01T00:00:00Z
+
+# 6. Third failure → schedules retry in 7 days
+yarn dev:tools cron-run <user_id>
+
+# 7. Fast-forward one more time
+yarn dev:tools set-state <sub_id> next_renewal_attempt=2020-01-01T00:00:00Z
+
+# 8. Fourth failure → AUTO-SUSPEND
+yarn dev:tools cron-run <user_id>
+
+# 9. Verify: status = suspended, suspension_date set
+yarn dev:tools state <user_id>
+```
+
+#### C. Break an existing user's card mid-flow
+
+```bash
+# Useful for testing retry on a user who already has a valid card
+yarn dev:tools scenario renewal-due
+# → cron-run would succeed here (card is valid)
+
+# Break the card so the next payment fails
+yarn dev:tools break-card <user_id>
+
+# Now cron-run triggers a real failure
+yarn dev:tools cron-run <user_id>
+
+# Restore the card so the next retry succeeds
+yarn dev:tools fix-card <user_id>
+
+# Fast-forward retry window and run cron — payment succeeds
+yarn dev:tools set-state <sub_id> next_renewal_attempt=2020-01-01T00:00:00Z
+yarn dev:tools cron-run <user_id>
+```
+
+#### D. Pre-built retry state scenarios
+
+```bash
+# Jump directly into retry state without walking through failures:
+yarn dev:tools scenario payment-retry-1   # 1 prior failure, retry window open
+yarn dev:tools scenario payment-retry-2   # 2 prior failures, retry window open
+yarn dev:tools scenario payment-retry-3   # 3 prior failures, next fail → suspend
+
+# These have VALID cards. To make the retry fail, break the card first:
+yarn dev:tools break-card <user_id>
+yarn dev:tools cron-run <user_id>
+```
+
+#### Integration tests
 
 ```bash
 yarn test api/tests/integration/retry-and-suspension.test.ts

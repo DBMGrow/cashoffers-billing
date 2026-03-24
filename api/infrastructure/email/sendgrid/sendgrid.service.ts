@@ -36,6 +36,7 @@ export class SendGridEmailService implements IEmailService {
         subject: request.subject,
         text: request.subject,
         html: request.html,
+        fromName: request.fromName,
       })
 
       this.logger.info('Email sent successfully', {
@@ -66,7 +67,7 @@ export class SendGridEmailService implements IEmailService {
         to: request.to,
         from: {
           email: this.config.sendgrid.fromEmail,
-          name: 'CashOffers',
+          name: request.fromName ?? 'CashOffers',
         },
         subject: request.subject,
         text: request.text,

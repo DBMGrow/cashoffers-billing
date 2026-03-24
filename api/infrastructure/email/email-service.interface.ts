@@ -24,6 +24,8 @@ export interface SendEmailRequest {
   html: string
   /** Template identifier for logging and mock filtering */
   templateName: string
+  /** Sender display name (defaults to "CashOffers" if not provided) */
+  fromName?: string
 }
 
 /**
@@ -34,4 +36,6 @@ export interface SendPlainEmailRequest {
   subject: string
   text: string
   html?: string
+  /** Sender display name (defaults to "CashOffers" if not provided) */
+  fromName?: string
 }

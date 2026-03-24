@@ -51,6 +51,7 @@ export class SmtpEmailService implements IEmailService {
         subject: request.subject,
         text: request.subject,
         html: request.html,
+        fromName: request.fromName,
       })
 
       this.logger.info('Email sent successfully (SMTP)', {
@@ -77,8 +78,9 @@ export class SmtpEmailService implements IEmailService {
         subject: request.subject,
       })
 
+      const senderName = request.fromName ?? 'CashOffers'
       await this.transporter.sendMail({
-        from: `"CashOffers" <${this.fromEmail}>`,
+        from: `"${senderName}" <${this.fromEmail}>`,
         to: request.to,
         subject: request.subject,
         text: request.text,

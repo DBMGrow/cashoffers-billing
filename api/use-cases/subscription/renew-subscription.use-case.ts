@@ -17,7 +17,7 @@ import { SubscriptionMapper } from "@api/domain"
 import { SubscriptionRenewedEvent } from "@api/domain/events/subscription-renewed.event"
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PaymentFailedEvent } from "@api/domain/events/payment-failed.event"
-import { SubscriptionPausedEvent } from "@api/domain/events/subscription-paused.event"
+import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-deactivated.event"
 import type { IHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.interface"
 import type { ProductData } from "@api/domain/types/product-data.types"
 
@@ -440,12 +440,13 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         } catch { /* ignore parse errors */ }
 
         await eventBus.publish(
-          SubscriptionPausedEvent.create({
+          SubscriptionDeactivatedEvent.create({
             subscriptionId,
             userId: subscription.user_id!,
             email,
+            subscriptionName: subscription.subscription_name ?? undefined,
             reason: 'payment_failed',
-            pausedBy: 'system',
+            deactivatedBy: 'system',
             previousStatus: 'active',
           }, suspendMetadata)
         )
