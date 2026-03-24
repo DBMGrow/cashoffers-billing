@@ -43,7 +43,8 @@ fails, the subscription still exists and the admin is notified.
 ## Edge Cases
 - **Card declined** → `CARD_CREATION_FAILED` (400) — customer can retry with new card details
 - **Payment fails** → `PAYMENT_FAILED` (500) — payment did not complete; no subscription created; no refund needed
-- **Subscription created, then provisioning fails** → no refund; admin alerted; `pending_provisioning`
+- **System error after payment, before subscription** → no refund; admin alerted for manual provisioning; customer emailed
+- **Subscription created, then provisioning fails** → no refund; admin alerted; customer emailed; `pending_provisioning`; welcome email **not** sent
 - **Product has no signup fee** → charge = renewal_cost only
 
 ## Linked Rules

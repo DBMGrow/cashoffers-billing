@@ -20,7 +20,9 @@ const DEFAULT_BRANDING: WhitelabelData = {
   primary_color: "#4d9cb9",
   secondary_color: "#ec8b33",
   logo_url: "/assets/logos/default-logo.png",
-  marketing_website: "https://cashoffers.com",
+  marketing_website: "https://instantoffers.pro",
+  support_email: "support@cashoffers.pro",
+  billing_url: "https://billing.cashoffers.pro",
 }
 
 export class WhitelabelResolverService {
@@ -46,7 +48,11 @@ export class WhitelabelResolverService {
         const subData = (subscription.subscription_data as any) || {}
         const prodData = (subscription.product_data as any) || {}
 
-        const whitelabelId = subData.user_config?.whitelabel_id ?? prodData.user_config?.whitelabel_id
+        const whitelabelId =
+          subData.user_config?.whitelabel_id ??
+          subData.user_config?.white_label_id ??
+          prodData.user_config?.whitelabel_id ??
+          prodData.user_config?.white_label_id
 
         if (whitelabelId) {
           return this.resolveById(whitelabelId)
@@ -96,11 +102,7 @@ export class WhitelabelResolverService {
    */
   async resolveByCode(code: string): Promise<ResolvedWhitelabel> {
     try {
-      const whitelabel = await this.db
-        .selectFrom("Whitelabels")
-        .where("code", "=", code)
-        .selectAll()
-        .executeTakeFirst()
+      const whitelabel = await this.db.selectFrom("Whitelabels").where("code", "=", code).selectAll().executeTakeFirst()
 
       if (!whitelabel) {
         return this.resolveDefault()

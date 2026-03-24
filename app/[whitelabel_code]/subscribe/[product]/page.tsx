@@ -33,8 +33,7 @@ export default async function SubscribePage({ params }: SubscribePageProps) {
     redirect(redirectUrl)
   }
 
-  const productValue =
-    product === "free" ? "free" : product === "freeinvestor" ? "freeinvestor" : Number(product) || 0
+  const productValue = Number(product) || 0
 
   return (
     <ErrorBoundary>

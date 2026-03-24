@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -13,6 +13,7 @@ export interface CardUpdatedEmailProps {
   card: string
   date: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 export default function CardUpdatedEmail({
@@ -20,12 +21,14 @@ export default function CardUpdatedEmail({
   card,
   date,
   isSandbox,
+  whitelabel,
 }: CardUpdatedEmailProps) {
   return (
     <StandardEmail
       title="Payment Method Updated"
       preview={message}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Payment Method Updated</EmailHeading>
       <EmailDivider />
@@ -37,8 +40,8 @@ export default function CardUpdatedEmail({
       </SummaryTable>
 
       <InfoBox variant="info" title="Didn't make this change?">
-        If you did not make this change, please contact our support team at
-        support@cashoffers.com immediately to secure your account.
+        If you did not make this change, please contact our support team immediately to secure
+        your account.
       </InfoBox>
     </StandardEmail>
   )

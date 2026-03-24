@@ -88,7 +88,7 @@ yarn dev:tools system
 |------|-------------------|-------------|
 | Duplicate email | Frontend shows "account exists" with reactivation offer | Enter an email that exists in main API |
 | Card declined | Error shown on review step, user can retry | Use Square test card `4000000000000002` (decline) |
-| Payment succeeds but user creation fails | Auto-refund issued, user marked abandoned | Requires mocking main API failure |
+| Payment succeeds but user creation fails | No refund; admin alerted for manual provisioning; customer emailed | Requires mocking main API failure |
 | Product not found / inactive | 400 error before any charges | Use invalid product ID |
 | Slug already taken | Frontend shows error, suggests alternative | Enter a slug that exists |
 | Network timeout on Square | Error displayed, no charge | Disconnect from network during submit |
@@ -1082,7 +1082,8 @@ yarn dev:tools cron-preview
 
 | Event | Email Sent | Template |
 |-------|-----------|----------|
-| New user purchase | Purchase confirmation | subscription-created |
+| New user purchase (provisioned) | Purchase confirmation | subscription-created |
+| New user purchase (provisioning failed) | Purchase error notice (NOT welcome) | purchase-error-customer |
 | Subscription renewed | Renewal receipt | subscription-renewed |
 | Payment failed | Payment failure notice | payment-failed |
 | Payment refunded | Refund confirmation | payment-refunded |

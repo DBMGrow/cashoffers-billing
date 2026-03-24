@@ -9,7 +9,7 @@ import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import { useFlowAnimation } from "@/hooks/useFlowAnimation"
 import { useFlowState } from "@/hooks/useFlowState"
 import FlowWrapper from "../FlowWrapper"
-import { useProducts } from "@/providers/ProductProvider"
+import { useProducts, isProductFree } from "@/providers/ProductProvider"
 import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 // Step components
@@ -39,7 +39,7 @@ const cardDataSchema = z.object({
 })
 
 const subscribeSchema = z.object({
-  product: z.union([z.number(), z.string()]),
+  product: z.number(),
   email: z.string().email(),
   name: z.string().min(2),
   phone: z.string().min(10),
@@ -51,7 +51,7 @@ const subscribeSchema = z.object({
 })
 
 interface SubscribeFlowProps {
-  initialProduct: number | string
+  initialProduct: number
   whitelabel: WhitelabelType
   coupon?: string | null
   mockPurchase?: boolean
@@ -199,7 +199,7 @@ export default function SubscribeFlow({
   // Check if product is invalid after products load
   useEffect(() => {
     if (!loading && !productValidated) {
-      if (!selectedProduct && initialProduct !== "free" && initialProduct !== "freeinvestor") {
+      if (!selectedProduct) {
         setAllowReset(false)
         goToError("Invalid product ID. The product you selected could not be found.", "email")
       }
@@ -224,12 +224,7 @@ export default function SubscribeFlow({
           <NameStep
             form={form}
             onNext={() => {
-              if (isInvestor) {
-                return goToStep("phone")
-              }
-
-              const productID = form.getValues("product")
-              if (productID === "free" || productID === "freeinvestor") {
+              if (isInvestor || isProductFree(selectedProduct)) {
                 return goToStep("phone")
               }
 
@@ -261,9 +256,8 @@ export default function SubscribeFlow({
           <PhoneStep
             form={form}
             onNext={() => {
-              const product = form.getValues("product")
               // Skip card step for free products or when using mock purchase
-              if (product === "free" || product === "freeinvestor" || mockPurchase) {
+              if (isProductFree(selectedProduct) || mockPurchase) {
                 return goToStep("review")
               }
               return goToStep("card")

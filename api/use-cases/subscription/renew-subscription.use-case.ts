@@ -435,7 +435,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         try {
           const subData = subscription.data ? JSON.parse(subscription.data as string) : {}
           if (subData.productData) suspendMetadata.productData = subData.productData
-          const wlId = subData.user_config?.whitelabel_id ?? subData.productData?.cashoffers?.user_config?.whitelabel_id
+          const wlId = subData.user_config?.whitelabel_id ?? subData.user_config?.white_label_id ?? subData.productData?.cashoffers?.user_config?.whitelabel_id ?? subData.productData?.cashoffers?.user_config?.white_label_id
           if (wlId) suspendMetadata.suspensionStrategy = 'DEACTIVATE_USER' // Default for auto-suspend
         } catch { /* ignore parse errors */ }
 

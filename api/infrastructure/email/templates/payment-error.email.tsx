@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -23,6 +23,7 @@ export interface PaymentErrorEmailProps {
   nextRetryDate?: string
   /** Urgency level: 'first' | 'second' | 'final' */
   urgency?: 'first' | 'second' | 'final'
+  whitelabel?: WhitelabelBrandingProps
 }
 
 function getUrgencyMessage(urgency?: string, nextRetryDate?: string, willRetry?: boolean): string {
@@ -54,6 +55,7 @@ export default function PaymentErrorEmail({
   willRetry,
   nextRetryDate,
   urgency,
+  whitelabel,
 }: PaymentErrorEmailProps) {
   const urgencyVariant = urgency === 'final' || !willRetry ? 'danger' as const : 'warning' as const
   const heading = urgency === 'final' ? 'Final Payment Attempt' : !willRetry ? 'Subscription Suspended' : 'Payment Failed'
@@ -63,6 +65,7 @@ export default function PaymentErrorEmail({
       title={heading}
       preview={`We couldn't process your payment of ${amount}. Please update your billing information.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>{heading}</EmailHeading>
       <EmailDivider />
@@ -106,6 +109,6 @@ PaymentErrorEmail.PreviewProps = {
   transactionId: 'txn_1234567890',
   subscription: 'Premium Monthly',
   cardLast4: '4242',
-  updatePaymentUrl: 'https://billing.cashoffers.com/payment',
+  updatePaymentUrl: 'https://billing.example.com/payment',
   date: 'January 31, 2024',
 } satisfies PaymentErrorEmailProps

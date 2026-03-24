@@ -11,7 +11,8 @@ Users receive transactional emails for key lifecycle events so they are aware of
 
 | Event | Template | Recipient |
 |-------|----------|-----------|
-| Subscription purchased | subscriptionCreated | User |
+| Subscription purchased (user provisioned) | subscriptionCreated | User |
+| Purchase error (provisioning or system failure) | purchaseErrorCustomer | User |
 | Subscription renewed | subscriptionRenewal | User |
 | Payment failed | paymentFailed | User + Admin |
 | Subscription cancelled | subscriptionCancelled | User |
@@ -29,6 +30,7 @@ Users receive transactional emails for key lifecycle events so they are aware of
 ## Edge Cases
 - Email delivery failure is logged but does not block the subscription action
 - Dev environment: use `DEV_EMAIL` to redirect all emails to a single address
+- When user provisioning fails during purchase, the welcome email (`subscriptionCreated`) is **not** sent. Instead, the customer receives the `purchaseErrorCustomer` email confirming payment was received and the team is resolving the issue.
 
 ## Current vs Intended Behavior
 - All templates are React Email (migrated from MJML).

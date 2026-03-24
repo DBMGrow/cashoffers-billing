@@ -43,8 +43,8 @@ export class CancelOnRenewalUseCase implements ICancelOnRenewalUseCase {
         metadata.productData = subData.productData
       }
 
-      const whitelabelId = subData.user_config?.whitelabel_id
-        ?? subData.productData?.cashoffers?.user_config?.whitelabel_id
+      const whitelabelId = subData.user_config?.whitelabel_id ?? subData.user_config?.white_label_id
+        ?? subData.productData?.cashoffers?.user_config?.whitelabel_id ?? subData.productData?.cashoffers?.user_config?.white_label_id
       if (whitelabelId && this.deps.whitelabelRepository) {
         const behavior = await this.deps.whitelabelRepository.getSuspensionBehavior(whitelabelId)
         if (behavior) {

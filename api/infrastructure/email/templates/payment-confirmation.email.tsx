@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -12,6 +12,7 @@ export interface PaymentConfirmationEmailProps {
   /** Optional description of what was purchased (e.g. property address for unlocks) */
   description?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 export default function PaymentConfirmationEmail({
@@ -20,12 +21,14 @@ export default function PaymentConfirmationEmail({
   date,
   description,
   isSandbox,
+  whitelabel,
 }: PaymentConfirmationEmailProps) {
   return (
     <StandardEmail
       title="Payment Successful"
       preview={`Your payment of ${amount} was processed successfully.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Payment Successful</EmailHeading>
       <EmailDivider />

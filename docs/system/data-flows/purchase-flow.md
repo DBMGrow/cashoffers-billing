@@ -34,19 +34,27 @@ sequenceDiagram
     API->>DB: Update subscription (provisioning_status='pending_provisioning')
     API->>API: Emit UserProvisioningFailed
     API->>API: Send admin alert email
+    API->>API: Send customer error email
     API-->>FE: { success, userProvisioned: false, user: null, ... }
+    FE->>FE: Show error (not Welcome)
   end
   API->>API: Emit SubscriptionCreated, PaymentProcessed, PurchaseRequestCompleted
 ```
 
-### Refund Logic
+### Error Handling After Payment
 
-| Failure point | Refund? |
-|---|---|
-| Before payment (card creation, product validation) | N/A — nothing charged |
-| Payment fails | N/A — Square did not complete |
-| After payment, before subscription created | Yes — subscription does not exist yet |
-| After subscription created (user provisioning, events) | **No** — subscription is the source of truth |
+| Failure point | Refund? | Action |
+|---|---|---|
+| Before payment (card creation, product validation) | N/A — nothing charged | Return error to frontend |
+| Payment fails | N/A — Square did not complete | Return error to frontend |
+| After payment, before subscription created | **No** | Admin manually provisions subscription + user |
+| After subscription created (user provisioning, events) | **No** | Admin manually provisions user |
+
+Payments are never automatically refunded. When a system error occurs after payment, the
+purchase request record contains all context needed for manual resolution. Admin receives
+a system error alert email; the customer receives an email confirming payment was received
+and that the team is resolving the issue. Refunds are only issued manually by admin if
+the issue cannot be resolved.
 
 ### Pending Provisioning
 
@@ -54,9 +62,18 @@ When `userProvisioned: false` is returned:
 - The customer was charged and has a subscription record
 - No user account exists yet — they cannot log in
 - Admin receives an alert email with subscription ID, purchase request ID, and customer email
+- **Customer receives an email** confirming payment was received and the team is resolving the issue
+- The frontend shows an error message (not the Welcome step)
 - A `UserProvisioningFailed` event is emitted for monitoring
 - The subscription has `provisioning_status = 'pending_provisioning'` and `user_id = null`
 - The cron job excludes these subscriptions from renewal processing
+
+### System Error After Payment
+
+When a system error (non-user-facing) occurs after payment was taken:
+- Admin receives a system error alert email with full context for manual provisioning
+- **Customer receives an email** notifying them of the issue and that the team is on it
+- Payment is **not** refunded — admin manually provisions the subscription and user account
 
 ---
 

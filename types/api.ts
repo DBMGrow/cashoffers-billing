@@ -42,9 +42,9 @@ export interface PurchaseRequest {
   email: string
   phone: string
   name: string
-  card_token: string
-  exp_month: number
-  exp_year: number
+  card_token?: string
+  exp_month?: number
+  exp_year?: number
   cardholder_name: string
   name_broker?: string | null
   name_team?: string | null

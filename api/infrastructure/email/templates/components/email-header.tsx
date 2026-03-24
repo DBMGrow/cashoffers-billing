@@ -1,39 +1,17 @@
-import { Section, Text, Img } from "@react-email/components"
+import { Section, Text } from "@react-email/components"
 import { colors, font, spacing } from "./tokens"
 
 interface EmailHeaderProps {
-  logo?: string
+  /** Whitelabel display name — rendered as a text wordmark */
+  name?: string
 }
 
 /**
- * CashOffers wordmark header.
+ * Text-based wordmark header.
  * Appears above the main card in every transactional email.
- * Displays whitelabel logo if provided.
+ * Displays the whitelabel name (defaults to "CashOffers").
  */
-export function EmailHeader({ logo }: EmailHeaderProps = {}) {
-  if (logo) {
-    return (
-      <Section
-        style={{
-          padding: `${spacing["3xl"]} ${spacing.md} 0`,
-        }}
-      >
-        <Img
-          src={logo}
-          alt="Logo"
-          width="120"
-          height="48"
-          style={{
-            margin: "0 auto",
-            display: "block",
-            maxWidth: "100%",
-            height: "auto",
-          }}
-        />
-      </Section>
-    )
-  }
-
+export function EmailHeader({ name }: EmailHeaderProps = {}) {
   return (
     <Section
       style={{
@@ -49,7 +27,7 @@ export function EmailHeader({ logo }: EmailHeaderProps = {}) {
           letterSpacing: "-0.3px",
         }}
       >
-        CashOffers.PRO
+        {name ?? "CashOffers"}
       </Text>
     </Section>
   )

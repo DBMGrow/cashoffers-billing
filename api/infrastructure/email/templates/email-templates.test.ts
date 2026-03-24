@@ -89,11 +89,11 @@ describe('PaymentErrorEmail', () => {
     const html = await renderTemplate(PaymentErrorEmail, {
       amount: '$99.00',
       errorMessage: 'Card declined',
-      updatePaymentUrl: 'https://billing.cashoffers.com',
+      updatePaymentUrl: 'https://billing.example.com',
       date: 'January 31, 2024',
     })
     expect(html).toContain('Card declined')
-    expect(html).toContain('https://billing.cashoffers.com')
+    expect(html).toContain('https://billing.example.com')
     expect(html).toContain('$99.00')
   })
 })
@@ -154,10 +154,10 @@ describe('SubscriptionRenewalFailedEmail', () => {
     const html = await renderTemplate(SubscriptionRenewalFailedEmail, {
       subscription: 'Premium Plan',
       date: 'February 1, 2024',
-      link: 'https://billing.cashoffers.com',
+      link: 'https://billing.example.com',
     })
     expect(html).toContain('Premium Plan')
-    expect(html).toContain('https://billing.cashoffers.com')
+    expect(html).toContain('https://billing.example.com')
   })
 })
 
@@ -221,10 +221,10 @@ describe('SubscriptionSuspendedEmail', () => {
   it('renders subscription name and update link', async () => {
     const html = await renderTemplate(SubscriptionSuspendedEmail, {
       subscription: 'Premium Plan',
-      link: 'https://billing.cashoffers.com',
+      link: 'https://billing.example.com',
     })
     expect(html).toContain('Premium Plan')
-    expect(html).toContain('https://billing.cashoffers.com')
+    expect(html).toContain('https://billing.example.com')
   })
 })
 

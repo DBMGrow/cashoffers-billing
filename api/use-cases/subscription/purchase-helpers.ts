@@ -4,6 +4,7 @@ import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider } from "@api/infrastructure/payment/payment-provider.interface"
 import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import PurchaseSystemErrorEmail from "@api/infrastructure/email/templates/purchase-system-error.email"
+import PurchaseErrorCustomerEmail from "@api/infrastructure/email/templates/purchase-error-customer.email"
 import type {
   UserCardRepository,
   ProductRepository,
@@ -96,7 +97,6 @@ export async function sendSystemErrorAlert(
 
   const subject = `[SYSTEM ERROR] Purchase failure — ${errorCode} — ${flow}`
   const occurredAt = new Date().toISOString()
-  const refundIssued = !!paymentId && !subscriptionCreated
 
   try {
     const html = await render(
@@ -111,7 +111,6 @@ export async function sendSystemErrorAlert(
         userId,
         paymentId,
         subscriptionCreated,
-        refundIssued,
         durationMs,
         occurredAt,
       })
@@ -124,6 +123,50 @@ export async function sendSystemErrorAlert(
     })
   } catch (alertError) {
     deps.logger.error("Failed to send system error alert email", { alertError, errorCode, purchaseRequestId })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sendCustomerPurchaseErrorEmail
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CustomerPurchaseErrorParams {
+  email: string
+  /** Customer-friendly reason (never expose internal details) */
+  reason: string
+  /** Amount charged in cents — omit if no payment was taken */
+  amountCharged?: number
+}
+
+/**
+ * Sends a customer-facing email when their purchase encountered an error
+ * after payment was taken (e.g. provisioning failure, post-payment system error).
+ * Never throws — failures are logged only.
+ */
+export async function sendCustomerPurchaseErrorEmail(
+  deps: { emailService: IEmailService; logger: ILogger },
+  params: CustomerPurchaseErrorParams
+): Promise<void> {
+  const { email, reason, amountCharged } = params
+  const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+  const formattedAmount = amountCharged != null ? `$${(amountCharged / 100).toFixed(2)}` : undefined
+
+  try {
+    const html = await render(
+      createElement(PurchaseErrorCustomerEmail, {
+        reason,
+        amountCharged: formattedAmount,
+        date,
+      })
+    )
+    await deps.emailService.sendEmail({
+      to: email,
+      subject: "Issue with your CashOffers purchase",
+      html,
+      templateName: "purchase-error-customer",
+    })
+  } catch (alertError) {
+    deps.logger.error("Failed to send customer purchase error email", { alertError, email })
   }
 }
 
@@ -147,6 +190,21 @@ export class PurchaseError extends Error {
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Normalizes legacy `white_label_id` to `whitelabel_id` in user config.
+ * The DB historically stored `white_label_id` but TypeScript types use `whitelabel_id`.
+ */
+export function normalizeUserConfig(
+  raw: ProductUserConfig | undefined
+): ProductUserConfig | undefined {
+  if (!raw) return raw
+  const legacy = (raw as any).white_label_id
+  if (legacy !== undefined && raw.whitelabel_id == null) {
+    return { ...raw, whitelabel_id: legacy }
+  }
+  return raw
+}
 
 export function parseProductId(productId: string | number): number {
   return typeof productId === "number" ? productId : parseInt(productId as string, 10)
@@ -209,7 +267,8 @@ export async function validateAndParseProduct(
   }
   const productData =
     typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
-  return { product, productData, userConfig: productData.user_config }
+  const userConfig = normalizeUserConfig(productData.user_config)
+  return { product, productData, userConfig }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,11 +441,20 @@ export async function publishPurchaseEvents(
       amount: params.pricing.renewalCost,
       initialChargeAmount: params.pricing.initialAmount,
       transactionId: params.transaction.transaction_id,
+      externalTransactionId: params.payment.id,
       cardId: params.cardIdString,
       userWasCreated: params.userWasCreated,
       nextRenewalDate: params.subscription.renewal_date ?? undefined,
       environment: params.payment.environment,
       source: "API",
+      lineItems: [
+        ...(params.pricing.signupFee > 0
+          ? [{ description: "Signup Fee", amount: params.pricing.signupFee }]
+          : []),
+        ...(params.pricing.renewalCost > 0
+          ? [{ description: params.product.product_name, amount: params.pricing.renewalCost }]
+          : []),
+      ],
     })
   )
 

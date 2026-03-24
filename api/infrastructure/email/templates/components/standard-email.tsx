@@ -26,7 +26,7 @@ interface StandardEmailProps {
 export function StandardEmail({ title, preview, isSandbox, whitelabel, children }: StandardEmailProps) {
   return (
     <EmailLayout title={title} preview={preview}>
-      <EmailHeader logo={whitelabel?.logo_url} />
+      <EmailHeader name={whitelabel?.name} />
       <SandboxBanner isSandbox={isSandbox} />
       <EmailCard>{children}</EmailCard>
       <EmailFooter whitelabel={whitelabel} />

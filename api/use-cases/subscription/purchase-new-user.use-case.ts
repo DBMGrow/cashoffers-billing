@@ -18,7 +18,7 @@ import { UserCreatedEvent } from "@api/domain/events/user-created.event"
 import { UserProvisioningFailedEvent } from "@api/domain/events/user-provisioning-failed.event"
 import { createElement } from "react"
 import { render } from "@react-email/render"
-import { v4 as uuidv4 } from "uuid"
+
 import UserProvisioningFailedEmail from "@api/infrastructure/email/templates/user-provisioning-failed.email"
 import {
   PurchaseError,
@@ -35,6 +35,7 @@ import {
   createCardHelper,
   isUserFacingError,
   sendSystemErrorAlert,
+  sendCustomerPurchaseErrorEmail,
 } from "./purchase-helpers"
 import { generateResetToken } from "@api/utils/generate-reset-token"
 import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
@@ -363,6 +364,15 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         errorDetail: reason,
       })
 
+      // Notify the customer that their payment was received but account setup failed
+      await sendCustomerPurchaseErrorEmail(
+        { emailService: this.deps.emailService, logger: this.deps.logger },
+        {
+          email: v.email,
+          reason: "We were unable to finish setting up your account. Our team has been notified and will reach out to you shortly.",
+        }
+      )
+
       return { success: false, reason }
     }
   }
@@ -419,28 +429,9 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       }
     }
 
-    // Refund only if payment was charged AND the subscription was NOT yet created.
-    // Once subscriptionCreated = true, the subscription is the source of truth —
-    // no refund is issued for provisioning failures.
-    if (rollback.paymentId && rollback.pricing && !rollback.subscriptionCreated) {
-      try {
-        await this.deps.paymentProvider.refundPayment(
-          {
-            paymentId: rollback.paymentId,
-            amountMoney: { amount: BigInt(rollback.pricing.initialAmount), currency: "USD" },
-            idempotencyKey: uuidv4(),
-            reason: "Purchase failed after payment processed",
-          },
-          rollback.context ?? undefined
-        )
-        logger.info("Refunded payment during purchase cleanup", { paymentId: rollback.paymentId })
-      } catch (refundError) {
-        logger.error("Failed to refund payment during cleanup — manual intervention required", {
-          paymentId: rollback.paymentId,
-          refundError,
-        })
-      }
-    }
+    // No automatic refund — payment is kept and admin manually provisions the
+    // subscription/user. The purchase request and system error alert contain
+    // all the context needed for manual resolution.
 
     // Alert developer for system errors (not user-fixable card/input errors)
     if (!isUserFacingError(errorCode)) {
@@ -463,6 +454,18 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
           durationMs,
         }
       )
+
+      // Notify the customer if a payment was taken (regardless of whether it was refunded)
+      if (rollback.paymentId && context.email) {
+        await sendCustomerPurchaseErrorEmail(
+          { emailService: this.deps.emailService, logger },
+          {
+            email: context.email,
+            reason: "Something went wrong while processing your purchase. Our team has been notified and will reach out to you shortly.",
+            amountCharged: rollback.pricing?.initialAmount,
+          }
+        )
+      }
     }
 
     return failure(errorMessage, errorCode)

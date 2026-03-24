@@ -5,8 +5,7 @@ import { UseFormReturn } from "react-hook-form"
 import type { SubscribeFormData } from "@/types/forms"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { usePurchase } from "@/hooks/api/usePurchase"
-import { usePurchaseFree } from "@/hooks/api/usePurchaseFree"
-import { useProducts } from "@/providers/ProductProvider"
+import { useProducts, isProductFree } from "@/providers/ProductProvider"
 import Row from "@/components/Theme/Row"
 import Table from "@/components/Theme/Table"
 import InvestorConsent from "@/components/UI/SignupForm/InvestorConsent"
@@ -53,7 +52,7 @@ export default function ReviewStep({
   const [isCommunicationChecked, setIsCommunicationChecked] = useState(false)
 
   const purchaseMutation = usePurchase()
-  const purchaseFreeMutation = usePurchaseFree()
+  const isFree = isProductFree(productData)
 
   const planName = productData?.product_name || "Unknown Plan"
 
@@ -63,32 +62,6 @@ export default function ReviewStep({
 
   const productPrice = monthlyPrice
   const priceToday = productPrice + signupFeeAmount
-
-  const handleSubmitFree = async () => {
-    setAllowReset(false)
-
-    const result = await purchaseFreeMutation.mutateAsync({
-      email: formData.email,
-      phone: formData.phone,
-      name: formData.name,
-      name_broker: formData.name_broker,
-      name_team: formData.name_team,
-      slug: formData.slug,
-    })
-
-    if (result.success !== "success") {
-      onError("Error creating account. Please try again.")
-      setAllowReset(true)
-      return
-    }
-
-    const resetToken = result.data?.user?.reset_token
-    if (resetToken) {
-      router.push(process.env.NEXT_PUBLIC_DASHBOARD_URL + "/login/welcome?token=" + resetToken)
-    }
-
-    onNext()
-  }
 
   const CARD_ERROR_MESSAGES: Record<string, string> = {
     INSUFFICIENT_FUNDS:
@@ -106,7 +79,8 @@ export default function ReviewStep({
     CARDHOLDER_INSUFFICIENT_PERMISSIONS:
       "Your card issuer has blocked this transaction. Please contact your bank or use a different card.",
     INVALID_CARD_DATA: "Your card information is invalid. Please check your card details and try again.",
-    CARD_CREATION_FAILED: "Invalid card. Please check your card details and try again.",
+    CARD_CREATION_FAILED:
+      "Your card information is invalid or could not be processed. Please check your card details and try again.",
     PUR08: "Your card was declined. Please try a different card or contact your bank.",
   }
 
@@ -121,7 +95,7 @@ export default function ReviewStep({
     const effectiveCardData = mockPurchase
       ? { token: "cnon:card-nonce-ok", details: { card: { expMonth: 12, expYear: 2026 } } }
       : form.getValues("cardData")
-    if (!effectiveCardData) {
+    if (!effectiveCardData && !isFree) {
       onError("Please add a card.")
       return
     }
@@ -140,9 +114,9 @@ export default function ReviewStep({
         email: formData.email,
         phone: formData.phone,
         name: formData.name,
-        card_token: effectiveCardData.token,
-        exp_month: effectiveCardData.details.card.expMonth,
-        exp_year: effectiveCardData.details.card.expYear,
+        card_token: effectiveCardData?.token,
+        exp_month: effectiveCardData?.details.card.expMonth,
+        exp_year: effectiveCardData?.details.card.expYear,
         cardholder_name: formData.name,
         name_broker: formData.name_broker,
         name_team: formData.name_team,
@@ -168,6 +142,17 @@ export default function ReviewStep({
 
       // System error - show error step
       onError("Something went wrong. Please try again. If the problem persists, please contact support.")
+      return
+    }
+
+    // Check if user provisioning failed (payment succeeded but account creation failed)
+    if (result.data?.userProvisioned === false) {
+      onError(
+        "Your payment was received, but we ran into an issue setting up your account. " +
+          "Our team has been notified and will reach out to you within 24 hours. " +
+          "Please check your email for more details."
+      )
+      setAllowReset(false)
       return
     }
 

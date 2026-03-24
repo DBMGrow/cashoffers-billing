@@ -65,6 +65,11 @@ export class EmailNotificationHandler extends BaseEventHandler {
     return environment === 'sandbox' ? `[SANDBOX] ${subject}` : subject
   }
 
+  /** Merge the resolved whitelabel name into branding props for templates */
+  private toBrandingProps(whitelabelInfo: { name: string; branding: any }) {
+    return { ...whitelabelInfo.branding, name: whitelabelInfo.name }
+  }
+
   private formatCurrency(amountInCents: number): string {
     return `$${(amountInCents / 100).toFixed(2)}`
   }
@@ -125,8 +130,18 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, userId, productName, amount, initialChargeAmount, environment, lineItems, externalTransactionId, nextRenewalDate } = event.payload
+        const { email, userId, productName, amount, initialChargeAmount, environment, lineItems, externalTransactionId, nextRenewalDate, userWasCreated } = event.payload
         const chargedAmount = initialChargeAmount ?? amount
+
+        // Don't send a welcome email if user provisioning failed — the use case
+        // already sends a customer error email via sendCustomerPurchaseErrorEmail.
+        if (userWasCreated === false) {
+          this.logger.info('Skipping subscription created email — user provisioning failed', {
+            email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
 
         this.logger.info('Sending subscription created email', {
           email,
@@ -152,7 +167,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
               trialDays={trialDays}
               expirationDate={expirationDate}
               isSandbox={this.isSandbox(environment)}
-              whitelabel={whitelabelInfo.branding}
+              whitelabel={this.toBrandingProps(whitelabelInfo)}
             />
           )
 
@@ -173,13 +188,13 @@ export class EmailNotificationHandler extends BaseEventHandler {
             date={this.formatDate()}
             transactionID={externalTransactionId}
             isSandbox={this.isSandbox(environment)}
-            whitelabel={whitelabelInfo.branding}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
         await this.emailService.sendEmail({
           to: email,
-          subject: this.formatSubject('Welcome to CashOffers!', environment),
+          subject: this.formatSubject(`Welcome to ${whitelabelInfo.name}!`, environment),
           html,
           templateName: 'subscription-created',
         })
@@ -211,13 +226,13 @@ export class EmailNotificationHandler extends BaseEventHandler {
             date={this.formatDate()}
             transactionID={externalTransactionId}
             isSandbox={this.isSandbox(environment)}
-            whitelabel={whitelabelInfo.branding}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
         await this.emailService.sendEmail({
           to: email,
-          subject: this.formatSubject('Your CashOffers Subscription Has Been Renewed', environment),
+          subject: this.formatSubject(`Your ${whitelabelInfo.name} Subscription Has Been Renewed`, environment),
           html,
           templateName: 'subscription-renewal',
         })
@@ -230,7 +245,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentProcessed(event: PaymentProcessedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, externalTransactionId, paymentType, environment } = event.payload
+        const { email, userId, amount, externalTransactionId, paymentType, environment } = event.payload
 
         // Only send email for one-time payments (subscriptions are handled separately)
         if (paymentType !== 'one-time' && paymentType !== 'unlock') {
@@ -244,12 +259,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
           environment,
         })
 
+        const whitelabelInfo = userId ? await whitelabelResolverService.resolveForUser(userId) : null
+
         const html = await render(
           <PaymentConfirmationEmail
             amount={this.formatCurrency(amount)}
             transactionID={externalTransactionId}
             date={new Date().toLocaleDateString()}
             isSandbox={this.isSandbox(environment)}
+            whitelabel={whitelabelInfo ? this.toBrandingProps(whitelabelInfo) : undefined}
           />
         )
 
@@ -300,6 +318,11 @@ export class EmailNotificationHandler extends BaseEventHandler {
             ? 'Final Payment Attempt - Action Required'
             : 'Payment Failed - Action Required'
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+        const brandingProps = this.toBrandingProps(whitelabelInfo)
+        const billingUrl = brandingProps.billing_url ?? 'https://billing.cashoffers.com'
+
         const html = await render(
           <PaymentErrorEmail
             amount={this.formatCurrency(amount)}
@@ -307,12 +330,13 @@ export class EmailNotificationHandler extends BaseEventHandler {
             declineReason={errorCode ?? errorCategory}
             subscription={subscriptionId ? `Subscription #${subscriptionId}` : undefined}
             cardLast4={cardLast4}
-            updatePaymentUrl="https://billing.cashoffers.com"
+            updatePaymentUrl={billingUrl}
             date={this.formatDate()}
             isSandbox={this.isSandbox(environment)}
             willRetry={willRetry}
             nextRetryDate={nextRetryDateStr}
             urgency={urgency}
+            whitelabel={brandingProps}
           />
         )
 
@@ -339,12 +363,16 @@ export class EmailNotificationHandler extends BaseEventHandler {
           environment,
         })
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
         const html = await render(
           <RefundEmail
             amount={this.formatCurrency(amount)}
             date={this.formatDate()}
             transactionId={externalRefundId}
             isSandbox={this.isSandbox(environment)}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
@@ -363,7 +391,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleCardCreated(event: CardCreatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, cardLast4, environment } = event.payload
+        const { email, cardLast4, environment, userId } = event.payload
 
         this.logger.info('Sending card created email', {
           email,
@@ -371,12 +399,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
           environment,
         })
 
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
         const html = await render(
           <CardUpdatedEmail
             message={`A card ending in ${cardLast4} was added to your account`}
             card={`**** **** **** ${cardLast4}`}
             date={new Date().toLocaleDateString()}
             isSandbox={this.isSandbox(environment)}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
@@ -395,7 +426,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleCardUpdated(event: CardUpdatedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, cardLast4, environment } = event.payload
+        const { email, cardLast4, environment, userId } = event.payload
 
         this.logger.info('Sending card updated email', {
           email,
@@ -403,12 +434,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
           environment,
         })
 
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
         const html = await render(
           <CardUpdatedEmail
             message={`The card linked to your account was updated and now ends in ${cardLast4}`}
             card={`**** **** **** ${cardLast4}`}
             date={new Date().toLocaleDateString()}
             isSandbox={this.isSandbox(environment)}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
@@ -427,12 +461,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePropertyUnlocked(event: PropertyUnlockedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, externalTransactionId, propertyAddress } = event.payload
+        const { email, amount, externalTransactionId, propertyAddress, userId } = event.payload
 
         this.logger.info('Sending property unlocked email', {
           email,
           propertyId: event.payload.propertyId,
         })
+
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
         const html = await render(
           <PaymentConfirmationEmail
@@ -440,6 +476,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             transactionID={externalTransactionId}
             date={this.formatDate()}
             description={propertyAddress ? `Property Unlock — ${propertyAddress}` : 'Property Unlock'}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
@@ -472,11 +509,17 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+        const brandingProps = this.toBrandingProps(whitelabelInfo)
+        const billingUrl = brandingProps.billing_url ?? 'https://billing.cashoffers.com'
+
         const html = await render(
           <SubscriptionSuspendedEmail
             subscription={subscriptionName ?? 'your subscription'}
-            link="https://billing.cashoffers.com"
+            link={billingUrl}
             date={this.formatDate()}
+            whitelabel={brandingProps}
           />
         )
 
@@ -509,10 +552,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+        const brandingProps = this.toBrandingProps(whitelabelInfo)
+
         const html = await render(
           <SubscriptionPausedEmail
             subscription={subscriptionName ?? 'your subscription'}
             date={this.formatDate()}
+            whitelabel={brandingProps}
           />
         )
 
@@ -545,6 +593,9 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
         const html = await render(
           <SubscriptionCancelledEmail
             subscription={subscriptionName ?? 'your subscription'}
@@ -553,6 +604,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
                 ? effectiveDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                 : undefined
             }
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
@@ -585,6 +637,9 @@ export class EmailNotificationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
         const html = await render(
           <SubscriptionDowngradedEmail
             subscription={currentSubscriptionName ?? 'your subscription'}
@@ -594,6 +649,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
                 ? effectiveDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                 : undefined
             }
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 

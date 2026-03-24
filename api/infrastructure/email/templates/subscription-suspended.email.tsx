@@ -54,6 +54,6 @@ export default function SubscriptionSuspendedEmail({
 
 SubscriptionSuspendedEmail.PreviewProps = {
   subscription: 'Premium Monthly',
-  link: 'https://billing.cashoffers.com/payment',
+  link: 'https://billing.example.com/payment',
   date: 'January 31, 2024',
 } satisfies SubscriptionSuspendedEmailProps

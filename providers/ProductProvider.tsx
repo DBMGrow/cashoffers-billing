@@ -52,6 +52,17 @@ async function fetchProducts({ mode, whitelabel }: FetchProductsParams): Promise
 /**
  * Hook to fetch and manage products using TanStack Query
  */
+/**
+ * Returns true if a product has $0 total cost (no signup fee and no renewal cost).
+ */
+export function isProductFree(product: Product | undefined): boolean {
+  if (!product) return false
+  const data = product.data
+  const renewalCost = data?.renewal_cost ?? product.price ?? 0
+  const signupFee = data?.signup_fee ?? 0
+  return renewalCost === 0 && signupFee === 0
+}
+
 export function useProducts(params: FetchProductsParams) {
   const { data: products = [], isLoading, error, refetch } = useQuery({
     queryKey: ["products", params.mode, params.whitelabel],

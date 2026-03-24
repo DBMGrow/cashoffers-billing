@@ -62,6 +62,6 @@ export default function SubscriptionRenewalFailedEmail({
 SubscriptionRenewalFailedEmail.PreviewProps = {
   subscription: 'Premium Monthly',
   date: 'January 31, 2024',
-  link: 'https://billing.cashoffers.com/payment',
+  link: 'https://billing.example.com/payment',
   amount: '$99.00',
 } satisfies SubscriptionRenewalFailedEmailProps

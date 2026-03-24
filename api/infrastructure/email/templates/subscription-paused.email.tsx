@@ -19,6 +19,7 @@ export default function SubscriptionPausedEmail({
   isSandbox,
   whitelabel,
 }: SubscriptionPausedEmailProps) {
+  const supportEmail = whitelabel?.support_email ?? 'support@cashoffers.com'
   return (
     <StandardEmail
       title="Subscription Paused"
@@ -43,7 +44,7 @@ export default function SubscriptionPausedEmail({
         To have your subscription reactivated, please contact our support team.
       </EmailText>
 
-      <ActionButton href="mailto:support@cashoffers.com" variant="warning">
+      <ActionButton href={`mailto:${supportEmail}`} variant="warning">
         Contact Support
       </ActionButton>
     </StandardEmail>

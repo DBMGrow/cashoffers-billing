@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -11,6 +11,7 @@ export interface SubscriptionPlanUpdatedEmailProps {
   date: string
   transactionID?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
 export default function SubscriptionPlanUpdatedEmail({
@@ -19,12 +20,14 @@ export default function SubscriptionPlanUpdatedEmail({
   date,
   transactionID,
   isSandbox,
+  whitelabel,
 }: SubscriptionPlanUpdatedEmailProps) {
   return (
     <StandardEmail
       title="Subscription Plan Updated"
       preview={`Your subscription plan has been changed to ${subscription}.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Subscription Plan Updated</EmailHeading>
       <EmailDivider />

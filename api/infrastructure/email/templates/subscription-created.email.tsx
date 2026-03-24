@@ -25,10 +25,11 @@ export default function SubscriptionCreatedEmail({
   isSandbox,
   whitelabel,
 }: SubscriptionCreatedEmailProps) {
+  const brandName = whitelabel?.name ?? 'CashOffers'
   return (
     <StandardEmail
       title="Subscription Created"
-      preview={`Welcome to CashOffers! Your ${subscription} subscription is now active.`}
+      preview={`Welcome to ${brandName}! Your ${subscription} subscription is now active.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
     >
@@ -51,7 +52,7 @@ export default function SubscriptionCreatedEmail({
       </SummaryTable>
 
       <EmailText variant="muted" style={{ marginTop: "20px", marginBottom: "0" }}>
-        Welcome to CashOffers. Your {subscription} subscription is now active.
+        Welcome to {brandName}. Your {subscription} subscription is now active.
       </EmailText>
     </StandardEmail>
   )

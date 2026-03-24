@@ -19,10 +19,12 @@ export default function TrialWelcomeEmail({
   isSandbox,
   whitelabel,
 }: TrialWelcomeEmailProps) {
+  const brandName = whitelabel?.name ?? 'CashOffers'
+  const billingUrl = whitelabel?.billing_url ?? 'https://billing.cashoffers.com'
   return (
     <StandardEmail
       title="Welcome to Your Free Trial"
-      preview={`Your ${trialDays}-day free trial has started. Explore CashOffers and HomeUptick!`}
+      preview={`Your ${trialDays}-day free trial has started. Explore ${brandName} and HomeUptick!`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
     >
@@ -30,7 +32,7 @@ export default function TrialWelcomeEmail({
       <EmailDivider />
       <EmailText>
         Your <strong>{trialDays}-day free trial</strong> is now active. You have full access to the
-        CashOffers portal and HomeUptick integration during your trial period.
+        {brandName} portal and HomeUptick integration during your trial period.
       </EmailText>
 
       <SummaryTable>
@@ -44,7 +46,7 @@ export default function TrialWelcomeEmail({
         plan to continue using all features.
       </EmailText>
 
-      <ActionButton href="https://billing.cashoffers.com">
+      <ActionButton href={billingUrl}>
         Explore Your Dashboard
       </ActionButton>
     </StandardEmail>

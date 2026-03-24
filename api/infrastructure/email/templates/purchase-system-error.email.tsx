@@ -18,7 +18,6 @@ export interface PurchaseSystemErrorEmailProps {
   userId?: number | null
   paymentId?: string | null
   subscriptionCreated?: boolean
-  refundIssued?: boolean
   durationMs: number
   occurredAt: string
 }
@@ -38,7 +37,6 @@ export default function PurchaseSystemErrorEmail({
   userId,
   paymentId,
   subscriptionCreated,
-  refundIssued,
   durationMs,
   occurredAt,
 }: PurchaseSystemErrorEmailProps) {
@@ -101,9 +99,9 @@ export default function PurchaseSystemErrorEmail({
         <SummaryRow label="Payment ID" value={paymentId ?? "none (failed before payment)"} />
         <SummaryRow
           label="Subscription"
-          value={subscriptionCreated ? "created — no refund (source of truth)" : "not created"}
+          value={subscriptionCreated ? "created" : "not created — manual provisioning required"}
         />
-        <SummaryRow label="Refund Issued" value={refundIssued ? "yes" : "no"} />
+        <SummaryRow label="Refund" value="none (admin manual provision)" />
         <SummaryRow isHeader label="Timing" value="" />
         <SummaryRow label="Occurred At" value={occurredAt} />
         <SummaryRow label="Duration" value={`${durationMs}ms`} bordered={false} />
@@ -201,7 +199,6 @@ PurchaseSystemErrorEmail.PreviewProps = {
   userId: null,
   paymentId: "sq_pay_abc123",
   subscriptionCreated: false,
-  refundIssued: true,
   durationMs: 2341,
   occurredAt: "2024-01-31 14:23:01 UTC",
 } satisfies PurchaseSystemErrorEmailProps

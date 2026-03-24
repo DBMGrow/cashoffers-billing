@@ -25,6 +25,7 @@ export default function SubscriptionRenewalEmail({
   isSandbox,
   whitelabel,
 }: SubscriptionRenewalEmailProps) {
+  const brandName = whitelabel?.name ?? 'CashOffers'
   return (
     <StandardEmail
       title="Subscription Renewed"
@@ -50,7 +51,7 @@ export default function SubscriptionRenewalEmail({
       </SummaryTable>
 
       <EmailText variant="muted" style={{ marginTop: "20px", marginBottom: "0" }}>
-        Thank you for continuing your subscription with CashOffers.
+        Thank you for continuing your subscription with {brandName}.
       </EmailText>
     </StandardEmail>
   )

@@ -17,4 +17,8 @@ export interface WhitelabelData {
   logo_url?: string
   /** Marketing website URL - where the logo should link to */
   marketing_website?: string
+  /** Support email address for the whitelabel */
+  support_email?: string
+  /** Billing portal base URL for the whitelabel */
+  billing_url?: string
 }

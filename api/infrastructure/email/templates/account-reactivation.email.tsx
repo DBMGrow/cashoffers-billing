@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -7,19 +7,22 @@ import { ActionButton } from './components/action-button'
 export interface AccountReactivationEmailProps {
   name: string
   reactivationUrl: string
+  whitelabel?: WhitelabelBrandingProps
 }
 
-export default function AccountReactivationEmail({ name, reactivationUrl }: AccountReactivationEmailProps) {
+export default function AccountReactivationEmail({ name, reactivationUrl, whitelabel }: AccountReactivationEmailProps) {
+  const brandName = whitelabel?.name ?? 'CashOffers'
   return (
     <StandardEmail
-      title="Reactivate Your CashOffers Account"
-      preview={`Hi ${name}, click to reactivate your CashOffers account.`}
+      title={`Reactivate Your ${brandName} Account`}
+      preview={`Hi ${name}, click to reactivate your ${brandName} account.`}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Reactivate Your Account</EmailHeading>
       <EmailDivider />
       <EmailText>Hi {name},</EmailText>
       <EmailText>
-        We received a request to reactivate your CashOffers account. Click the button below to reactivate
+        We received a request to reactivate your {brandName} account. Click the button below to reactivate
         your account as a freemium user.
       </EmailText>
 
@@ -39,5 +42,5 @@ export default function AccountReactivationEmail({ name, reactivationUrl }: Acco
 
 AccountReactivationEmail.PreviewProps = {
   name: 'Jane Smith',
-  reactivationUrl: 'https://billing.cashoffers.com/reactivate?token=abc123',
+  reactivationUrl: 'https://billing.example.com/reactivate?token=abc123',
 } satisfies AccountReactivationEmailProps

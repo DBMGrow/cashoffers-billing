@@ -1,4 +1,4 @@
-import { StandardEmail } from './components/standard-email'
+import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
 import { EmailHeading } from './components/email-heading'
 import { EmailDivider } from './components/email-divider'
 import { EmailText } from './components/email-text'
@@ -11,14 +11,16 @@ export interface RefundEmailProps {
   date: string
   transactionId?: string
   isSandbox?: boolean
+  whitelabel?: WhitelabelBrandingProps
 }
 
-export default function RefundEmail({ amount, date, transactionId, isSandbox }: RefundEmailProps) {
+export default function RefundEmail({ amount, date, transactionId, isSandbox, whitelabel }: RefundEmailProps) {
   return (
     <StandardEmail
       title="Transaction Refunded"
       preview={`Your refund of ${amount} has been processed.`}
       isSandbox={isSandbox}
+      whitelabel={whitelabel}
     >
       <EmailHeading>Transaction Refunded</EmailHeading>
       <EmailDivider />

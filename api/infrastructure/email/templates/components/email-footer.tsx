@@ -2,10 +2,16 @@ import { Section, Text, Link } from '@react-email/components'
 import { colors, font, spacing } from './tokens'
 
 export interface WhitelabelBrandingProps {
+  /** Display name for the whitelabel (e.g. "kw Offerings") */
+  name?: string
   logo_url?: string
   primary_color?: string
   secondary_color?: string
   marketing_website?: string
+  /** Support email address (e.g. "support@kwofferings.com") */
+  support_email?: string
+  /** Billing portal base URL (e.g. "https://billing.kwofferings.com") */
+  billing_url?: string
 }
 
 interface EmailFooterProps {
@@ -17,8 +23,9 @@ interface EmailFooterProps {
  * Email footer with support link, copyright notice, and optional whitelabel marketing website.
  */
 export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: EmailFooterProps) {
+  const brandName = whitelabel?.name ?? "CashOffers"
+  const supportEmail = whitelabel?.support_email ?? "support@cashoffers.com"
   const isWhitelabeled = whitelabel && whitelabel.marketing_website && whitelabel.marketing_website !== "/"
-  const brandName = isWhitelabeled ? "CashOffers" : "CashOffers"
 
   return (
     <Section
@@ -55,10 +62,10 @@ export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: Ema
       >
         Questions? Contact us at{' '}
         <Link
-          href="mailto:support@cashoffers.com"
+          href={`mailto:${supportEmail}`}
           style={{ color: colors.text.muted, textDecoration: 'none' }}
         >
-          support@cashoffers.com
+          {supportEmail}
         </Link>
       </Text>
       <Text

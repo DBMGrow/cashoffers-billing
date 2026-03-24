@@ -26,6 +26,7 @@ import {
   createCardHelper,
   isUserFacingError,
   sendSystemErrorAlert,
+  sendCustomerPurchaseErrorEmail,
 } from "./purchase-helpers"
 
 interface Dependencies {
@@ -268,6 +269,17 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
           durationMs,
         }
       )
+
+      // Notify the customer if a payment was taken
+      if (context.paymentId && context.email) {
+        await sendCustomerPurchaseErrorEmail(
+          { emailService: this.deps.emailService, logger: this.deps.logger },
+          {
+            email: context.email,
+            reason: "Something went wrong while processing your purchase. Our team has been notified and will reach out to you shortly.",
+          }
+        )
+      }
     }
 
     return failure(errorMessage, errorCode)

@@ -13,17 +13,19 @@ export default function TrialExpiredEmail({
   isSandbox,
   whitelabel,
 }: TrialExpiredEmailProps) {
+  const brandName = whitelabel?.name ?? 'CashOffers'
+  const billingUrl = whitelabel?.billing_url ?? 'https://billing.cashoffers.com'
   return (
     <StandardEmail
       title="Your Free Trial Has Expired"
-      preview="Your free trial has ended. Upgrade to continue using CashOffers."
+      preview={`Your free trial has ended. Upgrade to continue using ${brandName}.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
     >
       <EmailHeading>Your Free Trial Has Expired</EmailHeading>
       <EmailDivider />
       <EmailText>
-        Your free trial has ended and your access to CashOffers and HomeUptick has been suspended.
+        Your free trial has ended and your access to {brandName} and HomeUptick has been suspended.
         To restore your access, please upgrade to a paid subscription.
       </EmailText>
 
@@ -31,7 +33,7 @@ export default function TrialExpiredEmail({
         All your data has been preserved and will be available when you upgrade.
       </EmailText>
 
-      <ActionButton href="https://billing.cashoffers.com">
+      <ActionButton href={billingUrl}>
         Upgrade Now
       </ActionButton>
 
