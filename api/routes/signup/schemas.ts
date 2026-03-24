@@ -6,34 +6,7 @@ import { ErrorResponseSchema, EmailSchema } from "../helpers/common.schemas"
  * Handles user registration and signup validation
  */
 
-// ==================== Request Schemas ====================
-
-/**
- * Free purchase (user registration) request body
- */
-export const PurchaseFreeRequestSchema = z.object({
-  email: EmailSchema,
-  name: z.string().min(1, "Name is required"),
-  phone: z.string().optional(),
-  name_broker: z.string().optional(),
-  name_team: z.string().optional(),
-  slug: z.string().optional(),
-  whitelabel: z.string().optional(),
-  isInvestor: z.boolean().optional(),
-})
-
 // ==================== Response Schemas ====================
-
-/**
- * Free purchase response
- */
-export const PurchaseFreeResponseSchema = z.object({
-  data: z.object({
-    success: z.string(),
-    data: z.any().optional(),
-    message: z.string().optional(),
-  }),
-})
 
 /**
  * Check user exists response
@@ -56,46 +29,6 @@ export const CheckSlugExistsResponseSchema = z.object({
 })
 
 // ==================== OpenAPI Route Definitions ====================
-
-/**
- * POST /signup/purchasefree - Register free user
- */
-export const PurchaseFreeRoute = {
-  method: "post" as const,
-  path: "/purchasefree",
-  request: {
-    body: {
-      content: {
-        "application/json": {
-          schema: PurchaseFreeRequestSchema,
-          example: {
-            email: "user@example.com",
-            name: "John Doe",
-            phone: "+1234567890",
-            isInvestor: false,
-          },
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: PurchaseFreeResponseSchema,
-        },
-      },
-      description: "User registration successful",
-    },
-    400: {
-      content: { "application/json": { schema: ErrorResponseSchema } },
-      description: "Bad request or registration failed",
-    },
-  },
-  tags: ["Signup"],
-  summary: "Register free user",
-  description: "Creates a new user account without a paid subscription. Used for free tier signups.",
-}
 
 /**
  * GET /signup/checkuserexists/:email - Check if user exists

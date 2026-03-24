@@ -37,6 +37,7 @@ import {
   sendSystemErrorAlert,
   sendCustomerPurchaseErrorEmail,
 } from "./purchase-helpers"
+import { whitelabelResolverService } from "@api/lib/services"
 import { generateResetToken } from "@api/utils/generate-reset-token"
 import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
 
@@ -94,6 +95,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     let purchaseRequestId: number | null = null
     let capturedEmail: string | null = null
     let capturedProductId: string | number | null = null
+    let capturedWhitelabelName: string | null = null
 
     const rollback: RollbackContext = {
       paymentId: null,
@@ -135,18 +137,38 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         purchaseRequestId
       )
 
-      // Create card (user_id remains null until after provisioning succeeds)
-      const cardIdString = await this.createCard(v, input.context)
+      // Resolve whitelabel name for error emails
+      const whitelabelId = userConfig?.whitelabel_id
+      if (whitelabelId) {
+        try {
+          const resolved = await whitelabelResolverService.resolveById(whitelabelId)
+          capturedWhitelabelName = resolved.name
+        } catch {
+          // Non-critical — falls back to "CashOffers" in email subject
+        }
+      }
 
-      // Resolve card row for payment
-      const userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
-
-      // Process payment
-      await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
+      // Calculate pricing to determine if this is a free purchase
       const pricing = calculatePricing(product, productData)
       rollback.pricing = pricing
-      const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
-      rollback.paymentId = payment.id
+      const isFree = pricing.initialAmount === 0
+
+      let cardIdString: string | null = null
+      let userCard: { card_id: string | null; square_customer_id: string | null; last_4: string | null } | null = null
+      let payment: { id: string; environment: "production" | "sandbox" } | null = null
+
+      if (isFree) {
+        // Free product — skip card creation and payment
+        logger.info("Free product purchase — skipping card and payment", { productId: v.productId })
+      } else {
+        // Paid product — create card, resolve card record, process payment
+        cardIdString = await this.createCard(v, input.context)
+        userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
+
+        await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
+        payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
+        rollback.paymentId = payment.id
+      }
 
       // Create subscription before user exists — refund gate closes here
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
@@ -168,10 +190,12 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       })
 
       // Attempt user provisioning — non-blocking, never throws
-      const provisioning = await this.attemptUserProvisioning(v, userConfig, product.product_id, {
+      const provisioning = await this.attemptUserProvisioning(v, userConfig, productData, product.product_id, {
         purchaseRequestId,
         subscriptionId: subscription.subscription_id,
         cardIdString,
+        isFree,
+        whitelabelName: capturedWhitelabelName ?? undefined,
       })
 
       const userId = provisioning.success ? provisioning.userId : null
@@ -205,7 +229,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       return success({
         subscriptionId: subscription.subscription_id,
         userId,
-        cardId: cardIdString,
+        cardId: cardIdString ?? "",
         productId: v.productId,
         amount: pricing.initialAmount,
         proratedCharge: 0,
@@ -216,6 +240,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       return this.handleError(error, purchaseRequestId, rollback, startTime, {
         email: capturedEmail,
         productId: capturedProductId,
+        whitelabelName: capturedWhitelabelName ?? undefined,
       })
     }
   }
@@ -234,10 +259,10 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       null,
       {
         email: v.email,
-        cardToken: v.cardToken,
-        expMonth: v.expMonth,
-        expYear: v.expYear,
-        cardholderName: v.cardholderName,
+        cardToken: v.cardToken!,
+        expMonth: v.expMonth!,
+        expYear: v.expYear!,
+        cardholderName: v.cardholderName!,
         context,
       }
     )
@@ -257,34 +282,62 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
   private async attemptUserProvisioning(
     v: NewUserPurchaseInputValidated,
     userConfig: ProductUserConfig | undefined,
+    productData: import("@api/domain/types/product-data.types").ProductData | undefined,
     productId: number,
     context: {
       purchaseRequestId: number
       subscriptionId: number
-      cardIdString: string
+      cardIdString: string | null
+      isFree: boolean
+      whitelabelName?: string
     }
   ): Promise<ProvisioningResult> {
     const { logger } = this.deps
 
     try {
       const resetToken = generateResetToken()
+      const isTeamPlan = userConfig?.is_team_plan === true
 
+      // For team plans, create user as SHELL first, then create team, then update user with team_id + role
       const newUser = await this.deps.userApiClient.createUser({
         email: v.email,
-        name: v.name || v.cardholderName,
+        name: v.name || v.cardholderName || v.email,
         phone: v.phone,
         is_premium: userConfig?.is_premium,
-        role: userConfig?.role,
+        role: isTeamPlan ? "SHELL" : userConfig?.role,
         whitelabel_id: userConfig?.whitelabel_id ?? 4,
         reset_token: resetToken,
         reset_created: formatMySQLDatetime(),
       })
       const userId = newUser.id
 
+      // For team plans: create team, then update user with team_id and TEAMOWNER role
+      if (isTeamPlan) {
+        const ownerName = v.name || v.cardholderName || v.email
+        const teamName = `${ownerName}'s team`
+        const team = await this.deps.userApiClient.createTeam({
+          teamname: teamName,
+          owner_id: userId,
+          max_users: productData?.team_members ?? 6,
+          whitelabel_id: userConfig?.whitelabel_id ?? undefined,
+        })
+        await this.deps.userApiClient.updateUser(userId, {
+          team_id: team.id,
+          role: userConfig?.role,
+        })
+        logger.info("Team created and user promoted to TEAMOWNER", {
+          userId,
+          teamId: team.id,
+          teamName,
+        })
+      }
+
       logger.info("User provisioned successfully", { userId, subscriptionId: context.subscriptionId })
 
-      // Bind card to the new user
-      const cards = await this.deps.userCardRepository.findAll({ card_id: context.cardIdString })
+      // Bind card to the new user (skip for free purchases with no card)
+      const cards = context.cardIdString
+        ? await this.deps.userCardRepository.findAll({ card_id: context.cardIdString })
+        : []
       if (cards.length > 0) {
         await this.deps.userCardRepository.update(cards[0].id, {
           user_id: userId,
@@ -347,7 +400,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
             purchaseRequestId: context.purchaseRequestId,
             email: v.email,
             productId,
-            cardId: context.cardIdString,
+            cardId: context.cardIdString ?? "",
             errorMessage: reason,
           })
         )
@@ -362,14 +415,17 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         purchaseRequestId: context.purchaseRequestId,
         productId,
         errorDetail: reason,
+        isFree: context.isFree,
       })
 
-      // Notify the customer that their payment was received but account setup failed
+      // Notify the customer that account setup failed
       await sendCustomerPurchaseErrorEmail(
         { emailService: this.deps.emailService, logger: this.deps.logger },
         {
           email: v.email,
           reason: "We were unable to finish setting up your account. Our team has been notified and will reach out to you shortly.",
+          isFree: context.isFree,
+          whitelabelName: context.whitelabelName,
         }
       )
 
@@ -383,6 +439,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     purchaseRequestId: number
     productId: number
     errorDetail: string
+    isFree?: boolean
   }): Promise<void> {
     try {
       const html = await render(
@@ -393,6 +450,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
           productId: params.productId,
           errorDetail: params.errorDetail,
           occurredAt: new Date().toISOString(),
+          isFree: params.isFree,
         })
       )
       await this.deps.emailService.sendEmail({
@@ -411,7 +469,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     purchaseRequestId: number | null,
     rollback: RollbackContext,
     startTime: Date,
-    context: { email: string | null; productId: string | number | null }
+    context: { email: string | null; productId: string | number | null; whitelabelName?: string }
   ): Promise<UseCaseResult<PurchaseSubscriptionOutput>> {
     const { logger } = this.deps
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -463,6 +521,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
             email: context.email,
             reason: "Something went wrong while processing your purchase. Our team has been notified and will reach out to you shortly.",
             amountCharged: rollback.pricing?.initialAmount,
+            whitelabelName: context.whitelabelName,
           }
         )
       }

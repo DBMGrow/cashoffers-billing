@@ -55,16 +55,6 @@ export interface PurchaseRequest {
   mock_purchase?: boolean
 }
 
-export interface PurchaseFreeRequest {
-  email: string
-  phone: string
-  name: string
-  name_broker?: string | null
-  name_team?: string | null
-  whitelabel?: string | null
-  slug?: string | null
-}
-
 export interface Product {
   product_id: number | string
   product_name: string

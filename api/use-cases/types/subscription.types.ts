@@ -253,10 +253,10 @@ export interface NewUserPurchaseInput {
   productId: string | number
   email: string
   phone: string
-  cardToken: string
-  expMonth: number
-  expYear: number
-  cardholderName: string
+  cardToken?: string | null
+  expMonth?: number | null
+  expYear?: number | null
+  cardholderName?: string | null
   name?: string | null
   nameBroker?: string | null
   nameTeam?: string | null

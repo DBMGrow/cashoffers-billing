@@ -77,6 +77,64 @@ When a system error (non-user-facing) occurs after payment was taken:
 
 ---
 
+## Free Product Purchase ($0)
+
+Free products (e.g., Free Agent, Free Investor) are real Product rows with `renewal_cost=0`
+and `signup_fee=0`. They go through the same `POST /api/purchase/new` endpoint as paid
+products — the backend detects the $0 amount and skips card/payment processing.
+
+```mermaid
+sequenceDiagram
+  participant FE as Frontend
+  participant API as /api/purchase/new
+  participant DB
+  participant MainAPI as Main API
+
+  FE->>API: POST { productId, email, name, ... } (no card fields)
+  API->>API: Validate input + product
+  API->>API: calculatePricing → initialAmount = 0
+  Note over API: Skip card creation + payment
+  API->>DB: CreateSubscription (user_id=null, amount=0)
+  API->>DB: CreateTransaction (amount=0, no square_transaction_id)
+  API->>MainAPI: CreateUser (with user_config from product)
+  alt Provisioning succeeds
+    MainAPI-->>API: userId
+    API->>DB: Update subscription (user_id=userId, provisioning_status='provisioned')
+    API->>API: Emit UserCreated
+    API-->>FE: { success, userProvisioned: true, user, ... }
+  else Provisioning fails
+    MainAPI-->>API: error
+    API->>DB: Update subscription (provisioning_status='pending_provisioning')
+    API->>API: Emit UserProvisioningFailed
+    API->>API: Send admin alert email
+    API-->>FE: { success, userProvisioned: false, user: null, ... }
+  end
+  API->>API: Emit SubscriptionCreated, PurchaseRequestCompleted
+  Note over API: No PaymentProcessed event (no payment)
+```
+
+### Key Differences from Paid Purchase
+
+| Aspect | Paid | Free ($0) |
+|--------|------|-----------|
+| Card fields in request | Required | Omitted |
+| Square card creation | Yes | Skipped |
+| Square payment | Yes | Skipped |
+| Transaction record | square_transaction_id populated | square_transaction_id = null |
+| Subscription created email | Sent | Suppressed (amount = 0) |
+| Renewal email | Sent | Suppressed (amount = 0) |
+| Renewal cron | Charges + advances date | Advances date only (no charge) |
+
+### Frontend Behavior
+
+The frontend uses `isProductFree()` (from `ProductProvider`) to detect $0 products based
+on product data — not magic strings. When a product is free:
+- The card step is automatically skipped
+- The review step shows $0 pricing
+- No card nonce is submitted
+
+---
+
 ## Existing User Purchase
 
 ```mermaid

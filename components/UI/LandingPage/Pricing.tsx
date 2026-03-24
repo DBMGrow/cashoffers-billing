@@ -7,7 +7,6 @@ import { useProducts } from "@/providers/ProductProvider"
 
 interface PricingProps {
   whitelabel: string
-  investor?: boolean
 }
 
 interface ProductCardProps {
@@ -46,7 +45,7 @@ function ProductCard({ product, whitelabel = "iop" }: ProductCardProps) {
   )
 }
 
-export default function Pricing({ whitelabel, investor = false }: PricingProps) {
+export default function Pricing({ whitelabel }: PricingProps) {
   const { products: allProducts, loading } = useProducts({
     mode: "signup",
     whitelabel: whitelabel || "default",
@@ -56,17 +55,12 @@ export default function Pricing({ whitelabel, investor = false }: PricingProps) 
     return <div className="grow flex justify-center items-center">Loading...</div>
   }
 
-  // Filter products based on role and visibility
+  // Filter products based on visibility
   const visibleProducts = allProducts.filter((product) => {
     // Hide inactive products
     if (product.product_type === "none") return false
 
-    // Filter by role
-    const productRole = product.data?.user_config?.role
-    if (investor) {
-      return productRole === "INVESTOR"
-    }
-    return productRole !== "INVESTOR"
+    return true
   })
 
   let prods = visibleProducts
@@ -74,16 +68,6 @@ export default function Pricing({ whitelabel, investor = false }: PricingProps) 
   if (whitelabel === "platinum") {
     prods = visibleProducts.slice(0, 1)
 
-    return (
-      <div className="grow flex justify-center gap-2 pb-17.5">
-        {prods.map((product) => (
-          <ProductCard key={product.product_id} product={product} whitelabel={whitelabel} />
-        ))}
-      </div>
-    )
-  }
-
-  if (investor) {
     return (
       <div className="grow flex justify-center gap-2 pb-17.5">
         {prods.map((product) => (

@@ -3,6 +3,8 @@ import type {
   IUserApiClient,
   User,
   CreateUserRequest,
+  CreateTeamRequest,
+  Team,
 } from '../user-api.interface'
 
 /**
@@ -12,7 +14,9 @@ import type {
 export class MockUserApiClient implements IUserApiClient {
   private users: Map<number, User> = new Map()
   private emailIndex: Map<string, number> = new Map()
+  private teams: Map<number, Team> = new Map()
   private nextId = 1
+  private nextTeamId = 1
 
   // Configuration for testing different scenarios
   public shouldFail = false
@@ -112,6 +116,22 @@ export class MockUserApiClient implements IUserApiClient {
     await this.updateUser(userId, { active: false, email: scrambledEmail })
   }
 
+  async createTeam(params: CreateTeamRequest): Promise<Team> {
+    if (this.shouldFail) {
+      throw new Error(this.failureReason)
+    }
+
+    const teamId = this.nextTeamId++
+    const team: Team = {
+      id: teamId,
+      name: params.teamname,
+      owner_id: params.owner_id,
+    }
+
+    this.teams.set(teamId, team)
+    return team
+  }
+
   // Test helpers
   addMockUser(user: Partial<User> & { email: string }): User {
     const userId = user.id || this.nextId++
@@ -136,7 +156,9 @@ export class MockUserApiClient implements IUserApiClient {
   reset(): void {
     this.users.clear()
     this.emailIndex.clear()
+    this.teams.clear()
     this.nextId = 1
+    this.nextTeamId = 1
     this.shouldFail = false
     this.failureReason = 'Mock user API failed'
   }

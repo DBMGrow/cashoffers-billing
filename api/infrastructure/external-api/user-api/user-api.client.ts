@@ -2,7 +2,7 @@ import axios from "axios"
 import { v4 as uuidv4 } from "uuid"
 import type { IConfig } from "@api/config/config.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
-import type { IUserApiClient, User, CreateUserRequest } from "../user-api.interface"
+import type { IUserApiClient, User, CreateUserRequest, CreateTeamRequest, Team } from "../user-api.interface"
 
 /**
  * User API Client Implementation
@@ -231,6 +231,58 @@ export class UserApiClient implements IUserApiClient {
       this.logger.error("Failed to abandon user", error, { userId, duration })
       throw error
     }
+  }
+
+  async createTeam(params: CreateTeamRequest): Promise<Team> {
+    const startTime = Date.now()
+
+    try {
+      this.logger.info("Creating team via API", { teamname: params.teamname, ownerId: params.owner_id })
+
+      const response = await axios.post(`${this.config.api.url}/teams`, params, {
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-token": this.config.api.masterToken,
+        },
+      })
+
+      const data: any = response.data
+      const duration = Date.now() - startTime
+
+      this.logger.info("Team created successfully", {
+        teamId: data.data?.id || data.data?.team_id,
+        teamname: params.teamname,
+        duration,
+      })
+
+      return this.parseTeamResponse(data)
+    } catch (error) {
+      const duration = Date.now() - startTime
+      const responseData = (error as any)?.response?.data
+      this.logger.error("Failed to create team", error, {
+        teamname: params.teamname,
+        ownerId: params.owner_id,
+        duration,
+        responseData,
+      })
+      if (responseData) {
+        const detail = typeof responseData === "string" ? responseData : JSON.stringify(responseData)
+        throw new Error(`Failed to create team: ${(error as any).response.status}: ${detail}`)
+      }
+      throw error
+    }
+  }
+
+  private parseTeamResponse(data: any): Team {
+    if (data.success === "success" && data.data) {
+      const t = data.data
+      return {
+        id: t.team_id || t.id,
+        name: t.teamname || t.name,
+        owner_id: t.owner_id,
+      }
+    }
+    throw new Error("Invalid API response format for team")
   }
 
   private parseUserResponse(data: any): User {

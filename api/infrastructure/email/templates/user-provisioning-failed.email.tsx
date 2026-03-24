@@ -15,12 +15,14 @@ export interface UserProvisioningFailedEmailProps {
   productId: number
   errorDetail: string
   occurredAt: string
+  /** Whether this was a free product (no payment was processed) */
+  isFree?: boolean
 }
 
 /**
- * Admin alert sent when user provisioning fails after a successful payment.
- * The customer was charged and a subscription record exists, but no user
- * account was created — manual intervention is required.
+ * Admin alert sent when user provisioning fails after a purchase.
+ * A subscription record exists but no user account was created —
+ * manual intervention is required.
  */
 export default function UserProvisioningFailedEmail({
   subscriptionId,
@@ -29,6 +31,7 @@ export default function UserProvisioningFailedEmail({
   productId,
   errorDetail,
   occurredAt,
+  isFree,
 }: UserProvisioningFailedEmailProps) {
   return (
     <StandardEmail
@@ -38,8 +41,9 @@ export default function UserProvisioningFailedEmail({
       <EmailHeading>User Provisioning Failed</EmailHeading>
       <EmailDivider />
       <EmailText>
-        A new-user purchase completed payment and created a subscription, but user account creation
-        failed. The customer was charged but has no account and cannot log in.
+        {isFree
+          ? "A free-plan signup created a subscription, but user account creation failed. No payment was processed. The customer has no account and cannot log in."
+          : "A new-user purchase completed payment and created a subscription, but user account creation failed. The customer was charged but has no account and cannot log in."}
       </EmailText>
 
       <SummaryTable>

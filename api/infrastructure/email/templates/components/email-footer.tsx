@@ -1,5 +1,5 @@
-import { Section, Text, Link } from '@react-email/components'
-import { colors, font, spacing } from './tokens'
+import { Section, Text, Link } from "@react-email/components"
+import { colors, font, spacing } from "./tokens"
 
 export interface WhitelabelBrandingProps {
   /** Display name for the whitelabel (e.g. "kw Offerings") */
@@ -24,20 +24,20 @@ interface EmailFooterProps {
  */
 export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: EmailFooterProps) {
   const brandName = whitelabel?.name ?? "CashOffers"
-  const supportEmail = whitelabel?.support_email ?? "support@cashoffers.com"
+  const supportEmail = whitelabel?.support_email ?? "support@cashoffers.pro"
   const isWhitelabeled = whitelabel && whitelabel.marketing_website && whitelabel.marketing_website !== "/"
 
   return (
     <Section
       style={{
-        padding: `${spacing.lg} ${spacing.md} ${spacing['4xl']}`,
+        padding: `${spacing.lg} ${spacing.md} ${spacing["4xl"]}`,
       }}
     >
       {isWhitelabeled && whitelabel?.marketing_website && (
         <Text
           style={{
-            margin: '0 0 12px 0',
-            textAlign: 'center',
+            margin: "0 0 12px 0",
+            textAlign: "center",
             fontSize: font.size.sm,
             color: colors.text.muted,
             lineHeight: font.lineHeight.relaxed,
@@ -45,7 +45,7 @@ export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: Ema
         >
           <Link
             href={whitelabel.marketing_website}
-            style={{ color: colors.brand, textDecoration: 'none', fontWeight: font.weight.semibold }}
+            style={{ color: colors.brand, textDecoration: "none", fontWeight: font.weight.semibold }}
           >
             Visit our website
           </Link>
@@ -53,25 +53,22 @@ export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: Ema
       )}
       <Text
         style={{
-          margin: '0 0 4px 0',
-          textAlign: 'center',
+          margin: "0 0 4px 0",
+          textAlign: "center",
           fontSize: font.size.sm,
           color: colors.text.subtle,
           lineHeight: font.lineHeight.relaxed,
         }}
       >
-        Questions? Contact us at{' '}
-        <Link
-          href={`mailto:${supportEmail}`}
-          style={{ color: colors.text.muted, textDecoration: 'none' }}
-        >
+        Questions? Contact us at{" "}
+        <Link href={`mailto:${supportEmail}`} style={{ color: colors.text.muted, textDecoration: "none" }}>
           {supportEmail}
         </Link>
       </Text>
       <Text
         style={{
-          margin: '0',
-          textAlign: 'center',
+          margin: "0",
+          textAlign: "center",
           fontSize: font.size.xs,
           color: colors.text.subtle,
           lineHeight: font.lineHeight.relaxed,

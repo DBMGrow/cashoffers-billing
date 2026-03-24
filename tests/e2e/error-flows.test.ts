@@ -105,14 +105,22 @@ test.describe('Error and Edge Case Flows (30-34)', () => {
 
   test('Flow 33: Email Already Exists Error', async ({ page }) => {
     // First signup with free product (goes: email → name → phone directly)
-    // Mock the purchase API for the first signup
-    await page.route('**/api/signup/purchasefree', route => {
+    // Mock the purchase API for the first signup (free products now go through /purchase/new)
+    await page.route('**/api/purchase/new', route => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
           success: 'success',
-          data: { user: { id: 1001, email: testEmail, reset_token: null, api_token: 'mock-token' } },
+          data: {
+            subscription: { subscriptionId: 999, userId: 1001, productId: PRODUCT_IDS.free, amount: 0 },
+            product: { product_name: 'Free Agent' },
+            user: { id: 1001, email: testEmail, reset_token: null, api_token: 'mock-token' },
+            userCard: null,
+            userCreated: true,
+            proratedCharge: 0,
+          },
+          environment: 'sandbox',
         }),
       })
     })

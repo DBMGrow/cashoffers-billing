@@ -90,8 +90,8 @@ export const WHITELABELS = {
 }
 
 export const PRODUCT_IDS = {
-  free: 'free',
-  freeInvestor: 'freeinvestor',
+  free: 51, // Free Agent product (update to match actual DB product_id after migration)
+  freeInvestor: 52, // Free Investor product (update to match actual DB product_id after migration)
   agentMonthly: 1,
   teamSmall: 2,
   teamMedium: 3,

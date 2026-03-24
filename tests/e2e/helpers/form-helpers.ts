@@ -6,8 +6,8 @@ import { Page } from '@playwright/test'
  * Works for both paid (mock_purchase=true) and free plan signups.
  */
 export async function setupPurchaseMocks(page: Page) {
-  // Mock the paid purchase endpoint
-  await page.route('**/api/purchase', route => {
+  // Mock the purchase endpoints (both paid and free go through /api/purchase/new)
+  await page.route('**/api/purchase/new', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -32,25 +32,6 @@ export async function setupPurchaseMocks(page: Page) {
           proratedCharge: 0,
         },
         environment: 'sandbox',
-      }),
-    })
-  })
-
-  // Mock the free purchase endpoint
-  await page.route('**/api/signup/purchasefree', route => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: 'success',
-        data: {
-          user: {
-            id: 1001,
-            email: 'test@example.com',
-            reset_token: null,
-            api_token: 'mock-api-token-12345',
-          },
-        },
       }),
     })
   })

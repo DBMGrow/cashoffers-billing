@@ -49,6 +49,12 @@ export interface IUserApiClient {
    * Sets active=false and scrambles the email so the original address is freed for re-signup.
    */
   abandonUser(userId: number): Promise<void>
+
+  /**
+   * Create a team and return the team ID.
+   * Used when provisioning team plan subscriptions.
+   */
+  createTeam(params: CreateTeamRequest): Promise<Team>
 }
 
 /**
@@ -65,6 +71,8 @@ export interface User {
   created_at: string
   updated_at: string
   reset_token?: string
+  role?: string
+  team_id?: number
 }
 
 /**
@@ -81,7 +89,28 @@ export interface CreateUserRequest {
   is_premium?: 0 | 1
   role?: string
   whitelabel_id?: number
+  // Team fields
+  team_id?: number
   // Password reset fields
   reset_token?: string
   reset_created?: string
+}
+
+/**
+ * Create team request
+ */
+export interface CreateTeamRequest {
+  teamname: string
+  owner_id: number
+  max_users: number
+  whitelabel_id?: number
+}
+
+/**
+ * Team data from external API
+ */
+export interface Team {
+  id: number
+  name: string
+  owner_id: number
 }

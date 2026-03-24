@@ -6,7 +6,6 @@ import { render } from "@react-email/render"
 import { config } from "@api/config/config.service"
 import AccountReactivationEmail from "@api/infrastructure/email/templates/account-reactivation.email"
 import {
-  PurchaseFreeRoute,
   CheckUserExistsRoute,
   CheckSlugExistsRoute,
   SendReactivationRoute,
@@ -15,110 +14,10 @@ import {
   GetUniqueSlugRoute,
 } from "./schemas"
 import { db } from "@api/lib/database"
-import { setCookie } from "hono/cookie"
 import { emailService } from "@api/lib/services"
 import { checkSlugExists } from "./utils"
-import { generateResetToken } from "@api/utils/generate-reset-token"
-import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
-
-// Whitelabel mapping
-const whitelabelIds: Record<string, number> = {
-  default: 1,
-  kw: 2,
-  yhs: 3,
-  iop: 4,
-  uco: 5,
-  mop: 6,
-  eco: 7,
-}
-
-/**
- * POST /signup/purchasefree
- * Creates a new user account without a paid subscription
- */
-app.openapi(PurchaseFreeRoute, async (c) => {
-  try {
-    const body = c.req.valid("json")
-
-    const whitelabelId = whitelabelIds[body.whitelabel || "default"] ?? 1
-
-    // Generate reset token
-    const resetToken = generateResetToken()
-
-    const role = body.isInvestor ? "INVITEDINVESTOR" : "AGENT"
-
-    // Create user in auth API
-    const response = await axios.post(
-      config.api.url + "/users",
-      {
-        email: body.email,
-        name: body.name,
-        phone: body.phone,
-        name_broker: body.name_broker,
-        name_team: body.name_team,
-        slug: body.slug,
-        role,
-        reset_token: resetToken,
-        reset_created: formatMySQLDatetime(),
-        is_premium: 0,
-        whitelabel_id: whitelabelId,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-token": config.api.key,
-        },
-      }
-    )
-
-    const data = response.data
-
-    if (!data) {
-      throw new Error("No data")
-    }
-
-    if (data.success !== "success" && data.success !== "warning") {
-      throw new Error(JSON.stringify(data))
-    }
-
-    // Extract API token from response and set cookie
-    if (data.data?._api_token) {
-      setCookie(c, "_api_token", data.data._api_token, {
-        httpOnly: true,
-        secure: config.nodeEnv === "production",
-        sameSite: "Lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-      })
-    }
-
-    return c.json({ data }, 200)
-  } catch (error: any) {
-    console.error("Error in purchasefree API:", error.message)
-
-    try {
-      const data = JSON.parse(error.message)
-      return c.json(
-        {
-          success: "error" as const,
-          error: data.message,
-          code: data?.code,
-        },
-        400
-      )
-    } catch {
-      return c.json(
-        {
-          success: "error" as const,
-          error: error.message,
-        },
-        400
-      )
-    }
-  }
-})
 
 /**
  * GET /signup/checkuserexists/:email

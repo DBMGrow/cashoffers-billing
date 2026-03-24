@@ -13,6 +13,8 @@ export interface PurchaseErrorCustomerEmailProps {
   amountCharged?: string
   /** Date the purchase was attempted */
   date: string
+  /** Whether this was a free product (no payment was processed) */
+  isFree?: boolean
   isSandbox?: boolean
   whitelabel?: WhitelabelBrandingProps
 }
@@ -26,22 +28,28 @@ export default function PurchaseErrorCustomerEmail({
   reason,
   amountCharged,
   date,
+  isFree,
   isSandbox,
   whitelabel,
 }: PurchaseErrorCustomerEmailProps) {
-  const supportEmail = whitelabel?.support_email ?? 'support@cashoffers.com'
+  const supportEmail = whitelabel?.support_email ?? "support@cashoffers.pro"
   return (
     <StandardEmail
-      title="Issue With Your Purchase"
-      preview="We received your payment but ran into an issue setting up your account."
+      title="Issue With Your Signup"
+      preview={
+        isFree
+          ? "We ran into an issue setting up your account."
+          : "We received your payment but ran into an issue setting up your account."
+      }
       isSandbox={isSandbox}
       whitelabel={whitelabel}
     >
-      <EmailHeading>Issue With Your Purchase</EmailHeading>
+      <EmailHeading>Issue With Your Signup</EmailHeading>
       <EmailDivider />
       <EmailText>
-        We received your payment but ran into an issue completing your account setup. Our team has
-        been automatically notified and is working to resolve this.
+        {isFree
+          ? "We ran into an issue completing your account setup. Our team has been automatically notified and is working to resolve this."
+          : "We received your payment but ran into an issue completing your account setup. Our team has been automatically notified and is working to resolve this."}
       </EmailText>
 
       <SummaryTable>
@@ -52,15 +60,16 @@ export default function PurchaseErrorCustomerEmail({
       </SummaryTable>
 
       <InfoBox variant="info" title="What happens next?">
-        You do not need to take any action. Our team will finish setting up your account and reach
-        out to you within 24 hours. If you have questions in the meantime, please contact us at{' '}
-        {supportEmail}.
+        You do not need to take any action. Our team will finish setting up your account and reach out to you within 24
+        hours. If you have questions in the meantime, please contact us at {supportEmail}.
       </InfoBox>
 
-      <EmailText variant="muted" style={{ marginTop: "20px", marginBottom: "0" }}>
-        Your payment is secure and you will not be charged again. If the issue cannot be resolved,
-        you will receive a full refund.
-      </EmailText>
+      {!isFree && (
+        <EmailText variant="muted" style={{ marginTop: "20px", marginBottom: "0" }}>
+          Your payment is secure and you will not be charged again. If the issue cannot be resolved, you will receive a
+          full refund.
+        </EmailText>
+      )}
     </StandardEmail>
   )
 }
@@ -69,4 +78,5 @@ PurchaseErrorCustomerEmail.PreviewProps = {
   reason: "We were unable to finish setting up your account.",
   amountCharged: "$99.00",
   date: "January 31, 2024",
+  isFree: false,
 } satisfies PurchaseErrorCustomerEmailProps

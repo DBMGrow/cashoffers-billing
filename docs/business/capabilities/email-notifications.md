@@ -31,6 +31,7 @@ Users receive transactional emails for key lifecycle events so they are aware of
 - Email delivery failure is logged but does not block the subscription action
 - Dev environment: use `DEV_EMAIL` to redirect all emails to a single address
 - When user provisioning fails during purchase, the welcome email (`subscriptionCreated`) is **not** sent. Instead, the customer receives the `purchaseErrorCustomer` email confirming payment was received and the team is resolving the issue.
+- **$0 subscriptions (free products):** Subscription-created and renewal emails are suppressed when `amount === 0`. The renewal cron still advances the renewal date but no payment is attempted and no email is sent.
 
 ## Current vs Intended Behavior
 - All templates are React Email (migrated from MJML).

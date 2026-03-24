@@ -5,6 +5,8 @@ import { UseFormReturn } from "react-hook-form"
 import type { SubscribeFormData } from "@/types/forms"
 import Input from "@/components/UI/SignupForm/Input"
 import getUniqueSlug from "@/components/utils/getUniqueSlug"
+import { useProducts, isProductFree } from "@/providers/ProductProvider"
+import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 interface NameStepProps {
   form: UseFormReturn<SubscribeFormData>
@@ -18,14 +20,20 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
   const name = form.watch("name")
   const isDisabled = !name || name.length < 2
 
+  const { currentWhitelabel } = useWhitelabel()
+  const { getProductById } = useProducts({
+    mode: "signup",
+    whitelabel: currentWhitelabel?.code || "default",
+  })
+  const product = form.getValues("product")
+  const selectedProduct = getProductById(product)
+  const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
+
   const handleSubmit = async () => {
     if (isDisabled) return
 
-    const isInvestor = form.getValues("isInvestor")
-    const product = form.getValues("product")
-
     // If investor or free plan, skip slug generation
-    if (isInvestor || product === "free" || product === "freeinvestor") {
+    if (isInvestor || isProductFree(selectedProduct)) {
       onNext()
       return
     }

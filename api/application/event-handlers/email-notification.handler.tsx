@@ -152,8 +152,17 @@ export class EmailNotificationHandler extends BaseEventHandler {
         // Fetch whitelabel for this user
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
-        // Check if this is a free trial (amount=0, product name contains "Trial")
-        const isTrial = amount === 0 && (productName?.toLowerCase().includes('trial') || false)
+        // Skip email entirely for $0 non-trial purchases (free products)
+        const isFreeProduct = chargedAmount === 0 && amount === 0
+        const isTrial = isFreeProduct && (productName?.toLowerCase().includes('trial') || false)
+
+        if (isFreeProduct && !isTrial) {
+          this.logger.info('Skipping subscription created email for $0 free product', {
+            email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
 
         if (isTrial && nextRenewalDate) {
           const productData = event.metadata?.productData as any
@@ -208,6 +217,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
     await this.safeExecute(
       async () => {
         const { email, userId, productName, amount, environment, lineItems, externalTransactionId } = event.payload
+
+        // Skip renewal email for $0 subscriptions — user isn't being charged
+        if (amount === 0) {
+          this.logger.info('Skipping renewal email for $0 subscription', {
+            email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
 
         this.logger.info('Sending subscription renewal email', {
           email,

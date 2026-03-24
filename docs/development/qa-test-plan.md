@@ -132,7 +132,7 @@ yarn test api/tests/integration/cashoffers-module.test.ts
 |------|-------------|--------|
 | 1. Select free product | Card step is skipped entirely | No Square form shown |
 | 2. Complete form (email, name, slug, phone) | Standard validation | All fields captured |
-| 3. Submit | POST `/api/signup/purchasefree` | No payment processed |
+| 3. Submit | POST `/api/purchase/new` (card fields omitted) | No payment processed |
 | 4. User created in main API | `user_config` from free product applied | Role = product config role, `is_premium` per product |
 | 5. Subscription created | Status: `active`, amount: 0 | No renewal charges will occur |
 | 6. Welcome screen | Success | User directed to set password |
@@ -148,9 +148,11 @@ yarn test api/tests/integration/cashoffers-module.test.ts
 ### How to Test
 
 **Frontend:**
-1. Navigate to `http://localhost:3000/{whitelabel}/subscribe/free`
-2. Complete form — card step should be skipped
-3. Verify no transaction created: `yarn dev:tools state <user_id>`
+1. Navigate to `http://localhost:3000/{whitelabel}/subscribe/{free_product_id}` (use the numeric product ID for the free product, e.g., 51 for Free Agent)
+2. Complete form — card step should be skipped (frontend detects $0 pricing via `isProductFree()`)
+3. Verify subscription created with amount=0: `yarn dev:tools state <user_id>`
+4. Verify no Square transaction: transaction record has `square_transaction_id = null`
+5. Verify no subscription-created or renewal emails sent for $0 amount
 
 ---
 

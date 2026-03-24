@@ -7,7 +7,7 @@ fails, the subscription still exists and the admin is notified.
 
 ## Preconditions
 - Product exists and is active
-- Card nonce provided (from Square payment form)
+- Card nonce provided (from Square payment form) — **not required for $0 products**
 - User does not exist in main API
 
 ## Steps
@@ -46,6 +46,7 @@ fails, the subscription still exists and the admin is notified.
 - **System error after payment, before subscription** → no refund; admin alerted for manual provisioning; customer emailed
 - **Subscription created, then provisioning fails** → no refund; admin alerted; customer emailed; `pending_provisioning`; welcome email **not** sent
 - **Product has no signup fee** → charge = renewal_cost only
+- **Free product ($0)** → card step skipped on frontend, backend skips card creation + payment, subscription created with amount=0, no subscription-created or renewal emails sent
 
 ## Linked Rules
 - [Role Mapping Rules](../../business/rules/role-mapping-rules.md)

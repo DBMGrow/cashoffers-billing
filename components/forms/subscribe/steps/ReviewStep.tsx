@@ -148,9 +148,13 @@ export default function ReviewStep({
     // Check if user provisioning failed (payment succeeded but account creation failed)
     if (result.data?.userProvisioned === false) {
       onError(
-        "Your payment was received, but we ran into an issue setting up your account. " +
-          "Our team has been notified and will reach out to you within 24 hours. " +
-          "Please check your email for more details."
+        isFree
+          ? "We ran into an issue setting up your account. " +
+              "Our team has been notified and will reach out to you within 24 hours. " +
+              "Please check your email for more details."
+          : "Your payment was received, but we ran into an issue setting up your account. " +
+              "Our team has been notified and will reach out to you within 24 hours. " +
+              "Please check your email for more details."
       )
       setAllowReset(false)
       return
@@ -165,13 +169,10 @@ export default function ReviewStep({
   }
 
   const onSubmit = async () => {
-    if (product === "free" || product === "freeinvestor") {
-      return await handleSubmitFree()
-    }
     await handleSubmit()
   }
 
-  const isLoading = purchaseMutation.isPending || purchaseFreeMutation.isPending
+  const isLoading = purchaseMutation.isPending
 
   return (
     <div>
@@ -199,7 +200,7 @@ export default function ReviewStep({
       </Table>
       <GeneralConsent isChecked={isGeneralChecked} setIsChecked={setIsGeneralChecked} />
       <CommunicationConsent isChecked={isCommunicationChecked} setIsChecked={setIsCommunicationChecked} />
-      <InvestorConsent data={formData} isChecked={isChecked} setIsChecked={setIsChecked} />
+      <InvestorConsent isInvestor={isInvestorProduct} isChecked={isChecked} setIsChecked={setIsChecked} />
       <div className="w-100 flex justify-stretch items-stretch pt-4">
         <ThemeButton
           color="secondary"

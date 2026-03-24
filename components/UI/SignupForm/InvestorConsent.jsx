@@ -1,7 +1,6 @@
-export default function InvestorConsent({ data, isChecked, setIsChecked }) {
+export default function InvestorConsent({ isInvestor, isChecked, setIsChecked }) {
   const handleCheck = () => setIsChecked(!isChecked)
 
-  const isInvestor = data.product == "11" || data.product == "freeinvestor"
   if (!isInvestor) return null
 
   return (

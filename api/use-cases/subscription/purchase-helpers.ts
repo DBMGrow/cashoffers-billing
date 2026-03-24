@@ -136,6 +136,10 @@ export interface CustomerPurchaseErrorParams {
   reason: string
   /** Amount charged in cents — omit if no payment was taken */
   amountCharged?: number
+  /** Whether this was a free product (no payment was processed) */
+  isFree?: boolean
+  /** Whitelabel name for email subject (e.g. "KW Offerings"). Falls back to "CashOffers". */
+  whitelabelName?: string
 }
 
 /**
@@ -147,7 +151,8 @@ export async function sendCustomerPurchaseErrorEmail(
   deps: { emailService: IEmailService; logger: ILogger },
   params: CustomerPurchaseErrorParams
 ): Promise<void> {
-  const { email, reason, amountCharged } = params
+  const { email, reason, amountCharged, isFree, whitelabelName } = params
+  const brandName = whitelabelName || "CashOffers"
   const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
   const formattedAmount = amountCharged != null ? `$${(amountCharged / 100).toFixed(2)}` : undefined
 
@@ -157,11 +162,12 @@ export async function sendCustomerPurchaseErrorEmail(
         reason,
         amountCharged: formattedAmount,
         date,
+        isFree,
       })
     )
     await deps.emailService.sendEmail({
       to: email,
-      subject: "Issue with your CashOffers purchase",
+      subject: `Issue with your ${brandName} signup`,
       html,
       templateName: "purchase-error-customer",
     })
@@ -181,7 +187,10 @@ export async function sendCustomerPurchaseErrorEmail(
  * without a failure mark (preserving original behavior).
  */
 export class PurchaseError extends Error {
-  constructor(message: string, public readonly code: string) {
+  constructor(
+    message: string,
+    public readonly code: string
+  ) {
     super(message)
     this.name = "PurchaseError"
   }
@@ -195,9 +204,7 @@ export class PurchaseError extends Error {
  * Normalizes legacy `white_label_id` to `whitelabel_id` in user config.
  * The DB historically stored `white_label_id` but TypeScript types use `whitelabel_id`.
  */
-export function normalizeUserConfig(
-  raw: ProductUserConfig | undefined
-): ProductUserConfig | undefined {
+export function normalizeUserConfig(raw: ProductUserConfig | undefined): ProductUserConfig | undefined {
   if (!raw) return raw
   const legacy = (raw as any).white_label_id
   if (legacy !== undefined && raw.whitelabel_id == null) {
@@ -265,8 +272,7 @@ export async function validateAndParseProduct(
     await deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, "Product not found", "PRODUCT_NOT_FOUND")
     throw new PurchaseError("Product not found", "PRODUCT_NOT_FOUND")
   }
-  const productData =
-    typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
+  const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
   const userConfig = normalizeUserConfig(productData.user_config)
   return { product, productData, userConfig }
 }
@@ -352,7 +358,8 @@ export async function createSubscriptionRecord(
     userId: number | null
     product: { product_id: number; product_name: string; price: number }
     pricing: PurchasePricing
-    payment: { environment: "production" | "sandbox" }
+    /** null for free ($0) purchases — no payment was processed */
+    payment: { environment: "production" | "sandbox" } | null
     userConfig: ProductUserConfig | undefined
   }
 ) {
@@ -366,7 +373,7 @@ export async function createSubscriptionRecord(
     status: "active",
     renewal_date: renewalDate,
     product_id: params.product.product_id,
-    square_environment: params.payment.environment,
+    square_environment: params.payment?.environment ?? null,
     cancel_on_renewal: 0,
     downgrade_on_renewal: 0,
     data: params.userConfig ? JSON.stringify({ user_config: params.userConfig }) : null,
@@ -386,7 +393,8 @@ export async function createTransactionRecord(
     userId: number | null
     product: { product_id: number; product_name: string }
     pricing: PurchasePricing
-    payment: { id: string; environment: "production" | "sandbox" }
+    /** null for free ($0) purchases — no payment was processed */
+    payment: { id: string; environment: "production" | "sandbox" } | null
   }
 ) {
   const now = new Date()
@@ -396,8 +404,8 @@ export async function createTransactionRecord(
     type: "subscription",
     memo: `Subscription created: ${params.product.product_name}`,
     status: "completed",
-    square_transaction_id: params.payment.id,
-    square_environment: params.payment.environment,
+    square_transaction_id: params.payment?.id ?? null,
+    square_environment: params.payment?.environment ?? null,
     product_id: params.product.product_id,
     data: JSON.stringify({ signupFee: params.pricing.signupFee, renewalCost: params.pricing.renewalCost }),
     createdAt: now,
@@ -424,9 +432,12 @@ export async function publishPurchaseEvents(
     subscription: { subscription_id: number; renewal_date: Date | null }
     transaction: { transaction_id: number }
     pricing: PurchasePricing
-    payment: { id: string; environment: "production" | "sandbox" }
-    cardIdString: string
-    userCard: { last_4: string | null }
+    /** null for free ($0) purchases */
+    payment: { id: string; environment: "production" | "sandbox" } | null
+    /** null for free ($0) purchases */
+    cardIdString: string | null
+    /** null for free ($0) purchases */
+    userCard: { last_4: string | null } | null
     userWasCreated: boolean
     startTime: Date
   }
@@ -441,16 +452,14 @@ export async function publishPurchaseEvents(
       amount: params.pricing.renewalCost,
       initialChargeAmount: params.pricing.initialAmount,
       transactionId: params.transaction.transaction_id,
-      externalTransactionId: params.payment.id,
-      cardId: params.cardIdString,
+      externalTransactionId: params.payment?.id ?? undefined,
+      cardId: params.cardIdString ?? undefined,
       userWasCreated: params.userWasCreated,
       nextRenewalDate: params.subscription.renewal_date ?? undefined,
-      environment: params.payment.environment,
+      environment: params.payment?.environment,
       source: "API",
       lineItems: [
-        ...(params.pricing.signupFee > 0
-          ? [{ description: "Signup Fee", amount: params.pricing.signupFee }]
-          : []),
+        ...(params.pricing.signupFee > 0 ? [{ description: "Signup Fee", amount: params.pricing.signupFee }] : []),
         ...(params.pricing.renewalCost > 0
           ? [{ description: params.product.product_name, amount: params.pricing.renewalCost }]
           : []),
@@ -458,27 +467,30 @@ export async function publishPurchaseEvents(
     })
   )
 
-  await deps.eventBus.publish(
-    PaymentProcessedEvent.create({
-      transactionId: params.transaction.transaction_id,
-      externalTransactionId: params.payment.id,
-      userId: params.userId ?? undefined,
-      email: params.email,
-      amount: params.pricing.initialAmount,
-      currency: "USD",
-      cardId: params.cardIdString,
-      cardLast4: params.userCard.last_4 ?? undefined,
-      paymentProvider: "Square",
-      subscriptionId: params.subscription.subscription_id,
-      productId: params.product.product_id,
-      paymentType: "subscription",
-      environment: params.payment.environment,
-      lineItems: [
-        { description: "Signup fee", amount: params.pricing.signupFee },
-        { description: "First period", amount: params.pricing.renewalCost },
-      ],
-    })
-  )
+  // Skip PaymentProcessedEvent for free purchases (no payment was made)
+  if (params.payment) {
+    await deps.eventBus.publish(
+      PaymentProcessedEvent.create({
+        transactionId: params.transaction.transaction_id,
+        externalTransactionId: params.payment.id,
+        userId: params.userId ?? undefined,
+        email: params.email,
+        amount: params.pricing.initialAmount,
+        currency: "USD",
+        cardId: params.cardIdString ?? undefined,
+        cardLast4: params.userCard?.last_4 ?? undefined,
+        paymentProvider: "Square",
+        subscriptionId: params.subscription.subscription_id,
+        productId: params.product.product_id,
+        paymentType: "subscription",
+        environment: params.payment.environment,
+        lineItems: [
+          { description: "Signup fee", amount: params.pricing.signupFee },
+          { description: "First period", amount: params.pricing.renewalCost },
+        ],
+      })
+    )
+  }
 
   await deps.purchaseRequestRepository.markAsCompleted(
     params.purchaseRequestId,
@@ -503,7 +515,7 @@ export async function publishPurchaseEvents(
       subscriptionId: params.subscription.subscription_id,
       transactionId: params.transaction.transaction_id,
       amountCharged: params.pricing.initialAmount,
-      cardId: params.cardIdString,
+      cardId: params.cardIdString ?? undefined,
       userWasCreated: params.userWasCreated,
       processingDuration: new Date().getTime() - params.startTime.getTime(),
     })
