@@ -193,6 +193,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       const provisioning = await this.attemptUserProvisioning(v, userConfig, productData, product.product_id, {
         purchaseRequestId,
         subscriptionId: subscription.subscription_id,
+        transactionId: transaction.transaction_id,
         cardIdString,
         isFree,
         whitelabelName: capturedWhitelabelName ?? undefined,
@@ -287,6 +288,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     context: {
       purchaseRequestId: number
       subscriptionId: number
+      transactionId: number
       cardIdString: string | null
       isFree: boolean
       whitelabelName?: string
@@ -350,6 +352,11 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         user_id: userId,
         provisioning_status: "provisioned",
         updatedAt: new Date(),
+      })
+
+      // Link transaction to the new user
+      await this.deps.transactionRepository.update(context.transactionId, {
+        user_id: userId,
       })
 
       // Update purchase request with the new user id

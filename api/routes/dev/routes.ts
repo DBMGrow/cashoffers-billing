@@ -28,7 +28,7 @@ import {
   transactionRepository,
 } from "@api/lib/repositories"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
-import { logger, userApiClient, eventBus } from "@api/lib/services"
+import { logger, userApiClient, eventBus, paymentProvider } from "@api/lib/services"
 import { CashOffersWebhookHandler } from "@api/application/webhook-handlers/cashoffers-webhook.handler"
 
 const app = new Hono<{ Variables: HonoVariables }>()
@@ -475,6 +475,47 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
 
     const subscriptionId = Number(subResult.insertId)
 
+    // Create a sandbox card on file so renewal/payment scenarios can charge
+    let cardInfo: { card_id: string; square_customer_id: string; last_4: string; card_brand: string } | null = null
+    try {
+      const cardResult = await paymentProvider.createCard(
+        {
+          sourceId: "cnon:card-nonce-ok",
+          email: resolvedEmail,
+          card: { cardholderName: resolvedName },
+        },
+        { testMode: true, source: "ADMIN", userId }
+      )
+
+      const now2 = new Date()
+      await db
+        .insertInto("UserCards")
+        .values({
+          user_id: userId,
+          card_id: cardResult.id,
+          square_customer_id: cardResult.customerId,
+          last_4: cardResult.last4,
+          card_brand: cardResult.cardBrand,
+          exp_month: String(cardResult.expMonth),
+          exp_year: String(cardResult.expYear),
+          cardholder_name: cardResult.cardholderName ?? null,
+          square_environment: "sandbox",
+          createdAt: now2,
+          updatedAt: now2,
+        })
+        .executeTakeFirstOrThrow()
+
+      cardInfo = {
+        card_id: cardResult.id,
+        square_customer_id: cardResult.customerId,
+        last_4: cardResult.last4,
+        card_brand: cardResult.cardBrand,
+      }
+    } catch (err: any) {
+      // Card creation is best-effort — log but don't fail the scenario
+      logger.warn("Scenario: failed to create sandbox card on file", { error: err.message, userId })
+    }
+
     return c.json({
       success: "success",
       data: {
@@ -482,6 +523,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         user_id: userId,
         email: resolvedEmail,
         subscription_id: subscriptionId,
+        card: cardInfo,
         description: cfg.description,
         next_steps: cfg.next_steps,
       },

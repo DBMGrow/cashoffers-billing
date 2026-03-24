@@ -201,6 +201,12 @@ async function cmdScenario(scenario: string, options: { email?: string }) {
   kv("Email", data.email, 2)
   kv("Subscription ID", data.subscription_id, 2)
 
+  if (data.card) {
+    kv("Card", `${data.card.card_brand} ****${data.card.last_4}`, 2)
+  } else {
+    console.log(`  ${yellow("⚠  No sandbox card created (check Square sandbox credentials)")}`)
+  }
+
   section("Description")
   console.log(`  ${data.description}`)
 
