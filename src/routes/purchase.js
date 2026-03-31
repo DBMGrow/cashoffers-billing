@@ -118,6 +118,13 @@ router.post("/", authMiddleware("payments_create", { allowSelf: true }), async (
           case "eco":
             whitelabelID = 7
             break
+
+          case "ehsa":
+            whitelabelID = 8
+            break
+
+          default:
+            whitelabelID = 4
         }
       }
 
