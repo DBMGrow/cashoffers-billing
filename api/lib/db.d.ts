@@ -281,6 +281,29 @@ export interface FieldSettings {
   tablename: string;
 }
 
+export interface GHLFiredTriggers {
+  fired_at: Generated<Date>;
+  ghl_contact_id: string | null;
+  id: Generated<number>;
+  meta: Json | null;
+  trigger_key: string;
+  user_id: number;
+}
+
+export interface GHLTriggerConfig {
+  action_type: "custom_field" | "tag";
+  active: Generated<number>;
+  created_at: Generated<Date | null>;
+  custom_field_id: string | null;
+  custom_field_key: string | null;
+  field_value: string | null;
+  id: Generated<number>;
+  label: string;
+  tag_value: string | null;
+  trigger_key: string;
+  updated_at: Generated<Date | null>;
+}
+
 export interface HomeuptickSubscriptions {
   active: Generated<number>;
   base_contacts: Generated<number | null>;
@@ -423,6 +446,16 @@ export interface OfferAPIs {
   submitforoffers: Generated<number>;
   success_fee_pct: Decimal | null;
   url: string | null;
+}
+
+export interface PageVideos {
+  active: Generated<number>;
+  created: Generated<Date>;
+  page_video_id: Generated<number>;
+  title: string | null;
+  updated: Generated<Date>;
+  url_pattern: string;
+  youtube_url: string;
 }
 
 export interface Products {
@@ -1083,11 +1116,13 @@ export interface PropertyOffersDash {
   customer_user_id: number | null;
   data: string | null;
   expiration: Date | null;
+  is_offer_unlocked: Generated<number>;
   is_unlocked: Generated<number | null>;
   lender_user_id: number | null;
   nickname: string;
   notes_buyer: string | null;
   notes_seller: string | null;
+  notification_sent: Generated<number>;
   offer_id: Generated<number>;
   offer_number: number;
   offerapi_id: number | null;
@@ -1452,14 +1487,15 @@ export interface Subscriptions {
    * The date and time when the next renewal attempt should occur after a failed payment
    */
   next_renewal_attempt: Date | null;
+  /**
+   * Number of consecutive payment failures; reset to 0 on successful renewal
+   */
+  payment_failure_count: Generated<number>;
   product_id: number | null;
   /**
-   * NULL = no deferred provisioning needed (existing user purchase or legacy).
-   * 'provisioned' = user was created and bound after subscription was created.
-   * 'pending_provisioning' = user creation failed; needs manual intervention.
-   * See migration 007_subscriptions_nullable_user_id.sql
+   * NULL = no deferred provisioning needed; pending_provisioning = user creation failed and needs retry
    */
-  provisioning_status: "provisioned" | "pending_provisioning" | null;
+  provisioning_status: "pending_provisioning" | "provisioned" | null;
   renewal_date: Date;
   square_environment: Generated<"production" | "sandbox" | null>;
   status: string | null;
@@ -1500,7 +1536,7 @@ export interface SubscriptionsDash {
   subscription_updated_at: Date;
   suspension_date: Date | null;
   user_created_at: Generated<Date>;
-  user_id: number;
+  user_id: number | null;
 }
 
 export interface Teams {
@@ -1634,6 +1670,7 @@ export interface Users {
   created_user_id: number | null;
   email: string;
   email2: string | null;
+  ghl_contact_id: string | null;
   integration_id: number | null;
   integration_pk: string | null;
   investor_view_address: Generated<number>;
@@ -1903,6 +1940,8 @@ export interface DB {
   Events: Events;
   FieldOptions: FieldOptions;
   FieldSettings: FieldSettings;
+  GHL_FiredTriggers: GHLFiredTriggers;
+  GHL_TriggerConfig: GHLTriggerConfig;
   Homeuptick_Subscriptions: HomeuptickSubscriptions;
   Insights: Insights;
   Integrations: Integrations;
@@ -1912,6 +1951,7 @@ export interface DB {
   Notifications: Notifications;
   Notifications_Dash: NotificationsDash;
   OfferAPIs: OfferAPIs;
+  PageVideos: PageVideos;
   Products: Products;
   Properties: Properties;
   Properties_Dash: PropertiesDash;

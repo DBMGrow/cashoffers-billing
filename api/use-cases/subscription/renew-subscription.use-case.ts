@@ -418,7 +418,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       if (!subscription) return
 
       // Update next renewal attempt with escalating retry logic
-      const nextAttempt = this.calculateNextRetryAttempt(subscription.next_renewal_attempt)
+      const failureCount = (subscription.payment_failure_count as number | null) ?? 0
+      const nextAttempt = this.calculateNextRetryAttempt(failureCount)
       const now = new Date()
 
       if (nextAttempt === null) {
@@ -427,6 +428,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           status: 'suspended',
           next_renewal_attempt: null,
           suspension_date: now,
+          payment_failure_count: failureCount + 1,
           updatedAt: now,
         } as any)
 
@@ -457,6 +459,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
       await subscriptionRepository.update(subscriptionId, {
         next_renewal_attempt: nextAttempt,
+        payment_failure_count: failureCount + 1,
         updatedAt: now,
       })
 
@@ -502,33 +505,31 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     }
   }
 
-  private calculateNextRetryAttempt(lastAttempt: Date | null): Date | null {
+  private calculateNextRetryAttempt(failureCount: number): Date | null {
     const today = new Date()
 
-    if (!lastAttempt) {
-      // First failure: retry in 1 day
-      const nextAttempt = new Date(today)
-      nextAttempt.setDate(today.getDate() + 1)
-      return nextAttempt
+    if (failureCount === 0) {
+      // 1st failure: retry in 1 day
+      const next = new Date(today)
+      next.setDate(today.getDate() + 1)
+      return next
     }
 
-    const daysWaited = (today.getTime() - new Date(lastAttempt).getTime()) / (1000 * 60 * 60 * 24)
-
-    if (daysWaited < 2) {
-      // 2nd failure (~1 day gap): retry in 3 days
-      const nextAttempt = new Date(today)
-      nextAttempt.setDate(today.getDate() + 3)
-      return nextAttempt
+    if (failureCount === 1) {
+      // 2nd failure: retry in 3 days
+      const next = new Date(today)
+      next.setDate(today.getDate() + 3)
+      return next
     }
 
-    if (daysWaited < 7) {
-      // 3rd failure (~3-6 day gap): retry in 7 days
-      const nextAttempt = new Date(today)
-      nextAttempt.setDate(today.getDate() + 7)
-      return nextAttempt
+    if (failureCount === 2) {
+      // 3rd failure: retry in 7 days
+      const next = new Date(today)
+      next.setDate(today.getDate() + 7)
+      return next
     }
 
-    // 4th failure (7+ days gap): auto-suspend
+    // 4th+ failure: auto-suspend
     return null
   }
 }

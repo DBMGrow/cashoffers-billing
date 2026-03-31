@@ -20,9 +20,13 @@ When a subscription payment fails, the system automatically schedules retries at
 5. Card update retry: if a user updates their card during a retry window, the next retry uses the new card.
 
 ## Where Enforced
-- `api/cron/subscriptionsCron.ts` — `updateNextRenewalAttempt()`
-- `api/use-cases/subscription/renew-subscription.use-case.ts`
+- `api/use-cases/subscription/renew-subscription.use-case.ts` — `calculateNextRetryAttempt()` and `handleRenewalFailure()`
+- `api/domain/entities/subscription.ts` — `renew()` resets `paymentFailureCount` to 0 on success
+
+## Implementation Notes
+- Attempt number is tracked in `Subscriptions.payment_failure_count` (INT, default 0), added in migration `008_add_payment_failure_count.sql`.
+- The counter is incremented on each failure and reset to 0 on successful renewal via the domain entity.
+- Prior to this, attempt number was inferred from elapsed time since `next_renewal_attempt`, which caused premature suspension when that date was set to a distant past value (e.g., via dev tooling fast-forward).
 
 ## Missing Enforcement
-- Suspension after max retries is not automated — the suspension cron (`suspendSubscriptionsCron`) is stubbed.
 - Card update during retry window: card update endpoint in `/manage` has a known TODO (Square card update logic not implemented).

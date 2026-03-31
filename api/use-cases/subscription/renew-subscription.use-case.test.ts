@@ -590,6 +590,7 @@ describe("RenewSubscriptionUseCase", () => {
         duration: "monthly",
         renewal_date: new Date("2024-01-01"),
         next_renewal_attempt: new Date("2024-01-01"),
+        payment_failure_count: 0,
         status: "active",
       })
 
@@ -670,6 +671,132 @@ describe("RenewSubscriptionUseCase", () => {
       expect(failedTx).toBeTruthy()
       expect(failedTx?.user_id).toBe(1)
       expect(failedTx?.type).toBe("subscription")
+    })
+  })
+
+  describe("Payment Retry Count", () => {
+    const addFailingSubscription = (payment_failure_count: number) => {
+      subscriptionRepo.addSubscription({
+        subscription_id: 10,
+        user_id: 2,
+        subscription_name: "CashOffers.PRO",
+        product_id: 1,
+        amount: 25000,
+        duration: "monthly",
+        renewal_date: new Date("2024-01-01"),
+        next_renewal_attempt: new Date("2024-01-01"),
+        payment_failure_count,
+        status: "active",
+      })
+      userCardRepo.addCard(2, {
+        card_id: "card_declined",
+        square_customer_id: "cust_456",
+        last_4: "0002",
+        card_brand: "VISA",
+        exp_month: "12",
+        exp_year: "2025",
+        cardholder_name: "Test User",
+      })
+      paymentProvider.addTestCard({
+        id: "card_declined",
+        customerId: "cust_456",
+        last4: "0002",
+        cardBrand: "VISA",
+        expMonth: 12,
+        expYear: 2025,
+      })
+    }
+
+    it("1st failure (count=0): increments count to 1 and retries in ~1 day", async () => {
+      addFailingSubscription(0)
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({ subscriptionId: 10, email: "user@test.com" })
+
+      const sub = await subscriptionRepo.findById(10)
+      expect(sub?.payment_failure_count).toBe(1)
+      expect(sub?.status).toBe("active")
+      const msUntilRetry = sub!.next_renewal_attempt.getTime() - Date.now()
+      expect(msUntilRetry).toBeGreaterThan(0)
+      expect(msUntilRetry).toBeLessThanOrEqual(1.5 * 24 * 60 * 60 * 1000) // ≤ 1.5 days
+    })
+
+    it("2nd failure (count=1): increments count to 2 and retries in ~3 days", async () => {
+      addFailingSubscription(1)
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({ subscriptionId: 10, email: "user@test.com" })
+
+      const sub = await subscriptionRepo.findById(10)
+      expect(sub?.payment_failure_count).toBe(2)
+      expect(sub?.status).toBe("active")
+      const msUntilRetry = sub!.next_renewal_attempt.getTime() - Date.now()
+      expect(msUntilRetry).toBeGreaterThan(2 * 24 * 60 * 60 * 1000) // > 2 days
+      expect(msUntilRetry).toBeLessThanOrEqual(3.5 * 24 * 60 * 60 * 1000) // ≤ 3.5 days
+    })
+
+    it("3rd failure (count=2): increments count to 3 and retries in ~7 days", async () => {
+      addFailingSubscription(2)
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({ subscriptionId: 10, email: "user@test.com" })
+
+      const sub = await subscriptionRepo.findById(10)
+      expect(sub?.payment_failure_count).toBe(3)
+      expect(sub?.status).toBe("active")
+      const msUntilRetry = sub!.next_renewal_attempt.getTime() - Date.now()
+      expect(msUntilRetry).toBeGreaterThan(6 * 24 * 60 * 60 * 1000) // > 6 days
+      expect(msUntilRetry).toBeLessThanOrEqual(7.5 * 24 * 60 * 60 * 1000) // ≤ 7.5 days
+    })
+
+    it("4th failure (count=3): auto-suspends the subscription", async () => {
+      addFailingSubscription(3)
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({ subscriptionId: 10, email: "user@test.com" })
+
+      const sub = await subscriptionRepo.findById(10)
+      expect(sub?.status).toBe("suspended")
+      expect(sub?.next_renewal_attempt).toBeNull()
+      expect(sub?.suspension_date).toBeInstanceOf(Date)
+    })
+
+    it("resets payment_failure_count to 0 on successful renewal", async () => {
+      subscriptionRepo.addSubscription({
+        subscription_id: 11,
+        user_id: 3,
+        subscription_name: "CashOffers.PRO",
+        product_id: 1,
+        amount: 25000,
+        duration: "monthly",
+        renewal_date: new Date("2024-01-01"),
+        next_renewal_attempt: new Date("2024-01-01"),
+        payment_failure_count: 2,
+        status: "active",
+      })
+      userCardRepo.addCard(3, {
+        card_id: "card_good",
+        square_customer_id: "cust_789",
+        last_4: "4242",
+        card_brand: "VISA",
+        exp_month: "12",
+        exp_year: "2025",
+        cardholder_name: "Test User",
+      })
+      paymentProvider.addTestCard({
+        id: "card_good",
+        customerId: "cust_789",
+        last4: "4242",
+        cardBrand: "VISA",
+        expMonth: 12,
+        expYear: 2025,
+      })
+
+      const result = await useCase.execute({ subscriptionId: 11, email: "user@test.com" })
+
+      expect(result.success).toBe(true)
+      const sub = await subscriptionRepo.findById(11)
+      expect(sub?.payment_failure_count).toBe(0)
     })
   })
 

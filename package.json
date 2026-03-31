@@ -11,7 +11,7 @@
     "start": "dotenvx run --env-file=.env.production -- next start",
     "start:staging": "dotenvx run --env-file=.env.staging -- next start",
     "lint": "next lint",
-    "codegen": "kysely-codegen --out-file api/lib/db.d.ts",
+    "codegen": "dotenvx run --env-file=.env.development -- kysely-codegen --out-file api/lib/db.d.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",

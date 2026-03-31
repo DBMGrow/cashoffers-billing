@@ -7,6 +7,7 @@ import {
 import { config } from "@api/config/config.service"
 import type { IConfigService } from "@api/config/config.interface"
 import { createLogger } from "@api/infrastructure/logging/structured.logger"
+import { createConsoleLogger } from "@api/infrastructure/logging/console.logger"
 import { DatabaseLogger } from "@api/infrastructure/logging/database.logger"
 import { KyselyTransactionManager } from "@api/infrastructure/database/transaction/kysely-transaction-manager"
 import { createSquarePaymentProvider } from "@api/infrastructure/payment/square/square.provider"
@@ -29,7 +30,11 @@ import { createCriticalAlertService } from "@api/domain/services/critical-alert.
 import { createWhitelabelResolverService } from "@api/domain/services/whitelabel-resolver.service"
 
 // Base logger (console only — no DB dependency)
-const baseLogger = createLogger({ service: "cashoffers-billing" }, config.nodeEnv === "production" ? "info" : "debug")
+// Use human-readable ConsoleLogger in dev, structured JSON in production
+const baseLogger =
+  config.nodeEnv === "production"
+    ? createLogger({ service: "cashoffers-billing" }, "info")
+    : createConsoleLogger({ service: "cashoffers-billing" })
 
 // Logger wrapped with DB persistence
 export const logger = new DatabaseLogger(baseLogger, billingLogRepository, { service: "cashoffers-billing" })

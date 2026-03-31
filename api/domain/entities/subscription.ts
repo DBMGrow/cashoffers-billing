@@ -15,6 +15,7 @@ export interface SubscriptionProps {
   duration: Duration
   renewalDate: Date
   nextRenewalAttempt: Date | null
+  paymentFailureCount: number
   status: SubscriptionStatus
   data: string | null
   cancelOnRenewal: boolean
@@ -87,6 +88,10 @@ export class Subscription extends Entity<number> {
 
   get nextRenewalAttempt(): Date | null {
     return this.props.nextRenewalAttempt
+  }
+
+  get paymentFailureCount(): number {
+    return this.props.paymentFailureCount
   }
 
   get status(): SubscriptionStatus {
@@ -235,6 +240,7 @@ export class Subscription extends Entity<number> {
       ...this.props,
       renewalDate: nextRenewalDate,
       nextRenewalAttempt: nextRenewalDate,
+      paymentFailureCount: 0,
       status: SubscriptionStatus.active(), // Reactivate if suspended
       cancelOnRenewal: false,
       downgradeOnRenewal: false,

@@ -15,6 +15,7 @@ export interface SubscriptionDbModel {
   duration: string
   renewal_date: Date
   next_renewal_attempt?: Date | null
+  payment_failure_count?: number | null
   status?: string | null
   data?: string | null
   cancel_on_renewal?: boolean | null
@@ -36,6 +37,7 @@ export function toDomain(dbModel: SubscriptionDbModel): Subscription {
     duration: Duration.fromString(dbModel.duration || "monthly"),
     renewalDate: new Date(dbModel.renewal_date),
     nextRenewalAttempt: dbModel.next_renewal_attempt ? new Date(dbModel.next_renewal_attempt) : null,
+    paymentFailureCount: dbModel.payment_failure_count ?? 0,
     status: dbModel.status ? SubscriptionStatus.fromString(dbModel.status) : SubscriptionStatus.active(),
     data: dbModel.data || null,
     cancelOnRenewal: dbModel.cancel_on_renewal ?? false,
@@ -62,6 +64,7 @@ export function toDatabase(entity: Subscription): Partial<SubscriptionDbModel> {
     duration: props.duration.value,
     renewal_date: props.renewalDate,
     next_renewal_attempt: props.nextRenewalAttempt,
+    payment_failure_count: props.paymentFailureCount,
     status: props.status.value,
     data: props.data,
     cancel_on_renewal: props.cancelOnRenewal,
