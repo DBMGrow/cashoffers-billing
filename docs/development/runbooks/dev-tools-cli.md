@@ -15,21 +15,42 @@ yarn dev:tools
 | Command | Description |
 |---|---|
 | `system` | Overview: subscriptions, failures, trials, pending renewals |
-| `state <user_id>` | Full user state: subscriptions, cards, transactions |
-| `scenario <name>` | Create a test scenario (see below) |
-| `set-state <sub_id> [fields]` | Patch subscription state directly |
+| `state <user_id>` | Full user state: subscriptions (incl. payment_failure_count), cards, transactions |
+| `scenario <name> [--product p-co\|p-hu\|p-trial] [--email <email>]` | Create a test scenario with optional product type |
+| `set-state <sub_id> [fields]` | Patch subscription state directly (supports payment_failure_count, suspended status) |
 | `cron-preview` | Dry-run of renewal logic (no writes) |
 | `cron-run <user_id>` | Execute renewal for one user (real payment logic) |
 | `webhook <type> <user_id>` | Fire a CashOffers webhook event |
 | `cleanup <user_id>` | Delete user and all related data |
+| `set-password <user_id> <password>` | Set a user's password (for testing manage flows) |
+| `break-card <user_id>` | Replace card with invalid one (forces payment failures) |
+| `fix-card <user_id>` | Restore card with valid sandbox card |
 
 ## Scenarios
 
 | Scenario | Command |
 |---|---|
 | Subscription due for renewal | `scenario renewal-due` |
-| Payment retry in progress | `scenario payment-retry` |
+| Active sub with broken card (1st failure) | `scenario payment-failure` |
+| 1 prior failure, retry overdue | `scenario payment-retry-1` |
+| 2 prior failures | `scenario payment-retry-2` |
+| 3 prior failures (next = suspend) | `scenario payment-retry-3` |
+| Suspended after max retries | `scenario suspended` |
 | Trial expiring soon | `scenario trial-expiring` |
+| Trial past expiry | `scenario trial-expired` |
+| Marked for cancellation at renewal | `scenario cancel-on-renewal` |
+| Marked for downgrade at renewal | `scenario downgrade-on-renewal` |
+| Subscription paused (CO deactivated) | `scenario paused` |
+
+### Product type variants
+
+All scenarios accept `--product p-co|p-hu|p-trial` to set subscription type:
+
+| Flag | product_category | Creates |
+|---|---|---|
+| `--product p-co` | `premium_cashoffers` | CO Premium (managed=true, role=AGENT, is_premium=1) — default |
+| `--product p-hu` | `external_cashoffers` | External CO — billing manages HU overages only (managed=false, role=AGENT, is_premium=0) |
+| `--product p-trial` | `homeuptick_only` | HU Only — SHELL CO access + HU (managed=true, role=SHELL, is_premium=0) |
 
 ---
 

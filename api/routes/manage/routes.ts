@@ -15,6 +15,7 @@ import {
   GetProductsRoute,
   GetWhitelabelsRoute,
   GetSubscriptionRoute,
+  GetEnrollmentRoute,
   UpdateCardRoute,
   ManagePurchaseRoute
 } from "./schemas"
@@ -221,6 +222,13 @@ app.openapi(GetProductsRoute, async (c) => {
       userWhitelabelCode = whitelabel?.code ?? null
     }
 
+    // Optional product_category filter from query string
+    const categoryFilter = c.req.query("product_category") as
+      | "premium_cashoffers"
+      | "external_cashoffers"
+      | "homeuptick_only"
+      | undefined
+
     // Fetch products filtered by whitelabel_code — include products matching
     // the user's whitelabel or products with no whitelabel set (available to all)
     const allProducts = await db
@@ -230,6 +238,9 @@ app.openapi(GetProductsRoute, async (c) => {
         qb.where((eb) =>
           eb.or([eb("whitelabel_code", "=", userWhitelabelCode!), eb("whitelabel_code", "is", null)])
         )
+      )
+      .$if(categoryFilter !== undefined, (qb) =>
+        qb.where("product_category", "=", categoryFilter!)
       )
       .execute()
 
@@ -328,6 +339,102 @@ app.openapi(GetSubscriptionRoute, async (c) => {
     )
   } catch (error: any) {
     console.error("Error in subscription/single API:", error)
+    return c.json({ success: "error" as const, error: error.message }, 400)
+  }
+})
+
+/**
+ * GET /manage/enrollment
+ * Checks enrollment eligibility for users without a billing subscription.
+ * Determines whether to show external_cashoffers or homeuptick_only products.
+ *
+ * Logic:
+ * - If user already has an active subscription → 409 (not eligible)
+ * - If user has is_premium = 1 and no subscription → external_cashoffers
+ *   (they're paying for CO elsewhere, just need HU)
+ * - Otherwise → homeuptick_only (SHELL CO access + HU base fee)
+ */
+app.use("/enrollment", authMiddleware(null))
+app.openapi(GetEnrollmentRoute, async (c) => {
+  try {
+    const user = c.get("user")
+
+    // Check if user already has an active subscription in billing
+    const existingSubscription = await db
+      .selectFrom("Subscriptions")
+      .select("subscription_id")
+      .where("user_id", "=", user.user_id)
+      .where("status", "in", ["active", "trial", "paused"])
+      .executeTakeFirst()
+
+    if (existingSubscription) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "User already has an active subscription",
+          code: "ALREADY_SUBSCRIBED",
+        },
+        409
+      )
+    }
+
+    // Fetch is_premium and whitelabel_id from Users table
+    // (auth middleware only exposes a subset of user fields)
+    const fullUser = await db
+      .selectFrom("Users")
+      .select(["is_premium", "whitelabel_id"])
+      .where("user_id", "=", user.user_id)
+      .executeTakeFirst()
+
+    const isPremium = fullUser?.is_premium === 1
+    const productCategory = isPremium ? "external_cashoffers" : "homeuptick_only"
+
+    // Resolve whitelabel code for product filtering
+    let userWhitelabelCode: string | null = null
+    if (fullUser?.whitelabel_id) {
+      const whitelabel = await db
+        .selectFrom("Whitelabels")
+        .select("code")
+        .where("whitelabel_id", "=", fullUser.whitelabel_id)
+        .executeTakeFirst()
+      userWhitelabelCode = whitelabel?.code ?? null
+    }
+
+    // Fetch products matching the determined category and whitelabel
+    let query = db
+      .selectFrom("Products")
+      .selectAll()
+      .where("product_category", "=", productCategory)
+
+    if (userWhitelabelCode) {
+      query = query.where((eb) =>
+        eb.or([
+          eb("whitelabel_code", "=", userWhitelabelCode!),
+          eb("whitelabel_code", "is", null),
+        ])
+      )
+    }
+
+    const products = await query.execute()
+
+    const reason = isPremium
+      ? "User has active premium CashOffers account but no billing subscription"
+      : "User has no premium CashOffers account — eligible for HomeUptick standalone"
+
+    return c.json(
+      {
+        success: "success" as const,
+        data: {
+          eligible: true,
+          product_category: productCategory as "external_cashoffers" | "homeuptick_only",
+          reason,
+          products,
+        },
+      },
+      200
+    )
+  } catch (error: any) {
+    console.error("Error in enrollment API:", error)
     return c.json({ success: "error" as const, error: error.message }, 400)
   }
 })

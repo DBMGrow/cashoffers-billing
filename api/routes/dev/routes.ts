@@ -16,11 +16,13 @@
  *   DELETE /dev/cleanup/:user_id             — Remove user and all related data
  *   POST /dev/card/:user_id/break           — Replace card with invalid one (forces payment failures)
  *   POST /dev/card/:user_id/fix             — Restore card with valid sandbox card
+ *   POST /dev/user/:user_id/set-password    — Set password for a user (for testing manage flows)
  */
 
 import { createHmac } from "crypto"
 import { Hono } from "hono"
 import { z } from "zod"
+import bcrypt from "bcrypt"
 import type { HonoVariables } from "@api/types/hono"
 import { db } from "@api/lib/database"
 import { config } from "@api/config/config.service"
@@ -228,6 +230,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
           "Subscriptions.cancel_on_renewal",
           "Subscriptions.downgrade_on_renewal",
           "Subscriptions.suspension_date",
+          "Subscriptions.payment_failure_count",
           "Subscriptions.square_environment",
           "Subscriptions.data",
           "Subscriptions.createdAt",
@@ -267,6 +270,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       ...sub,
       amount_formatted: formatAmount(sub.amount),
       renewal_in: daysFromNow(sub.renewal_date),
+      payment_failure_count: sub.payment_failure_count ?? 0,
       flags: [
         sub.cancel_on_renewal ? "cancel_on_renewal" : null,
         sub.downgrade_on_renewal ? "downgrade_on_renewal" : null,
@@ -315,10 +319,12 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       "cancel-on-renewal",
       "downgrade-on-renewal",
       "paused",
+      "suspended",
     ]),
     email: z.string().email().optional(),
     name: z.string().optional(),
     product_id: z.number().optional(),
+    product: z.enum(["p-co", "p-hu", "p-trial"]).optional(),
   })
 
   router.post("/scenarios", async (c) => {
@@ -327,49 +333,54 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     if (!parsed.success) {
       return c.json({ success: "error", error: parsed.error.message }, 400)
     }
-    const { scenario, email, name, product_id } = parsed.data
+    const { scenario, email, name, product_id, product: productType = "p-co" } = parsed.data
 
-    // Resolve product
+    // Resolve product — prefer one matching the product type's category
+    const productCategoryMap = {
+      "p-co": "premium_cashoffers",
+      "p-hu": "external_cashoffers",
+      "p-trial": "homeuptick_only",
+    } as const
+
     let resolvedProductId = product_id
     if (!resolvedProductId) {
-      const anyProduct = await db
+      const matchingProduct = await db
         .selectFrom("Products")
         .select("product_id")
         .where("product_type", "=", "subscription")
+        .where("product_category", "=", productCategoryMap[productType])
         .limit(1)
         .executeTakeFirst()
-      if (anyProduct) resolvedProductId = anyProduct.product_id
+      if (matchingProduct) {
+        resolvedProductId = matchingProduct.product_id
+      } else {
+        // Fall back to any subscription product
+        const anyProduct = await db
+          .selectFrom("Products")
+          .select("product_id")
+          .where("product_type", "=", "subscription")
+          .limit(1)
+          .executeTakeFirst()
+        if (anyProduct) resolvedProductId = anyProduct.product_id
+      }
     }
 
     const resolvedEmail = email ?? generateRandomEmail(scenario)
     const resolvedName = name ?? `Dev Test [${scenario}]`
     const now = new Date()
 
-    // Create user
-    const userResult = await db
-      .insertInto("Users")
-      .values({
-        email: resolvedEmail,
-        name: resolvedName,
-        role: "AGENT",
-        whitelabel_id: 1,
-        is_premium: 1,
-        active: 1,
-        api_token: null,
-      })
-      .executeTakeFirstOrThrow()
-
-    const userId = Number(userResult.insertId)
-
     interface ScenarioConfig {
-      status: "active" | "trial" | "paused" | "cancelled"
+      status: "active" | "trial" | "paused" | "cancelled" | "suspended"
       renewal_date: Date
       next_renewal_attempt: Date | null
       cancel_on_renewal: number
       downgrade_on_renewal: number
       suspension_date: Date | null
+      payment_failure_count: number
+      broken_card: boolean
       description: string
       next_steps: string
+      whitelabel_id?: number
     }
 
     const scenarioConfigs: Record<string, ScenarioConfig> = {
@@ -380,6 +391,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
+        payment_failure_count: 0,
+        broken_card: false,
         description: "Active subscription with renewal_date 2 hours in the past.",
         next_steps: "Run POST /api/cron/run (with CRON_SECRET) or POST /api/dev/cron/run-for-user/:user_id to trigger renewal charge.",
       },
@@ -390,6 +403,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
+        payment_failure_count: 0,
+        broken_card: true,
         description: "Active subscription overdue for renewal with an INVALID card on file. Running cron will trigger a real payment failure → retry scheduling → failure email.",
         next_steps: "Run: yarn dev:tools cron-run <user_id>. Payment will fail, next_renewal_attempt will be set to +1 day, and a PaymentFailed event fires.",
       },
@@ -400,8 +415,10 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
-        description: "Subscription that failed payment once. next_renewal_attempt is past due — cron will retry.",
-        next_steps: "Run POST /api/dev/cron/run-for-user/:user_id to trigger the retry.",
+        payment_failure_count: 1,
+        broken_card: false,
+        description: "Subscription that failed payment once (payment_failure_count=1). next_renewal_attempt is past due. Valid card — run break-card then cron-run to simulate second failure, or cron-run directly to succeed.",
+        next_steps: "Run: yarn dev:tools break-card <user_id> then yarn dev:tools cron-run <user_id> to trigger 2nd failure (+3d retry), or cron-run directly to succeed and reset count.",
       },
       "payment-retry-2": {
         status: "active",
@@ -410,8 +427,10 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
-        description: "Subscription that failed payment twice. Simulating second retry window.",
-        next_steps: "Run POST /api/dev/cron/run-for-user/:user_id to trigger the retry.",
+        payment_failure_count: 2,
+        broken_card: false,
+        description: "Subscription that failed payment twice (payment_failure_count=2). Simulating second retry window.",
+        next_steps: "Run: yarn dev:tools break-card <user_id> then yarn dev:tools cron-run <user_id> to trigger 3rd failure (+7d retry).",
       },
       "payment-retry-3": {
         status: "active",
@@ -420,7 +439,9 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
-        description: "Subscription that failed payment three times (7+ day gap). Next failure triggers auto-suspension.",
+        payment_failure_count: 3,
+        broken_card: false,
+        description: "Subscription that failed payment three times (payment_failure_count=3). Next failure triggers auto-suspension.",
         next_steps: "Run: yarn dev:tools break-card <user_id> then yarn dev:tools cron-run <user_id>. Subscription will be SUSPENDED (status → suspended, suspension_date set).",
       },
       "trial-expiring": {
@@ -430,6 +451,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
+        payment_failure_count: 0,
+        broken_card: false,
         description: "Trial subscription expiring in 9 days (within the 10-day warning window).",
         next_steps: "Run POST /api/cron/run to trigger the trial-warning email flow.",
       },
@@ -440,6 +463,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: null,
+        payment_failure_count: 0,
+        broken_card: false,
         description: "Trial subscription that has already passed its expiry date.",
         next_steps: "Run POST /api/cron/run to trigger trial expiration: status → cancelled, event published, email sent.",
       },
@@ -450,6 +475,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 1,
         downgrade_on_renewal: 0,
         suspension_date: null,
+        payment_failure_count: 0,
+        broken_card: false,
         description: "Active subscription with cancel_on_renewal=true and past renewal_date.",
         next_steps: "Run cron: subscription will be CANCELLED (not charged). Verify status becomes 'cancelled'.",
       },
@@ -457,11 +484,14 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         status: "active",
         renewal_date: new Date(now.getTime() - 2 * 3600_000),
         next_renewal_attempt: null,
-        cancel_on_renewal: 0,
-        downgrade_on_renewal: 1,
+        cancel_on_renewal: 1,
+        downgrade_on_renewal: 0,
         suspension_date: null,
-        description: "Active subscription with downgrade_on_renewal=true and past renewal_date.",
-        next_steps: "Run cron: subscription will be SKIPPED. Verify cron logs 'skipping downgrade'.",
+        payment_failure_count: 0,
+        broken_card: false,
+        whitelabel_id: 2,
+        description: "Active subscription with cancel_on_renewal=true. User has whitelabel_id=2 (DOWNGRADE_TO_FREE). Cron processes cancellation; use case resolves suspension_behavior from white label and publishes SubscriptionCancelledEvent with suspensionStrategy=DOWNGRADE_TO_FREE.",
+        next_steps: "Run cron: subscription status → cancelled. Handler reads suspensionStrategy=DOWNGRADE_TO_FREE and sets user is_premium=0 (not deactivated). Verify via: yarn dev:tools state <user_id>.",
       },
       "paused": {
         status: "paused",
@@ -470,19 +500,71 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: 0,
         downgrade_on_renewal: 0,
         suspension_date: now,
-        description: "Subscription in paused state. Not picked up by cron.",
-        next_steps: "Call POST /api/subscription/resume/:id to resume it (recalculates renewal_date based on time paused).",
+        payment_failure_count: 0,
+        broken_card: false,
+        description: "Subscription in paused state (CO deactivated via webhook). Not picked up by cron.",
+        next_steps: "Fire yarn dev:tools webhook user.activated <user_id> to resume (recalculates renewal_date based on time paused).",
+      },
+      "suspended": {
+        status: "suspended",
+        renewal_date: new Date(now.getTime() - 15 * 86_400_000),
+        next_renewal_attempt: null,
+        cancel_on_renewal: 0,
+        downgrade_on_renewal: 0,
+        suspension_date: new Date(now.getTime() - 2 * 86_400_000),
+        payment_failure_count: 4,
+        broken_card: true,
+        description: "Subscription suspended after 4 payment failures (max retries exhausted). Card is INVALID. Card update triggers immediate payment attempt.",
+        next_steps: "Run: yarn dev:tools fix-card <user_id> to simulate card update. On success, subscription reactivates. Verify via: yarn dev:tools state <user_id>.",
       },
     }
 
     const cfg = scenarioConfigs[scenario]
+    const scenarioWhitelabelId = cfg.whitelabel_id ?? 1
+
+    // Product type determines CO managed flag, user role, is_premium, and product_category
+    const productTypeConfig = {
+      "p-co":    { managed: true,  role: "AGENT" as const, is_premium: 1, product_category: "premium_cashoffers" as const },
+      "p-hu":    { managed: false, role: "AGENT" as const, is_premium: 0, product_category: "external_cashoffers" as const },
+      "p-trial": { managed: true,  role: "SHELL" as const, is_premium: 0, product_category: "homeuptick_only" as const },
+    }[productType]
+
+    // Create user (whitelabel_id and role vary per scenario/product type)
+    const userResult = await db
+      .insertInto("Users")
+      .values({
+        email: resolvedEmail,
+        name: resolvedName,
+        role: productTypeConfig.role,
+        whitelabel_id: scenarioWhitelabelId,
+        is_premium: productTypeConfig.is_premium,
+        active: 1,
+        api_token: null,
+      })
+      .executeTakeFirstOrThrow()
+
+    const userId = Number(userResult.insertId)
+
+    const devSubscriptionData = JSON.stringify({
+      productData: {
+        cashoffers: {
+          managed: productTypeConfig.managed,
+          user_config: {
+            role: productTypeConfig.role,
+            is_premium: productTypeConfig.is_premium,
+            whitelabel_id: scenarioWhitelabelId,
+          },
+        },
+      },
+      user_config: { whitelabel_id: scenarioWhitelabelId },
+    })
 
     const subResult = await db
       .insertInto("Subscriptions")
       .values({
         user_id: userId,
         product_id: resolvedProductId ?? null,
-        subscription_name: `[DEV] ${scenario}`,
+        subscription_name: `[DEV] ${scenario}${productType !== "p-co" ? ` (${productType})` : ""}`,
         amount: 25000,
         status: cfg.status,
         duration: "monthly",
@@ -491,7 +573,9 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         cancel_on_renewal: cfg.cancel_on_renewal,
         downgrade_on_renewal: cfg.downgrade_on_renewal,
         suspension_date: cfg.suspension_date,
+        payment_failure_count: cfg.payment_failure_count,
         square_environment: "sandbox",
+        data: devSubscriptionData,
         createdAt: now,
         updatedAt: now,
       })
@@ -500,8 +584,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     const subscriptionId = Number(subResult.insertId)
 
     // Create a sandbox card on file so renewal/payment scenarios can charge
-    // For payment-failure scenarios, store an invalid card_id so Square rejects the charge
-    const useInvalidCard = scenario === "payment-failure"
+    // broken_card flag stores an invalid card_id so Square rejects the charge
+    const useInvalidCard = cfg.broken_card
     let cardInfo: { card_id: string; square_customer_id: string; last_4: string; card_brand: string; broken: boolean } | null = null
     try {
       if (useInvalidCard) {
@@ -576,6 +660,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       success: "success",
       data: {
         scenario,
+        product_type: productType,
         user_id: userId,
         email: resolvedEmail,
         subscription_id: subscriptionId,
@@ -595,10 +680,11 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     next_renewal_attempt: z.string().datetime().nullable().optional(),
     cancel_on_renewal: z.boolean().optional(),
     downgrade_on_renewal: z.boolean().optional(),
-    status: z.enum(["active", "trial", "paused", "cancelled", "inactive"]).optional(),
+    status: z.enum(["active", "trial", "paused", "cancelled", "inactive", "suspended"]).optional(),
     suspension_date: z.string().datetime().nullable().optional(),
     square_environment: z.enum(["production", "sandbox"]).optional(),
     amount: z.number().int().positive().optional(),
+    payment_failure_count: z.number().int().min(0).optional(),
   })
 
   router.post("/subscription/:id/set-state", async (c) => {
@@ -625,9 +711,12 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     if (body.status != null) patch.status = body.status
     if ("suspension_date" in body) {
       patch.suspension_date = body.suspension_date ? new Date(body.suspension_date) : null
+    } else if (body.status === "active" && existing.suspension_date != null) {
+      patch.suspension_date = null
     }
     if (body.square_environment != null) patch.square_environment = body.square_environment
     if (body.amount != null) patch.amount = body.amount
+    if (body.payment_failure_count != null) patch.payment_failure_count = body.payment_failure_count
 
     const updated = await subscriptionRepository.update(id, patch)
 
@@ -993,6 +1082,51 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         current_card: { card_id: "ccof:INVALID_FOR_TESTING", last_4: "0000", card_brand: "NONE" },
         message: "Card replaced with invalid card_id. Next payment attempt will fail.",
         hint: "Run yarn dev:tools cron-run " + userId + " to trigger a payment failure.",
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POST /dev/user/:user_id/set-password — Set password for a user (for testing manage flows)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const SetPasswordSchema = z.object({
+    password: z.string().min(6),
+  })
+
+  router.post("/user/:user_id/set-password", async (c) => {
+    const userId = parseInt(c.req.param("user_id"), 10)
+    const rawBody = await c.req.json().catch(() => null)
+    const parsed = SetPasswordSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return c.json({ success: "error", error: parsed.error.message }, 400)
+    }
+    const { password } = parsed.data
+
+    const user = await db
+      .selectFrom("Users")
+      .where("user_id", "=", userId)
+      .select(["user_id", "email"])
+      .executeTakeFirst()
+
+    if (!user) {
+      return c.json({ success: "error", error: `User ${userId} not found` }, 404)
+    }
+
+    const hash = await bcrypt.hash(password, 10)
+
+    await db
+      .updateTable("Users")
+      .set({ password: hash })
+      .where("user_id", "=", userId)
+      .execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        user_id: userId,
+        email: user.email,
+        message: "Password updated. You can now log in with the new password.",
       },
     })
   })

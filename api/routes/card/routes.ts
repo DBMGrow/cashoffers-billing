@@ -43,7 +43,7 @@ app.openapi(CreateCardRoute, async (c) => {
 
   return executeUseCase(c, () =>
     createCardUseCase.execute({
-      userId: user_id ? Number(user_id) : null,
+      userId: user_id ? Number(user_id) : (user?.user_id ? Number(user.user_id) : null),
       cardToken: card_token,
       expMonth: Number(exp_month),
       expYear: Number(exp_year),

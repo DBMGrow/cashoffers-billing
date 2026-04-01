@@ -6,9 +6,13 @@ import { ValueObject } from "../base/value-object.interface"
  */
 export enum SubscriptionStatusType {
   ACTIVE = "active",
-  SUSPENDED = "suspend",
-  CANCELLED = "cancel",
+  SUSPENDED = "suspended",
+  CANCELLED = "cancelled",
   DISABLED = "disabled",
+  TRIAL = "trial",
+  PAUSED = "paused",
+  INACTIVE = "inactive",
+  EXPIRED = "expired",
 }
 
 export class SubscriptionStatus extends ValueObject<SubscriptionStatusType> {
@@ -32,16 +36,40 @@ export class SubscriptionStatus extends ValueObject<SubscriptionStatusType> {
     return new SubscriptionStatus(SubscriptionStatusType.DISABLED)
   }
 
+  static trial(): SubscriptionStatus {
+    return new SubscriptionStatus(SubscriptionStatusType.TRIAL)
+  }
+
+  static paused(): SubscriptionStatus {
+    return new SubscriptionStatus(SubscriptionStatusType.PAUSED)
+  }
+
+  static inactive(): SubscriptionStatus {
+    return new SubscriptionStatus(SubscriptionStatusType.INACTIVE)
+  }
+
+  static expired(): SubscriptionStatus {
+    return new SubscriptionStatus(SubscriptionStatusType.EXPIRED)
+  }
+
   static fromString(status: string): SubscriptionStatus {
     switch (status.toLowerCase()) {
       case "active":
         return SubscriptionStatus.active()
-      case "suspend":
+      case "suspended":
         return SubscriptionStatus.suspended()
-      case "cancel":
+      case "cancelled":
         return SubscriptionStatus.cancelled()
       case "disabled":
         return SubscriptionStatus.disabled()
+      case "trial":
+        return SubscriptionStatus.trial()
+      case "paused":
+        return SubscriptionStatus.paused()
+      case "inactive":
+        return SubscriptionStatus.inactive()
+      case "expired":
+        return SubscriptionStatus.expired()
       default:
         throw new Error(`Invalid subscription status: ${status}`)
     }
@@ -61,6 +89,22 @@ export class SubscriptionStatus extends ValueObject<SubscriptionStatusType> {
 
   isDisabled(): boolean {
     return this.value === SubscriptionStatusType.DISABLED
+  }
+
+  isTrial(): boolean {
+    return this.value === SubscriptionStatusType.TRIAL
+  }
+
+  isPaused(): boolean {
+    return this.value === SubscriptionStatusType.PAUSED
+  }
+
+  isInactive(): boolean {
+    return this.value === SubscriptionStatusType.INACTIVE
+  }
+
+  isExpired(): boolean {
+    return this.value === SubscriptionStatusType.EXPIRED
   }
 
   canRenew(): boolean {

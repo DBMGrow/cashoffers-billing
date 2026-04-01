@@ -23,6 +23,8 @@ export interface PaymentFailedPayload {
   subscriptionId?: number
   /** Related product ID */
   productId?: number
+  /** Human-readable subscription/product name */
+  productName?: string
   /** Type of payment that failed (purchase, renewal, unlock) */
   paymentType: string
   /** Square environment used (production or sandbox) */
@@ -39,6 +41,8 @@ export interface PaymentFailedPayload {
   nextRetryDate?: Date
   /** Number of retry attempts so far */
   attemptNumber?: number
+  /** What triggered this payment attempt */
+  triggerSource?: 'cron' | 'card_update'
 }
 
 export class PaymentFailedEvent implements IDomainEvent {

@@ -18,8 +18,10 @@ import { SubscriptionRenewedEvent } from "@api/domain/events/subscription-renewe
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PaymentFailedEvent } from "@api/domain/events/payment-failed.event"
 import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-deactivated.event"
+import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import type { IHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.interface"
 import type { ProductData } from "@api/domain/types/product-data.types"
+import type { WhitelabelRepository } from "@api/lib/repositories"
 
 interface Dependencies {
   logger: ILogger
@@ -33,6 +35,8 @@ interface Dependencies {
   transactionManager: ITransactionManager
   eventBus: IEventBus
   homeUptickApiClient?: IHomeUptickApiClient
+  whitelabelRepository?: WhitelabelRepository
+  adminAlertEmail?: string
 }
 
 interface LineItem {
@@ -58,6 +62,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     const { logger } = this.deps
     const startTime = new Date()
     let purchaseRequestId: number | null = null
+    let isCancelOnRenewal = false
 
     try {
       // Validate input with Zod
@@ -116,7 +121,11 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       let totalAmount = subscription.amount || 0
 
       // Add HomeUptick addon charge if enabled in product data
-      const subscriptionData = subscription.data ? JSON.parse(subscription.data as string) : {}
+      const subscriptionData = subscription.data
+        ? typeof subscription.data === "string"
+          ? JSON.parse(subscription.data)
+          : subscription.data
+        : {}
       const productData: ProductData | undefined = subscriptionData?.productData
       const huConfig = productData?.homeuptick
 
@@ -147,6 +156,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
       // Check if subscription should be cancelled on renewal
       if (subscriptionEntity.cancelOnRenewal) {
+        isCancelOnRenewal = true
         const cancelledEntity = subscriptionEntity.cancel()
         await this.deps.subscriptionRepository.update(
           validatedInput.subscriptionId,
@@ -168,6 +178,42 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         logger.info("Subscription cancelled on renewal", {
           subscriptionId: validatedInput.subscriptionId,
         })
+
+        const cancelMetadata: Record<string, unknown> = {}
+        if (productData) cancelMetadata.productData = productData
+
+        if (this.deps.whitelabelRepository) {
+          try {
+            const subData = subscriptionData
+            const wlId =
+              subData.user_config?.whitelabel_id ??
+              (subData.user_config as any)?.white_label_id ??
+              productData?.cashoffers?.user_config?.whitelabel_id
+            if (wlId) {
+              const behavior = await this.deps.whitelabelRepository.getSuspensionBehavior(wlId)
+              if (behavior) cancelMetadata.suspensionStrategy = behavior
+            }
+          } catch {
+            logger.warn("Failed to resolve suspension strategy for cancel-on-renewal", {
+              subscriptionId: validatedInput.subscriptionId,
+            })
+          }
+        }
+
+        await this.deps.eventBus.publish(
+          SubscriptionCancelledEvent.create(
+            {
+              subscriptionId: validatedInput.subscriptionId,
+              userId: subscription.user_id!,
+              email: validatedInput.email,
+              subscriptionName: subscription.subscription_name ?? undefined,
+              reason: "cancel_on_renewal",
+              cancelledBy: "user",
+              cancelOnRenewal: false,
+            },
+            cancelMetadata
+          )
+        )
 
         return success({
           subscriptionId: validatedInput.subscriptionId,
@@ -241,20 +287,23 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       if (productData) renewMetadata.productData = productData
 
       await this.deps.eventBus.publish(
-        SubscriptionRenewedEvent.create({
-          subscriptionId: validatedInput.subscriptionId,
-          userId: subscription.user_id!,
-          email: validatedInput.email,
-          productId: subscription.product_id,
-          productName: subscription.subscription_name || "Subscription",
-          amount: totalAmount,
-          transactionId: transactionId || undefined,
-          externalTransactionId: paymentId || undefined,
-          cardId: cardId || undefined,
-          nextRenewalDate: newRenewalDate,
-          environment: paymentEnvironment,
-          lineItems: lineItems.map((item) => ({ description: item.item, amount: item.price })),
-        }, renewMetadata)
+        SubscriptionRenewedEvent.create(
+          {
+            subscriptionId: validatedInput.subscriptionId,
+            userId: subscription.user_id!,
+            email: validatedInput.email,
+            productId: subscription.product_id,
+            productName: subscription.subscription_name || "Subscription",
+            amount: totalAmount,
+            transactionId: transactionId || undefined,
+            externalTransactionId: paymentId || undefined,
+            cardId: cardId || undefined,
+            nextRenewalDate: newRenewalDate,
+            environment: paymentEnvironment,
+            lineItems: lineItems.map((item) => ({ description: item.item, amount: item.price })),
+          },
+          renewMetadata
+        )
       )
 
       // Publish payment processed event if payment was made
@@ -323,8 +372,25 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         }
       }
 
-      // Handle renewal failure (keeps existing retry logic for backward compatibility)
-      await this.handleRenewalFailure(input.subscriptionId, input.email, errorMessage)
+      if (isCancelOnRenewal) {
+        // Errors during cancel-on-renewal should never produce a payment failed email.
+        // Notify the developer and leave the user alone.
+        if (this.deps.adminAlertEmail) {
+          try {
+            await this.deps.emailService.sendEmail({
+              to: this.deps.adminAlertEmail,
+              subject: `[ERROR] Cancel-on-renewal failed — subscription ${input.subscriptionId}`,
+              html: `<p>An error occurred while processing a cancel-on-renewal for subscription <strong>${input.subscriptionId}</strong> (user: ${input.email}).</p><p><strong>Error:</strong> ${errorMessage}</p>`,
+              templateName: "system-error",
+            })
+          } catch (alertError) {
+            logger.error("Failed to send cancel-on-renewal error alert", { alertError })
+          }
+        }
+      } else {
+        // Handle renewal failure (keeps existing retry logic for backward compatibility)
+        await this.handleRenewalFailure(input.subscriptionId, input.email, errorMessage, input.triggeredBy)
+      }
 
       return failure(errorMessage, "RENEWAL_ERROR")
     }
@@ -409,7 +475,12 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     }
   }
 
-  private async handleRenewalFailure(subscriptionId: number, email: string, error: string): Promise<void> {
+  private async handleRenewalFailure(
+    subscriptionId: number,
+    email: string,
+    error: string,
+    triggeredBy?: "cron" | "card_update"
+  ): Promise<void> {
     const { logger, eventBus, subscriptionRepository, transactionRepository } = this.deps
 
     try {
@@ -417,15 +488,65 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       const subscription = await subscriptionRepository.findById(subscriptionId)
       if (!subscription) return
 
-      // Update next renewal attempt with escalating retry logic
       const failureCount = (subscription.payment_failure_count as number | null) ?? 0
-      const nextAttempt = this.calculateNextRetryAttempt(failureCount)
       const now = new Date()
+      const isCardUpdate = triggeredBy === "card_update"
+
+      if (isCardUpdate) {
+        // Card-update-triggered failures do not consume a retry slot.
+        // Keep payment_failure_count and next_renewal_attempt exactly as they are;
+        // just notify the user that the new card was declined.
+        const existingNextAttempt = subscription.next_renewal_attempt
+          ? new Date(subscription.next_renewal_attempt as unknown as string)
+          : undefined
+
+        await transactionRepository.create({
+          user_id: subscription.user_id!,
+          amount: subscription.amount || 0,
+          type: "subscription",
+          memo: `${subscription.subscription_name || "Subscription"} (new card declined)`,
+          status: "failed",
+          square_environment: subscription.square_environment || "production",
+          data: JSON.stringify({ error, triggeredBy }),
+          createdAt: now,
+          updatedAt: now,
+        })
+
+        await eventBus.publish(
+          PaymentFailedEvent.create({
+            userId: subscription.user_id!,
+            email,
+            amount: subscription.amount || 0,
+            currency: "USD",
+            paymentProvider: "Square",
+            subscriptionId,
+            productId: subscription.product_id || undefined,
+            productName: subscription.subscription_name ?? undefined,
+            paymentType: "renewal",
+            environment: subscription.square_environment || "production",
+            errorMessage: error,
+            errorCode: "CARD_DECLINED",
+            willRetry: existingNextAttempt !== undefined,
+            nextRetryDate: existingNextAttempt,
+            triggerSource: "card_update",
+          })
+        )
+
+        logger.info("Card-update renewal failure handled (failure count unchanged)", {
+          subscriptionId,
+          existingNextAttempt,
+          error,
+        })
+        return
+      }
+
+      // Scheduled retry path: escalating intervals, auto-suspend after max attempts
+      const nextAttempt = this.calculateNextRetryAttempt(failureCount)
 
       if (nextAttempt === null) {
         // Auto-suspend after too many retries
         await subscriptionRepository.update(subscriptionId, {
-          status: 'suspended',
+          status: "suspended",
           next_renewal_attempt: null,
           suspension_date: now,
           payment_failure_count: failureCount + 1,
@@ -435,22 +556,35 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         // Build metadata with productData for suspension handlers
         const suspendMetadata: Record<string, unknown> = {}
         try {
-          const subData = subscription.data ? JSON.parse(subscription.data as string) : {}
+          const subData = subscription.data
+            ? typeof subscription.data === "string"
+              ? JSON.parse(subscription.data)
+              : subscription.data
+            : {}
           if (subData.productData) suspendMetadata.productData = subData.productData
-          const wlId = subData.user_config?.whitelabel_id ?? subData.user_config?.white_label_id ?? subData.productData?.cashoffers?.user_config?.whitelabel_id ?? subData.productData?.cashoffers?.user_config?.white_label_id
-          if (wlId) suspendMetadata.suspensionStrategy = 'DEACTIVATE_USER' // Default for auto-suspend
-        } catch { /* ignore parse errors */ }
+          const wlId =
+            subData.user_config?.whitelabel_id ??
+            subData.user_config?.white_label_id ??
+            subData.productData?.cashoffers?.user_config?.whitelabel_id ??
+            subData.productData?.cashoffers?.user_config?.white_label_id
+          if (wlId) suspendMetadata.suspensionStrategy = "DEACTIVATE_USER" // Default for auto-suspend
+        } catch {
+          /* ignore parse errors */
+        }
 
         await eventBus.publish(
-          SubscriptionDeactivatedEvent.create({
-            subscriptionId,
-            userId: subscription.user_id!,
-            email,
-            subscriptionName: subscription.subscription_name ?? undefined,
-            reason: 'payment_failed',
-            deactivatedBy: 'system',
-            previousStatus: 'active',
-          }, suspendMetadata)
+          SubscriptionDeactivatedEvent.create(
+            {
+              subscriptionId,
+              userId: subscription.user_id!,
+              email,
+              subscriptionName: subscription.subscription_name ?? undefined,
+              reason: "payment_failed",
+              deactivatedBy: "system",
+              previousStatus: "active",
+            },
+            suspendMetadata
+          )
         )
 
         logger.info("Subscription auto-suspended after repeated payment failures", { subscriptionId })
@@ -486,12 +620,14 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           paymentProvider: "Square",
           subscriptionId,
           productId: subscription.product_id || undefined,
+          productName: subscription.subscription_name ?? undefined,
           paymentType: "renewal",
-          environment: subscription.square_environment || "production", // Include environment in event
+          environment: subscription.square_environment || "production",
           errorMessage: error,
           errorCode: "RENEWAL_ERROR",
           willRetry: true,
           nextRetryDate: nextAttempt,
+          triggerSource: "cron",
         })
       )
 

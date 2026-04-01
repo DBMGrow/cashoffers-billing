@@ -12,6 +12,7 @@ import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { CreateCardInputSchema } from "../types/validation.schemas"
 import { CardCreatedEvent } from "@api/domain/events/card-created.event"
 import { CardUpdatedEvent } from "@api/domain/events/card-updated.event"
+import { IRenewSubscriptionUseCase } from "../subscription/renew-subscription.use-case.interface"
 
 interface Dependencies {
   logger: ILogger
@@ -21,6 +22,7 @@ interface Dependencies {
   subscriptionRepository: SubscriptionRepository
   emailService: IEmailService
   eventBus: IEventBus
+  renewSubscriptionUseCase?: IRenewSubscriptionUseCase
 }
 
 /**
@@ -184,20 +186,26 @@ export class CreateCardUseCase implements ICreateCardUseCase {
       }
 
       // Optionally attempt renewal of subscriptions
-      if (attemptRenewal && userId) {
+      if (attemptRenewal && userId && this.deps.renewSubscriptionUseCase) {
         try {
           const subscriptions = await subscriptionRepository.findByUserId(userId)
           // Filter for active/suspended subscriptions due for renewal
           const dueForRenewal = subscriptions.filter(
             (sub) =>
-              (sub.status === "active" || sub.status === "suspend") &&
+              (sub.status === "active" || sub.status === "suspended") &&
               (!sub.renewal_date || new Date(sub.renewal_date) <= new Date())
           )
 
           if (dueForRenewal.length > 0) {
-            logger.info("Found subscriptions to renew after card update", { count: dueForRenewal.length })
-            // Note: Actual renewal handling would be done separately
-            // This just logs that subscriptions exist for renewal
+            logger.info("Attempting subscription renewals after card update", { count: dueForRenewal.length })
+            for (const sub of dueForRenewal) {
+              await this.deps.renewSubscriptionUseCase.execute({
+                subscriptionId: sub.subscription_id!,
+                email,
+                context: input.context,
+                triggeredBy: "card_update",
+              })
+            }
           }
         } catch (renewalError) {
           logger.warn("Failed to process subscription renewals after card creation", { error: renewalError })

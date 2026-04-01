@@ -462,6 +462,7 @@ export interface Products {
   createdAt: Date;
   data: Json | null;
   price: number;
+  product_category: "premium_cashoffers" | "external_cashoffers" | "homeuptick_only";
   product_description: string | null;
   product_id: Generated<number>;
   product_name: string;
@@ -1498,7 +1499,7 @@ export interface Subscriptions {
   provisioning_status: "pending_provisioning" | "provisioned" | null;
   renewal_date: Date;
   square_environment: Generated<"production" | "sandbox" | null>;
-  status: string | null;
+  status: "active" | "cancelled" | "disabled" | "expired" | "inactive" | "paused" | "suspended" | "trial" | null;
   subscription_id: Generated<number>;
   subscription_name: string;
   suspension_date: Date | null;
@@ -1528,7 +1529,7 @@ export interface SubscriptionsDash {
   product_updated_at: Date | null;
   renewal_date: Date;
   role: Generated<string>;
-  status: string | null;
+  status: "active" | "cancelled" | "disabled" | "expired" | "inactive" | "paused" | "suspended" | "trial" | null;
   subscription_created_at: Date;
   subscription_data: Json | null;
   subscription_id: Generated<number>;

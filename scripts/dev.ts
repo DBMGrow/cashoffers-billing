@@ -163,6 +163,10 @@ async function cmdState(userId: string) {
       console.log(`       Amount:      ${sub.amount_formatted}`)
       console.log(`       Duration:    ${sub.duration}`)
       console.log(`       Renewal:     ${sub.renewal_date} ${dim(`(${sub.renewal_in})`)}`)
+      if (sub.payment_failure_count > 0) {
+        const countColor = sub.payment_failure_count >= 3 ? red : yellow
+        console.log(`       Failures:    ${countColor(`${sub.payment_failure_count} / 4 max`)}`)
+      }
       if (sub.next_renewal_attempt) {
         console.log(`       Next retry:  ${yellow(String(sub.next_renewal_attempt))}`)
       }
@@ -191,12 +195,16 @@ async function cmdState(userId: string) {
   console.log()
 }
 
-async function cmdScenario(scenario: string, options: { email?: string }) {
-  header(`Creating scenario: ${scenario}`)
-  const data = await api("POST", "/scenarios", { scenario, email: options.email })
+async function cmdScenario(scenario: string, options: { email?: string; product?: string }) {
+  header(`Creating scenario: ${scenario}${options.product ? ` [${options.product}]` : ""}`)
+  const body: Record<string, unknown> = { scenario }
+  if (options.email) body.email = options.email
+  if (options.product) body.product = options.product
+  const data = await api("POST", "/scenarios", body)
 
   console.log(green("\n✓ Scenario created\n"))
   kv("Scenario", data.scenario, 2)
+  kv("Product type", data.product_type, 2)
   kv("User ID", data.user_id, 2)
   kv("Email", data.email, 2)
   kv("Subscription ID", data.subscription_id, 2)
@@ -228,7 +236,7 @@ async function cmdSetState(subId: string, pairs: string[]) {
 
     if (key === "cancel_on_renewal" || key === "downgrade_on_renewal") {
       patch[key] = raw === "true"
-    } else if (key === "amount") {
+    } else if (key === "amount" || key === "payment_failure_count") {
       patch[key] = parseInt(raw, 10)
     } else if (key === "next_renewal_attempt" && raw === "null") {
       patch[key] = null
@@ -345,6 +353,18 @@ async function cmdCleanup(userId: string) {
   console.log()
 }
 
+async function cmdSetPassword(userId: string, password: string) {
+  header(`Set Password — User ${userId}`)
+  const data = await api("POST", `/user/${userId}/set-password`, { password })
+
+  console.log(green("\n✓ Password updated\n"))
+  kv("User ID", data.user_id, 2)
+  kv("Email", data.email, 2)
+  console.log(`\n  ${dim(data.message)}`)
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${userId}`)}`)
+  console.log()
+}
+
 async function cmdBreakCard(userId: string) {
   header(`Break Card — User ${userId}`)
   const data = await api("POST", `/card/${userId}/break`)
@@ -399,15 +419,22 @@ program
 Scenarios:
   renewal-due            Active sub overdue → cron will charge
   payment-failure        Active sub overdue with BROKEN card → cron will fail
-  payment-retry-1        Failed once, retry overdue → cron will retry
-  payment-retry-2        Failed twice, second retry window
-  payment-retry-3        Failed three times → next failure auto-suspends
+  payment-retry-1        1 prior failure (payment_failure_count=1), retry overdue → break-card then cron-run
+  payment-retry-2        2 prior failures (count=2), second retry window
+  payment-retry-3        3 prior failures (count=3) → next failure auto-suspends
   trial-expiring         Trial expiring in 9 days → cron sends warning
-  trial-expired          Trial past expiry → cron cancels
+  trial-expired          Trial past expiry → cron converts (P-TRIAL) or cancels
   cancel-on-renewal      Marked for cancel → cron cancels, not charges
-  downgrade-on-renewal   Marked for downgrade → cron skips
-  paused                 Subscription in paused state`)
+  downgrade-on-renewal   cancel_on_renewal + whitelabel=2 (DOWNGRADE_TO_FREE)
+  paused                 Subscription in paused state (CO deactivated)
+  suspended              Suspended after max retries (count=4), BROKEN card → fix-card to reactivate
+
+Product types (--product flag):
+  p-co                   Default. CO Premium: managed=true, role=AGENT, is_premium=1
+  p-hu                   HU Standalone: managed=false, role=AGENT, is_premium=0 (CO external)
+  p-trial                HU Free Trial: managed=true, role=SHELL, is_premium=0 (CO=SHELL)`)
   .option("-e, --email <email>", "Email address for the test user")
+  .option("-p, --product <type>", "Product type: p-co (default), p-hu, p-trial")
   .action(cmdScenario)
 
 program
@@ -419,7 +446,8 @@ Fields:
   next_renewal_attempt=<ISO>   or next_renewal_attempt=null to clear
   cancel_on_renewal=true|false
   downgrade_on_renewal=true|false
-  status=active|trial|paused|cancelled
+  status=active|trial|paused|cancelled|suspended
+  payment_failure_count=<0-4>  e.g. payment_failure_count=3
   square_environment=production|sandbox
   amount=<cents>               e.g. amount=25000`)
   .action(cmdSetState)
@@ -455,6 +483,11 @@ program
   .command("cleanup <user_id>")
   .description("Delete user and all associated data (transactions, subscriptions, cards)")
   .action(cmdCleanup)
+
+program
+  .command("set-password <user_id> <password>")
+  .description("Set password for a user (for testing manage flows)")
+  .action(cmdSetPassword)
 
 program
   .command("break-card <user_id>")

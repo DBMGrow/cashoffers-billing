@@ -6,6 +6,7 @@ import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { UserCardRepository } from "@api/lib/repositories"
 import type { TransactionRepository } from "@api/lib/repositories"
 import type { PurchaseRequestRepository } from "@api/lib/repositories"
+import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IPurchaseExistingUserUseCase } from "./purchase-existing-user.use-case.interface"
 import { ExistingUserPurchaseInput, PurchaseSubscriptionOutput } from "../types/subscription.types"
@@ -27,6 +28,7 @@ import {
   isUserFacingError,
   sendSystemErrorAlert,
   sendCustomerPurchaseErrorEmail,
+  seedHomeUptickSubscription,
 } from "./purchase-helpers"
 
 interface Dependencies {
@@ -38,6 +40,7 @@ interface Dependencies {
   userCardRepository: UserCardRepository
   transactionRepository: TransactionRepository
   purchaseRequestRepository: PurchaseRequestRepository
+  homeUptickSubscriptionRepository: HomeUptickSubscriptionRepository
   eventBus: IEventBus
   adminAlertEmail: string
 }
@@ -130,6 +133,21 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         pricing,
         payment,
       })
+
+      // Seed HomeUptick subscription from product template
+      try {
+        await seedHomeUptickSubscription(
+          { logger, homeUptickSubscriptionRepository: this.deps.homeUptickSubscriptionRepository },
+          { userId: v.userId, productData }
+        )
+      } catch (huError) {
+        logger.error("Failed to seed HomeUptick subscription", {
+          userId: v.userId,
+          subscriptionId: subscription.subscription_id,
+          error: huError instanceof Error ? huError.message : String(huError),
+        })
+        // Non-blocking — the subscription was already created successfully
+      }
 
       // Publish events and finalize
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")

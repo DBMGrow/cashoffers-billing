@@ -11,17 +11,48 @@ export interface SubscriptionCancelledEmailProps {
   effectiveDate?: string
   isSandbox?: boolean
   whitelabel?: WhitelabelBrandingProps
+  /** True when the subscription was already cancelled (e.g. executed at renewal), false when scheduled for future cancellation */
+  immediate?: boolean
 }
 
 /**
- * User notification sent when their subscription is set to cancel on renewal.
+ * User notification sent when a subscription is cancelled or scheduled for cancellation.
+ * Use `immediate: true` when the cancellation has already taken effect (e.g. executed at renewal).
  */
 export default function SubscriptionCancelledEmail({
   subscription,
   effectiveDate,
   isSandbox,
   whitelabel,
+  immediate = false,
 }: SubscriptionCancelledEmailProps) {
+  if (immediate) {
+    return (
+      <StandardEmail
+        title="Subscription Cancelled"
+        preview={`Your ${subscription} subscription has been cancelled.`}
+        isSandbox={isSandbox}
+        whitelabel={whitelabel}
+      >
+        <EmailHeading>Subscription Cancelled</EmailHeading>
+        <EmailDivider />
+        <EmailText>
+          Your subscription has been cancelled. You will no longer be charged, and your access has
+          ended.
+        </EmailText>
+
+        <SummaryTable>
+          <SummaryRow isHeader label="Cancellation Details" value="" />
+          <SummaryRow label="Subscription" value={subscription} bordered={false} />
+        </SummaryTable>
+
+        <EmailText variant="muted" style={{ marginTop: '20px', marginBottom: '0' }}>
+          If you have any questions, please contact our support team.
+        </EmailText>
+      </StandardEmail>
+    )
+  }
+
   return (
     <StandardEmail
       title="Subscription Cancellation Scheduled"

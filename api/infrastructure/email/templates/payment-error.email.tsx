@@ -21,22 +21,24 @@ export interface PaymentErrorEmailProps {
   willRetry?: boolean
   /** When the next retry will happen */
   nextRetryDate?: string
-  /** Urgency level: 'first' | 'second' | 'final' */
-  urgency?: 'first' | 'second' | 'final'
+  /** Urgency level: 'first' | 'second' | 'third' | 'final' */
+  urgency?: 'first' | 'second' | 'third' | 'final'
   whitelabel?: WhitelabelBrandingProps
 }
 
 function getUrgencyMessage(urgency?: string, nextRetryDate?: string, willRetry?: boolean): string {
   if (!willRetry) {
-    return 'This was the final attempt. Your subscription has been suspended due to repeated payment failures. Update your payment method to restore access.'
+    return 'Your subscription has been suspended due to repeated payment failures. Update your payment method to restore access.'
   }
   switch (urgency) {
     case 'first':
       return `We'll automatically retry your payment${nextRetryDate ? ` on ${nextRetryDate}` : ' soon'}. To avoid interruption, please update your payment method.`
     case 'second':
-      return `This is the second time we've been unable to process your payment. We'll retry once more${nextRetryDate ? ` on ${nextRetryDate}` : ''}. Please update your payment method to avoid suspension.`
+      return `This is the second time we've been unable to process your payment. We'll retry again${nextRetryDate ? ` on ${nextRetryDate}` : ''}. Please update your payment method to avoid suspension.`
+    case 'third':
+      return `This is your third failed payment. We'll make one final attempt${nextRetryDate ? ` on ${nextRetryDate}` : ''}. If that payment fails, your subscription will be suspended. Please update your payment method now.`
     case 'final':
-      return `This is our final retry attempt${nextRetryDate ? ` — scheduled for ${nextRetryDate}` : ''}. If this payment fails again, your subscription will be automatically suspended.`
+      return `This is our last retry attempt${nextRetryDate ? `, scheduled for ${nextRetryDate}` : ''}. If this payment fails, your subscription will be automatically suspended.`
     default:
       return 'Please update your payment method to avoid any service interruption.'
   }
@@ -57,8 +59,8 @@ export default function PaymentErrorEmail({
   urgency,
   whitelabel,
 }: PaymentErrorEmailProps) {
-  const urgencyVariant = urgency === 'final' || !willRetry ? 'danger' as const : 'warning' as const
-  const heading = urgency === 'final' ? 'Final Payment Attempt' : !willRetry ? 'Subscription Suspended' : 'Payment Failed'
+  const urgencyVariant = !willRetry ? 'danger' as const : 'warning' as const
+  const heading = !willRetry ? 'Subscription Suspended' : urgency === 'third' ? 'Suspension Warning' : 'Payment Failed'
 
   return (
     <StandardEmail
@@ -87,7 +89,7 @@ export default function PaymentErrorEmail({
         />
       </SummaryTable>
 
-      <InfoBox variant={urgencyVariant} title={urgency === 'final' ? 'Urgent: Action required' : 'Action required'}>
+      <InfoBox variant={urgencyVariant} title={urgency === 'third' || !willRetry ? 'Urgent: Action required' : 'Action required'}>
         {getUrgencyMessage(urgency, nextRetryDate, willRetry)}
       </InfoBox>
 

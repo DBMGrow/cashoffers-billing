@@ -16,7 +16,7 @@ flowchart TD
   G -- Yes --> H[Downgrade to target product] --> DONE
   G -- No --> I{free_trial +\ntrial_ends_at expired?}
   I -- Yes --> J{HomeUptick addon?}
-  J -- Yes --> J2[Fetch tier from HomeUptick API\ncharge accordingly]
+  J -- Yes --> J2[Read tier config from\nHomeuptick_Subscriptions\nFetch contact count from HU API\nCalculate tier charge]
   J -- No --> J3[Attempt payment\nfor renewal_cost]
   J2 --> K{Success?}
   J3 --> K
@@ -24,7 +24,7 @@ flowchart TD
   K -- No --> M[status = inactive\nLog failure\nEmit PaymentFailed → failure email\nupdateNextRenewalAttempt] --> DONE
   I -- No --> N[RenewSubscriptionUseCase]
   N --> HU{HomeUptick addon?}
-  HU -- Yes --> S[Fetch tier from HomeUptick API\ncharge accordingly]
+  HU -- Yes --> S[Read tier config from\nHomeuptick_Subscriptions\nFetch contact count from HU API\nCalculate tier charge]
   HU -- No --> O[CreatePaymentUseCase → Square]
   S --> P{Success?}
   O --> P
@@ -40,6 +40,15 @@ flowchart TD
 | 2nd | +3 days |
 | 3rd | +7 days |
 | 4th | suspend (not yet automated) |
+
+## HomeUptick Tier Calculation
+
+At renewal, HU tier pricing is read from `Homeuptick_Subscriptions` (not from subscription JSON). See [HomeUptick Data Ownership](../../business/decisions/homeuptick-data-ownership).
+
+1. Read `base_contacts`, `contacts_per_tier`, `price_per_tier` from `Homeuptick_Subscriptions`
+2. Fetch current contact count from HU API
+3. Calculate tiers: `max(0, ceil((contacts - base_contacts) / contacts_per_tier))`
+4. Charge: `tiers × price_per_tier`
 
 ## Key Files
 - `api/cron/subscriptionsCron.ts`

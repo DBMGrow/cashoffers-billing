@@ -39,6 +39,9 @@ sequenceDiagram
     FE->>FE: Show error (not Welcome)
   end
   API->>API: Emit SubscriptionCreated, PaymentProcessed, PurchaseRequestCompleted
+  opt Product includes HomeUptick
+    API->>DB: Create Homeuptick_Subscriptions row from product template
+  end
 ```
 
 ### Error Handling After Payment
@@ -158,6 +161,23 @@ sequenceDiagram
   API->>DB: CreateSubscription
   API-->>FE: { subscriptionId }
 ```
+
+---
+
+## HomeUptick Subscription Seeding
+
+When a product includes HomeUptick (`Products.data.homeuptick.enabled = true`), the purchase flow creates a `Homeuptick_Subscriptions` row seeded from the product template:
+
+| Product template field | → | Homeuptick_Subscriptions column |
+|---|---|---|
+| `homeuptick.base_contacts` | → | `base_contacts` |
+| `homeuptick.contacts_per_tier` | → | `contacts_per_tier` |
+| `homeuptick.price_per_tier` | → | `price_per_tier` |
+| `homeuptick.free_trial.contacts` | → | `free_trial_contacts` |
+| `homeuptick.free_trial.duration_days` | → | `free_trial_days` |
+| computed from duration_days | → | `free_trial_ends` |
+
+The `Homeuptick_Subscriptions` row is the live source of truth for HU config. The product JSON is just the template. See [HomeUptick Data Ownership](../../business/decisions/homeuptick-data-ownership).
 
 ---
 

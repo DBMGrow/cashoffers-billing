@@ -313,7 +313,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePaymentFailed(event: PaymentFailedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, errorMessage, errorCode, errorCategory, subscriptionId, cardLast4, environment, willRetry, nextRetryDate } = event.payload
+        const { email, amount, errorMessage, errorCode, errorCategory, subscriptionId, productName, cardLast4, environment, willRetry, nextRetryDate } = event.payload
 
         this.logger.info('Sending payment failed email', {
           email,
@@ -323,14 +323,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
         })
 
         // Determine urgency based on retry context
-        let urgency: 'first' | 'second' | 'final' | undefined
+        let urgency: 'first' | 'second' | 'third' | 'final' | undefined
         if (willRetry && nextRetryDate) {
           const daysUntilRetry = Math.round(
             (new Date(nextRetryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
           )
           if (daysUntilRetry <= 2) urgency = 'first'
           else if (daysUntilRetry <= 5) urgency = 'second'
-          else urgency = 'final'
+          else urgency = 'third'
         } else if (!willRetry) {
           urgency = 'final'
         }
@@ -341,8 +341,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
 
         const subject = !willRetry
           ? 'Subscription Suspended - Payment Failed'
-          : urgency === 'final'
-            ? 'Final Payment Attempt - Action Required'
+          : urgency === 'third'
+            ? 'Suspension Warning - Action Required'
             : 'Payment Failed - Action Required'
 
         const { userId } = event.payload
@@ -355,7 +355,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             amount={this.formatCurrency(amount)}
             errorMessage={errorMessage}
             declineReason={errorCode ?? errorCategory}
-            subscription={subscriptionId ? `Subscription #${subscriptionId}` : undefined}
+            subscription={productName ?? (subscriptionId ? `Subscription #${subscriptionId}` : undefined)}
             cardLast4={cardLast4}
             updatePaymentUrl={billingUrl}
             date={this.formatDate()}
@@ -613,7 +613,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionCancelled(event: SubscriptionCancelledEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, subscriptionName, effectiveDate } = event.payload
+        const { email, subscriptionName, effectiveDate, cancelOnRenewal } = event.payload
 
         if (!email) {
           this.logger.debug('No email provided for subscription cancellation notification', {
@@ -622,13 +622,46 @@ export class EmailNotificationHandler extends BaseEventHandler {
           return
         }
 
+        const { userId } = event.payload
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
+        // When the white label dictates DOWNGRADE_TO_FREE, send a downgrade email rather
+        // than a cancellation email — the user ends up on the free plan, not fully cancelled.
+        const suspensionStrategy = event.metadata?.suspensionStrategy as string | undefined
+        if (suspensionStrategy === 'DOWNGRADE_TO_FREE') {
+          this.logger.info('Sending subscription downgraded-to-free email (cancel_on_renewal + DOWNGRADE_TO_FREE)', {
+            email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+
+          const html = await render(
+            <SubscriptionDowngradedEmail
+              subscription={subscriptionName ?? 'your subscription'}
+              targetPlan="Free"
+              immediate={true}
+              whitelabel={this.toBrandingProps(whitelabelInfo)}
+            />
+          )
+
+          await this.emailService.sendEmail({
+            to: email,
+            subject: 'Your Subscription Has Been Downgraded to Free',
+            html,
+            templateName: 'subscription-downgraded',
+            fromName: this.fromName(whitelabelInfo),
+          })
+          return
+        }
+
+        // cancelOnRenewal: true  → scheduled for future cancellation ("Will Be Cancelled")
+        // cancelOnRenewal: false → already cancelled at renewal ("Has Been Cancelled")
+        const immediate = !cancelOnRenewal
+
         this.logger.info('Sending subscription cancelled email', {
           email,
           subscriptionId: event.payload.subscriptionId,
+          immediate,
         })
-
-        const { userId } = event.payload
-        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
         const html = await render(
           <SubscriptionCancelledEmail
@@ -638,13 +671,18 @@ export class EmailNotificationHandler extends BaseEventHandler {
                 ? effectiveDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                 : undefined
             }
+            immediate={immediate}
             whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
+        const subject = immediate
+          ? 'Your Subscription Has Been Cancelled'
+          : 'Your Subscription Will Be Cancelled'
+
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Your Subscription Will Be Cancelled',
+          subject,
           html,
           templateName: 'subscription-cancelled',
           fromName: this.fromName(whitelabelInfo),

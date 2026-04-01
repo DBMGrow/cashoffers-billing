@@ -19,7 +19,8 @@ import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-create
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
 import type { PaymentContext } from "@api/config/config.interface"
-import { ProductData, ProductUserConfig } from "@api/domain/types/product-data.types"
+import { ProductData, ProductUserConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
+import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
 import { v4 as uuidv4 } from "uuid"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -600,6 +601,60 @@ export async function createCardHelper(
     const squareCode = error instanceof SquareApiError ? error.squareCode : undefined
     return { success: false, error: message, squareCode }
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// seedHomeUptickSubscription
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Seeds a Homeuptick_Subscriptions row from the product's HomeUptick template.
+ * Only creates a row if the product has homeuptick.enabled = true.
+ *
+ * Product JSON is the template; Homeuptick_Subscriptions is the live source of truth.
+ * See docs/business/decisions/homeuptick-data-ownership.md
+ */
+export async function seedHomeUptickSubscription(
+  deps: {
+    logger: ILogger
+    homeUptickSubscriptionRepository: HomeUptickSubscriptionRepository
+  },
+  params: {
+    userId: number
+    productData: ProductData | undefined
+  }
+): Promise<void> {
+  const huConfig = params.productData?.homeuptick
+  if (!huConfig?.enabled) return
+
+  const now = new Date()
+  const freeTrial = huConfig.free_trial
+
+  let freeTrialEnds: Date | null = null
+  if (freeTrial?.enabled && freeTrial.duration_days) {
+    freeTrialEnds = new Date(now)
+    freeTrialEnds.setDate(freeTrialEnds.getDate() + freeTrial.duration_days)
+  }
+
+  await deps.homeUptickSubscriptionRepository.create({
+    user_id: params.userId,
+    active: 1,
+    base_contacts: huConfig.base_contacts ?? null,
+    contacts_per_tier: huConfig.contacts_per_tier ?? null,
+    price_per_tier: huConfig.price_per_tier ?? null,
+    free_trial_contacts: freeTrial?.contacts ?? null,
+    free_trial_days: freeTrial?.duration_days ?? null,
+    free_trial_ends: freeTrialEnds,
+    created_at: now,
+    updated_at: now,
+  })
+
+  deps.logger.info("Seeded HomeUptick subscription from product template", {
+    userId: params.userId,
+    baseContacts: huConfig.base_contacts,
+    freeTrialEnabled: freeTrial?.enabled ?? false,
+    freeTrialEnds: freeTrialEnds?.toISOString() ?? null,
+  })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

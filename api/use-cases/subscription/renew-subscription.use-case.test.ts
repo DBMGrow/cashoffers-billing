@@ -442,7 +442,7 @@ describe("RenewSubscriptionUseCase", () => {
 
     it("should reactivate suspended subscription", async () => {
       // Update subscription to suspended
-      await subscriptionRepo.update(1, { status: "suspend" })
+      await subscriptionRepo.update(1, { status: "suspended" })
 
       await useCase.execute({
         subscriptionId: 1,

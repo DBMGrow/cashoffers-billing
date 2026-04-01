@@ -71,6 +71,8 @@ export interface RenewSubscriptionInput {
   subscriptionId: number
   email: string
   context?: PaymentContext
+  /** Identifies what triggered the renewal attempt. Defaults to 'cron'. */
+  triggeredBy?: 'cron' | 'card_update'
 }
 
 /**

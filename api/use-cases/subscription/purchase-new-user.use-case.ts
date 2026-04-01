@@ -7,6 +7,7 @@ import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { UserCardRepository } from "@api/lib/repositories"
 import type { TransactionRepository } from "@api/lib/repositories"
 import type { PurchaseRequestRepository } from "@api/lib/repositories"
+import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IPurchaseNewUserUseCase } from "./purchase-new-user.use-case.interface"
 import { NewUserPurchaseInput, PurchaseSubscriptionOutput } from "../types/subscription.types"
@@ -36,6 +37,7 @@ import {
   isUserFacingError,
   sendSystemErrorAlert,
   sendCustomerPurchaseErrorEmail,
+  seedHomeUptickSubscription,
 } from "./purchase-helpers"
 import { whitelabelResolverService } from "@api/lib/services"
 import { generateResetToken } from "@api/utils/generate-reset-token"
@@ -51,6 +53,7 @@ interface Dependencies {
   userCardRepository: UserCardRepository
   transactionRepository: TransactionRepository
   purchaseRequestRepository: PurchaseRequestRepository
+  homeUptickSubscriptionRepository: HomeUptickSubscriptionRepository
   eventBus: IEventBus
   /** Email address to notify when user provisioning fails after a successful payment */
   adminAlertEmail: string
@@ -200,6 +203,23 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       })
 
       const userId = provisioning.success ? provisioning.userId : null
+
+      // Seed HomeUptick subscription from product template (requires userId)
+      if (provisioning.success) {
+        try {
+          await seedHomeUptickSubscription(
+            { logger, homeUptickSubscriptionRepository: this.deps.homeUptickSubscriptionRepository },
+            { userId: provisioning.userId, productData }
+          )
+        } catch (huError) {
+          logger.error("Failed to seed HomeUptick subscription", {
+            userId: provisioning.userId,
+            subscriptionId: subscription.subscription_id,
+            error: huError instanceof Error ? huError.message : String(huError),
+          })
+          // Non-blocking — the subscription was already created successfully
+        }
+      }
 
       // Publish events and finalize
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "FINALIZING")

@@ -62,7 +62,7 @@ free_trial → active → paused
 ## Edge Cases
 - User is inactive in main API → skip renewal (no payment, no update)
 - Payment fails → schedule retry (see [Payment Retry Rules](../rules/payment-retry-rules))
-- HomeUptick addon subscriptions are separate subscriptions linked to the main one
+- HomeUptick config lives in `Homeuptick_Subscriptions`, not in subscription JSON — see [HomeUptick Data Ownership](../decisions/homeuptick-data-ownership)
 - Free trial expiration triggers its own cron path
 
 ## Related Rules

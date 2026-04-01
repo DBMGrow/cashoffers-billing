@@ -12,3 +12,4 @@ What the system does from a user perspective.
 | [Whitelabel Support](whitelabel-support) | Brand-specific checkout and user assignment |
 | [Email Notifications](email-notifications) | Transactional emails for lifecycle events |
 | [Webhook Handling](webhook-handling) | React to user activation/deactivation from main API |
+| [Billing Scenario Matrix](billing-scenario-matrix) | Exhaustive list of CO/HU state combinations, lifecycle events, and edge cases |

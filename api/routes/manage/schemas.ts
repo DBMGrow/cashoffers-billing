@@ -349,6 +349,49 @@ export const UpdateCardRoute = {
 }
 
 /**
+ * Enrollment response schema
+ */
+export const EnrollmentResponseSchema = z.object({
+  success: z.literal("success"),
+  data: z.object({
+    eligible: z.boolean(),
+    product_category: z.enum(["external_cashoffers", "homeuptick_only"]).nullable(),
+    reason: z.string(),
+    products: z.array(z.any()),
+  }),
+})
+
+/**
+ * GET /manage/enrollment - Check enrollment eligibility for users without a subscription
+ */
+export const GetEnrollmentRoute = {
+  method: "get" as const,
+  path: "/enrollment",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: EnrollmentResponseSchema,
+        },
+      },
+      description: "Enrollment eligibility check",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+    409: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "User already has an active subscription",
+    },
+  },
+  tags: ["Manage"],
+  summary: "Check enrollment eligibility",
+  description:
+    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category (external_cashoffers or homeuptick_only) and available products based on the user's current CashOffers account status.",
+}
+
+/**
  * POST /manage/purchase - Change subscription plan
  */
 export const ManagePurchaseRoute = {

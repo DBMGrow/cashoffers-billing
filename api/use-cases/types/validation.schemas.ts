@@ -72,6 +72,7 @@ export type CreateSubscriptionInputValidated = z.infer<typeof CreateSubscription
 export const RenewSubscriptionInputSchema = z.object({
   subscriptionId: z.number().int().positive("Subscription ID must be a positive integer"),
   email: z.string().email("Invalid email address"),
+  triggeredBy: z.enum(['cron', 'card_update']).optional(),
 })
 
 export type RenewSubscriptionInputValidated = z.infer<typeof RenewSubscriptionInputSchema>

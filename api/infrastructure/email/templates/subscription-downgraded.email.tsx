@@ -11,37 +11,42 @@ export interface SubscriptionDowngradedEmailProps {
   targetPlan?: string
   /** Date when the downgrade takes effect */
   effectiveDate?: string
+  /** True when the downgrade has already happened (vs. scheduled for a future renewal) */
+  immediate?: boolean
   isSandbox?: boolean
   whitelabel?: WhitelabelBrandingProps
 }
 
 /**
- * User notification sent when their subscription is scheduled to downgrade on renewal.
+ * User notification sent when their subscription is downgraded (or scheduled to downgrade on renewal).
  */
 export default function SubscriptionDowngradedEmail({
   subscription,
   targetPlan,
   effectiveDate,
+  immediate,
   isSandbox,
   whitelabel,
 }: SubscriptionDowngradedEmailProps) {
+  const title = immediate ? 'Your Subscription Has Been Downgraded' : 'Subscription Downgrade Scheduled'
+  const bodyText = immediate
+    ? 'Your subscription has been downgraded. Your account has been moved to the free plan.'
+    : 'Your subscription has been scheduled for a plan change at the end of your current billing period. You will continue on your current plan until then.'
+
   return (
     <StandardEmail
-      title="Subscription Downgrade Scheduled"
-      preview={`Your ${subscription} subscription is scheduled to change at the end of your billing period.`}
+      title={title}
+      preview={immediate ? `Your ${subscription} subscription has been downgraded to the free plan.` : `Your ${subscription} subscription is scheduled to change at the end of your billing period.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
     >
-      <EmailHeading>Subscription Downgrade Scheduled</EmailHeading>
+      <EmailHeading>{title}</EmailHeading>
       <EmailDivider />
-      <EmailText>
-        Your subscription has been scheduled for a plan change at the end of your current billing
-        period. You will continue on your current plan until then.
-      </EmailText>
+      <EmailText>{bodyText}</EmailText>
 
       <SummaryTable>
         <SummaryRow isHeader label="Plan Change Details" value="" />
-        <SummaryRow label="Current Plan" value={subscription} />
+        <SummaryRow label={immediate ? 'Previous Plan' : 'Current Plan'} value={subscription} />
         {targetPlan && <SummaryRow label="New Plan" value={targetPlan} />}
         {effectiveDate && (
           <SummaryRow label="Effective Date" value={effectiveDate} bordered={false} />

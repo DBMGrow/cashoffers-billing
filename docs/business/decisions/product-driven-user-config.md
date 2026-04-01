@@ -26,6 +26,8 @@ Products store a `user_config` JSON field that defines how a user should be conf
 - `user_config` in `subscription.data` acts as audit trail of what config was applied
 - Requires discipline — `user_config` must be set correctly when creating products
 
+> **Note:** HomeUptick config is NOT stored in `subscription.data`. Product JSON defines the HU template; at purchase, it seeds a `Homeuptick_Subscriptions` row which is the live source of truth. See [HomeUptick Data Ownership](homeuptick-data-ownership).
+
 ## Impact
 - All new products should define `user_config` when user configuration matters
 - Upgrade/downgrade logic must read new product's `user_config` and apply role mapping

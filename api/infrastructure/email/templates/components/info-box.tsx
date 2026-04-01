@@ -1,7 +1,7 @@
 import { Section, Text } from '@react-email/components'
 import { colors, font, spacing, radius } from './tokens'
 
-type InfoBoxVariant = 'warning' | 'info'
+type InfoBoxVariant = 'warning' | 'info' | 'danger'
 
 interface InfoBoxProps {
   variant?: InfoBoxVariant
@@ -19,6 +19,11 @@ const variantStyles: Record<InfoBoxVariant, { bg: string; borderColor: string; t
     bg: '#eff6ff',
     borderColor: '#bfdbfe',
     textColor: '#1e40af',
+  },
+  danger: {
+    bg: '#fef2f2',
+    borderColor: '#fca5a5',
+    textColor: '#991b1b',
   },
 }
 

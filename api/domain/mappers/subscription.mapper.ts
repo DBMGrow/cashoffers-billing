@@ -66,7 +66,7 @@ export function toDatabase(entity: Subscription): Partial<SubscriptionDbModel> {
     next_renewal_attempt: props.nextRenewalAttempt,
     payment_failure_count: props.paymentFailureCount,
     status: props.status.value,
-    data: props.data,
+    data: props.data != null ? (typeof props.data === "string" ? props.data : JSON.stringify(props.data)) : null,
     cancel_on_renewal: props.cancelOnRenewal,
     downgrade_on_renewal: props.downgradeOnRenewal,
     createdAt: props.createdAt,
