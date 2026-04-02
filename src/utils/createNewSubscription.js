@@ -70,16 +70,22 @@ export default async function createNewSubscription(product, user, userWithEmail
         subscriptionData.team_id = team?.data?.team_id
       }
     } else {
-      // update user to be premium
-      const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
-        method: "PUT",
-        headers: { "x-api-token": process.env.API_MASTER_TOKEN },
-        body: convertToFormata({ ...(!isKWSubscribe && { is_premium: 1 }), role: newRole }),
-      })
+      const userUpdateBody = {
+        ...(!isKWSubscribe && { is_premium: 1 }),
+        ...(newRole && { role: newRole }),
+      }
 
-      const userUpdate = await userRequest.json()
+      if (Object.keys(userUpdateBody).length > 0) {
+        const userRequest = await fetch(process.env.API_URL + "/users/" + user.user_id, {
+          method: "PUT",
+          headers: { "x-api-token": process.env.API_MASTER_TOKEN },
+          body: convertToFormata(userUpdateBody),
+        })
 
-      if (userUpdate?.success !== "success") throw new CodedError(JSON.stringify(userUpdate), "CNS06")
+        const userUpdate = await userRequest.json()
+
+        if (userUpdate?.success !== "success") throw new CodedError(JSON.stringify(userUpdate), "CNS06")
+      }
     }
 
     const subscription = await Subscription.create({
