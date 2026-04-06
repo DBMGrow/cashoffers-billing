@@ -393,6 +393,47 @@ async function cmdFixCard(userId: string) {
   console.log()
 }
 
+async function cmdVerify() {
+  header("Product & Subscription Verification")
+  const data = await api("GET", "/verify")
+
+  section("Stats")
+  kv("Products", data.stats.products, 2)
+  kv("Active subscriptions", data.stats.subscriptions, 2)
+  kv("HU subscriptions", data.stats.hu_subscriptions, 2)
+  kv("Users checked", data.stats.users_checked, 2)
+
+  section("Summary")
+  const verdictColor = data.summary.verdict === "PASS" ? green : red
+  kv("Verdict", verdictColor(data.summary.verdict), 2)
+  kv("Errors", data.summary.errors === 0 ? green("0") : red(String(data.summary.errors)), 2)
+  kv("Warnings", data.summary.warnings === 0 ? green("0") : yellow(String(data.summary.warnings)), 2)
+
+  if (data.issues.length > 0) {
+    section("Issues")
+    for (const issue of data.issues) {
+      const icon = issue.severity === "error" ? red("✗") : yellow("⚠")
+      const label = `${issue.entity} #${issue.id}`
+      console.log(`  ${icon} ${bold(label)}: ${issue.message}`)
+    }
+  } else {
+    console.log(green("\n  ✓ All products and subscriptions are in good shape!\n"))
+  }
+}
+
+async function cmdAuthLink(userId: string) {
+  header(`Auth Link — User ${userId}`)
+  const data = await api("GET", `/auth-link/${userId}`)
+
+  console.log(green("\n✓ Auth link generated\n"))
+  kv("User ID", data.user_id, 2)
+  kv("Expires", data.expires_in, 2)
+  console.log(`\n  ${bold("Manage URL:")}`)
+  console.log(`  ${cyan(data.manage_url)}`)
+  console.log(`\n  ${dim("Open this URL in a browser to log in as user " + userId)}`)
+  console.log()
+}
+
 // ─── CLI Definition ───────────────────────────────────────────────────────────
 
 const program = new Command()
@@ -428,6 +469,7 @@ Scenarios:
   downgrade-on-renewal   cancel_on_renewal + whitelabel=2 (DOWNGRADE_TO_FREE)
   paused                 Subscription in paused state (CO deactivated)
   suspended              Suspended after max retries (count=4), BROKEN card → fix-card to reactivate
+  premium-no-sub         Premium user (is_premium=1) with NO subscription → test manage enrollment
 
 Product types (--product flag):
   p-co                   Default. CO Premium: managed=true, role=AGENT, is_premium=1
@@ -498,6 +540,16 @@ program
   .command("fix-card <user_id>")
   .description("Restore user's card with a valid sandbox card (payments will succeed)")
   .action(cmdFixCard)
+
+program
+  .command("verify")
+  .description("Verify all products and subscriptions match expected configuration")
+  .action(cmdVerify)
+
+program
+  .command("auth-link <user_id>")
+  .description("Generate a valid auth link for the /manage routes (30-day expiry)")
+  .action(cmdAuthLink)
 
 // ─── env subcommand group ─────────────────────────────────────────────────────
 

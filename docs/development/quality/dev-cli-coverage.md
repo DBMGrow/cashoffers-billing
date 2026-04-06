@@ -17,6 +17,8 @@ All commands in `yarn dev:tools` (`scripts/dev.ts`).
 | `set-password <user_id> <password>` | Set user password for testing manage flows | yes |
 | `break-card <user_id>` | Replace card with invalid one (forces payment failures) | yes |
 | `fix-card <user_id>` | Restore card with valid sandbox card | yes |
+| `verify` | Verify all products and subscriptions match expected configuration | yes |
+| `auth-link <user_id>` | Generate a valid auth link for /manage routes (30-day JWT) | yes |
 
 ## Scenarios
 
@@ -33,6 +35,7 @@ All commands in `yarn dev:tools` (`scripts/dev.ts`).
 | `downgrade-on-renewal` | 0 | valid | whitelabel=2, cancel → DOWNGRADE_TO_FREE behavior |
 | `paused` | 0 | valid | CO deactivated — not picked up by cron |
 | `suspended` | 4 | broken | Max retries exhausted — fix-card triggers immediate payment |
+| `premium-no-sub` | — | none | Premium user (is_premium=1) with NO subscription — test manage enrollment |
 
 ## --product Flag (Product Type Variants)
 

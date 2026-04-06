@@ -16,17 +16,17 @@ Exhaustive list of every CashOffers / HomeUptick billing scenario the system mus
 
 ## Product Types
 
-| ID | Product | CO managed | CO access | HU access | Billing |
-|---|---|---|---|---|---|
-| **P-CO** | CO Premium | true | Premium (is_premium=1) | Base 500 included; usage-based tiers auto-applied by contact count | CO base + HU usage combined charge |
-| **P-HU** | HU Paid (standalone) | false | External (not managed) | Usage-based paid | HU only |
-| **P-TRIAL** | HU Free Trial | true | SHELL | Trial (card required, auto-converts to paid at trial end) | Nothing during trial; HU billing starts at conversion |
+| ID | Product | `product_category` | CO managed | CO access | HU access | Billing |
+|---|---|---|---|---|---|---|
+| **P-CO** | CO Premium | `premium_cashoffers` | true | Premium (is_premium=1) | Base 500 included; usage-based tiers auto-applied by contact count | CO base + HU usage combined charge |
+| **P-HU** | HU Paid (standalone) | `external_cashoffers` | false | External (not managed) | Usage-based paid | HU only |
+| **P-TRIAL** | HU Free Trial | `homeuptick_only` | true | SHELL | Trial (card required, auto-converts to paid at trial end) | Nothing during trial; HU billing starts at conversion |
 
 ### Product Notes
 
-- **P-CO** covers all CO premium subscriptions. HU tiers are not a separate product — they're automatic based on contact count and calculated at charge time.
-- **P-HU** is for users whose CO is managed externally (KW Offerings agents, team members). `managed=false` ensures billing never touches their CO account.
-- **P-TRIAL** is a billing-managed free trial, distinct from the existing HU auto-trial. Requires card upfront. Auto-converts to P-HU at trial end.
+- **`premium_cashoffers`** covers all CO premium subscriptions. HU tiers are not a separate product — they're automatic based on contact count and calculated at charge time.
+- **`external_cashoffers`** is for users whose CO is managed externally (KW Offerings agents, team members). `managed=false` ensures billing never touches their CO account. Purchased via manage flow (`/purchase/existing`), NOT the main signup page.
+- **`homeuptick_only`** is a billing-managed HU subscription with SHELL CO access. May include a free trial (WIP — not in initial release). Requires card upfront. Auto-converts to paid HU at trial end.
 
 ## HU Data States
 

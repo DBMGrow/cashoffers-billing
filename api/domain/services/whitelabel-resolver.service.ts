@@ -98,7 +98,7 @@ export class WhitelabelResolverService {
   }
 
   /**
-   * Resolve whitelabel by code
+   * Resolve whitelabel by code (falls back to default if not found)
    */
   async resolveByCode(code: string): Promise<ResolvedWhitelabel> {
     try {
@@ -120,6 +120,29 @@ export class WhitelabelResolverService {
     } catch (error) {
       console.error("Error resolving whitelabel by code", { code, error })
       return this.resolveDefault()
+    }
+  }
+
+  /**
+   * Resolve whitelabel by code — strict mode.
+   * Returns null if the whitelabel code does not exist in the database.
+   * Used by public-facing routes (landing/signup) where an invalid code should 404.
+   */
+  async resolveByCodeStrict(code: string): Promise<ResolvedWhitelabel | null> {
+    const whitelabel = await this.db.selectFrom("Whitelabels").where("code", "=", code).selectAll().executeTakeFirst()
+
+    if (!whitelabel) {
+      return null
+    }
+
+    return {
+      whitelabel_id: whitelabel.whitelabel_id,
+      code: whitelabel.code,
+      name: whitelabel.name,
+      branding: {
+        ...DEFAULT_BRANDING,
+        ...(whitelabel.data || {}),
+      } as WhitelabelData,
     }
   }
 

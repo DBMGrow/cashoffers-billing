@@ -353,6 +353,11 @@ app.openapi(GetSubscriptionRoute, async (c) => {
  * - If user has is_premium = 1 and no subscription → external_cashoffers
  *   (they're paying for CO elsewhere, just need HU)
  * - Otherwise → homeuptick_only (SHELL CO access + HU base fee)
+ *
+ * Query params:
+ * - ?category=premium_cashoffers — Override to show premium products.
+ *   Used when an admin-created premium user needs to subscribe to a real product
+ *   (not just HU overages). This is a custom link sent by admin to the user.
  */
 app.use("/enrollment", authMiddleware(null))
 app.openapi(GetEnrollmentRoute, async (c) => {
@@ -386,8 +391,27 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       .where("user_id", "=", user.user_id)
       .executeTakeFirst()
 
-    const isPremium = fullUser?.is_premium === 1
-    const productCategory = isPremium ? "external_cashoffers" : "homeuptick_only"
+    // Determine product category — supports ?category= override for admin-directed enrollment
+    const categoryOverride = c.req.query("category") as
+      | "premium_cashoffers"
+      | "external_cashoffers"
+      | "homeuptick_only"
+      | undefined
+    const validCategories = ["premium_cashoffers", "external_cashoffers", "homeuptick_only"]
+
+    let productCategory: string
+    let reason: string
+
+    if (categoryOverride && validCategories.includes(categoryOverride)) {
+      productCategory = categoryOverride
+      reason = `Admin-directed enrollment: category override to ${categoryOverride}`
+    } else {
+      const isPremium = fullUser?.is_premium === 1
+      productCategory = isPremium ? "external_cashoffers" : "homeuptick_only"
+      reason = isPremium
+        ? "User has active premium CashOffers account but no billing subscription"
+        : "User has no premium CashOffers account — eligible for HomeUptick standalone"
+    }
 
     // Resolve whitelabel code for product filtering
     let userWhitelabelCode: string | null = null
@@ -417,16 +441,12 @@ app.openapi(GetEnrollmentRoute, async (c) => {
 
     const products = await query.execute()
 
-    const reason = isPremium
-      ? "User has active premium CashOffers account but no billing subscription"
-      : "User has no premium CashOffers account — eligible for HomeUptick standalone"
-
     return c.json(
       {
         success: "success" as const,
         data: {
           eligible: true,
-          product_category: productCategory as "external_cashoffers" | "homeuptick_only",
+          product_category: productCategory as "premium_cashoffers" | "external_cashoffers" | "homeuptick_only",
           reason,
           products,
         },

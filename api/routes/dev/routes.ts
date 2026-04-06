@@ -320,6 +320,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       "downgrade-on-renewal",
       "paused",
       "suspended",
+      "premium-no-sub",
     ]),
     email: z.string().email().optional(),
     name: z.string().optional(),
@@ -517,6 +518,49 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         description: "Subscription suspended after 4 payment failures (max retries exhausted). Card is INVALID. Card update triggers immediate payment attempt.",
         next_steps: "Run: yarn dev:tools fix-card <user_id> to simulate card update. On success, subscription reactivates. Verify via: yarn dev:tools state <user_id>.",
       },
+    }
+
+    // Special scenario: premium user with no billing subscription
+    // Used to test the manage enrollment flow for external_cashoffers / premium_cashoffers
+    if (scenario === "premium-no-sub") {
+      const scenarioWhitelabelId = 1
+      const userResult = await db
+        .insertInto("Users")
+        .values({
+          email: resolvedEmail,
+          name: resolvedName,
+          role: "AGENT",
+          whitelabel_id: scenarioWhitelabelId,
+          is_premium: 1,
+          active: 1,
+          api_token: null,
+        })
+        .executeTakeFirstOrThrow()
+
+      const userId = Number(userResult.insertId)
+
+      // Set a password so the user can log in via /manage
+      const bcryptHash = await (await import("bcrypt")).default.hash("test123", 10)
+      await db.updateTable("Users").set({ password: bcryptHash }).where("user_id", "=", userId).execute()
+
+      return c.json({
+        success: "success",
+        data: {
+          scenario,
+          product_type: "none",
+          user_id: userId,
+          email: resolvedEmail,
+          subscription_id: null,
+          card: null,
+          password: "test123",
+          description: "Premium user (is_premium=1, role=AGENT) with NO billing subscription. User can log in to /manage to test enrollment flow.",
+          next_steps: [
+            `yarn dev:tools auth-link ${userId}  → open in browser to test /manage enrollment`,
+            `GET /manage/enrollment → should return external_cashoffers products`,
+            `GET /manage/enrollment?category=premium_cashoffers → override to premium products`,
+          ].join("\n"),
+        },
+      })
     }
 
     const cfg = scenarioConfigs[scenario]
@@ -1194,6 +1238,234 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
           card_brand: cardResult.cardBrand,
         },
         message: "Card restored with a valid sandbox card. Next payment attempt will succeed.",
+      },
+    })
+  })
+
+  // ── Verify: Product & Subscription Integrity ─────────────────────────────
+
+  router.get("/verify", async (c) => {
+    const issues: Array<{ severity: "error" | "warning"; entity: string; id: number | string; message: string }> = []
+    const stats = { products: 0, subscriptions: 0, hu_subscriptions: 0, users_checked: 0 }
+
+    // ── 1. Verify all products ──────────────────────────────────────────
+    const products = await db.selectFrom("Products").selectAll().execute()
+    stats.products = products.length
+
+    for (const product of products) {
+      const data = product.data as any
+      const category = product.product_category
+
+      // Check product_category is set
+      if (!category) {
+        issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "Missing product_category" })
+        continue
+      }
+
+      // Validate category-specific config
+      if (category === "premium_cashoffers") {
+        if (!data?.cashoffers?.managed) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "premium_cashoffers must have cashoffers.managed=true" })
+        }
+        if (data?.cashoffers?.user_config?.is_premium !== 1) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "premium_cashoffers must have user_config.is_premium=1" })
+        }
+        if (!data?.cashoffers?.user_config?.role || data.cashoffers.user_config.role === "SHELL") {
+          issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `premium_cashoffers has unexpected role: ${data?.cashoffers?.user_config?.role}` })
+        }
+      }
+
+      if (category === "external_cashoffers") {
+        if (data?.cashoffers?.managed !== false) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "external_cashoffers must have cashoffers.managed=false" })
+        }
+        if (data?.cashoffers?.user_config?.is_premium === 1) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "external_cashoffers should not have is_premium=1" })
+        }
+      }
+
+      if (category === "homeuptick_only") {
+        if (!data?.cashoffers?.managed) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "homeuptick_only must have cashoffers.managed=true" })
+        }
+        if (data?.cashoffers?.user_config?.role !== "SHELL") {
+          issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `homeuptick_only should have role=SHELL, got ${data?.cashoffers?.user_config?.role}` })
+        }
+        if (data?.cashoffers?.user_config?.is_premium === 1) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "homeuptick_only should not have is_premium=1" })
+        }
+      }
+
+      // Check HomeUptick config exists (all products should have HU config for seeding)
+      if (!data?.homeuptick) {
+        issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: "No homeuptick config — default will be used at purchase time" })
+      }
+
+      // Check whitelabel_code consistency
+      if (category === "external_cashoffers" && !product.whitelabel_code) {
+        issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: "external_cashoffers product has no whitelabel_code — will be available for all whitelabels" })
+      }
+
+      // Warn if product has free_trial configured — billing-managed free trials are WIP
+      if (data?.homeuptick?.free_trial?.enabled) {
+        issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: "Product has free_trial enabled — billing-managed free trials are WIP and not ready for production. Signup UI does not properly communicate trial terms." })
+      }
+    }
+
+    // ── 2. Verify all active subscriptions ──────────────────────────────
+    const subscriptions = await db
+      .selectFrom("Subscriptions")
+      .leftJoin("Products", "Products.product_id", "Subscriptions.product_id")
+      .selectAll("Subscriptions")
+      .select(["Products.product_category", "Products.product_name", "Products.data as product_data"])
+      .where("Subscriptions.status", "in", ["active", "trial", "paused", "suspended"])
+      .execute()
+    stats.subscriptions = subscriptions.length
+
+    for (const sub of subscriptions) {
+      // Check subscription has a valid product
+      if (!sub.product_id) {
+        issues.push({ severity: "error", entity: "Subscription", id: sub.subscription_id, message: "No product_id linked" })
+        continue
+      }
+
+      if (!sub.product_category) {
+        issues.push({ severity: "error", entity: "Subscription", id: sub.subscription_id, message: `Product ${sub.product_id} not found or has no category` })
+      }
+
+      // Check user exists
+      if (sub.user_id) {
+        const user = await db.selectFrom("Users").select(["user_id", "is_premium", "role", "active"]).where("user_id", "=", sub.user_id).executeTakeFirst()
+        stats.users_checked++
+
+        if (!user) {
+          issues.push({ severity: "error", entity: "Subscription", id: sub.subscription_id, message: `User ${sub.user_id} not found in Users table` })
+        } else {
+          // Verify user state matches product expectations
+          const productData = sub.product_data as any
+          if (sub.product_category === "premium_cashoffers" && sub.status === "active") {
+            if (user.is_premium !== 1) {
+              issues.push({ severity: "warning", entity: "Subscription", id: sub.subscription_id, message: `Active premium_cashoffers sub but user ${sub.user_id} has is_premium=${user.is_premium}` })
+            }
+          }
+          if (sub.product_category === "external_cashoffers") {
+            if (productData?.cashoffers?.managed === true) {
+              issues.push({ severity: "error", entity: "Subscription", id: sub.subscription_id, message: `external_cashoffers subscription linked to managed=true product` })
+            }
+          }
+        }
+      } else if (sub.provisioning_status !== "pending_provisioning") {
+        issues.push({ severity: "warning", entity: "Subscription", id: sub.subscription_id, message: "No user_id and not pending provisioning" })
+      }
+
+      // Check renewal date makes sense
+      if (sub.status === "active" && sub.renewal_date) {
+        const renewalDate = new Date(sub.renewal_date)
+        const now = new Date()
+        const sixMonthsAgo = new Date(now)
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+        if (renewalDate < sixMonthsAgo) {
+          issues.push({ severity: "warning", entity: "Subscription", id: sub.subscription_id, message: `Active subscription with very old renewal_date: ${renewalDate.toISOString()}` })
+        }
+      }
+    }
+
+    // ── 3. Verify Homeuptick_Subscriptions ───────────────────────────────
+    const huSubs = await db.selectFrom("Homeuptick_Subscriptions").selectAll().execute()
+    stats.hu_subscriptions = huSubs.length
+
+    for (const hu of huSubs) {
+      // Check that the user has a corresponding billing subscription or is a valid external user
+      const userSub = await db
+        .selectFrom("Subscriptions")
+        .select("subscription_id")
+        .where("user_id", "=", hu.user_id)
+        .where("status", "in", ["active", "trial", "paused", "suspended"])
+        .executeTakeFirst()
+
+      if (!userSub) {
+        // Check if user exists at all
+        const user = await db.selectFrom("Users").select("user_id").where("user_id", "=", hu.user_id).executeTakeFirst()
+        if (!user) {
+          issues.push({ severity: "error", entity: "Homeuptick_Subscription", id: hu.homeuptick_id, message: `User ${hu.user_id} not found` })
+        } else {
+          issues.push({ severity: "warning", entity: "Homeuptick_Subscription", id: hu.homeuptick_id, message: `User ${hu.user_id} has HU record but no active billing subscription (may be external user)` })
+        }
+      }
+
+      // Check required fields
+      if (hu.base_contacts == null) {
+        issues.push({ severity: "warning", entity: "Homeuptick_Subscription", id: hu.homeuptick_id, message: "Missing base_contacts" })
+      }
+      if (hu.contacts_per_tier == null) {
+        issues.push({ severity: "warning", entity: "Homeuptick_Subscription", id: hu.homeuptick_id, message: "Missing contacts_per_tier" })
+      }
+    }
+
+    // ── 4. Check for users with subscriptions but no HU record ──────────
+    const activeSubs = await db
+      .selectFrom("Subscriptions")
+      .select("user_id")
+      .where("user_id", "is not", null)
+      .where("status", "in", ["active", "trial"])
+      .execute()
+
+    for (const sub of activeSubs) {
+      if (!sub.user_id) continue
+      const huRecord = huSubs.find((h) => h.user_id === sub.user_id)
+      if (!huRecord) {
+        issues.push({ severity: "warning", entity: "User", id: sub.user_id, message: "Active subscription but no Homeuptick_Subscriptions row" })
+      }
+    }
+
+    const errors = issues.filter((i) => i.severity === "error")
+    const warnings = issues.filter((i) => i.severity === "warning")
+
+    return c.json({
+      success: "success",
+      data: {
+        stats,
+        summary: {
+          total_issues: issues.length,
+          errors: errors.length,
+          warnings: warnings.length,
+          verdict: errors.length === 0 ? "PASS" : "FAIL",
+        },
+        issues,
+      },
+    })
+  })
+
+  // ── Auth Link Generator ──────────────────────────────────────────────
+
+  router.get("/auth-link/:user_id", async (c) => {
+    const userId = Number(c.req.param("user_id"))
+    if (!userId || isNaN(userId)) {
+      return c.json({ success: "error", error: "Invalid user_id" }, 400)
+    }
+
+    // Look up the user's api_token from the database
+    const user = await db
+      .selectFrom("Users")
+      .select(["api_token"])
+      .where("user_id", "=", userId)
+      .executeTakeFirst()
+
+    if (!user?.api_token) {
+      return c.json({ success: "error", error: "User not found or has no api_token" }, 404)
+    }
+
+    const jwt = await import("jsonwebtoken")
+    const token = jwt.default.sign({ api_token: user.api_token }, config.jwtSecret, { expiresIn: "30d" })
+    const manageUrl = `http://localhost:3000/manage?token=${token}`
+
+    return c.json({
+      success: "success",
+      data: {
+        user_id: userId,
+        token,
+        manage_url: manageUrl,
+        expires_in: "30 days",
       },
     })
   })

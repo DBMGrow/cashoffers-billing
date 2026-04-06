@@ -48,6 +48,104 @@ Without `product_category`, every query that needs to distinguish product types 
 - Existing products need a backfill (all current products are `premium_cashoffers`)
 - The JSON data remains the source of truth for behavior; `product_category` is the source of truth for identity
 
+## Required Product Configs Per Category
+
+Each product category requires specific `data` JSON configuration. Below are the expected shapes.
+
+### `premium_cashoffers`
+
+Full CO + HU bundle. Billing manages the user's CO account.
+
+```json
+{
+  "signup_fee": 0,
+  "renewal_cost": 25000,
+  "duration": "monthly",
+  "cashoffers": {
+    "managed": true,
+    "user_config": {
+      "is_premium": 1,
+      "role": "AGENT",
+      "whitelabel_id": null,
+      "is_team_plan": false
+    }
+  },
+  "homeuptick": {
+    "enabled": true,
+    "base_contacts": 500,
+    "contacts_per_tier": 500,
+    "price_per_tier": 7500,
+    "free_trial": null
+  }
+}
+```
+
+**Required fields:** `cashoffers.managed = true`, `cashoffers.user_config.is_premium = 1`, `cashoffers.user_config.role` (typically AGENT, INVESTOR, or TEAMOWNER).
+
+**HomeUptick:** Should have `homeuptick.enabled = true` with explicit tier pricing. If omitted, defaults are applied (500 base contacts, 500/tier, $0/tier).
+
+### `external_cashoffers`
+
+For users with CO managed externally (brokerage, KW Offerings). HU overages only.
+
+```json
+{
+  "signup_fee": 0,
+  "renewal_cost": 0,
+  "duration": "monthly",
+  "cashoffers": {
+    "managed": false
+  },
+  "homeuptick": {
+    "enabled": true,
+    "base_contacts": 500,
+    "contacts_per_tier": 500,
+    "price_per_tier": 7500
+  }
+}
+```
+
+**Required fields:** `cashoffers.managed = false`, `renewal_cost = 0` (base fee is $0; only HU overages charged).
+
+**No `user_config`:** Billing does not manage the CO account — no role or premium status changes.
+
+**Purchase path:** These products are NOT available on the main signup flow (`/purchase/new`). They are purchased via the manage flow (`/purchase/existing`) by users who already have an external CO account.
+
+### `homeuptick_only`
+
+HU access with SHELL CO account for portal login.
+
+```json
+{
+  "signup_fee": 0,
+  "renewal_cost": 2000,
+  "duration": "monthly",
+  "cashoffers": {
+    "managed": true,
+    "user_config": {
+      "is_premium": 0,
+      "role": "SHELL",
+      "whitelabel_id": null
+    }
+  },
+  "homeuptick": {
+    "enabled": true,
+    "base_contacts": 500,
+    "contacts_per_tier": 500,
+    "price_per_tier": 5000,
+    "free_trial": {
+      "enabled": true,
+      "contacts": 100,
+      "duration_days": 90
+    }
+  }
+}
+```
+
+**Required fields:** `cashoffers.managed = true`, `cashoffers.user_config.role = "SHELL"`, `cashoffers.user_config.is_premium = 0`.
+
+**HomeUptick:** May include a free trial configuration. The `free_trial` block seeds `Homeuptick_Subscriptions` with trial dates. **Note: billing-managed free trials are WIP — do not configure `free_trial` on products until the signup UI properly communicates trial terms.**
+
 ## Impact
 
 - Migration: `010_add_product_category.sql`

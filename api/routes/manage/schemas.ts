@@ -355,7 +355,7 @@ export const EnrollmentResponseSchema = z.object({
   success: z.literal("success"),
   data: z.object({
     eligible: z.boolean(),
-    product_category: z.enum(["external_cashoffers", "homeuptick_only"]).nullable(),
+    product_category: z.enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"]).nullable(),
     reason: z.string(),
     products: z.array(z.any()),
   }),
@@ -367,6 +367,14 @@ export const EnrollmentResponseSchema = z.object({
 export const GetEnrollmentRoute = {
   method: "get" as const,
   path: "/enrollment",
+  request: {
+    query: z.object({
+      category: z
+        .enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"])
+        .optional()
+        .describe("Override product category. Used by admin-directed enrollment links when a premium user needs to subscribe to a real product instead of external_cashoffers."),
+    }),
+  },
   responses: {
     200: {
       content: {
@@ -388,7 +396,7 @@ export const GetEnrollmentRoute = {
   tags: ["Manage"],
   summary: "Check enrollment eligibility",
   description:
-    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category (external_cashoffers or homeuptick_only) and available products based on the user's current CashOffers account status.",
+    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category and available products. Supports ?category= override for admin-directed enrollment (e.g., when an admin-created premium user needs to subscribe to premium_cashoffers instead of the default external_cashoffers).",
 }
 
 /**

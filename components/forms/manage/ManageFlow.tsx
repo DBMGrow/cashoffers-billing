@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import type { ManageFormData } from "@/types/forms"
 import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import { useFlowAnimation } from "@/hooks/useFlowAnimation"
@@ -21,27 +21,30 @@ import DashboardStep from "./steps/DashboardStep"
 import ManageSubscriptionStep from "./steps/ManageSubscriptionStep"
 import UpdateCardStep from "./steps/UpdateCardStep"
 import UpdatePlanStep from "./steps/UpdatePlanStep"
+import EnrollmentStep from "./steps/EnrollmentStep"
 import ErrorStep from "./steps/ErrorStep"
 
-type ManageStep = "loading" | "email" | "password" | "dashboard" | "subscription" | "card" | "changePlan" | "error"
+type ManageStep = "loading" | "email" | "password" | "dashboard" | "enrollment" | "subscription" | "card" | "changePlan" | "error"
 
 const MANAGE_STEPS: readonly ManageStep[] = [
   "loading",
   "email",
   "password",
   "dashboard",
+  "enrollment",
   "subscription",
   "card",
   "changePlan",
   "error",
 ]
 
-const GOTO_STEPS = new Set<ManageStep>(["dashboard", "subscription", "card", "changePlan"])
+const GOTO_STEPS = new Set<ManageStep>(["dashboard", "enrollment", "subscription", "card", "changePlan"])
 
 const devPresets: DevPreset<ManageFormData>[] = [
   { label: "→ Loading", step: "loading" },
   { label: "→ Password", step: "password" },
   { label: "→ Dashboard", step: "dashboard" },
+  { label: "→ Enrollment", step: "enrollment" },
   { label: "→ Error", step: "error" },
 ]
 
@@ -53,6 +56,7 @@ const BASE_STEP_CONFIG: Record<ManageStep, { title: string; description: string 
   subscription: { title: "Manage Subscription", description: "View and update your subscription." },
   card: { title: "Update Card", description: "Update your billing information." },
   changePlan: { title: "Change Plan", description: "Select a new plan for your subscription." },
+  enrollment: { title: "Get Started", description: "Choose a plan and add your payment method." },
   error: { title: "Oops!", description: "Something went wrong." },
 }
 
@@ -96,8 +100,10 @@ export default function ManageFlow() {
     _goToError(message, returnTo)
   }
   const searchParams = useSearchParams()
-  const { data: sessionUser, isPending: isCheckingSession } = useSession()
+  const router = useRouter()
+  const { data: sessionUser, isPending: isCheckingSession, refetch: refetchSession } = useSession()
   const { mutate: logout } = useLogout()
+  const [jwtVerified, setJwtVerified] = useState(false)
 
   const form = useForm<ManageFormData>({
     mode: "onChange",
@@ -114,19 +120,69 @@ export default function ManageFlow() {
     return "dashboard"
   }
 
+  // If a JWT token is in the URL, verify it to establish a session
+  useEffect(() => {
+    const token = searchParams.get("token")
+    if (!token) return
+
+    async function verifyToken(jwt: string) {
+      try {
+        const res = await fetch(`/api/auth/jwt/verify/${jwt}`)
+        const data = await res.json()
+        if (data.success === "success") {
+          // Cookie was set by the API — refetch session to pick it up
+          await refetchSession()
+        }
+      } finally {
+        // Strip token from URL regardless of outcome
+        const params = new URLSearchParams(searchParams.toString())
+        params.delete("token")
+        const qs = params.toString()
+        router.replace(`/manage${qs ? `?${qs}` : ""}`)
+        setJwtVerified(true)
+      }
+    }
+
+    verifyToken(token)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Check enrollment eligibility — returns true if user needs to enroll
+  const checkEnrollment = async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/manage/enrollment")
+      if (res.status === 409) return false // already subscribed
+      const data = await res.json()
+      return data.success === "success" && data.data?.eligible && data.data.products.length > 0
+    } catch {
+      return false
+    }
+  }
+
   // On mount: check session, then route accordingly
   useEffect(() => {
     if (isCheckingSession) return
+    // Wait for JWT verification to complete before routing
+    if (searchParams.get("token") && !jwtVerified) return
 
     if (sessionUser) {
       setUser(sessionUser)
-      goToStep(resolvePostLoginStep())
+
+      const targetStep = resolvePostLoginStep()
+      // If heading to dashboard, check enrollment first
+      if (targetStep === "dashboard") {
+        checkEnrollment().then((needsEnrollment) => {
+          goToStep(needsEnrollment ? "enrollment" : "dashboard")
+        })
+      } else {
+        goToStep(targetStep)
+      }
     } else {
       setAllowReset(false)
       goToStep("email")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCheckingSession, sessionUser])
+  }, [isCheckingSession, sessionUser, jwtVerified])
 
   const renderStep = () => {
     switch (displayStep) {
@@ -192,6 +248,15 @@ export default function ManageFlow() {
             user={user!}
             onBack={() => goToStep("dashboard")}
             onError={(message, title, description) => goToError(message, "card", title, description)}
+          />
+        )
+      case "enrollment":
+        return (
+          <EnrollmentStep
+            user={user!}
+            onSuccess={() => goToStep("dashboard")}
+            onBack={() => goToStep("dashboard")}
+            onError={(message, title, description) => goToError(message, "enrollment", title, description)}
           />
         )
       case "changePlan":

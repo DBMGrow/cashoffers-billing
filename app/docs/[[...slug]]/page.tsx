@@ -1,8 +1,7 @@
 import { source } from '@/lib/source'
-import { DocsPage, DocsBody } from 'fumadocs-ui/page'
+import { DocsPage } from 'fumadocs-ui/page'
 import { notFound } from 'next/navigation'
-import defaultMdxComponents from 'fumadocs-ui/mdx'
-import { Mermaid } from '@/components/mdx/mermaid'
+import { DocsBodyClient } from './docs-body-client'
 
 interface Props {
   params: Promise<{ slug?: string[] }>
@@ -17,13 +16,9 @@ export default async function Page({ params }: Props) {
   const page = source.getPage(slug)
   if (!page) notFound()
 
-  const MDX = page.data.body
-
   return (
     <DocsPage toc={page.data.toc}>
-      <DocsBody>
-        <MDX components={{ ...defaultMdxComponents, Mermaid }} />
-      </DocsBody>
+      <DocsBodyClient slug={slug} />
     </DocsPage>
   )
 }

@@ -92,6 +92,14 @@ app.openapi(VerifyJwtRoute, async (c) => {
     return c.json({ success: "error" as const, error: "User not found" }, 401)
   }
 
+  // Set session cookie so the user stays authenticated after JWT verification
+  setCookie(c, "_api_token", apiToken, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "Lax",
+    path: "/",
+  })
+
   return c.json({
     success: "success" as const,
     data: { ...user, name: user.name ?? undefined },

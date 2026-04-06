@@ -39,9 +39,7 @@ sequenceDiagram
     FE->>FE: Show error (not Welcome)
   end
   API->>API: Emit SubscriptionCreated, PaymentProcessed, PurchaseRequestCompleted
-  opt Product includes HomeUptick
-    API->>DB: Create Homeuptick_Subscriptions row from product template
-  end
+  API->>DB: Create Homeuptick_Subscriptions row (from product template or defaults)
 ```
 
 ### Error Handling After Payment
@@ -140,6 +138,10 @@ on product data — not magic strings. When a product is free:
 
 ## Existing User Purchase
 
+> **Note:** `external_cashoffers` products are purchased exclusively through this flow (`POST /api/purchase/existing`), not through the new user signup flow. The main signup page (`GET /signup/products`) excludes `external_cashoffers` products entirely. These products are for users who already have an externally-managed CO account and need to enroll in HU via the manage billing section.
+
+### Existing User Purchase Flow
+
 ```mermaid
 sequenceDiagram
   participant FE as Frontend
@@ -166,7 +168,7 @@ sequenceDiagram
 
 ## HomeUptick Subscription Seeding
 
-When a product includes HomeUptick (`Products.data.homeuptick.enabled = true`), the purchase flow creates a `Homeuptick_Subscriptions` row seeded from the product template:
+Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $0/tier):
 
 | Product template field | → | Homeuptick_Subscriptions column |
 |---|---|---|

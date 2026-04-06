@@ -608,8 +608,21 @@ export async function createCardHelper(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Default HomeUptick config applied when a product has no explicit homeuptick template.
+ * All products should seed a Homeuptick_Subscriptions row so that every user has an
+ * HU record — even if HU is not the primary feature of their plan.
+ */
+const DEFAULT_HOMEUPTICK_CONFIG: HomeUptickConfig = {
+  enabled: true,
+  base_contacts: 500,
+  contacts_per_tier: 500,
+  price_per_tier: 0,
+}
+
+/**
  * Seeds a Homeuptick_Subscriptions row from the product's HomeUptick template.
- * Only creates a row if the product has homeuptick.enabled = true.
+ * Always creates a row — uses default HU config if the product has no explicit
+ * homeuptick template. This ensures every user has an HU subscription record.
  *
  * Product JSON is the template; Homeuptick_Subscriptions is the live source of truth.
  * See docs/business/decisions/homeuptick-data-ownership.md
@@ -624,8 +637,9 @@ export async function seedHomeUptickSubscription(
     productData: ProductData | undefined
   }
 ): Promise<void> {
-  const huConfig = params.productData?.homeuptick
-  if (!huConfig?.enabled) return
+  const huConfig = params.productData?.homeuptick?.enabled
+    ? params.productData.homeuptick
+    : DEFAULT_HOMEUPTICK_CONFIG
 
   const now = new Date()
   const freeTrial = huConfig.free_trial
@@ -639,9 +653,9 @@ export async function seedHomeUptickSubscription(
   await deps.homeUptickSubscriptionRepository.create({
     user_id: params.userId,
     active: 1,
-    base_contacts: huConfig.base_contacts ?? null,
-    contacts_per_tier: huConfig.contacts_per_tier ?? null,
-    price_per_tier: huConfig.price_per_tier ?? null,
+    base_contacts: huConfig.base_contacts ?? DEFAULT_HOMEUPTICK_CONFIG.base_contacts!,
+    contacts_per_tier: huConfig.contacts_per_tier ?? DEFAULT_HOMEUPTICK_CONFIG.contacts_per_tier!,
+    price_per_tier: huConfig.price_per_tier ?? DEFAULT_HOMEUPTICK_CONFIG.price_per_tier!,
     free_trial_contacts: freeTrial?.contacts ?? null,
     free_trial_days: freeTrial?.duration_days ?? null,
     free_trial_ends: freeTrialEnds,
@@ -652,6 +666,7 @@ export async function seedHomeUptickSubscription(
   deps.logger.info("Seeded HomeUptick subscription from product template", {
     userId: params.userId,
     baseContacts: huConfig.base_contacts,
+    usedDefault: !params.productData?.homeuptick?.enabled,
     freeTrialEnabled: freeTrial?.enabled ?? false,
     freeTrialEnds: freeTrialEnds?.toISOString() ?? null,
   })

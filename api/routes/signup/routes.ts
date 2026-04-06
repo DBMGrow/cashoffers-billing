@@ -236,18 +236,40 @@ app.openapi(SendReactivationRoute, async (c) => {
 
 /**
  * GET /signup/products
- * Fetches all active products filtered by whitelabel
+ * Fetches all active products filtered by whitelabel.
+ * Returns 404 if the whitelabel code is not found.
+ * Excludes external_cashoffers products — those are only available via the manage flow.
  */
 app.openapi(GetProductsRoute, async (c) => {
   try {
     const query = c.req.valid("query")
     const whitelabelCode = query.whitelabel || "default"
 
-    // Filter by whitelabel_code directly — include products matching the code
-    // or products with no code set (available for all whitelabels)
+    // Validate whitelabel exists — 404 if not found
+    const whitelabel = await db
+      .selectFrom("Whitelabels")
+      .select("whitelabel_id")
+      .where("code", "=", whitelabelCode)
+      .executeTakeFirst()
+
+    if (!whitelabel) {
+      return c.json(
+        {
+          success: "error" as const,
+          error: "Whitelabel not found",
+          code: "WHITELABEL_NOT_FOUND",
+        },
+        404
+      )
+    }
+
+    // Filter by whitelabel_code — include products matching the code
+    // or products with no code set (available for all whitelabels).
+    // Exclude external_cashoffers — those are managed via /purchase/existing, not signup.
     const filteredProducts = await db
       .selectFrom("Products")
       .selectAll()
+      .where("product_category", "!=", "external_cashoffers")
       .where((eb) =>
         eb.or([eb("whitelabel_code", "=", whitelabelCode), eb("whitelabel_code", "is", null)])
       )

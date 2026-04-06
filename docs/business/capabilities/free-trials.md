@@ -1,5 +1,7 @@
 # Capability: Free Trials
 
+> **WIP — Not included in initial release.** Billing-managed free trials (P-TRIAL / `homeuptick_only` with `free_trial` config) are not yet ready for production. The signup UI does not properly communicate trial terms (shows renewal amount instead of $0 trial). Do not configure `free_trial` on any products until this feature is complete. See [QA Test Plan](../../development/qa-test-plan.md) for current status.
+
 ## Business Outcome
 Users can start a subscription on a free trial period. When the trial ends, the subscription either converts to paid or expires.
 
