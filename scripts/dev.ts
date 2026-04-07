@@ -209,6 +209,10 @@ async function cmdScenario(scenario: string, options: { email?: string; product?
   kv("Email", data.email, 2)
   kv("Subscription ID", data.subscription_id, 2)
 
+  if (data.password) {
+    kv("Password", data.password, 2)
+  }
+
   if (data.card) {
     kv("Card", `${data.card.card_brand} ****${data.card.last_4}`, 2)
   } else {
@@ -222,6 +226,7 @@ async function cmdScenario(scenario: string, options: { email?: string; product?
   console.log(`  ${yellow(data.next_steps)}`)
 
   console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${data.user_id}`)}`)
+  console.log(`  ${dim("→")} ${cyan(`yarn dev:tools set-password ${data.user_id} <new_password>`)}`)
   console.log(`  ${dim("→")} ${cyan(`yarn dev:tools cleanup ${data.user_id}`)}`)
   console.log()
 }

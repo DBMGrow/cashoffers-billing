@@ -304,6 +304,7 @@ export class UserApiClient implements IUserApiClient {
       created_at: userData.created || userData.created_at || new Date().toISOString(),
       updated_at: userData.updated || userData.updated_at || new Date().toISOString(),
       reset_token: userData.reset_token,
+      whitelabel_id: userData.whitelabel_id ?? undefined,
     }
   }
 }

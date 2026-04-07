@@ -119,6 +119,39 @@ export function makeProductData(overrides?: {
 }
 
 /**
+ * Creates a mock HomeUptickSubscriptionRepository with all methods stubbed.
+ */
+export function makeHomeUptickSubscriptionRepository() {
+  return {
+    findById: vi.fn().mockResolvedValue(null),
+    findByUserId: vi.fn().mockResolvedValue([]),
+    findActiveByUserId: vi.fn().mockResolvedValue(null),
+    create: vi.fn(),
+    update: vi.fn(),
+  }
+}
+
+/**
+ * Builds a minimal Homeuptick_Subscriptions row as returned from the repository.
+ */
+export function makeHomeUptickSubscriptionRow(overrides?: Partial<Record<string, unknown>>) {
+  return {
+    homeuptick_id: 1,
+    user_id: 42,
+    active: 1,
+    base_contacts: 500,
+    contacts_per_tier: 1000,
+    price_per_tier: 7500,
+    free_trial_contacts: null,
+    free_trial_days: null,
+    free_trial_ends: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  }
+}
+
+/**
  * Builds a minimal subscription row as returned from the repository.
  */
 export function makeSubscriptionRow(overrides?: Partial<Record<string, unknown>>) {

@@ -696,6 +696,35 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       logger.warn("Scenario: failed to create sandbox card on file", { error: err.message, userId })
     }
 
+    // Seed Homeuptick_Subscriptions row so renewal scenarios have HU data
+    const huConfigs: Record<string, { base_contacts: number; contacts_per_tier: number; price_per_tier: number }> = {
+      "p-co":    { base_contacts: 500, contacts_per_tier: 500, price_per_tier: 7500 },
+      "p-hu":    { base_contacts: 500, contacts_per_tier: 500, price_per_tier: 7500 },
+      "p-trial": { base_contacts: 0,   contacts_per_tier: 500, price_per_tier: 7500 },
+    }
+    const huCfg = huConfigs[productType]
+    try {
+      await db
+        .insertInto("Homeuptick_Subscriptions")
+        .values({
+          user_id: userId,
+          active: 1,
+          base_contacts: huCfg.base_contacts,
+          contacts_per_tier: huCfg.contacts_per_tier,
+          price_per_tier: huCfg.price_per_tier,
+          free_trial_contacts: null,
+          free_trial_days: null,
+          free_trial_ends: null,
+        })
+        .executeTakeFirstOrThrow()
+    } catch (err: any) {
+      logger.warn("Scenario: failed to seed Homeuptick_Subscriptions", { error: err.message, userId })
+    }
+
+    // Set a password so the user can log in via /manage
+    const bcryptHash = await (await import("bcrypt")).default.hash("test123", 10)
+    await db.updateTable("Users").set({ password: bcryptHash }).where("user_id", "=", userId).execute()
+
     return c.json({
       success: "success",
       data: {
@@ -705,6 +734,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         email: resolvedEmail,
         subscription_id: subscriptionId,
         card: cardInfo,
+        password: "test123",
         description: cfg.description,
         next_steps: cfg.next_steps,
       },

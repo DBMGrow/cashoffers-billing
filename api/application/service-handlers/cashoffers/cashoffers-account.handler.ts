@@ -150,19 +150,36 @@ export class CashOffersAccountHandler implements IEventHandler {
 
     const payload = event.payload as any
     const userId = payload.userId
-    const strategy = event.metadata?.suspensionStrategy as string | undefined
+
+    // Resolve suspension strategy from user's whitelabel_id (source of truth)
+    let strategy: string | undefined
+
+    if (this.whitelabelRepository) {
+      try {
+        const user = await this.userApiClient.getUser(userId)
+        if (user?.whitelabel_id) {
+          const behavior = await this.whitelabelRepository.getSuspensionBehavior(user.whitelabel_id)
+          if (behavior) strategy = behavior
+        }
+      } catch {
+        this.logger.warn('Failed to resolve suspension strategy from user whitelabel', { userId })
+      }
+    }
+
+    // Fall back to event metadata if user lookup failed
+    if (!strategy) {
+      strategy = event.metadata?.suspensionStrategy as string | undefined
+    }
+
+    this.logger.info('Applying suspension strategy', { userId, strategy: strategy ?? 'DOWNGRADE_TO_FREE (default)' })
 
     if (strategy === 'DEACTIVATE_USER') {
       await this.userApiClient.updateUser(userId, {
         role: 'SHELL',
         is_premium: 0,
       })
-    } else if (strategy === 'DOWNGRADE_TO_FREE') {
-      await this.userApiClient.updateUser(userId, {
-        is_premium: 0,
-      })
     } else {
-      // Default: downgrade to free
+      // DOWNGRADE_TO_FREE or unresolved default
       await this.userApiClient.updateUser(userId, {
         is_premium: 0,
       })

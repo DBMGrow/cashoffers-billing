@@ -3,7 +3,8 @@ import { BaseEventHandler } from '@api/infrastructure/events/base-event-handler'
 import type { IDomainEvent } from '@api/infrastructure/events/event-bus.interface'
 import type { IEmailService } from '@api/infrastructure/email/email-service.interface'
 import type { ILogger } from '@api/infrastructure/logging/logger.interface'
-import { whitelabelResolverService } from '@api/lib/services'
+import { whitelabelResolverService, userApiClient } from '@api/lib/services'
+import { whitelabelRepository } from '@api/lib/repositories'
 import type { SubscriptionCreatedEvent } from '@api/domain/events/subscription-created.event'
 import type { SubscriptionRenewedEvent } from '@api/domain/events/subscription-renewed.event'
 import type { PaymentProcessedEvent } from '@api/domain/events/payment-processed.event'
@@ -625,9 +626,48 @@ export class EmailNotificationHandler extends BaseEventHandler {
         const { userId } = event.payload
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
-        // When the white label dictates DOWNGRADE_TO_FREE, send a downgrade email rather
-        // than a cancellation email — the user ends up on the free plan, not fully cancelled.
-        const suspensionStrategy = event.metadata?.suspensionStrategy as string | undefined
+        // Resolve suspension strategy from the user's whitelabel_id (source of truth),
+        // falling back to event metadata if the user lookup fails.
+        let suspensionStrategy: string | undefined
+        try {
+          const user = await userApiClient.getUser(userId)
+          if (user?.whitelabel_id) {
+            const behavior = await whitelabelRepository.getSuspensionBehavior(user.whitelabel_id)
+            if (behavior) suspensionStrategy = behavior
+          }
+        } catch {
+          this.logger.warn('Failed to resolve suspension strategy from user whitelabel for email', { userId })
+        }
+        if (!suspensionStrategy) {
+          suspensionStrategy = event.metadata?.suspensionStrategy as string | undefined
+        }
+
+        // DEACTIVATE_USER: send cancellation email (no free tier for these users)
+        if (suspensionStrategy === 'DEACTIVATE_USER') {
+          this.logger.info('Sending subscription deactivated email (cancel_on_renewal + DEACTIVATE_USER)', {
+            email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+
+          const html = await render(
+            <SubscriptionCancelledEmail
+              subscription={subscriptionName ?? 'your subscription'}
+              immediate={true}
+              whitelabel={this.toBrandingProps(whitelabelInfo)}
+            />
+          )
+
+          await this.emailService.sendEmail({
+            to: email,
+            subject: 'Your Subscription Has Been Cancelled',
+            html,
+            templateName: 'subscription-cancelled',
+            fromName: this.fromName(whitelabelInfo),
+          })
+          return
+        }
+
+        // DOWNGRADE_TO_FREE: send a downgrade email — the user ends up on the free plan.
         if (suspensionStrategy === 'DOWNGRADE_TO_FREE') {
           this.logger.info('Sending subscription downgraded-to-free email (cancel_on_renewal + DOWNGRADE_TO_FREE)', {
             email,

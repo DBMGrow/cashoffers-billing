@@ -73,6 +73,7 @@ export interface User {
   reset_token?: string
   role?: string
   team_id?: number
+  whitelabel_id?: number
 }
 
 /**

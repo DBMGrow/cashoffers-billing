@@ -21,7 +21,8 @@ import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-de
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import type { IHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.interface"
 import type { ProductData } from "@api/domain/types/product-data.types"
-import type { WhitelabelRepository, ProductRepository } from "@api/lib/repositories"
+import type { WhitelabelRepository, ProductRepository, HomeUptickSubscriptionRepository } from "@api/lib/repositories"
+import type { ICriticalAlertService } from "@api/domain/services/critical-alert.service"
 
 interface Dependencies {
   logger: ILogger
@@ -36,7 +37,9 @@ interface Dependencies {
   transactionManager: ITransactionManager
   eventBus: IEventBus
   homeUptickApiClient?: IHomeUptickApiClient
+  homeUptickSubscriptionRepository?: HomeUptickSubscriptionRepository
   whitelabelRepository?: WhitelabelRepository
+  criticalAlertService?: ICriticalAlertService
   adminAlertEmail?: string
 }
 
@@ -121,7 +124,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
       let totalAmount = subscription.amount || 0
 
-      // Add HomeUptick addon charge if enabled in product data
+      // Look up product data for event metadata (cashoffers config, etc.)
       const subscriptionData = subscription.data
         ? typeof subscription.data === "string"
           ? JSON.parse(subscription.data)
@@ -141,27 +144,75 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         }
       }
 
-      const huConfig = productData?.homeuptick
+      // Add HomeUptick addon charge based on live Homeuptick_Subscriptions record (source of truth).
+      // If the HU API fails, skip the addon charge and alert admin — don't block the
+      // base subscription renewal. The user still gets their subscription renewed;
+      // the HU addon can be reconciled later.
+      if (this.deps.homeUptickSubscriptionRepository && this.deps.homeUptickApiClient) {
+        const huSubscription = await this.deps.homeUptickSubscriptionRepository.findActiveByUserId(subscription.user_id!)
 
-      if (huConfig?.enabled && this.deps.homeUptickApiClient) {
-        const baseContacts = huConfig.base_contacts ?? 100
-        const contactsPerTier = huConfig.contacts_per_tier ?? 1000
-        const pricePerTier = huConfig.price_per_tier ?? 7500
+        if (huSubscription) {
+          const baseContacts = huSubscription.base_contacts ?? 0
+          const contactsPerTier = huSubscription.contacts_per_tier ?? 500
+          const pricePerTier = huSubscription.price_per_tier ?? 7500
 
-        const contacts = await this.deps.homeUptickApiClient.getClientCount(subscription.user_id!)
+          let contacts: number
+          try {
+            contacts = await this.deps.homeUptickApiClient.getClientCount(subscription.user_id!)
+          } catch (huError: any) {
+            const huErrorMsg = huError instanceof Error ? huError.message : "Unknown HU API error"
+            const isAxios401 = huError?.response?.status === 401
 
-        let tier = 1
-        if (contacts > baseContacts) {
-          tier = Math.ceil((contacts - baseContacts) / contactsPerTier) + 1
-        }
+            if (isAxios401) {
+              // 401 means the user's api_token is invalid/expired — treat as 0 contacts silently
+              logger.debug("HomeUptick API returned 401 — treating as 0 contacts", {
+                userId: subscription.user_id,
+                subscriptionId: validatedInput.subscriptionId,
+              })
+            } else {
+              logger.warn("HomeUptick API failure during renewal — skipping HU addon, renewing base only", {
+                userId: subscription.user_id,
+                subscriptionId: validatedInput.subscriptionId,
+                error: huErrorMsg,
+              })
 
-        const huAddon = (tier - 1) * pricePerTier
-        if (huAddon > 0) {
-          totalAmount += huAddon
-          lineItems.push({
-            item: `HomeUptick — Tier ${tier} (${contacts} contacts)`,
-            price: huAddon,
-          })
+              // Notify admin — HU addon was skipped, may need manual reconciliation
+              if (this.deps.criticalAlertService) {
+                try {
+                  await this.deps.criticalAlertService.alertCriticalError(
+                    "HomeUptick API Failure During Renewal",
+                    huError instanceof Error ? huError : new Error(huErrorMsg),
+                    {
+                      subscriptionId: validatedInput.subscriptionId,
+                      userId: subscription.user_id,
+                      email: validatedInput.email,
+                      impact: "HU addon skipped — base subscription renewed without HU tier charge",
+                      action: "Investigate HomeUptick API issue. HU addon may need manual reconciliation for this billing cycle.",
+                    }
+                  )
+                } catch (alertError) {
+                  logger.error("Failed to send HU API failure admin alert", { alertError })
+                }
+              }
+            }
+
+            // Fall through — renewal continues with base amount only
+            contacts = 0
+          }
+
+          let tier = 1
+          if (contacts > baseContacts) {
+            tier = Math.ceil((contacts - baseContacts) / contactsPerTier) + 1
+          }
+
+          const huAddon = (tier - 1) * pricePerTier
+          if (huAddon > 0) {
+            totalAmount += huAddon
+            lineItems.push({
+              item: `HomeUptick — Tier ${tier} (${contacts} contacts)`,
+              price: huAddon,
+            })
+          }
         }
       }
 
@@ -563,19 +614,27 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           updatedAt: now,
         } as any)
 
-        // Build metadata with productData for suspension handlers
+        // Build metadata with productData for suspension handlers (downgrade, HU sync, etc.)
         const suspendMetadata: Record<string, unknown> = {}
-        if (productData) suspendMetadata.productData = productData
+        if (subscription.product_id) {
+          suspendMetadata.productId = subscription.product_id
+        }
         try {
-          if (subscription.product_id && this.deps.productRepository && this.deps.whitelabelRepository) {
+          if (subscription.product_id && this.deps.productRepository) {
             const suspProduct = await this.deps.productRepository.findById(subscription.product_id)
-            if (suspProduct?.whitelabel_code) {
+            if (suspProduct?.data) {
+              const pd = typeof suspProduct.data === "string"
+                ? JSON.parse(suspProduct.data)
+                : suspProduct.data
+              if (pd && typeof pd === "object") suspendMetadata.productData = pd
+            }
+            if (suspProduct?.whitelabel_code && this.deps.whitelabelRepository) {
               const behavior = await this.deps.whitelabelRepository.getSuspensionBehaviorByCode(suspProduct.whitelabel_code)
               suspendMetadata.suspensionStrategy = behavior ?? "DEACTIVATE_USER"
             }
           }
         } catch {
-          /* ignore lookup errors */
+          /* ignore lookup errors — suspension still proceeds with defaults */
         }
 
         await eventBus.publish(

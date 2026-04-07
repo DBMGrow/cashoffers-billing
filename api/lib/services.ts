@@ -68,7 +68,7 @@ export const emailService =
     : createSendGridEmailService(config, logger)
 
 export const userApiClient = createUserApiClient(config, logger)
-export const homeUptickApiClient = createHomeUptickApiClient(config, logger)
+export const homeUptickApiClient = createHomeUptickApiClient(config, logger, db)
 
 export const healthMetricsService = createHealthMetricsService(
   transactionRepository,

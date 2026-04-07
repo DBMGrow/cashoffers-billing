@@ -39,6 +39,10 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
   private async buildSuspensionMetadata(subscription: any): Promise<Record<string, unknown>> {
     const metadata: Record<string, unknown> = {}
 
+    if (subscription.product_id) {
+      metadata.productId = subscription.product_id
+    }
+
     try {
       // Resolve suspension strategy from product's whitelabel
       if (subscription.product_id && this.deps.productRepository && this.deps.whitelabelRepository) {
@@ -51,8 +55,10 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
         }
         // Carry productData for downstream handlers
         if (product?.data) {
-          const productData = typeof product.data === 'object' ? product.data : undefined
-          if (productData) metadata.productData = productData
+          const productData = typeof product.data === 'string'
+            ? JSON.parse(product.data)
+            : product.data
+          if (productData && typeof productData === 'object') metadata.productData = productData
         }
       }
     } catch {
