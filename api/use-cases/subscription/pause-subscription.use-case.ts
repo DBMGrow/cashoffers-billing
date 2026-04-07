@@ -103,7 +103,7 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
       // Update subscription status
       const now = new Date()
       const updated = await subscriptionRepository.update(validatedInput.subscriptionId, {
-        status: "suspended",
+        status: "paused",
         suspension_date: now,
         updatedAt: now,
       })
@@ -152,7 +152,7 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
 
       return success({
         subscriptionId: updated.subscription_id,
-        status: updated.status || "suspended",
+        status: updated.status || "paused",
       })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error"

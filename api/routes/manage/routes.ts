@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken"
 import { setCookie } from "hono/cookie"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { db } from "@api/lib/database"
+import { productRepository } from "@api/lib/repositories"
 import { calculateProratedUseCase } from "@api/use-cases/subscription"
 import { createPaymentUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
@@ -26,27 +27,20 @@ const app = new OpenAPIHono<{ Variables: HonoVariables }>()
  * POST /manage/checkplan
  * Validates whether a user can switch to a different subscription plan
  */
+app.use("/checkplan", authMiddleware(null))
 app.openapi(CheckPlanRoute, async (c) => {
   try {
     const body = c.req.valid("json")
     const { subscription, productID } = body
-    const apiToken = c.req.header("x-api-token")
 
     const responseBody: any = {}
 
-    // Fetch user details to check role
-    const userResponse = await fetch(`${config.api.url}/users/${subscription.user_id}`, {
-      headers: { "x-api-token": apiToken! },
-    })
-    const userData: any = await userResponse.json()
-
-    if (userData.success !== "success") {
-      throw new Error("Error fetching user")
-    }
-    const user = userData.data
+    // Get user from auth middleware (resolved from x-api-token + user_id in body)
+    const user = c.get("user")
 
     // If team subscription, fetch team details
     if (subscription?.data?.cashoffers?.user_config?.is_team_plan) {
+      const apiToken = c.req.header("x-api-token")
       const headers = { "x-api-token": apiToken! }
 
       const teamResponse = await fetch(`${config.api.url}/teams/${subscription.data.team_id}`, { headers })
@@ -73,20 +67,17 @@ app.openapi(CheckPlanRoute, async (c) => {
       responseBody.numberOfUsers = responseBody.teamUsers?.length || 0
     }
 
-    // Fetch product details
-    const productResponse = await fetch(`${config.api.route}/product/${productID}`, {
-      headers: { "x-api-token": config.api.key },
-    })
-    const product: any = await productResponse.json()
-
-    if (product.success !== "success") {
+    // Fetch product details from database
+    const product = await productRepository.findById(productID)
+    if (!product) {
       throw new Error("Error fetching product")
     }
-    responseBody.product = product.data
+    responseBody.product = product
 
     // Role validation: check if user can switch to this product
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
-    const productRole = product.data?.data?.cashoffers?.user_config?.role ?? product.data?.data?.user_config?.role
+    const productData = product.data as any
+    const productRole = productData?.cashoffers?.user_config?.role ?? productData?.user_config?.role
     const productIsAgentType = ["AGENT", "TEAMOWNER"].includes(productRole)
 
     if (userIsAgentType !== productIsAgentType) {
@@ -101,23 +92,15 @@ app.openapi(CheckPlanRoute, async (c) => {
     }
 
     // Calculate prorated cost
-    const proratedResponse = await fetch(`${config.api.route}/product/checkprorated`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-token": config.api.key,
-      },
-      body: JSON.stringify({
-        product_id: productID,
-        user_id: subscription.user_id,
-      }),
+    const proratedResult = await calculateProratedUseCase.execute({
+      productId: productID,
+      userId: user.user_id,
     })
-    const proratedCost: any = await proratedResponse.json()
 
-    if (proratedCost.success !== "success") {
-      throw new Error("Error fetching prorated cost")
+    if (!proratedResult.success) {
+      throw new Error(proratedResult.error || "Error fetching prorated cost")
     }
-    responseBody.proratedCost = proratedCost.data
+    responseBody.proratedCost = proratedResult.data
 
     return c.json(
       {

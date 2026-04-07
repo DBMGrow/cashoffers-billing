@@ -7,8 +7,12 @@ import { Spinner } from "@/components/Theme/Spinner"
 import type { User, Subscription, ApiResponse } from "@/types/api"
 import type { Product } from "@/providers/ProductProvider"
 import P from "@/components/Theme/P"
+import { Card, CardBody } from "@/components/Theme/Card"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
-import { useProducts } from "@/providers/ProductProvider"
+import { useProducts, isProductFree } from "@/providers/ProductProvider"
+import Table from "@/components/Theme/Table"
+import Row from "@/components/Theme/Row"
+import formatDate from "@/components/utils/formatDate"
 
 interface UpdatePlanStepProps {
   user: User
@@ -32,10 +36,10 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
           "x-api-token": user.api_token,
         },
       })
-      if (json.success !== "success" || !json.data?.[0]) {
+      if (json.success !== "success" || !json.data?.subscriptions?.[0]) {
         throw new Error("Failed to load subscription")
       }
-      return json.data[0]
+      return json.data.subscriptions[0]
     },
   })
 
@@ -49,7 +53,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
         "/api/manage/purchase",
         {
           product_id: productId,
-          subscription_id: currentSubscription.subscription_id,
+          subscription_id: currentSubscription.subscriptionId,
         },
         {
           headers: {
@@ -75,7 +79,10 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
       const { data } = await axios.post<ApiResponse<any>>(
         "/api/manage/checkplan",
         {
-          subscription: currentSubscription,
+          subscription: {
+            user_id: currentSubscription.userId,
+            data: currentSubscription.data,
+          },
           productID: productId,
         },
         {
@@ -111,13 +118,12 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
 
   if (productsLoading) return <Spinner />
 
-  // Filter out current plan and free plans
+  // Filter to subscription products, excluding current plan and free products
   const availablePlans = products.filter(
     (p: Product) =>
-      p.product_id !== currentSubscription.product_id &&
-      p.product_id !== "free" &&
-      p.product_id !== "freeinvestor" &&
-      p.active === 1
+      p.product_type === "subscription" &&
+      Number(p.product_id) !== Number(currentSubscription.productId) &&
+      !isProductFree(p)
   )
 
   if (availablePlans.length === 0) {
@@ -135,45 +141,114 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
 
   // If a plan is selected, show confirmation
   if (selectedProductId && proratedInfo) {
-    const proratedCost = proratedInfo.proratedCost / 100
-    const selectedProduct = products.find((p: Product) => p.product_id === selectedProductId)
+    const prorated = proratedInfo.proratedCost
+    const proratedAmount = (prorated?.proratedAmount || 0) / 100
+    const currentCost = (prorated?.currentPlanCost || 0) / 100
+    const newCost = (prorated?.newPlanCost || 0) / 100
+    const selectedProduct = proratedInfo.product || products.find((p: Product) => p.product_id === selectedProductId)
+    const duration = prorated?.duration || "monthly"
+    const isUpgrade = newCost > currentCost
+    const percentRemaining = prorated?.percentOfTimeRemaining
+      ? Math.round(prorated.percentOfTimeRemaining * 100)
+      : null
+
+    // Team size info — from product data (new plan) and checkplan response (current usage)
+    const newTeamMax =
+      selectedProduct?.data?.cashoffers?.user_config?.team_members
+      ?? selectedProduct?.data?.user_config?.team_members
+      ?? (selectedProduct?.data as any)?.team_members
+      ?? null
+    const currentTeamMax =
+      currentSubscription?.data?.cashoffers?.user_config?.team_members
+      ?? currentSubscription?.data?.user_config?.team_members
+      ?? null
+    const currentTeamCount = proratedInfo.numberOfUsers ?? null
+    const hasTeamChange = newTeamMax !== null || currentTeamMax !== null
 
     return (
       <div className="w-full flex flex-col gap-4">
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-          <h3 className="font-semibold mb-2">Confirm Plan Change</h3>
-          <p className="text-sm">
-            You are changing to: <strong>{selectedProduct?.product_name}</strong>
-          </p>
-          {proratedCost > 0 && (
-            <p className="text-sm mt-2">
-              Prorated charge today: <strong>${proratedCost.toFixed(2)}</strong>
-            </p>
-          )}
-          {proratedCost === 0 && (
-            <p className="text-sm mt-2 text-green-700">No charge today (downgrade or equal cost)</p>
-          )}
-        </div>
+        <P>Review your plan change details below:</P>
 
-        <div className="flex gap-2">
-          <ThemeButton
-            color="primary"
-            onPress={() => {
-              setSelectedProductId(null)
-              setProratedInfo(null)
-            }}
-            isDisabled={changePlanMutation.isPending}
-          >
-            Cancel
-          </ThemeButton>
-          <ThemeButton
-            color="secondary"
-            onPress={handleConfirmChange}
-            isDisabled={changePlanMutation.isPending}
-          >
-            {changePlanMutation.isPending ? "Processing..." : "Confirm Change"}
-          </ThemeButton>
-        </div>
+        <Table
+          footer={
+            <div className="flex flex-col gap-3">
+              {proratedAmount > 0 && (
+                <p className="text-sm text-default-500">
+                  A prorated charge of <strong>${proratedAmount.toFixed(2)}</strong> will be applied
+                  today for the remainder of your current billing period.
+                  Your regular {duration} billing of ${newCost.toFixed(2)} begins on your next renewal date.
+                </p>
+              )}
+              {proratedAmount === 0 && isUpgrade && (
+                <p className="text-sm text-default-500">
+                  No prorated charge today. Your new rate of ${newCost.toFixed(2)}/{duration} takes
+                  effect on your next renewal date.
+                </p>
+              )}
+              {proratedAmount === 0 && !isUpgrade && (
+                <p className="text-sm text-default-500">
+                  No charge today. Your new rate of ${newCost.toFixed(2)}/{duration} takes
+                  effect on your next renewal date.
+                </p>
+              )}
+
+              {hasTeamChange && currentTeamCount !== null && newTeamMax !== null && currentTeamCount > newTeamMax && (
+                <p className="text-sm text-warning-600 font-medium">
+                  Warning: You currently have {currentTeamCount} team members but the new plan
+                  only supports up to {newTeamMax}. You may need to remove team members before switching.
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <ThemeButton
+                  color="primary"
+                  onPress={() => {
+                    setSelectedProductId(null)
+                    setProratedInfo(null)
+                  }}
+                  isDisabled={changePlanMutation.isPending}
+                >
+                  Cancel
+                </ThemeButton>
+                <ThemeButton
+                  color="secondary"
+                  onPress={handleConfirmChange}
+                  isDisabled={changePlanMutation.isPending}
+                >
+                  {changePlanMutation.isPending ? "Processing..." : "Confirm Change"}
+                </ThemeButton>
+              </div>
+            </div>
+          }
+        >
+          <Row label="New Plan" value={selectedProduct?.product_name || "Unknown"} />
+          <Row label="Current Rate" value={`$${currentCost.toFixed(2)} / ${duration}`} />
+          <Row label="New Rate" value={`$${newCost.toFixed(2)} / ${duration}`} />
+          {prorated?.renewalDate && (
+            <Row label="Next Renewal" value={formatDate(prorated.renewalDate)} />
+          )}
+          {percentRemaining !== null && (
+            <Row label="Billing Period Remaining" value={`${percentRemaining}%`} />
+          )}
+          {hasTeamChange && (
+            <>
+              {currentTeamMax !== null && (
+                <Row label="Current Team Size" value={`Up to ${currentTeamMax} members`} />
+              )}
+              {newTeamMax !== null && (
+                <Row label="New Team Size" value={`Up to ${newTeamMax} members`} />
+              )}
+              {currentTeamCount !== null && (
+                <Row label="Active Team Members" value={`${currentTeamCount}`} />
+              )}
+            </>
+          )}
+          <Row
+            label="Charge Today"
+            value={proratedAmount > 0 ? `$${proratedAmount.toFixed(2)}` : "No charge"}
+            variant="primary"
+          />
+        </Table>
       </div>
     )
   }
@@ -183,25 +258,29 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
     <div className="w-full flex flex-col gap-4">
       <P>Select a new plan:</P>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="flex flex-col gap-2 md:flex-row">
         {availablePlans.map((product: Product) => {
           const price = product.data?.renewal_cost ? product.data.renewal_cost / 100 : product.price / 100
           const duration = product.data?.duration || "monthly"
 
           return (
-            <div
+            <Card
               key={product.product_id}
-              className="p-4 border rounded-lg hover:border-blue-500 cursor-pointer transition"
-              onClick={() => !checkingPlan && handleCheckPlan(Number(product.product_id))}
+              isPressable
+              className="w-full"
+              isDisabled={checkingPlan}
+              onPress={() => handleCheckPlan(Number(product.product_id))}
             >
-              <h4 className="font-semibold text-lg">{product.product_name}</h4>
-              <p className="text-gray-600 text-sm mt-1">
-                ${price.toFixed(2)} / {duration}
-              </p>
-              {product.data?.cashoffers?.user_config?.team_members && (
-                <p className="text-gray-500 text-xs mt-1">Up to {product.data.cashoffers.user_config.team_members} team members</p>
-              )}
-            </div>
+              <CardBody className="p-4">
+                <h5>{product.product_name}</h5>
+                <p className="text-sm text-default-500 mt-1">
+                  ${price.toFixed(2)} / {duration}
+                </p>
+                {product.data?.cashoffers?.user_config?.team_members && (
+                  <p className="text-xs text-default-400 mt-1">Up to {product.data.cashoffers.user_config.team_members} team members</p>
+                )}
+              </CardBody>
+            </Card>
           )
         })}
       </div>

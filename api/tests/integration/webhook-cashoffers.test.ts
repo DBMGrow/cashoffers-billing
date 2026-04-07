@@ -6,7 +6,7 @@
  *
  * The handler (not an HTTP route) processes external webhook events from CashOffers:
  *   - user.deactivated → pause user's active subscription
- *   - user.activated   → resume user's suspended subscription (with renewal date adjustment)
+ *   - user.activated   → resume user's paused subscription (with renewal date adjustment)
  *   - user.created     (free user, no paid sub) → create free trial
  *
  * All event processing must be idempotent (safe to replay duplicate events).
@@ -61,8 +61,8 @@ describe('CashOffersWebhookHandler', () => {
 
       // Should publish SubscriptionPausedEvent (or call PauseSubscriptionUseCase)
       const updateCalls = (subscriptionRepository.update as ReturnType<typeof vi.fn>).mock.calls
-      const suspendCall = updateCalls.find((c) => c[1]?.status === 'suspended')
-      expect(suspendCall).toBeDefined()
+      const pauseCall = updateCalls.find((c) => c[1]?.status === 'paused')
+      expect(pauseCall).toBeDefined()
     })
 
     it('is idempotent: does nothing if user has no active subscription', async () => {
@@ -72,9 +72,9 @@ describe('CashOffersWebhookHandler', () => {
       expect(subscriptionRepository.update).not.toHaveBeenCalled()
     })
 
-    it('is idempotent: does nothing if subscription is already suspended', async () => {
+    it('is idempotent: does nothing if subscription is already paused', async () => {
       subscriptionRepository.findActiveByUserId.mockResolvedValue([
-        makeSubscriptionRow({ subscription_id: subscriptionId, user_id: userId, status: 'suspended' }),
+        makeSubscriptionRow({ subscription_id: subscriptionId, user_id: userId, status: 'paused' }),
       ])
 
       await handler.handle({ type: 'user.deactivated', userId })
@@ -85,12 +85,12 @@ describe('CashOffersWebhookHandler', () => {
   // ─── user.activated ──────────────────────────────────────────────────────
 
   describe('user.activated webhook event', () => {
-    it('resumes the user suspended subscription', async () => {
+    it('resumes the user paused subscription', async () => {
       subscriptionRepository.findByUserId.mockResolvedValue([
         makeSubscriptionRow({
           subscription_id: subscriptionId,
           user_id: userId,
-          status: 'suspended',
+          status: 'paused',
           suspension_date: new Date('2026-03-01'),
           renewal_date: new Date('2026-03-15'),
         }),
@@ -112,7 +112,7 @@ describe('CashOffersWebhookHandler', () => {
         makeSubscriptionRow({
           subscription_id: subscriptionId,
           user_id: userId,
-          status: 'suspended',
+          status: 'paused',
           suspension_date: suspensionDate,
           renewal_date: originalRenewalDate,
         }),

@@ -152,11 +152,11 @@ describe("ResumeSubscriptionUseCase", () => {
   })
 
   describe("Successful Resume", () => {
-    it("should return success with active status", async () => {
+    it("should return success with active status for paused subscription", async () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
       })
 
       const result = await useCase.execute({ subscriptionId: 1 })
@@ -168,11 +168,26 @@ describe("ResumeSubscriptionUseCase", () => {
       }
     })
 
-    it("should update subscription status to active in database", async () => {
+    it("should return success with active status for suspended subscription", async () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
         status: "suspended",
+      })
+
+      const result = await useCase.execute({ subscriptionId: 1 })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.status).toBe("active")
+      }
+    })
+
+    it("should update subscription status to active in database", async () => {
+      subscriptionRepo.addSubscription({
+        subscription_id: 1,
+        user_id: 10,
+        status: "paused",
       })
 
       await useCase.execute({ subscriptionId: 1 })
@@ -185,7 +200,7 @@ describe("ResumeSubscriptionUseCase", () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
         suspension_date: new Date("2026-01-01"),
       })
 
@@ -199,7 +214,7 @@ describe("ResumeSubscriptionUseCase", () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
       })
 
       await useCase.execute({ subscriptionId: 1 })
@@ -215,7 +230,7 @@ describe("ResumeSubscriptionUseCase", () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
       })
 
       await useCase.execute({ subscriptionId: 1 })
@@ -238,7 +253,7 @@ describe("ResumeSubscriptionUseCase", () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
         suspension_date: suspensionDate,
         renewal_date: originalRenewalDate,
       })
@@ -284,7 +299,7 @@ describe("ResumeSubscriptionUseCase", () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
         suspension_date: null,
         renewal_date: new Date("2026-03-30"),
       })
@@ -303,7 +318,7 @@ describe("ResumeSubscriptionUseCase", () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
         suspension_date: new Date("2026-03-15"),
         renewal_date: new Date("2026-03-30"),
       })

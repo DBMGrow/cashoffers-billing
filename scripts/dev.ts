@@ -393,8 +393,19 @@ async function cmdFixCard(userId: string) {
   console.log(green("\n✓ Card restored\n"))
   kv("User ID", data.user_id, 2)
   kv("Card", `${data.card.card_brand} ****${data.card.last_4}`, 2)
+
+  if (data.renewal_retries?.length > 0) {
+    console.log(yellow(`\n  Retried ${data.renewal_retries.length} subscription(s):\n`))
+    for (const r of data.renewal_retries) {
+      const icon = r.result === "renewed" ? green("✓") : red("✗")
+      console.log(`    ${icon} Sub #${r.subscription_id} (was ${r.status}) → ${r.result}`)
+    }
+  }
+
   console.log(`\n  ${green(data.message)}`)
-  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools cron-run ${userId}`)}  ${dim("(will succeed)")}`)
+  if (!data.renewal_retries?.length) {
+    console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools cron-run ${userId}`)}  ${dim("(will succeed)")}`)
+  }
   console.log()
 }
 

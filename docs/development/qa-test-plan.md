@@ -4,13 +4,13 @@ Complete walkthrough of every system process, its lifecycle, edge cases, and how
 
 > **Definitive reference:** [Billing Scenario Matrix](../business/capabilities/billing-scenario-matrix.md) — all product types, state combinations, lifecycle events, and edge cases.
 
-## Progress: 60% complete (15 / 25 active sections verified)
+## Progress: 78% complete (18 / 23 active sections verified)
 
-| Status      | Count | Sections            |
-| ----------- | ----- | ------------------- |
-| VERIFIED    | 15    | 1–15 |
-| IN-PROGRESS | 10    | 17–25, 26b              |
-| SHELVED     | 3     | 3b, 16, 26                     |
+| Status      | Count | Sections    |
+| ----------- | ----- | ----------- |
+| VERIFIED    | 18    | 1–15, 17–19 |
+| IN-PROGRESS | 5     | 20–23, 26b  |
+| SHELVED     | 3     | 3b, 16, 26  |
 
 > **3 shelved sections** (free trial related) are excluded from the active count. Un-shelve them when the free trial UI is ready.
 
@@ -54,16 +54,14 @@ yarn dev:tools auth-link <user_id>
 14. Cancel on Renewal — `VERIFIED`
 15. Downgrade on Renewal (`premium_cashoffers` → Free) — `VERIFIED`
 16. Free Trial: `homeuptick_only` Lifecycle — `SHELVED`
-17. Pause (CO Deactivation via Webhook) — `IN-PROGRESS`
-18. Resume (CO Reactivation via Webhook) — `IN-PROGRESS`
-19. Card Update — `IN-PROGRESS`
+17. Pause (CO Deactivation via Webhook) — `VERIFIED`
+18. Resume (CO Reactivation via Webhook) — `VERIFIED`
+19. Card Update — `VERIFIED`
 20. Plan Change (Upgrade) — `IN-PROGRESS`
 21. Plan Change (Downgrade) — `IN-PROGRESS`
 22. Payment Refund — `IN-PROGRESS`
 23. Property Unlock — `IN-PROGRESS`
-24. Webhook: User Deactivated — `IN-PROGRESS`
-25. Webhook: User Activated — `IN-PROGRESS`
-26. Cron: Trial Warning & Expiration — `SHELVED`
+24. Cron: Trial Warning & Expiration — `SHELVED`
     26b. Manage Billing: Premium User Without Subscription — `IN-PROGRESS`
 
 ---
@@ -948,7 +946,7 @@ yarn test api/tests/integration/free-trial.test.ts
 
 ---
 
-## 17. Pause (CO Deactivation via Webhook) — `IN-PROGRESS`
+## 17. Pause (CO Deactivation via Webhook) — `VERIFIED`
 
 **Scenario matrix refs:** PZ1, PZ2, PZ3, F6, W1, W3
 
@@ -1003,7 +1001,7 @@ yarn test api/tests/integration/webhook-cashoffers.test.ts
 
 ---
 
-## 18. Resume (CO Reactivation via Webhook) — `IN-PROGRESS`
+## 18. Resume (CO Reactivation via Webhook) — `VERIFIED`
 
 **Scenario matrix refs:** PZ4, W4
 
@@ -1031,25 +1029,37 @@ yarn test api/tests/integration/webhook-cashoffers.test.ts
 ### How to Test
 
 ```bash
-# Full pause/resume cycle
+# Full pause/resume cycle with simulated time gap
 yarn dev:tools scenario renewal-due
 yarn dev:tools webhook user.deactivated <user_id>
-# ... time passes ...
+yarn dev:tools state <user_id>
+# Verify: status=paused, suspension_date set
+
+# Simulate time passing: backdate suspension_date and renewal_date by 2 months
+# This makes it look like the user was paused 2 months ago with 14 days remaining
+yarn dev:tools set-state <sub_id> suspension_date=2026-02-01T00:00:00Z renewal_date=2026-02-15T00:00:00Z
+yarn dev:tools state <user_id>
+# Verify: suspension_date and renewal_date are now in the past
+
+# Resume — handler calculates: remaining days = renewal_date - suspension_date = 14 days
+# New renewal_date = today + 14 days
 yarn dev:tools webhook user.activated <user_id>
 yarn dev:tools state <user_id>
-# Verify: status=active, next_renewal_at recalculated
+# Verify: status=active, suspension_date=null, renewal_date ≈ today + 14 days
 
 # Resume P-TRIAL (verify trial_ends_at extended)
 yarn dev:tools scenario trial-expiring --product p-trial
 yarn dev:tools webhook user.deactivated <user_id>
+# Backdate to simulate a 1-month pause
+yarn dev:tools set-state <sub_id> suspension_date=2026-03-01T00:00:00Z renewal_date=2026-03-10T00:00:00Z
 yarn dev:tools webhook user.activated <user_id>
 yarn dev:tools state <user_id>
-# Verify: trial_ends_at extended by pause duration
+# Verify: status=active, renewal_date ≈ today + 9 days (remaining from before pause)
 ```
 
 ---
 
-## 19. Card Update — `IN-PROGRESS`
+## 19. Card Update — `VERIFIED`
 
 **Scenario matrix refs:** C1-C5, F5, F7, F8, E6, E7
 
@@ -1233,74 +1243,6 @@ yarn dev:tools state <user_id>
 **No integration test exists (gap). No dev CLI command exists.**
 
 ---
-
-## 24. Webhook: User Deactivated — `IN-PROGRESS`
-
-**Scenario matrix refs:** W1, W2, W3, W6
-
-**Process:** CashOffers API notifies billing that a user was deactivated.
-
-### Behavior by User State
-
-| User State                          | Action                                                 | Matrix Ref |
-| ----------------------------------- | ------------------------------------------------------ | ---------- |
-| Has active subscription             | **Pause subscription** (regardless of `managed` flag)  | W1         |
-| Has P-TRIAL                         | **Pause trial**; `trial_ends_at` extended on resume    | W1         |
-| In retry window                     | **Pause stops retries**; retry resumes on reactivation | W3         |
-| Has HU auto-trial (no subscription) | Tell HU API to pause auto-trial                        | W2         |
-| No subscription, no auto-trial      | Log and ignore                                         | W6         |
-
-### How to Test
-
-```bash
-# Active subscription
-yarn dev:tools scenario renewal-due
-yarn dev:tools webhook user.deactivated <user_id>
-yarn dev:tools state <user_id>
-# Verify: status=paused
-
-# During retry window
-yarn dev:tools scenario payment-retry-1
-yarn dev:tools webhook user.deactivated <user_id>
-yarn dev:tools state <user_id>
-# Verify: paused, retries stopped
-
-# User with no subscription
-yarn dev:tools webhook user.deactivated <unknown_user_id>
-# Verify: logged, no error
-```
-
-**Integration test:**
-
-```bash
-yarn test api/tests/integration/webhook-cashoffers.test.ts
-```
-
----
-
-## 25. Webhook: User Activated — `IN-PROGRESS`
-
-**Scenario matrix refs:** W4, W5
-
-**Process:** CashOffers API notifies billing that a user was reactivated.
-
-### Behavior by User State
-
-| User State              | Action                                               | Matrix Ref |
-| ----------------------- | ---------------------------------------------------- | ---------- |
-| Has paused subscription | **Resume**: recalculate dates; restore access        | W4         |
-| Has paused P-TRIAL      | **Resume**: extend `trial_ends_at` by pause duration | W4         |
-| Had paused auto-trial   | Tell HU API to resume auto-trial                     | W5         |
-| No paused subs          | No-op                                                | —          |
-
-### How to Test
-
-```bash
-yarn dev:tools webhook user.deactivated <user_id>   # Pause first
-yarn dev:tools webhook user.activated <user_id>      # Resume
-yarn dev:tools state <user_id>
-# Verify: status=active, dates recalculated
-```
 
 ---
 

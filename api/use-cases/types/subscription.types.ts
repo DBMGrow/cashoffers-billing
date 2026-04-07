@@ -182,12 +182,14 @@ export interface GetSubscriptionsOutput {
     subscriptionId: number
     userId: number
     subscriptionName: string
+    productId: number
     amount: number
     duration: string
     status: string
     renewalDate: Date | null
     cancelOnRenewal: boolean
     downgradeOnRenewal: boolean
+    data: any
     createdAt: Date
   }>
   total: number

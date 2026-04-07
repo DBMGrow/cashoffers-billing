@@ -57,7 +57,7 @@ export class CashOffersWebhookHandler {
     for (const sub of active) {
       const now = new Date()
       await subscriptionRepository.update(sub.subscription_id, {
-        status: 'suspended',
+        status: 'paused',
         suspension_date: now,
         updatedAt: now,
       } as any)
@@ -68,7 +68,7 @@ export class CashOffersWebhookHandler {
     const { subscriptionRepository } = this.deps
     const subscriptions = await subscriptionRepository.findByUserId(userId)
 
-    const suspended = subscriptions.filter((s) => s.status === 'suspended')
+    const suspended = subscriptions.filter((s) => s.status === 'paused')
     for (const sub of suspended) {
       const now = new Date()
       let newRenewalDate = sub.renewal_date ? new Date(sub.renewal_date) : now
@@ -97,7 +97,7 @@ export class CashOffersWebhookHandler {
 
     const existing = await subscriptionRepository.findByUserId(userId)
     const hasActiveSub = existing.some((s) =>
-      ['active', 'trial', 'suspended'].includes(s.status ?? '')
+      ['active', 'trial', 'paused', 'suspended'].includes(s.status ?? '')
     )
     if (hasActiveSub) return
 

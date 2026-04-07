@@ -68,12 +68,14 @@ export class GetSubscriptionsUseCase implements IGetSubscriptionsUseCase {
         subscriptionId: sub.subscription_id,
         userId: sub.user_id,
         subscriptionName: sub.subscription_name,
+        productId: sub.product_id,
         amount: sub.amount,
         duration: sub.duration,
         status: sub.status || "unknown",
         renewalDate: sub.renewal_date,
         cancelOnRenewal: sub.cancel_on_renewal === 1,
         downgradeOnRenewal: sub.downgrade_on_renewal === 1,
+        data: sub.data ? (typeof sub.data === "string" ? JSON.parse(sub.data) : sub.data) : null,
         createdAt: sub.createdAt,
       }))
 

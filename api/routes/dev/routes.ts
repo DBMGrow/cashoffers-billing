@@ -1254,6 +1254,34 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       .where("user_id", "=", userId)
       .execute()
 
+    // Retry renewal for suspended subscriptions (mirrors production CardUpdatedRetryHandler)
+    const subscriptions = await subscriptionRepository.findByUserId(userId)
+    const needsRetry = subscriptions.filter(
+      (s) => s.status === 'suspended' || s.next_renewal_attempt !== null
+    )
+
+    const renewalResults: Array<{ subscription_id: number; status: string; result: string }> = []
+    for (const sub of needsRetry) {
+      try {
+        const result = await renewSubscriptionUseCase.execute({
+          subscriptionId: sub.subscription_id,
+          email: user.email,
+          triggeredBy: "card_update",
+        })
+        renewalResults.push({
+          subscription_id: sub.subscription_id,
+          status: sub.status ?? 'unknown',
+          result: result.success ? 'renewed' : (result as any).error ?? 'failed',
+        })
+      } catch (error) {
+        renewalResults.push({
+          subscription_id: sub.subscription_id,
+          status: sub.status ?? 'unknown',
+          result: `error: ${error instanceof Error ? error.message : String(error)}`,
+        })
+      }
+    }
+
     return c.json({
       success: "success",
       data: {
@@ -1263,7 +1291,10 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
           last_4: cardResult.last4,
           card_brand: cardResult.cardBrand,
         },
-        message: "Card restored with a valid sandbox card. Next payment attempt will succeed.",
+        renewal_retries: renewalResults,
+        message: needsRetry.length > 0
+          ? `Card restored. Retried ${needsRetry.length} subscription(s).`
+          : "Card restored with a valid sandbox card. Next payment attempt will succeed.",
       },
     })
   })

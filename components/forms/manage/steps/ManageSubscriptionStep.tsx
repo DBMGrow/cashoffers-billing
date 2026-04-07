@@ -17,19 +17,24 @@ interface ManageSubscriptionStepProps {
   onChangePlan: () => void
 }
 
-export default function ManageSubscriptionStep({ user, onBack, onUpdateCard, onChangePlan }: ManageSubscriptionStepProps) {
+export default function ManageSubscriptionStep({
+  user,
+  onBack,
+  onUpdateCard,
+  onChangePlan,
+}: ManageSubscriptionStepProps) {
   const { data, error, isLoading } = useQuery({
     queryKey: ["subscription", user.api_token],
     queryFn: async () => {
-      const { data: json } = await axios.get<ApiResponse<Subscription[]>>("/api/subscription/single", {
+      const { data: json } = await axios.get<ApiResponse<any>>("/api/subscription/single", {
         headers: {
           "x-api-token": user.api_token,
         },
       })
-      if (json.success !== "success" || !json.data?.[0]) {
+      if (json.success !== "success" || !json.data?.subscriptions?.[0]) {
         throw new Error("Failed to load subscription")
       }
-      return json.data[0]
+      return json.data.subscriptions[0]
     },
   })
 
@@ -42,37 +47,31 @@ export default function ManageSubscriptionStep({ user, onBack, onUpdateCard, onC
 
   if (!data) return <P>We couldn&apos;t find your subscription.</P>
 
-  const subscriptionAmount = data.data?.renewal_cost ? data.data.renewal_cost / 100 : 0
-  const teamSize = data.data?.cashoffers?.user_config?.team_members || null
+  const subscriptionAmount = data.amount ? data.amount / 100 : 0
 
   return (
     <div className="w-full flex flex-col">
-      <Table footer={
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <div className="flex flex-col grow">
-              <ThemeButton color="secondary" onPress={onChangePlan}>
-                Change Plan
-              </ThemeButton>
+      <Table
+        footer={
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <div className="flex grow gap-2 ">
+                <ThemeButton color="primary" onPress={onBack}>
+                  Back
+                </ThemeButton>
+                <ThemeButton color="secondary" onPress={onChangePlan}>
+                  Change Plan
+                </ThemeButton>
+              </div>
             </div>
-            <div className="flex flex-col grow">
-              <ThemeButton color="secondary" onPress={onUpdateCard}>
-                Update Card
-              </ThemeButton>
-            </div>
+            <div className="w-full"></div>
           </div>
-          <div className="w-full">
-            <ThemeButton color="primary" onPress={onBack}>
-              Back
-            </ThemeButton>
-          </div>
-        </div>
-      }>
-        <Row label="Plan" value={data.subscription_name} />
-        {teamSize && <Row label="Team Size" value={`${teamSize} members`} />}
+        }
+      >
+        <Row label="Plan" value={data.subscriptionName} />
         <Row label="Amount" value={`$${subscriptionAmount} ${data.duration || "monthly"}`} />
         <Row label="Start Date" value={formatDate(data.createdAt)} />
-        <Row label="Renews On" value={formatDate(data.renewal_date)} />
+        <Row label="Renews On" value={formatDate(data.renewalDate)} />
         <Row label="Status" value={data.status || "Active"} />
       </Table>
     </div>

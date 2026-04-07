@@ -146,11 +146,11 @@ describe("PauseSubscriptionUseCase", () => {
   })
 
   describe("Status Validation", () => {
-    it("should fail when subscription is already suspended", async () => {
+    it("should fail when subscription is already paused", async () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
         user_id: 10,
-        status: "suspended",
+        status: "paused",
       })
 
       const result = await useCase.execute({ subscriptionId: 1 })
@@ -189,21 +189,21 @@ describe("PauseSubscriptionUseCase", () => {
       userApiClient.addUser(10, { email: "user@test.com" })
     })
 
-    it("should return success with suspended status", async () => {
+    it("should return success with paused status", async () => {
       const result = await useCase.execute({ subscriptionId: 1 })
 
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.subscriptionId).toBe(1)
-        expect(result.data.status).toBe("suspended")
+        expect(result.data.status).toBe("paused")
       }
     })
 
-    it("should update subscription status to suspended in database", async () => {
+    it("should update subscription status to paused in database", async () => {
       await useCase.execute({ subscriptionId: 1 })
 
       const sub = await subscriptionRepo.findById(1)
-      expect(sub?.status).toBe("suspended")
+      expect(sub?.status).toBe("paused")
     })
 
     it("should set suspension_date on the subscription", async () => {

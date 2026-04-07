@@ -53,12 +53,12 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
       }
 
       // Check if subscription can be resumed
-      if (subscription.status !== "suspended") {
-        logger.warn("Cannot resume non-suspended subscription", {
+      if (subscription.status !== "paused" && subscription.status !== "suspended") {
+        logger.warn("Cannot resume non-paused/suspended subscription", {
           subscriptionId: validatedInput.subscriptionId,
           status: subscription.status,
         })
-        return failure("Only suspended subscriptions can be resumed", "INVALID_STATUS")
+        return failure("Only paused or suspended subscriptions can be resumed", "INVALID_STATUS")
       }
 
       const now = new Date()

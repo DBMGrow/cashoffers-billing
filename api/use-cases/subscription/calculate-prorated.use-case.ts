@@ -53,9 +53,9 @@ export class CalculateProratedUseCase implements ICalculateProratedUseCase {
 
       const subscription = subscriptions[0]
 
-      // Extract renewal costs from data field
-      const currentPlanCost = (subscription.data as any)?.renewal_cost
-      const newPlanCost = (product.data as any)?.renewal_cost
+      // Extract renewal costs — prefer data.renewal_cost, fall back to amount/price
+      const currentPlanCost = (subscription.data as any)?.renewal_cost || subscription.amount
+      const newPlanCost = (product.data as any)?.renewal_cost || product.price
 
       if (!currentPlanCost) {
         return failure("Current plan cost not found", "INVALID_SUBSCRIPTION_DATA")
