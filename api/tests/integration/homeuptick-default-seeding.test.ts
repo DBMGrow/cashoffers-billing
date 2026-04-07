@@ -70,7 +70,7 @@ describe("seedHomeUptickSubscription — default config", () => {
     expect(created.user_id).toBe(42)
     expect(created.base_contacts).toBe(500)
     expect(created.contacts_per_tier).toBe(500)
-    expect(created.price_per_tier).toBe(0)
+    expect(created.price_per_tier).toBe(7500)
     expect(created.active).toBe(1)
     expect(created.free_trial_contacts).toBeNull()
     expect(created.free_trial_days).toBeNull()
@@ -87,7 +87,7 @@ describe("seedHomeUptickSubscription — default config", () => {
     const created = huRepo.create.mock.calls[0][0]
     expect(created.base_contacts).toBe(500)
     expect(created.contacts_per_tier).toBe(500)
-    expect(created.price_per_tier).toBe(0)
+    expect(created.price_per_tier).toBe(7500)
   })
 
   it("seeds HU row with defaults when homeuptick.enabled = false", async () => {
@@ -108,7 +108,7 @@ describe("seedHomeUptickSubscription — default config", () => {
     // Falls back to defaults because enabled=false
     expect(created.base_contacts).toBe(500)
     expect(created.contacts_per_tier).toBe(500)
-    expect(created.price_per_tier).toBe(0)
+    expect(created.price_per_tier).toBe(7500)
   })
 
   it("seeds free trial fields when product template includes them", async () => {

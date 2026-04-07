@@ -146,7 +146,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       if (huConfig?.enabled && this.deps.homeUptickApiClient) {
         const baseContacts = huConfig.base_contacts ?? 100
         const contactsPerTier = huConfig.contacts_per_tier ?? 1000
-        const pricePerTier = huConfig.price_per_tier ?? 0
+        const pricePerTier = huConfig.price_per_tier ?? 7500
 
         const contacts = await this.deps.homeUptickApiClient.getClientCount(subscription.user_id!)
 

@@ -10,6 +10,7 @@ export interface UserWithCapabilities {
   role: string
   active: number
   api_token: string | null
+  whitelabel_id: number
   capabilities: string[]
 }
 
@@ -35,6 +36,7 @@ export async function getUserFromToken(
         "Users.role",
         "Users.active",
         "Users.api_token",
+        "Users.whitelabel_id",
       ])
       .select((eb) => [
         // Select all role permission fields dynamically
@@ -157,6 +159,7 @@ export async function getUserFromToken(
       role: result.role,
       active: result.active,
       api_token: result.api_token,
+      whitelabel_id: result.whitelabel_id,
       capabilities,
     }
   } catch (error) {
@@ -181,6 +184,7 @@ export async function getUserById(
         "role",
         "active",
         "api_token",
+        "whitelabel_id",
       ])
       .where("user_id", "=", userId)
       .executeTakeFirst()

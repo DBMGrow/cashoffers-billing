@@ -157,9 +157,9 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
     const period = durationRaw.replace(/ly$/, "")
     const productIsFree = price === 0 && !selectedProduct.data?.signup_fee
 
-    const buttonProps = {
+      const buttonProps = {
       style: {
-        backgroundColor: "#4d9cb9",
+        backgroundColor: "var(--color-primary)",
         borderRadius: "0.5rem",
         boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
       },
@@ -171,12 +171,12 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
 
     return (
       <div className="w-full flex flex-col gap-4">
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+        <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg space-y-2">
           <h4 className="font-semibold text-lg">{selectedProduct.product_name}</h4>
           <p className="text-sm text-gray-600">
             {productIsFree ? "Free" : `$${price.toFixed(2)} / ${period}`}
           </p>
-          <div className="text-sm text-gray-600 border-t border-blue-200 pt-2 mt-2 space-y-1">
+          <div className="text-sm text-gray-600 border-t border-primary/30 pt-2 mt-2 space-y-1">
             <p>
               <span className="font-medium text-sm text-gray-700">Included:</span> {baseContacts.toLocaleString()}{" "}
               contacts
@@ -230,7 +230,7 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
           return (
             <div
               key={product.product_id}
-              className="p-4 border rounded-lg hover:border-blue-500 cursor-pointer transition"
+              className="p-4 border rounded-lg hover:border-primary cursor-pointer transition"
               onClick={() => handleSelectProduct(product)}
             >
               <h4 className="font-semibold text-lg">{product.product_name}</h4>

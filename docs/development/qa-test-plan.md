@@ -4,17 +4,18 @@ Complete walkthrough of every system process, its lifecycle, edge cases, and how
 
 > **Definitive reference:** [Billing Scenario Matrix](../business/capabilities/billing-scenario-matrix.md) — all product types, state combinations, lifecycle events, and edge cases.
 
-## Progress: 4% complete (1 / 27 active sections verified)
+## Progress: 28% complete (7 / 25 active sections verified)
 
 | Status | Count | Sections |
 |--------|-------|----------|
-| VERIFIED | 1 | 1 |
+| VERIFIED | 4 | 1, 2, 3, 4 |
+| COMPLETE | 3 | 5, 6, 7 |
 | HAS-BUGS | 0 | — |
-| IMPL-NEEDED | 22 | 2, 4–7, 11–15, 18–26, 28b, 29–32 |
-| DOCS-REVIEW | 4 | 8, 9, 17, 27 |
-| SHELVED | 4 | 3, 10, 16, 28 |
+| IMPL-NEEDED | 16 | 10–15, 17–25, 26b |
+| DOCS-REVIEW | 2 | 8, 9 |
+| SHELVED | 3 | 3b, 16, 26 |
 
-> **4 shelved sections** (free trial related) are excluded from the active count. Un-shelve them when the free trial UI is ready.
+> **3 shelved sections** (free trial related) are excluded from the active count. Un-shelve them when the free trial UI is ready.
 
 ## Prerequisites
 
@@ -40,38 +41,33 @@ yarn dev:tools auth-link <user_id>
 ## Table of Contents
 
 1. New User Purchase: `premium_cashoffers` — `VERIFIED`
-2. Existing User Enrollment: `external_cashoffers` — `IMPL-NEEDED`
-3. New User Purchase: `homeuptick_only` (Free Trial) — `SHELVED`
-4. New User Signup (Free) — `IMPL-NEEDED`
-5. New User Signup (Investor) — `IMPL-NEEDED`
-6. New User Signup (Team Plan) — `IMPL-NEEDED`
-7. Whitelabel Signup — `IMPL-NEEDED`
+2. Existing User Enrollment: `external_cashoffers` — `VERIFIED`
+3. New User Purchase: `homeuptick_only` (Paid, No Free Trial) — `VERIFIED`
+3b. New User Purchase: `homeuptick_only` (Free Trial) — `SHELVED`
+4. New User Signup (Free) — `VERIFIED`
+5. New User Signup (Investor) — `COMPLETE`
+6. New User Signup (Team Plan) — `COMPLETE`
+7. Whitelabel Signup — `COMPLETE`
 8. Subscription Renewal: `premium_cashoffers` (Combined CO+HU) — `DOCS-REVIEW`
 9. Subscription Renewal: `external_cashoffers` — `DOCS-REVIEW`
-10. Subscription Renewal: `homeuptick_only` Conversion — `SHELVED`
+10. Subscription Renewal: `homeuptick_only` — `IMPL-NEEDED`
 11. Payment Failure — User-Fault (Card Declined) — `IMPL-NEEDED`
 12. Payment Failure — System-Fault (HU API / Square Down) — `IMPL-NEEDED`
 13. Suspension After Max Retries — `IMPL-NEEDED`
 14. Cancel on Renewal — `IMPL-NEEDED`
 15. Downgrade on Renewal (`premium_cashoffers` → Free) — `IMPL-NEEDED`
 16. Free Trial: `homeuptick_only` Lifecycle — `SHELVED`
-17. Free Trial: HU Auto-Trial (Non-Billing) — `DOCS-REVIEW`
-18. Pause (CO Deactivation via Webhook) — `IMPL-NEEDED`
-19. Resume (CO Reactivation via Webhook) — `IMPL-NEEDED`
-20. Card Update — `IMPL-NEEDED`
-21. Plan Change (Upgrade) — `IMPL-NEEDED`
-22. Plan Change (Downgrade) — `IMPL-NEEDED`
-23. Payment Refund — `IMPL-NEEDED`
-24. Property Unlock — `IMPL-NEEDED`
-25. Webhook: User Deactivated — `IMPL-NEEDED`
-26. Webhook: User Activated — `IMPL-NEEDED`
-27. Webhook: User Created — `DOCS-REVIEW`
-28. Cron: Trial Warning & Expiration — `SHELVED`
-28b. Manage Billing: Premium User Without Subscription — `IMPL-NEEDED`
-29. Manage Account: Login & View — `IMPL-NEEDED`
-30. Email Notifications — `IMPL-NEEDED`
-31. Authorization & Permissions — `IMPL-NEEDED`
-32. Sandbox / Test Mode — `IMPL-NEEDED`
+17. Pause (CO Deactivation via Webhook) — `IMPL-NEEDED`
+18. Resume (CO Reactivation via Webhook) — `IMPL-NEEDED`
+19. Card Update — `IMPL-NEEDED`
+20. Plan Change (Upgrade) — `IMPL-NEEDED`
+21. Plan Change (Downgrade) — `IMPL-NEEDED`
+22. Payment Refund — `IMPL-NEEDED`
+23. Property Unlock — `IMPL-NEEDED`
+24. Webhook: User Deactivated — `IMPL-NEEDED`
+25. Webhook: User Activated — `IMPL-NEEDED`
+26. Cron: Trial Warning & Expiration — `SHELVED`
+26b. Manage Billing: Premium User Without Subscription — `IMPL-NEEDED`
 
 ---
 
@@ -102,7 +98,7 @@ Before testing, understand these distinctions from the [Billing Scenario Matrix]
 | **Paused vs Suspended** | **Paused** = admin/webhook deactivated CO account. **Suspended** = max payment retries exhausted. Different card-update behaviors |
 | **Combined charging** | CO and HU always charged together. If HU API is down at renewal, do NOT charge CO — retry the whole thing |
 | **Non-user-fault failures** | HU API down, Square outage → do NOT increment `payment_failure_count`. Retry without penalty |
-| **Auto-trial vs `homeuptick_only` trial** | Auto-trial = HU-driven, no billing, no card. `homeuptick_only` with free trial (WIP) = billing-managed, card required, auto-converts to paid |
+| **Auto-trial vs `homeuptick_only` trial** | Auto-trial = HU-driven, no billing, no card. `homeuptick_only` with free trial (WIP) = billing-managed, card required, auto-converts to paid. `homeuptick_only` without free trial = paid from day one, card charged immediately |
 | **Whitelabel suspension** | `DEACTIVATE_USER` → role=SHELL. `DOWNGRADE_TO_FREE` → is_premium=0, role unchanged. SHELL always preserved |
 
 ---
@@ -175,7 +171,7 @@ yarn test --config vitest.config.api.ts api/tests/integration/homeuptick-default
 
 ---
 
-## 2. Existing User Enrollment: `external_cashoffers` — `IMPL-NEEDED`
+## 2. Existing User Enrollment: `external_cashoffers` — `VERIFIED`
 
 **Scenario matrix refs:** P2, P7
 
@@ -233,7 +229,75 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 3. New User Purchase: `homeuptick_only` (Free Trial) — `SHELVED`
+## 3. New User Purchase: `homeuptick_only` (Paid, No Free Trial) — `VERIFIED`
+
+**Scenario matrix refs:** P3 (variant: no free trial)
+
+**Process:** New user purchases a `homeuptick_only` product that has no free trial configured. Card required. Charged immediately (signup fee). CO access = SHELL (managed=true, is_premium=0, role=SHELL). HU = Paid-Active from day one.
+
+### Lifecycle
+
+| Step | What Happens | Verify |
+|---|---|---|
+| 1. Land on pricing page | `homeuptick_only` products displayed (no trial badge) | Correct price shown, no trial language |
+| 2. Click "Sign Up" | Navigates to subscribe flow | URL is `/{whitelabel}/subscribe/{product}` |
+| 3. Enter email | System checks if user exists | New user proceeds; existing user gets reactivation offer |
+| 4. Enter name, phone | Standard validation | Fields captured (no slug step — SHELL users don't get lead capture pages) |
+| 5. Enter card details | Square tokenizes card in browser | Card nonce generated |
+| 6. Review & accept terms | All consents displayed | TOS, general, communication checkboxes required |
+| 7. Submit | Backend processes purchase | See backend steps below |
+| 8. Welcome screen | Success confirmation | User directed to set password |
+
+**Backend steps on submit (POST `/api/purchase/new`):**
+
+| Step | What Happens | Verify |
+|---|---|---|
+| A | Validate product exists, active, `managed=true`, `product_category=homeuptick_only` | Invalid product → 400 |
+| B | Create card in Square with null user_id | Card created in Square |
+| C | Charge signup fee via Square | Transaction logged, amount matches product `signup_fee` |
+| D | Create user in main API with `user_config` | User: role=SHELL, `is_premium=0`, whitelabel set |
+| E | Bind card to new user | UserCards links user_id to card_id |
+| F | Create subscription record | Status: `active`, `next_renewal_at` = now + duration, **no** `trial_ends_at` |
+| G | Seed HomeUptick subscription from product template | `Homeuptick_Subscriptions` row created, HU = Paid-Active |
+| H | Emit SubscriptionCreated event | HU activation fires |
+| I | Send confirmation email | Email received |
+
+### Edge Cases
+
+| Case | Expected Behavior | Matrix Ref |
+|---|---|---|
+| Card declined | Error shown, user can retry | — |
+| User had HU auto-trial | Clear auto-trial; paid HU takes over | P6 (variant) |
+| Duplicate email | "Account exists" with reactivation offer | — |
+| Product has `free_trial.enabled = false` or no `free_trial` block | Treated as paid from day one — no trial logic | — |
+
+### How to Test
+
+**Frontend (manual):**
+
+1. Navigate to `http://localhost:3000/{whitelabel}` with a `homeuptick_only` product that has no free trial
+2. Click "Sign Up" on the product
+3. Walk through each step — card required, no trial messaging shown
+4. Use `?mock_purchase=true` to skip real Square charges
+5. Verify welcome screen appears
+
+**Dev CLI:**
+
+```bash
+yarn dev:tools scenario renewal-due --product p-hu-notrial --email test-hu-paid@dev-test.local
+yarn dev:tools state <user_id>
+# Verify: managed=true, is_premium=0, role=SHELL, HU=Paid-Active, no trial_ends_at, card on file
+```
+
+**Integration test:**
+
+```bash
+yarn test api/tests/integration/homeuptick-default-seeding.test.ts
+```
+
+---
+
+## 3b. New User Purchase: `homeuptick_only` (Free Trial) — `SHELVED`
 
 > **WIP — Not included in initial release.** Billing-managed free trials are not ready for production. The signup UI does not properly communicate trial terms. Do not configure `free_trial` on any products until this feature is complete.
 
@@ -272,7 +336,7 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 4. New User Signup (Free) — `IMPL-NEEDED`
+## 4. New User Signup (Free) — `VERIFIED`
 
 **Process:** New user creates a free account (no payment required).
 
@@ -296,7 +360,7 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 5. New User Signup (Investor) — `IMPL-NEEDED`
+## 5. New User Signup (Investor) — `COMPLETE`
 
 Same as [P-CO purchase](#1-new-user-purchase-p-co-co-premium) with:
 
@@ -316,7 +380,7 @@ Same as [P-CO purchase](#1-new-user-purchase-p-co-co-premium) with:
 
 ---
 
-## 6. New User Signup (Team Plan) — `IMPL-NEEDED`
+## 6. New User Signup (Team Plan) — `COMPLETE`
 
 Same as [P-CO purchase](#1-new-user-purchase-p-co-co-premium) with:
 
@@ -336,7 +400,7 @@ Same as [P-CO purchase](#1-new-user-purchase-p-co-co-premium) with:
 
 ---
 
-## 7. Whitelabel Signup — `IMPL-NEEDED`
+## 7. Whitelabel Signup — `COMPLETE`
 
 **Process:** Partner-branded signup flow with whitelabel-specific products and branding.
 
@@ -453,48 +517,51 @@ yarn test api/tests/integration/homeuptick-module.test.ts
 
 ---
 
-## 10. Subscription Renewal: `homeuptick_only` Conversion — `SHELVED`
+## 10. Subscription Renewal: `homeuptick_only` — `IMPL-NEEDED`
 
-> **WIP — Not included in initial release.** See [Section 3](#3-new-user-purchase-p-trial--homeuptick_only-hu-free-trial) for details.
+**Scenario matrix refs:** R3
 
-**Scenario matrix refs:** R3, R4
-
-**Process:** P-TRIAL reaches `trial_ends_at`. System auto-converts: charges card for HU usage-based amount. HU data transitions Trial-Active → Paid-Active. Subscription continues as P-HU equivalent.
+**Process:** Cron finds `homeuptick_only` subscription due for renewal. Charges HU usage-based amount based on contact count fetched from HU API. CO stays SHELL — no CO state changes.
 
 ### Lifecycle
 
 | Step | What Happens | Verify |
 |---|---|---|
-| 1. Cron detects `trial_ends_at <= now` | P-TRIAL identified for conversion | Correct trial found |
-| 2. Charge card | HU usage-based amount | First real charge |
-| 3. HU data → Paid-Active | Trial-Active → Paid-Active | HU data state changed |
-| 4. Subscription continues | As P-HU equivalent with billing | `next_renewal_at` set |
-| 5. CO stays SHELL | No change to CO access | SHELL preserved |
+| 1. Cron triggered | POST `/api/cron/subscriptions` with CRON_SECRET | Endpoint responds 200 |
+| 2. Query due subscriptions | `next_renewal_at <= now` AND status = `active` | Correct subscription found |
+| 3. Fetch HU contact count | From HU API | Count returned |
+| 4. Calculate charge | Usage-based HU tier pricing | Correct tier amount |
+| 5. Charge via Square | HU-only payment | Single transaction |
+| 6. Update next_renewal_at | now + duration | Date advanced |
+| 7. Reset payment_failure_count | Set to 0 | Clean slate |
+| 8. Send renewal email | Receipt shows HU usage breakdown | Email sent |
+| 9. CO stays SHELL | No change to CO access | SHELL preserved |
 
 ### Edge Cases
 
 | Case | Expected Behavior | Matrix Ref |
 |---|---|---|
-| Conversion payment fails | Enter retry ladder (**user-fault only**). HU access revoked at `trial_ends_at`. On success, HU restored. On max retries, suspend | R4, E1 |
-| `cancel_on_renewal` set during trial | Do not convert. HU access off at trial end. SHELL preserved | X3 |
-| User purchased P-CO before trial end | Trial already ended/upgraded — conversion skipped | P4 |
+| HU API unavailable | Do not charge. Retry without incrementing failure count | R5 |
+| Tier changed since last renewal | New tier cost applied | — |
+| `cancel_on_renewal` set | Do not renew. HU access off. SHELL preserved | — |
+| User inactive in main API | Subscription skipped (no charge) | — |
 
 ### How to Test
 
 **Dev CLI:**
 
 ```bash
-yarn dev:tools scenario trial-expired
+yarn dev:tools scenario renewal-due --product p-hu-only
 yarn dev:tools cron-preview
 yarn dev:tools cron-run <user_id>
 yarn dev:tools state <user_id>
-# Verify: status transition, first charge, HU Paid-Active
+# Verify: HU usage charge, next_renewal_at advanced, SHELL preserved
 ```
 
 **Integration test:**
 
 ```bash
-yarn test api/tests/integration/free-trial.test.ts
+yarn test api/tests/integration/homeuptick-module.test.ts
 ```
 
 ---
@@ -759,25 +826,26 @@ yarn test api/tests/integration/cashoffers-module.test.ts
 
 **Scenario matrix ref:** D1
 
-**Process:** P-CO user marked for downgrade. At renewal: CO → free, HU base 500 removed, HU access off.
+**Process:** P-CO user's subscription reaches renewal. Whitelabel config determines whether cancellation results in a downgrade (to free tier) or a full cancellation. At renewal: CO → free, HU base 500 removed, HU access off.
 
 ### Lifecycle
 
 | Step | What Happens | Verify |
 |---|---|---|
-| 1. `downgrade_on_renewal = true` | Flag set | — |
-| 2. Cron at renewal | Detects downgrade flag | Skips normal renewal charge |
-| 3. CO downgraded | `is_premium=0` | Premium access removed |
-| 4. HU base removed | Was included with CO premium | HU access off entirely |
-| 5. Downgrade email | User notified | — |
+| 1. `cancel_on_renewal = true` | User cancels subscription | Flag set |
+| 2. Cron at renewal | Detects cancel flag | Skips normal renewal charge |
+| 3. Check whitelabel config | Whitelabel determines downgrade vs cancel behavior | Correct path taken |
+| 4. CO downgraded | `is_premium=0` | Premium access removed |
+| 5. HU base removed | Was included with CO premium | HU access off entirely |
+| 6. Downgrade email | User notified | — |
 
 ### Edge Cases
 
 | Case | Expected Behavior | Matrix Ref |
 |---|---|---|
 | P-CO user >500 contacts then downgrades | At renewal: CO free, HU off entirely (no CO premium = no base) | E2 |
-| Un-downgrade before renewal | Flag cleared, normal renewal resumes | — |
-| Downgrade + cancel both set | Needs verification — which takes precedence? | — |
+| Whitelabel config says cancel (not downgrade) | Full cancellation instead of downgrade to free | — |
+| Un-cancel before renewal | Flag cleared, normal renewal resumes | — |
 | Downgrade user_config update | **Not yet implemented (TODO-003, DISC-005)** | — |
 
 ### How to Test
@@ -786,7 +854,7 @@ yarn test api/tests/integration/cashoffers-module.test.ts
 yarn dev:tools scenario downgrade-on-renewal
 yarn dev:tools cron-run <user_id>
 yarn dev:tools state <user_id>
-# Verify: is_premium=0, HU access off
+# Verify: is_premium=0, HU access off, whitelabel config respected
 ```
 
 ---
@@ -848,43 +916,7 @@ yarn test api/tests/integration/free-trial.test.ts
 
 ---
 
-## 17. Free Trial: HU Auto-Trial (Non-Billing) — `DOCS-REVIEW`
-
-**Scenario matrix ref:** State Combination #15
-
-**Process:** Existing HU feature — auto-activated on first HU sign-in for free users. **No billing involvement.** No subscription record, no card, no billing system.
-
-| Aspect | Detail |
-|---|---|
-| Triggered by | First HU sign-in |
-| Card required | No |
-| Subscription record | None (Homeuptick_Subscriptions only) |
-| Auto-converts to paid | No — access simply turned off at expiry |
-| Billing involvement | None (except: billing pauses auto-trial on CO deactivation) |
-
-### Billing's Responsibilities
-
-| Event | Billing Action | Matrix Ref |
-|---|---|---|
-| CO deactivated (webhook) | Tell HU API to pause auto-trial | W2 |
-| CO reactivated (webhook) | Tell HU API to resume auto-trial | W5 |
-| User purchases P-CO | **Clear auto-trial** (CO premium supersedes) | P5 |
-| User starts P-TRIAL | **Clear auto-trial** (P-TRIAL replaces) | P6 |
-
-### How to Test
-
-```bash
-# Verify auto-trial pause on CO deactivation
-yarn dev:tools webhook user.deactivated <user_id>
-# Verify: HU auto-trial paused (check HU API)
-
-# Verify auto-trial cleared on P-CO purchase
-# Purchase P-CO for user with auto-trial → auto-trial removed
-```
-
----
-
-## 18. Pause (CO Deactivation via Webhook) — `IMPL-NEEDED`
+## 17. Pause (CO Deactivation via Webhook) — `IMPL-NEEDED`
 
 **Scenario matrix refs:** PZ1, PZ2, PZ3, F6, W1, W3
 
@@ -939,7 +971,7 @@ yarn test api/tests/integration/webhook-cashoffers.test.ts
 
 ---
 
-## 19. Resume (CO Reactivation via Webhook) — `IMPL-NEEDED`
+## 18. Resume (CO Reactivation via Webhook) — `IMPL-NEEDED`
 
 **Scenario matrix refs:** PZ4, W4
 
@@ -985,7 +1017,7 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 20. Card Update — `IMPL-NEEDED`
+## 19. Card Update — `IMPL-NEEDED`
 
 **Scenario matrix refs:** C1-C5, F5, F7, F8, E6, E7
 
@@ -1050,7 +1082,7 @@ yarn test api/tests/integration/card-update-retry.test.ts
 
 ---
 
-## 21. Plan Change (Upgrade) — `IMPL-NEEDED`
+## 20. Plan Change (Upgrade) — `IMPL-NEEDED`
 
 **Process:** Existing user upgrades to a higher-tier plan with prorated charge.
 
@@ -1088,18 +1120,18 @@ yarn test api/tests/integration/card-update-retry.test.ts
 
 ---
 
-## 22. Plan Change (Downgrade) — `IMPL-NEEDED`
+## 21. Plan Change (Downgrade) — `IMPL-NEEDED`
 
-**Process:** User switches to a lower-tier plan. Takes effect at next renewal.
+**Process:** User switches to a lower-tier plan. Takes effect immediately.
 
 ### Lifecycle
 
 | Step | What Happens | Verify |
 |---|---|---|
-| 1. Select lower plan | Via manage flow | `downgrade_on_renewal = true` |
-| 2. Current plan continues | User keeps access until period end | No immediate change |
-| 3. Cron at renewal | Detects downgrade flag | New plan applied |
-| 4. Role mapping applied | Team → single: TEAMOWNER → AGENT | Correct role |
+| 1. Select lower plan | Via manage flow | Plan change initiated |
+| 2. New plan applied immediately | Subscription updated to new plan | Access level changed |
+| 3. Role mapping applied | Team → single: TEAMOWNER → AGENT | Correct role |
+| 4. Prorated billing adjusted | Remaining period recalculated | Next renewal amount updated |
 
 ### Edge Cases
 
@@ -1110,7 +1142,7 @@ yarn test api/tests/integration/card-update-retry.test.ts
 
 ---
 
-## 23. Payment Refund — `IMPL-NEEDED`
+## 22. Payment Refund — `IMPL-NEEDED`
 
 **Process:** Admin refunds a completed payment.
 
@@ -1144,7 +1176,7 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 24. Property Unlock — `IMPL-NEEDED`
+## 23. Property Unlock — `IMPL-NEEDED`
 
 **Process:** One-time $50 charge to unlock a property.
 
@@ -1170,7 +1202,7 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 25. Webhook: User Deactivated — `IMPL-NEEDED`
+## 24. Webhook: User Deactivated — `IMPL-NEEDED`
 
 **Scenario matrix refs:** W1, W2, W3, W6
 
@@ -1214,7 +1246,7 @@ yarn test api/tests/integration/webhook-cashoffers.test.ts
 
 ---
 
-## 26. Webhook: User Activated — `IMPL-NEEDED`
+## 25. Webhook: User Activated — `IMPL-NEEDED`
 
 **Scenario matrix refs:** W4, W5
 
@@ -1240,35 +1272,7 @@ yarn dev:tools state <user_id>
 
 ---
 
-## 27. Webhook: User Created — `DOCS-REVIEW`
-
-**Process:** CashOffers API notifies billing of new user creation.
-
-### Lifecycle
-
-| Step | What Happens | Verify |
-|---|---|---|
-| 1. Webhook received | `user.created` | Signature verified |
-| 2. Check existing subscription | Skip if already has one | No duplicates |
-| 3. Create free trial | 90-day trial, SHELL role, HU enabled | Status: `free_trial` |
-
-### Edge Cases
-
-| Case | Expected Behavior |
-|---|---|
-| User already has active subscription | Trial skipped |
-| User already has trial | Trial skipped |
-
-### How to Test
-
-```bash
-yarn dev:tools webhook user.created <user_id>
-yarn dev:tools state <user_id>
-```
-
----
-
-## 28. Cron: Trial Warning & Expiration — `SHELVED`
+## 26. Cron: Trial Warning & Expiration — `SHELVED`
 
 **Process:** Cron handles trial warning emails and trial conversion/expiration.
 
@@ -1294,7 +1298,7 @@ yarn dev:tools cron-run <user_id>
 
 ---
 
-## 28b. Manage Billing: Premium User Without Subscription — `IMPL-NEEDED`
+## 26b. Manage Billing: Premium User Without Subscription — `IMPL-NEEDED`
 
 **Process:** Premium user with no billing subscription visits the manage billing section. Two distinct scenarios exist:
 
@@ -1338,112 +1342,6 @@ yarn dev:tools auth-link <admin_created_user_id>
 
 ---
 
-## 29. Manage Account: Login & View — `IMPL-NEEDED`
-
-**Process:** User logs into account management portal.
-
-### Login Flow
-
-| Step | What Happens | Verify |
-|---|---|---|
-| 1. Navigate to `/manage` | Check existing session | Auto-login if cookie valid |
-| 2. Enter email | POST `/api/signup/checkuserexists` | Found → password step |
-| 3. Enter password | POST `/api/auth/login` | `_api_token` cookie set |
-| 4. Dashboard | Subscription info, action buttons | Correct data shown |
-
-### Edge Cases
-
-| Case | Expected Behavior |
-|---|---|
-| Invalid email | "User not found" |
-| Wrong password | "Invalid credentials" |
-| Deactivated user with premium history | Reactivation offer |
-| Deep link with goto param | Redirect after login |
-
-**Deep links:** `/manage?goto=dashboard`, `?goto=subscription`, `?goto=card`, `?goto=changePlan`
-
----
-
-## 30. Email Notifications — `IMPL-NEEDED`
-
-### Email Matrix
-
-| Event | Template | Notes |
-|---|---|---|
-| New user purchase (provisioned) | subscription-created | — |
-| New user purchase (provisioning failed) | purchase-error-customer | NOT welcome email |
-| Subscription renewed (P-CO) | subscription-renewed | **Must show CO base + HU usage breakdown** |
-| Subscription renewed (P-HU) | subscription-renewed | HU charge only |
-| P-TRIAL conversion | subscription-renewed | First charge, trial→paid |
-| Payment failed | payment-failed | User-fault only |
-| Payment refunded | payment-refunded | — |
-| Card updated | card-updated | — |
-| Subscription cancelled | subscription-cancelled | Per product type behavior |
-| Subscription paused | subscription-paused | — |
-| Subscription resumed | subscription-resumed | — |
-| Subscription suspended | subscription-suspended | Includes card update instructions |
-| Subscription downgraded | subscription-downgraded | — |
-| Trial started (P-TRIAL) | trial-started | Card required, conversion date shown |
-| Trial expiring (10 days) | trial-expiring | Days remaining |
-| Trial expired (conversion failed) | trial-expired | — |
-| Property unlocked | property-unlocked | — |
-| Admin alerts | admin-alert | System errors |
-
-### Renewal Email Requirements (E11)
-
-P-CO renewal emails must indicate:
-- HU base included (CO premium users)
-- HU usage-based charge amount (if >500 contacts)
-- Or "HU trial — converting at [date]" (if P-TRIAL)
-
-### How to Test
-
-```bash
-yarn preview:emails
-# Open email-previews/index.html in browser
-```
-
-- Set `SEND_EMAILS=true` and `DEV_EMAIL=your-email@example.com` to test delivery
-- Set `SEND_EMAILS=false` to verify operations complete without emails
-
----
-
-## 31. Authorization & Permissions — `IMPL-NEEDED`
-
-### Auth Flows
-
-| Endpoint Type | Auth Method | Verify |
-|---|---|---|
-| Standard API routes | Bearer token (JWT from main API) | 401 without token |
-| Cron routes | `CRON_SECRET` header | 401 without secret |
-| Webhook routes | HMAC-SHA256 signature | 401 with bad signature |
-| Health check | No auth | Always 200 |
-| Dev routes | Bearer token (non-production only) | 404 in production |
-
-### Edge Cases
-
-| Case | Expected Behavior |
-|---|---|
-| Expired/invalid token | 401 |
-| Non-admin on admin route | 403 |
-| Self-access (allowSelf) | Allowed if token owner = resource owner |
-| Cross-user access | 403 unless admin |
-
----
-
-## 32. Sandbox / Test Mode — `IMPL-NEEDED`
-
-### How It Works
-
-| Signal | Behavior |
-|---|---|
-| `?mock_purchase=true` query param | Skips Square entirely |
-| Test email pattern (`*@dev-test.local`) | Routes to Square sandbox |
-| `SQUARE_ENVIRONMENT=sandbox` | All charges to sandbox |
-| Dev routes | Available only when `NODE_ENV !== 'production'` |
-
----
-
 ## Known Gaps & TODOs
 
 | ID | Gap | Impact | Status |
@@ -1469,8 +1367,10 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 - [ ] `premium_cashoffers` purchase — existing user had `homeuptick_only` trial (trial ended, upgraded) `[P4]`
 - [ ] `external_cashoffers` enrollment — via manage flow (managed=false, CO untouched) `[P2]`
 - [ ] `external_cashoffers` enrollment — KW/team member `[P7]`
-- [ ] `homeuptick_only` enrollment — (WIP) card required, CO=SHELL, HU=Trial-Active `[P3]`
-- [ ] `homeuptick_only` enrollment — (WIP) user had auto-trial (auto-trial cleared) `[P6]`
+- [ ] `homeuptick_only` purchase (no trial) — new user, card charged, CO=SHELL, HU=Paid-Active `[P3]`
+- [ ] `homeuptick_only` purchase (no trial) — user had auto-trial (auto-trial cleared) `[P6]`
+- [ ] `homeuptick_only` enrollment (free trial, WIP) — card required, CO=SHELL, HU=Trial-Active `[P3]`
+- [ ] `homeuptick_only` enrollment (free trial, WIP) — user had auto-trial (auto-trial cleared) `[P6]`
 - [ ] Free signup (no card, amount=0)
 - [ ] Investor signup (additional consent, role=INVESTOR)
 - [ ] Team plan signup (TEAMOWNER role, team name step)
@@ -1485,7 +1385,8 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 - [ ] `premium_cashoffers` renewal — user ≤500 contacts (HU usage = $0, base included)
 - [ ] `premium_cashoffers` renewal — user >500 contacts (HU usage-based tier charged)
 - [ ] `external_cashoffers` renewal — HU-only usage-based charge `[R2]`
-- [ ] `homeuptick_only` conversion — (WIP) auto-convert at trial_ends_at `[R3]`
+- [ ] `homeuptick_only` renewal (no trial) — HU usage-based charge, CO=SHELL unchanged `[R2]`
+- [ ] `homeuptick_only` conversion (free trial, WIP) — auto-convert at trial_ends_at `[R3]`
 - [ ] `homeuptick_only` conversion failure — (WIP) enters retry ladder `[R4]`
 - [ ] HU tier changed since last renewal — new tier auto-applied `[P8]`
 - [ ] HU API unavailable at renewal — **do not charge CO, retry without penalty** `[R5]`

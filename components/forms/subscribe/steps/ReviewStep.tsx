@@ -58,7 +58,7 @@ export default function ReviewStep({
 
   // Calculate prices from product data
   const monthlyPrice = (productData?.data?.renewal_cost || 0) / 100
-  const signupFeeAmount = (productData?.data?.signup_fee || 0) / 100
+  const signupFeeAmount = (productData?.data?.signup_fee ?? productData?.price ?? 0) / 100
 
   const productPrice = monthlyPrice
   const priceToday = productPrice + signupFeeAmount
@@ -186,6 +186,12 @@ export default function ReviewStep({
                 <span className="text-caption">/mo</span>
               </div>
             </div>
+            {signupFeeAmount > 0 && (
+              <div className="flex gap-2 justify-between items-start">
+                <strong>Signup Fee</strong>
+                <div className="text-xl font-bold">${signupFeeAmount}</div>
+              </div>
+            )}
             <div className="flex gap-2 justify-between items-start">
               <strong>Total Today</strong>
               <div className="text-price">${priceToday}</div>

@@ -9,6 +9,7 @@ import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import { useFlowAnimation } from "@/hooks/useFlowAnimation"
 import { useFlowState } from "@/hooks/useFlowState"
 import { useUser } from "@/hooks/useUser"
+import { useBrandingOverride } from "@/hooks/useBrandingOverride"
 import { useSession } from "@/hooks/api/useSession"
 import { useLogout } from "@/hooks/api/useLogout"
 import { Spinner } from "@/components/Theme/Spinner"
@@ -63,6 +64,7 @@ const BASE_STEP_CONFIG: Record<ManageStep, { title: string; description: string 
 export default function ManageFlow() {
   const queryClient = useQueryClient()
   const { user, setUser } = useUser()
+  useBrandingOverride(user)
   const userName = user?.name || ""
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
 

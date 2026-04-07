@@ -214,7 +214,7 @@ export interface PurchasePricing {
 }
 
 export function calculatePricing(product: { price: number }, productData: ProductData): PurchasePricing {
-  const signupFee = productData.signup_fee || 0
+  const signupFee = productData.signup_fee ?? product.price ?? 0
   const renewalCost = productData.renewal_cost || product.price
   const productDuration = productData.duration || "monthly"
   return { signupFee, renewalCost, productDuration, initialAmount: signupFee + renewalCost }
@@ -612,7 +612,7 @@ const DEFAULT_HOMEUPTICK_CONFIG: HomeUptickConfig = {
   enabled: true,
   base_contacts: 500,
   contacts_per_tier: 500,
-  price_per_tier: 0,
+  price_per_tier: 7500,
 }
 
 /**

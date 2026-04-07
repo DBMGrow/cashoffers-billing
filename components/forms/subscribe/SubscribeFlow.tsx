@@ -158,6 +158,7 @@ export default function SubscribeFlow({
   })
 
   const isInvestor = (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
+  const isHomeUptickOnly = selectedProduct?.product_category === "homeuptick_only"
 
   const userName = form.watch("name")
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])
@@ -228,6 +229,10 @@ export default function SubscribeFlow({
                 return goToStep("phone")
               }
 
+              if (isHomeUptickOnly) {
+                return goToStep("broker")
+              }
+
               return goToStep("slug")
             }}
             onBack={() => goToStep("email")}
@@ -248,7 +253,7 @@ export default function SubscribeFlow({
           />
         )
       case "broker":
-        return <BrokerStep form={form} onNext={() => goToStep("team")} onBack={() => goToStep("slug")} />
+        return <BrokerStep form={form} onNext={() => goToStep("team")} onBack={() => goToStep(isHomeUptickOnly ? "name" : "slug")} />
       case "team":
         return <TeamStep form={form} onNext={() => goToStep("phone")} onBack={() => goToStep("broker")} />
       case "phone":

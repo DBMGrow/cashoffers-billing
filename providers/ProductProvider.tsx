@@ -59,7 +59,7 @@ export function isProductFree(product: Product | undefined): boolean {
   if (!product) return false
   const data = product.data
   const renewalCost = data?.renewal_cost ?? product.price ?? 0
-  const signupFee = data?.signup_fee ?? 0
+  const signupFee = data?.signup_fee ?? product.price ?? 0
   return renewalCost === 0 && signupFee === 0
 }
 

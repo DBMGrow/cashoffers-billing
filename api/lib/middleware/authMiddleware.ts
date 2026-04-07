@@ -112,6 +112,7 @@ export function authMiddleware(
       name: user.name,
       role: user.role,
       active: user.active,
+      whitelabel_id: (user as any).whitelabel_id,
     })
 
     c.set("token_owner", {
