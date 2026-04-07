@@ -73,8 +73,8 @@ export function makeProductData(overrides?: {
   huEnabled?: boolean
   role?: string
   is_premium?: 0 | 1
-  whitelabel_id?: number | null
   is_team_plan?: boolean
+  team_members?: number
   huBaseContacts?: number
   huContactsPerTier?: number
   huPricePerTier?: number
@@ -85,8 +85,8 @@ export function makeProductData(overrides?: {
     huEnabled = false,
     role = 'AGENT',
     is_premium = 1,
-    whitelabel_id = null,
     is_team_plan = false,
+    team_members,
     huBaseContacts = 500,
     huContactsPerTier = 1000,
     huPricePerTier = 7500,
@@ -102,8 +102,8 @@ export function makeProductData(overrides?: {
       user_config: {
         is_premium,
         role,
-        whitelabel_id,
         is_team_plan,
+        ...(team_members !== undefined && { team_members }),
       },
     },
     homeuptick: {

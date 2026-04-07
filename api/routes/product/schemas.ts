@@ -25,6 +25,7 @@ export const ProductUserConfigSchema = z
     role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER", "SHELL"]),
     white_label_id: z.number().nullable(),
     is_team_plan: z.boolean().optional(),
+    team_members: z.number().optional(),
   })
   .strict()
 
@@ -231,11 +232,14 @@ export const CreateProductRoute = {
               signup_fee: 0,
               renewal_cost: 25000,
               duration: "monthly",
-              user_config: {
-                is_premium: 1,
-                role: "AGENT",
-                white_label_id: 1,
-                is_team_plan: false,
+              cashoffers: {
+                managed: true,
+                user_config: {
+                  is_premium: 1,
+                  role: "AGENT",
+                  white_label_id: 1,
+                  is_team_plan: false,
+                },
               },
             },
           },

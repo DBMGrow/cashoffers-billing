@@ -34,6 +34,7 @@ export const renewSubscriptionUseCase = new RenewSubscriptionUseCase({
   transactionRepository,
   userCardRepository,
   purchaseRequestRepository,
+  productRepository,
   config: configService,
   transactionManager,
   eventBus,
@@ -49,6 +50,7 @@ export const pauseSubscriptionUseCase = new PauseSubscriptionUseCase({
   emailService,
   userApiClient,
   eventBus,
+  productRepository,
   whitelabelRepository,
 })
 
@@ -65,6 +67,7 @@ export const cancelOnRenewalUseCase = new CancelOnRenewalUseCase({
   emailService,
   userApiClient,
   eventBus,
+  productRepository,
   whitelabelRepository,
 })
 
@@ -121,6 +124,7 @@ export const deactivateSubscriptionUseCase = new DeactivateSubscriptionUseCase({
   subscriptionRepository,
   userApiClient,
   eventBus,
+  productRepository,
   whitelabelRepository,
 })
 

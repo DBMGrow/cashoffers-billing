@@ -17,7 +17,7 @@ import {
   GetSubscriptionRoute,
   GetEnrollmentRoute,
   UpdateCardRoute,
-  ManagePurchaseRoute
+  ManagePurchaseRoute,
 } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -46,7 +46,7 @@ app.openapi(CheckPlanRoute, async (c) => {
     const user = userData.data
 
     // If team subscription, fetch team details
-    if (subscription?.data?.team) {
+    if (subscription?.data?.cashoffers?.user_config?.is_team_plan) {
       const headers = { "x-api-token": apiToken! }
 
       const teamResponse = await fetch(`${config.api.url}/teams/${subscription.data.team_id}`, { headers })
@@ -86,7 +86,7 @@ app.openapi(CheckPlanRoute, async (c) => {
 
     // Role validation: check if user can switch to this product
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
-    const productRole = product.data?.data?.user_config?.role
+    const productRole = product.data?.data?.cashoffers?.user_config?.role ?? product.data?.data?.user_config?.role
     const productIsAgentType = ["AGENT", "TEAMOWNER"].includes(productRole)
 
     if (userIsAgentType !== productIsAgentType) {
@@ -235,18 +235,14 @@ app.openapi(GetProductsRoute, async (c) => {
       .selectFrom("Products")
       .selectAll()
       .$if(userWhitelabelCode !== null, (qb) =>
-        qb.where((eb) =>
-          eb.or([eb("whitelabel_code", "=", userWhitelabelCode!), eb("whitelabel_code", "is", null)])
-        )
+        qb.where((eb) => eb.or([eb("whitelabel_code", "=", userWhitelabelCode!), eb("whitelabel_code", "is", null)]))
       )
-      .$if(categoryFilter !== undefined, (qb) =>
-        qb.where("product_category", "=", categoryFilter!)
-      )
+      .$if(categoryFilter !== undefined, (qb) => qb.where("product_category", "=", categoryFilter!))
       .execute()
 
     // Filter by role compatibility (still done in JS — no JSON path support in Kysely)
     const filteredProducts = allProducts.filter((product: any) => {
-      const productRole = product.data?.user_config?.role
+      const productRole = product.data?.cashoffers?.user_config?.role ?? product.data?.user_config?.role
 
       // Check role compatibility (skip if product doesn't specify a role - backward compatibility)
       if (productRole && !compatibleRoles.includes(productRole)) {
@@ -424,18 +420,14 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       userWhitelabelCode = whitelabel?.code ?? null
     }
 
+    console.log(`this user's whitelabel code is ${userWhitelabelCode}`)
+
     // Fetch products matching the determined category and whitelabel
-    let query = db
-      .selectFrom("Products")
-      .selectAll()
-      .where("product_category", "=", productCategory)
+    let query = db.selectFrom("Products").selectAll().where("product_category", "=", productCategory)
 
     if (userWhitelabelCode) {
       query = query.where((eb) =>
-        eb.or([
-          eb("whitelabel_code", "=", userWhitelabelCode!),
-          eb("whitelabel_code", "is", null),
-        ])
+        eb.or([eb("whitelabel_code", "=", userWhitelabelCode!), eb("whitelabel_code", "is", null)])
       )
     }
 
@@ -522,7 +514,7 @@ app.openapi(ManagePurchaseRoute, async (c) => {
     // 2. Validate role compatibility
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
     const productData = newProduct.data as ProductData | null
-    const productRole = productData?.user_config?.role
+    const productRole = productData?.cashoffers?.user_config?.role ?? productData?.user_config?.role
     const productIsAgentType = productRole ? ["AGENT", "TEAMOWNER"].includes(productRole) : false
 
     if (userIsAgentType !== productIsAgentType) {

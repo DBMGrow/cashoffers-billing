@@ -32,7 +32,15 @@ export interface Subscription {
   status?: string
   data: {
     renewal_cost: number
-    team_members?: number
+    cashoffers?: {
+      managed: boolean
+      user_config?: {
+        is_premium?: number
+        role?: string
+        is_team_plan?: boolean
+        team_members?: number
+      }
+    }
     [key: string]: any
   }
 }
@@ -66,11 +74,18 @@ export interface Product {
     renewal_cost?: number
     signup_fee?: number
     duration?: string
-    team_members?: number
+    cashoffers?: {
+      managed: boolean
+      user_config?: {
+        role?: string
+        is_premium?: number
+        is_team_plan?: boolean
+        team_members?: number
+      }
+    }
     user_config?: {
       role?: string
       is_premium?: number
-      whitelabel_id?: number | null
       is_team_plan?: boolean
     }
     [key: string]: any

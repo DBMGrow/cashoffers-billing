@@ -93,6 +93,16 @@ export class WhitelabelRepository {
     return result?.suspension_behavior || null
   }
 
+  async getSuspensionBehaviorByCode(code: string): Promise<'DOWNGRADE_TO_FREE' | 'DEACTIVATE_USER' | null> {
+    const result = await this.db
+      .selectFrom('Whitelabels')
+      .where('code', '=', code)
+      .select('suspension_behavior')
+      .executeTakeFirst()
+
+    return result?.suspension_behavior || null
+  }
+
   async findByCode(code: string): Promise<Selectable<Whitelabels> | null> {
     const result = await this.db
       .selectFrom('Whitelabels')

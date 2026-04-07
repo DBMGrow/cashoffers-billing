@@ -590,17 +590,13 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     const userId = Number(userResult.insertId)
 
     const devSubscriptionData = JSON.stringify({
-      productData: {
-        cashoffers: {
-          managed: productTypeConfig.managed,
-          user_config: {
-            role: productTypeConfig.role,
-            is_premium: productTypeConfig.is_premium,
-            whitelabel_id: scenarioWhitelabelId,
-          },
+      cashoffers: {
+        managed: productTypeConfig.managed,
+        user_config: {
+          role: productTypeConfig.role,
+          is_premium: productTypeConfig.is_premium,
         },
       },
-      user_config: { whitelabel_id: scenarioWhitelabelId },
     })
 
     const subResult = await db
@@ -1455,9 +1451,30 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       return c.json({ success: "error", error: "User not found or has no api_token" }, 404)
     }
 
+    // Check if user needs enrollment (premium, no billing subscription)
+    const existingSubscription = await db
+      .selectFrom("Subscriptions")
+      .select("subscription_id")
+      .where("user_id", "=", userId)
+      .where("status", "in", ["active", "trial", "paused"])
+      .executeTakeFirst()
+
+    const fullUser = await db
+      .selectFrom("Users")
+      .select(["is_premium"])
+      .where("user_id", "=", userId)
+      .executeTakeFirst()
+
+    const needsEnrollment = !existingSubscription && fullUser
+
     const jwt = await import("jsonwebtoken")
     const token = jwt.default.sign({ api_token: user.api_token }, config.jwtSecret, { expiresIn: "30d" })
-    const manageUrl = `http://localhost:3000/manage?token=${token}`
+
+    const params = new URLSearchParams({ token })
+    if (needsEnrollment) {
+      params.set("goto", "enrollment")
+    }
+    const manageUrl = `http://localhost:3000/manage?${params.toString()}`
 
     return c.json({
       success: "success",
@@ -1466,6 +1483,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         token,
         manage_url: manageUrl,
         expires_in: "30 days",
+        goto: needsEnrollment ? "enrollment" : undefined,
       },
     })
   })

@@ -56,7 +56,7 @@ const BASE_STEP_CONFIG: Record<ManageStep, { title: string; description: string 
   subscription: { title: "Manage Subscription", description: "View and update your subscription." },
   card: { title: "Update Card", description: "Update your billing information." },
   changePlan: { title: "Change Plan", description: "Select a new plan for your subscription." },
-  enrollment: { title: "Get Started", description: "Choose a plan and add your payment method." },
+  enrollment: { title: "Get Started", description: "Add your card on file to activate HomeUptick." },
   error: { title: "Oops!", description: "Something went wrong." },
 }
 

@@ -43,7 +43,7 @@ export default function ManageSubscriptionStep({ user, onBack, onUpdateCard, onC
   if (!data) return <P>We couldn&apos;t find your subscription.</P>
 
   const subscriptionAmount = data.data?.renewal_cost ? data.data.renewal_cost / 100 : 0
-  const teamSize = data.data?.team_members || null
+  const teamSize = data.data?.cashoffers?.user_config?.team_members || null
 
   return (
     <div className="w-full flex flex-col">

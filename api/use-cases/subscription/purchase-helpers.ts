@@ -19,7 +19,7 @@ import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-create
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
 import type { PaymentContext } from "@api/config/config.interface"
-import { ProductData, ProductUserConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
+import { ProductData, ProductUserConfig, CashOffersConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
 import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
 import { v4 as uuidv4 } from "uuid"
 
@@ -202,19 +202,6 @@ export class PurchaseError extends Error {
 // Pure helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Normalizes legacy `white_label_id` to `whitelabel_id` in user config.
- * The DB historically stored `white_label_id` but TypeScript types use `whitelabel_id`.
- */
-export function normalizeUserConfig(raw: ProductUserConfig | undefined): ProductUserConfig | undefined {
-  if (!raw) return raw
-  const legacy = (raw as any).white_label_id
-  if (legacy !== undefined && raw.whitelabel_id == null) {
-    return { ...raw, whitelabel_id: legacy }
-  }
-  return raw
-}
-
 export function parseProductId(productId: string | number): number {
   return typeof productId === "number" ? productId : parseInt(productId as string, 10)
 }
@@ -275,7 +262,8 @@ export async function validateAndParseProduct(
     throw new PurchaseError("Product not found", "PRODUCT_NOT_FOUND")
   }
   const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
-  const userConfig = normalizeUserConfig(productData.user_config)
+  // Prefer cashoffers.user_config; fall back to legacy root-level user_config
+  const userConfig = productData.cashoffers?.user_config ?? productData.user_config
   return { product, productData, userConfig }
 }
 
@@ -363,10 +351,18 @@ export async function createSubscriptionRecord(
     /** null for free ($0) purchases — no payment was processed */
     payment: { environment: "production" | "sandbox" } | null
     userConfig: ProductUserConfig | undefined
+    cashoffers: CashOffersConfig | undefined
   }
 ) {
   const renewalDate = calculateRenewalDate(params.pricing.productDuration)
   const now = new Date()
+
+  // Build subscription data: include user_config and cashoffers section from product
+  const subscriptionData: Record<string, unknown> = {}
+  if (params.userConfig) subscriptionData.user_config = params.userConfig
+  if (params.cashoffers) subscriptionData.cashoffers = params.cashoffers
+  const hasData = Object.keys(subscriptionData).length > 0
+
   return deps.subscriptionRepository.create({
     user_id: params.userId,
     subscription_name: params.product.product_name,
@@ -378,7 +374,7 @@ export async function createSubscriptionRecord(
     square_environment: params.payment?.environment ?? null,
     cancel_on_renewal: 0,
     downgrade_on_renewal: 0,
-    data: params.userConfig ? JSON.stringify({ user_config: params.userConfig }) : null,
+    data: hasData ? JSON.stringify(subscriptionData) : null,
     createdAt: now,
     updatedAt: now,
   })

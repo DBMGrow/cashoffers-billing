@@ -45,7 +45,7 @@ export default function ReviewStep({
   })
   const productData = getProductById(product)
 
-  const isInvestorProduct = productData?.data?.user_config?.role === "INVESTOR"
+  const isInvestorProduct = (productData?.data?.cashoffers?.user_config?.role ?? productData?.data?.user_config?.role) === "INVESTOR"
 
   const [isChecked, setIsChecked] = useState(!isInvestorProduct)
   const [isGeneralChecked, setIsGeneralChecked] = useState(false)

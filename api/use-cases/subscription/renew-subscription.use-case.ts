@@ -21,7 +21,7 @@ import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-de
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import type { IHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.interface"
 import type { ProductData } from "@api/domain/types/product-data.types"
-import type { WhitelabelRepository } from "@api/lib/repositories"
+import type { WhitelabelRepository, ProductRepository } from "@api/lib/repositories"
 
 interface Dependencies {
   logger: ILogger
@@ -31,6 +31,7 @@ interface Dependencies {
   transactionRepository: TransactionRepository
   userCardRepository: UserCardRepository
   purchaseRequestRepository: PurchaseRequestRepository
+  productRepository?: ProductRepository
   config: IConfigService
   transactionManager: ITransactionManager
   eventBus: IEventBus
@@ -126,7 +127,20 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           ? JSON.parse(subscription.data)
           : subscription.data
         : {}
-      const productData: ProductData | undefined = subscriptionData?.productData
+      let productData: ProductData | undefined = subscriptionData?.productData
+
+      // Fall back to product lookup when productData isn't embedded in subscription data
+      if (!productData && subscription.product_id && this.deps.productRepository) {
+        try {
+          const product = await this.deps.productRepository.findById(subscription.product_id)
+          if (product?.data) {
+            productData = typeof product.data === "object" ? (product.data as ProductData) : undefined
+          }
+        } catch {
+          logger.warn("Failed to look up product for renewal", { productId: subscription.product_id })
+        }
+      }
+
       const huConfig = productData?.homeuptick
 
       if (huConfig?.enabled && this.deps.homeUptickApiClient) {
@@ -182,15 +196,11 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         const cancelMetadata: Record<string, unknown> = {}
         if (productData) cancelMetadata.productData = productData
 
-        if (this.deps.whitelabelRepository) {
+        if (this.deps.whitelabelRepository && this.deps.productRepository && subscription.product_id) {
           try {
-            const subData = subscriptionData
-            const wlId =
-              subData.user_config?.whitelabel_id ??
-              (subData.user_config as any)?.white_label_id ??
-              productData?.cashoffers?.user_config?.whitelabel_id
-            if (wlId) {
-              const behavior = await this.deps.whitelabelRepository.getSuspensionBehavior(wlId)
+            const product = await this.deps.productRepository.findById(subscription.product_id)
+            if (product?.whitelabel_code) {
+              const behavior = await this.deps.whitelabelRepository.getSuspensionBehaviorByCode(product.whitelabel_code)
               if (behavior) cancelMetadata.suspensionStrategy = behavior
             }
           } catch {
@@ -555,21 +565,17 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
         // Build metadata with productData for suspension handlers
         const suspendMetadata: Record<string, unknown> = {}
+        if (productData) suspendMetadata.productData = productData
         try {
-          const subData = subscription.data
-            ? typeof subscription.data === "string"
-              ? JSON.parse(subscription.data)
-              : subscription.data
-            : {}
-          if (subData.productData) suspendMetadata.productData = subData.productData
-          const wlId =
-            subData.user_config?.whitelabel_id ??
-            subData.user_config?.white_label_id ??
-            subData.productData?.cashoffers?.user_config?.whitelabel_id ??
-            subData.productData?.cashoffers?.user_config?.white_label_id
-          if (wlId) suspendMetadata.suspensionStrategy = "DEACTIVATE_USER" // Default for auto-suspend
+          if (subscription.product_id && this.deps.productRepository && this.deps.whitelabelRepository) {
+            const suspProduct = await this.deps.productRepository.findById(subscription.product_id)
+            if (suspProduct?.whitelabel_code) {
+              const behavior = await this.deps.whitelabelRepository.getSuspensionBehaviorByCode(suspProduct.whitelabel_code)
+              suspendMetadata.suspensionStrategy = behavior ?? "DEACTIVATE_USER"
+            }
+          }
         } catch {
-          /* ignore parse errors */
+          /* ignore lookup errors */
         }
 
         await eventBus.publish(

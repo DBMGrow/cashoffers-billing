@@ -3,6 +3,8 @@ import {
   billingLogRepository,
   transactionRepository,
   subscriptionRepository,
+  productRepository,
+  whitelabelRepository,
 } from "@api/lib/repositories"
 import { config } from "@api/config/config.service"
 import type { IConfigService } from "@api/config/config.interface"
@@ -84,7 +86,7 @@ export const whitelabelResolverService = createWhitelabelResolverService(db)
 const emailNotificationHandler = new EmailNotificationHandler(emailService, logger)
 const transactionLoggingHandler = new TransactionLoggingHandler(transactionRepository, logger)
 const logFlushHandler = new LogFlushHandler(logger as DatabaseLogger, logger)
-const rawCashOffersAccountHandler = new CashOffersAccountHandler(userApiClient, logger)
+const rawCashOffersAccountHandler = new CashOffersAccountHandler(userApiClient, logger, productRepository, whitelabelRepository)
 const rawHomeUptickAccountHandler = new HomeUptickAccountHandler(homeUptickApiClient, logger)
 const cashOffersAccountHandler = new AdminAlertHandler(rawCashOffersAccountHandler, criticalAlertService, 'CashOffersAccountHandler', logger)
 const homeUptickAccountHandler = new AdminAlertHandler(rawHomeUptickAccountHandler, criticalAlertService, 'HomeUptickAccountHandler', logger)

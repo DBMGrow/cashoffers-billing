@@ -157,7 +157,7 @@ export default function SubscribeFlow({
     },
   })
 
-  const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
+  const isInvestor = (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
 
   const userName = form.watch("name")
   const titleReplacements = useMemo(() => ({ name: userName }), [userName])

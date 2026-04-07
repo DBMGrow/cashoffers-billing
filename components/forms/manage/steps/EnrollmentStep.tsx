@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk"
@@ -31,7 +31,11 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { data: enrollment, isLoading, error } = useQuery({
+  const {
+    data: enrollment,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["enrollment", user.user_id],
     queryFn: async () => {
       const { data: json } = await axios.get<ApiResponse<EnrollmentData>>("/api/manage/enrollment")
@@ -41,6 +45,16 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
       return json.data
     },
   })
+
+  // Auto-select when there's only one active product (e.g., external_cashoffers)
+  const activeProducts = enrollment?.products ?? []
+
+  useEffect(() => {
+    if (activeProducts.length === 1 && !selectedProduct && phase === "products") {
+      setSelectedProduct(activeProducts[0])
+      setPhase("card")
+    }
+  }, [activeProducts.length])
 
   if (isLoading) return <Spinner />
 
@@ -57,7 +71,7 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
     )
   }
 
-  if (!enrollment || enrollment.products.length === 0) {
+  if (!enrollment || activeProducts.length === 0) {
     return (
       <div className="w-full flex flex-col gap-4">
         <P>No plans are currently available for your account. Please contact support.</P>
@@ -107,12 +121,16 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
     }
   }
 
+  const isFree = selectedProduct
+    ? (selectedProduct.data?.renewal_cost ?? selectedProduct.price) === 0 && !selectedProduct.data?.signup_fee
+    : false
+
   // Phase: Processing
   if (phase === "processing") {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <Spinner />
-        <P>Processing your purchase...</P>
+        <P>{isFree ? "Activating your account..." : "Processing your payment..."}</P>
       </div>
     )
   }
@@ -133,10 +151,11 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
 
   // Phase: Card input
   if (phase === "card" && selectedProduct) {
-    const price = selectedProduct.data?.renewal_cost
-      ? selectedProduct.data.renewal_cost / 100
-      : selectedProduct.price / 100
-    const duration = selectedProduct.data?.duration || "monthly"
+    const renewalCost = selectedProduct.data?.renewal_cost ?? selectedProduct.price
+    const price = renewalCost / 100
+    const durationRaw = selectedProduct.data?.duration || "monthly"
+    const period = durationRaw.replace(/ly$/, "")
+    const productIsFree = price === 0 && !selectedProduct.data?.signup_fee
 
     const buttonProps = {
       style: {
@@ -146,13 +165,27 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
       },
     }
 
+    const baseContacts = selectedProduct.data?.homeuptick?.base_contacts ?? 500
+    const pricePerTier = (selectedProduct.data?.homeuptick?.price_per_tier ?? 7500) / 100
+    const contactsPerTier = selectedProduct.data?.homeuptick?.contacts_per_tier ?? 1000
+
     return (
       <div className="w-full flex flex-col gap-4">
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-          <h4 className="font-semibold">{selectedProduct.product_name}</h4>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <h4 className="font-semibold text-lg">{selectedProduct.product_name}</h4>
           <p className="text-sm text-gray-600">
-            ${price.toFixed(2)} / {duration}
+            {productIsFree ? "Free" : `$${price.toFixed(2)} / ${period}`}
           </p>
+          <div className="text-sm text-gray-600 border-t border-blue-200 pt-2 mt-2 space-y-1">
+            <p>
+              <span className="font-medium text-sm text-gray-700">Included:</span> {baseContacts.toLocaleString()}{" "}
+              contacts
+            </p>
+            <p>
+              <span className="font-medium text-sm text-gray-700">Overage:</span> ${pricePerTier} / {period} per
+              additional {contactsPerTier.toLocaleString()} contacts
+            </p>
+          </div>
         </div>
 
         <PaymentForm
@@ -163,14 +196,20 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
           <CreditCard
             render={(Button: any) => (
               <Button {...buttonProps}>
-                {isSubmitting ? "Processing..." : "Subscribe"}
+                {isSubmitting ? "Processing..." : productIsFree ? "Activate" : "Subscribe"}
               </Button>
             )}
           />
         </PaymentForm>
 
         <div className="w-[200px]">
-          <ThemeButton color="secondary" onPress={() => { setPhase("products"); setSelectedProduct(null) }}>
+          <ThemeButton
+            color="secondary"
+            onPress={() => {
+              setPhase("products")
+              setSelectedProduct(null)
+            }}
+          >
             Back
           </ThemeButton>
         </div>
@@ -179,17 +218,13 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
   }
 
   // Phase: Product selection (default)
-  const activeProducts = enrollment.products.filter((p: Product) => p.active === 1)
-
   return (
     <div className="w-full flex flex-col gap-4">
       <P>Select a plan to get started:</P>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {activeProducts.map((product: Product) => {
-          const price = product.data?.renewal_cost
-            ? product.data.renewal_cost / 100
-            : product.price / 100
+          const price = product.data?.renewal_cost ? product.data.renewal_cost / 100 : product.price / 100
           const duration = product.data?.duration || "monthly"
 
           return (
@@ -202,8 +237,8 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
               <p className="text-gray-600 text-sm mt-1">
                 ${price.toFixed(2)} / {duration}
               </p>
-              {product.data?.team_members && (
-                <p className="text-gray-500 text-xs mt-1">Up to {product.data.team_members} team members</p>
+              {product.data?.cashoffers?.user_config?.team_members && (
+                <p className="text-gray-500 text-xs mt-1">Up to {product.data.cashoffers.user_config.team_members} team members</p>
               )}
             </div>
           )

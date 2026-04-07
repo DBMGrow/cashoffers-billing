@@ -110,11 +110,16 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       // Resolve card row for payment
       const userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
 
-      // Process payment
+      // Process payment (skip for free $0 purchases)
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
       const pricing = calculatePricing(product, productData)
-      const payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
-      capturedPaymentId = payment.id
+      let payment: { id: string; status: string; environment: "production" | "sandbox" } | null = null
+      if (pricing.initialAmount > 0) {
+        payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
+        capturedPaymentId = payment.id
+      } else {
+        logger.info("Skipping payment for free purchase", { purchaseRequestId, initialAmount: 0 })
+      }
 
       // Create subscription
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
@@ -124,6 +129,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         pricing,
         payment,
         userConfig,
+        cashoffers: productData.cashoffers,
       })
 
       // Log transaction
@@ -161,8 +167,8 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         transaction,
         pricing,
         payment,
-        cardIdString,
-        userCard,
+        cardIdString: payment ? cardIdString : null,
+        userCard: payment ? userCard : null,
         userWasCreated: false,
         startTime,
       })

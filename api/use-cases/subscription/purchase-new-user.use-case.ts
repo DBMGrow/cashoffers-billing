@@ -140,12 +140,13 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         purchaseRequestId
       )
 
-      // Resolve whitelabel name for error emails
-      const whitelabelId = userConfig?.whitelabel_id
-      if (whitelabelId) {
+      // Resolve whitelabel from product's whitelabel_code column
+      let resolvedWhitelabelId: number | undefined
+      if (product.whitelabel_code) {
         try {
-          const resolved = await whitelabelResolverService.resolveById(whitelabelId)
+          const resolved = await whitelabelResolverService.resolveByCode(product.whitelabel_code)
           capturedWhitelabelName = resolved.name
+          resolvedWhitelabelId = resolved.whitelabel_id
         } catch {
           // Non-critical — falls back to "CashOffers" in email subject
         }
@@ -181,6 +182,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         pricing,
         payment,
         userConfig,
+        cashoffers: productData.cashoffers,
       })
       rollback.subscriptionCreated = true
 
@@ -199,6 +201,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         transactionId: transaction.transaction_id,
         cardIdString,
         isFree,
+        resolvedWhitelabelId,
         whitelabelName: capturedWhitelabelName ?? undefined,
       })
 
@@ -312,9 +315,11 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       cardIdString: string | null
       isFree: boolean
       whitelabelName?: string
+      resolvedWhitelabelId?: number
     }
   ): Promise<ProvisioningResult> {
     const { logger } = this.deps
+    const resolvedWhitelabelId = context.resolvedWhitelabelId
 
     try {
       const resetToken = generateResetToken()
@@ -327,7 +332,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         phone: v.phone,
         is_premium: userConfig?.is_premium,
         role: isTeamPlan ? "SHELL" : userConfig?.role,
-        whitelabel_id: userConfig?.whitelabel_id ?? 4,
+        whitelabel_id: resolvedWhitelabelId ?? 4,
         reset_token: resetToken,
         reset_created: formatMySQLDatetime(),
       })
@@ -340,8 +345,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         const team = await this.deps.userApiClient.createTeam({
           teamname: teamName,
           owner_id: userId,
-          max_users: productData?.team_members ?? 6,
-          whitelabel_id: userConfig?.whitelabel_id ?? undefined,
+          max_users: userConfig?.team_members ?? 6,
+          whitelabel_id: resolvedWhitelabelId,
         })
         await this.deps.userApiClient.updateUser(userId, {
           team_id: team.id,

@@ -27,7 +27,7 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
   })
   const product = form.getValues("product")
   const selectedProduct = getProductById(product)
-  const isInvestor = selectedProduct?.data?.user_config?.role === "INVESTOR"
+  const isInvestor = (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
 
   const handleSubmit = async () => {
     if (isDisabled) return

@@ -125,7 +125,7 @@ export class CashOffersWebhookHandler {
       // Default productData for free trial if no product found
       if (!productData) {
         productData = {
-          cashoffers: { managed: true, user_config: { role: 'SHELL', is_premium: 0, whitelabel_id: null } },
+          cashoffers: { managed: true, user_config: { role: 'SHELL', is_premium: 0 } },
           homeuptick: { enabled: true, free_trial: { enabled: true, contacts: 100, duration_days: 90 } },
         }
       }

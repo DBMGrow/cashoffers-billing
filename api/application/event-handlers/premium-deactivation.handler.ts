@@ -137,7 +137,10 @@ export class PremiumDeactivationHandler extends BaseEventHandler {
             ? JSON.parse(subscription.data) as SubscriptionData
             : subscription.data as SubscriptionData
 
-          whitelabelId = subscriptionData.user_config?.whitelabel_id ?? (subscriptionData.user_config as any)?.white_label_id ?? null
+          whitelabelId = subscriptionData.user_config?.whitelabel_id
+            ?? (subscriptionData.user_config as any)?.white_label_id
+            ?? subscriptionData.cashoffers?.user_config?.whitelabel_id
+            ?? null
         } catch (parseError) {
           this.logger.warn('Failed to parse subscription data, defaulting to downgrade to free', {
             userId,

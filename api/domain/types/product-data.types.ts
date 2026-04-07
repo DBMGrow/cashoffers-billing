@@ -13,10 +13,10 @@ export interface ProductUserConfig {
   is_premium: 0 | 1
   /** User role in the CashOffers system */
   role: "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER" | "SHELL"
-  /** White label ID, or null for default white label */
-  whitelabel_id: number | null
   /** Indicates if this is a team subscription product */
   is_team_plan?: boolean
+  /** Maximum number of team members for team plans */
+  team_members?: number
 }
 
 export interface CashOffersConfig {
@@ -53,8 +53,6 @@ export interface ProductData {
   renewal_cost?: number
   /** Billing cycle duration */
   duration?: "daily" | "weekly" | "monthly" | "yearly"
-  /** Maximum number of team members for team plans */
-  team_members?: number
   /** Legacy: user config at root level (backward compat) */
   user_config?: ProductUserConfig
   /** CashOffers module configuration */
@@ -69,6 +67,8 @@ export interface ProductData {
 export interface SubscriptionData {
   /** User configuration copied from product, can be customized per subscription */
   user_config?: ProductUserConfig
+  /** CashOffers module configuration copied from product */
+  cashoffers?: CashOffersConfig
   /** Product data snapshot for use in event handlers */
   productData?: ProductData
 }

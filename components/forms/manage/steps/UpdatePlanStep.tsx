@@ -198,8 +198,8 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
               <p className="text-gray-600 text-sm mt-1">
                 ${price.toFixed(2)} / {duration}
               </p>
-              {product.data?.team_members && (
-                <p className="text-gray-500 text-xs mt-1">Up to {product.data.team_members} team members</p>
+              {product.data?.cashoffers?.user_config?.team_members && (
+                <p className="text-gray-500 text-xs mt-1">Up to {product.data.cashoffers.user_config.team_members} team members</p>
               )}
             </div>
           )

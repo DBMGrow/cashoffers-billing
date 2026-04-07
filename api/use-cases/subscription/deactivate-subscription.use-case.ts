@@ -1,5 +1,6 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
+import type { ProductRepository } from "@api/lib/repositories"
 import type { WhitelabelRepository } from "@api/lib/repositories"
 import { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
@@ -8,13 +9,12 @@ import { DeactivateSubscriptionInput, DeactivateSubscriptionOutput } from "../ty
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
 import { DeactivateSubscriptionInputSchema } from "../types/validation.schemas"
 import { SubscriptionDeactivatedEvent } from "@api/domain/events/subscription-deactivated.event"
-import type { SubscriptionData } from "@api/domain/types/product-data.types"
-
 interface Dependencies {
   logger: ILogger
   subscriptionRepository: SubscriptionRepository
   userApiClient: IUserApiClient
   eventBus: IEventBus
+  productRepository?: ProductRepository
   whitelabelRepository?: WhitelabelRepository
 }
 
@@ -34,19 +34,18 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
     const metadata: Record<string, unknown> = {}
 
     try {
-      const subData: SubscriptionData = subscription.data
-        ? (typeof subscription.data === 'string' ? JSON.parse(subscription.data) : subscription.data)
-        : {}
-      if (subData.productData) {
-        metadata.productData = subData.productData
-      }
-
-      const whitelabelId = subData.user_config?.whitelabel_id ?? subData.user_config?.white_label_id
-        ?? subData.productData?.cashoffers?.user_config?.whitelabel_id ?? subData.productData?.cashoffers?.user_config?.white_label_id
-      if (whitelabelId && this.deps.whitelabelRepository) {
-        const behavior = await this.deps.whitelabelRepository.getSuspensionBehavior(whitelabelId)
-        if (behavior) {
-          metadata.suspensionStrategy = behavior
+      // Resolve suspension strategy from product's whitelabel
+      if (subscription.product_id && this.deps.productRepository && this.deps.whitelabelRepository) {
+        const product = await this.deps.productRepository.findById(subscription.product_id)
+        if (product?.whitelabel_code) {
+          const behavior = await this.deps.whitelabelRepository.getSuspensionBehaviorByCode(product.whitelabel_code)
+          if (behavior) {
+            metadata.suspensionStrategy = behavior
+          }
+        }
+        if (product?.data) {
+          const productData = typeof product.data === 'object' ? product.data : undefined
+          if (productData) metadata.productData = productData
         }
       }
     } catch {

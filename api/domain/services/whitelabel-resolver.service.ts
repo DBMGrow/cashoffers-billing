@@ -39,24 +39,12 @@ export class WhitelabelResolverService {
         .innerJoin("Products", "Products.product_id", "Subscriptions.product_id")
         .where("Subscriptions.user_id", "=", userId)
         .where("Subscriptions.status", "=", "active")
-        .select(["Subscriptions.data as subscription_data", "Products.data as product_data"])
+        .select(["Products.whitelabel_code"])
         .orderBy("Subscriptions.subscription_id", "desc")
         .executeTakeFirst()
 
-      if (subscription) {
-        // Check if subscription or product has whitelabel_id in user_config
-        const subData = (subscription.subscription_data as any) || {}
-        const prodData = (subscription.product_data as any) || {}
-
-        const whitelabelId =
-          subData.user_config?.whitelabel_id ??
-          subData.user_config?.white_label_id ??
-          prodData.user_config?.whitelabel_id ??
-          prodData.user_config?.white_label_id
-
-        if (whitelabelId) {
-          return this.resolveById(whitelabelId)
-        }
+      if (subscription?.whitelabel_code) {
+        return this.resolveByCode(subscription.whitelabel_code)
       }
 
       // Fall back to default whitelabel

@@ -1,6 +1,7 @@
 import type { IDomainEvent, IEventHandler } from "@api/infrastructure/events/event-bus.interface"
 import type { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
+import type { ProductRepository, WhitelabelRepository } from "@api/lib/repositories"
 import type { ProductData } from "@api/domain/types/product-data.types"
 import { mapRoleForTransition } from "@api/domain/services/role-mapper"
 
@@ -15,8 +16,26 @@ import { mapRoleForTransition } from "@api/domain/services/role-mapper"
 export class CashOffersAccountHandler implements IEventHandler {
   constructor(
     private readonly userApiClient: IUserApiClient,
-    private readonly logger: ILogger
+    private readonly logger: ILogger,
+    private readonly productRepository?: ProductRepository,
+    private readonly whitelabelRepository?: WhitelabelRepository,
   ) {}
+
+  /**
+   * Resolve whitelabel_id from product's whitelabel_code column.
+   * Used when creating/updating users on the external CashOffers system.
+   */
+  private async resolveWhitelabelId(productId: number | undefined): Promise<number | undefined> {
+    if (!productId || !this.productRepository || !this.whitelabelRepository) return undefined
+    try {
+      const product = await this.productRepository.findById(productId)
+      if (!product?.whitelabel_code) return undefined
+      const whitelabel = await this.whitelabelRepository.findByCode(product.whitelabel_code)
+      return whitelabel?.whitelabel_id ?? undefined
+    } catch {
+      return undefined
+    }
+  }
 
   async handle(event: IDomainEvent): Promise<void> {
     try {
@@ -71,13 +90,14 @@ export class CashOffersAccountHandler implements IEventHandler {
     const userId = payload.userId
     const email = payload.email
     const userWasCreated = payload.userWasCreated
+    const whitelabelId = await this.resolveWhitelabelId(payload.productId)
 
     if (userWasCreated) {
       await this.userApiClient.createUser({
         email,
         is_premium: userConfig.is_premium,
         role: userConfig.role,
-        whitelabel_id: userConfig.whitelabel_id ?? undefined,
+        whitelabel_id: whitelabelId,
       })
     } else {
       // Existing user: check if update needed
@@ -87,13 +107,13 @@ export class CashOffersAccountHandler implements IEventHandler {
       const needsUpdate =
         (user as any).is_premium !== (userConfig.is_premium === 1) ||
         (user as any).role !== userConfig.role ||
-        (user as any).whitelabel_id !== userConfig.whitelabel_id
+        (user as any).whitelabel_id !== whitelabelId
 
       if (needsUpdate) {
         await this.userApiClient.updateUser(userId, {
           is_premium: userConfig.is_premium,
           role: userConfig.role,
-          whitelabel_id: userConfig.whitelabel_id,
+          whitelabel_id: whitelabelId,
         })
       }
     }
