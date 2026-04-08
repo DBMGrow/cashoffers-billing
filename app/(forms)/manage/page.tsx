@@ -3,6 +3,8 @@ import ManagePageClient from "./ManagePageClient"
 import { Spinner } from "@/components/Theme/Spinner"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
+export const dynamic = "force-dynamic"
+
 export const metadata = {
   title: "Manage Your Account | CashOffers.PRO",
   description: "Manage your CashOffers.PRO account",
