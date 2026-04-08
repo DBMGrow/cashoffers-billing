@@ -78,7 +78,7 @@ const buildConfig = (): IConfig => {
 
     sendgrid: {
       apiKey: process.env.SENDGRID_API_KEY!,
-      fromEmail: process.env.SENDGRID_FROM_EMAIL || "noreply@cashoffers.com",
+      fromEmail: process.env.SENDGRID_FROM_EMAIL || "billing@remrktco.com",
     },
 
     email: {
@@ -106,7 +106,8 @@ const buildConfig = (): IConfig => {
 export const config: IConfig = buildConfig()
 
 // Diagnostic: verify secrets are injected at runtime (masked for safety)
-const mask = (s: string | undefined) => s ? `${s.substring(0, 6)}...${s.substring(s.length - 4)} (${s.length} chars)` : "MISSING"
+const mask = (s: string | undefined) =>
+  s ? `${s.substring(0, 6)}...${s.substring(s.length - 4)} (${s.length} chars)` : "MISSING"
 console.log("[config-diagnostic] Secrets check at startup:", {
   NODE_ENV: process.env.NODE_ENV,
   SQUARE_ENVIRONMENT: process.env.SQUARE_ENVIRONMENT,
