@@ -209,7 +209,7 @@ SET
   `product_type` = 'subscription',
   `whitelabel_code` = 'kwofferings',
   `price` = 0,
-  `data` = '{"team": false, "duration": "monthly", "renewal_cost": 0, "team_members": 0, "user_config": {"is_premium": 1, "role": "SHELL", "whitelabel_id": 2, "is_team_plan": false}}',
+  `data` = '{"team": false, "duration": "monthly", "renewal_cost": 0, "team_members": 0, "user_config": {"is_premium": 1, "role": "HOMEUPTICK", "whitelabel_id": 2, "is_team_plan": false}}',
   `updatedAt` = NOW ()
 WHERE
   `product_id` = 20;

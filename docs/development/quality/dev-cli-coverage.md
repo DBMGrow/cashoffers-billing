@@ -45,7 +45,7 @@ All scenarios support `--product p-co|p-hu|p-trial` to create different subscrip
 |---------|-----------------|---------|------|-----------|----------------|
 | `p-co` (default) | `premium_cashoffers` | true | AGENT | 1 | CO Premium purchase, combined CO+HU renewals |
 | `p-hu` | `external_cashoffers` | false | AGENT | 0 | External CO — billing only manages HU overages |
-| `p-trial` | `homeuptick_only` | true | SHELL | 0 | HU Only — SHELL CO access + HU base fee |
+| `p-trial` | `homeuptick_only` | true | HOMEUPTICK | 0 | HU Only — HOMEUPTICK CO access + HU base fee |
 
 Examples:
 ```bash

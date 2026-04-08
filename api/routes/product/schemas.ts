@@ -22,7 +22,7 @@ export const ProductTypeSchema = z.enum(["none", "one-time", "subscription"])
 export const ProductUserConfigSchema = z
   .object({
     is_premium: z.union([z.literal(0), z.literal(1)]),
-    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER", "SHELL"]),
+    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER", "SHELL", "HOMEUPTICK"]),
     white_label_id: z.number().nullable(),
     is_team_plan: z.boolean().optional(),
     team_members: z.number().optional(),

@@ -7,7 +7,7 @@
  * Expected behavior:
  *   - Creates a subscription with status="trial", amount=0, renewal_date = now + 90 days
  *   - Publishes SubscriptionCreatedEvent
- *   - CashOffers module receives the event → createUser with role=SHELL
+ *   - CashOffers module receives the event → createUser with role=HOMEUPTICK
  *   - HomeUptick module receives the event → createAccount + setContactLimit(userId, 100)
  *   - One trial per user (throws if trial already exists)
  *   - No trial if user already has a paid subscription
@@ -41,7 +41,7 @@ function makeProductRepository() {
       product_name: 'Free Trial',
       price: 0,
       data: JSON.stringify({
-        cashoffers: { managed: true, user_config: { role: 'SHELL', is_premium: 0, whitelabel_id: null } },
+        cashoffers: { managed: true, user_config: { role: 'HOMEUPTICK', is_premium: 0, whitelabel_id: null } },
         homeuptick: { enabled: true, free_trial: { enabled: true, contacts: 100, duration_days: 90 } },
       }),
     }),
@@ -121,7 +121,7 @@ describe('CreateFreeTrialUseCase', () => {
   // ─── CashOffers module integration ──────────────────────────────────────
 
   describe('CashOffers module receives SubscriptionCreated from trial', () => {
-    it('creates user with role=SHELL via the CO event handler', async () => {
+    it('creates user with role=HOMEUPTICK via the CO event handler', async () => {
       // Wire up a CashOffers handler to the event bus (when it exists)
       // For now this test documents the expected integration behaviour
       const publishedEvents: Array<{ eventType: string; payload: Record<string, unknown> }> = []
@@ -136,12 +136,12 @@ describe('CreateFreeTrialUseCase', () => {
       const createdEvent = publishedEvents.find((e) => e.eventType === 'SubscriptionCreated')
       expect(createdEvent).toBeDefined()
 
-      // The event metadata should carry productData with cashoffers.user_config.role = SHELL
-      // so the CashOffersAccountHandler will createUser with role: 'SHELL'
+      // The event metadata should carry productData with cashoffers.user_config.role = HOMEUPTICK
+      // so the CashOffersAccountHandler will createUser with role: 'HOMEUPTICK'
       const productData = (createdEvent?.payload as any)?.metadata?.productData
         ?? (createdEvent as any)?.metadata?.productData
       if (productData) {
-        expect(productData.cashoffers?.user_config?.role).toBe('SHELL')
+        expect(productData.cashoffers?.user_config?.role).toBe('HOMEUPTICK')
       }
       // The assertion above is soft — the critical check is that the event was published
       expect(createdEvent).toBeDefined()

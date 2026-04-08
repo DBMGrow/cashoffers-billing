@@ -50,7 +50,7 @@ All scenarios accept `--product p-co|p-hu|p-trial` to set subscription type:
 |---|---|---|
 | `--product p-co` | `premium_cashoffers` | CO Premium (managed=true, role=AGENT, is_premium=1) — default |
 | `--product p-hu` | `external_cashoffers` | External CO — billing manages HU overages only (managed=false, role=AGENT, is_premium=0) |
-| `--product p-trial` | `homeuptick_only` | HU Only — SHELL CO access + HU (managed=true, role=SHELL, is_premium=0) |
+| `--product p-trial` | `homeuptick_only` | HU Only — HOMEUPTICK CO access + HU (managed=true, role=HOMEUPTICK, is_premium=0) |
 
 ---
 

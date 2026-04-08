@@ -12,7 +12,7 @@ export interface ProductUserConfig {
   /** Premium status: 0 = not premium, 1 = premium */
   is_premium: 0 | 1
   /** User role in the CashOffers system */
-  role: "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER" | "SHELL"
+  role: "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER" | "SHELL" | "HOMEUPTICK"
   /** Indicates if this is a team subscription product */
   is_team_plan?: boolean
   /** Maximum number of team members for team plans */

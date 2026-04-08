@@ -544,7 +544,7 @@ Scenarios:
 Product types (--product flag):
   p-co                   Default. CO Premium: managed=true, role=AGENT, is_premium=1
   p-hu                   HU Standalone: managed=false, role=AGENT, is_premium=0 (CO external)
-  p-trial                HU Free Trial: managed=true, role=SHELL, is_premium=0 (CO=SHELL)`)
+  p-trial                HU Free Trial: managed=true, role=HOMEUPTICK, is_premium=0 (CO=HOMEUPTICK)`)
   .option("-e, --email <email>", "Email address for the test user")
   .option("-p, --product <type>", "Product type: p-co (default), p-hu, p-trial")
   .action(cmdScenario)

@@ -8,7 +8,7 @@ The billing system supports three fundamentally different product types, each re
 
 2. **External CashOffers** — For users who already have an active premium CashOffers account managed outside of billing (e.g., through their brokerage or KW Offerings). They don't need CO account management — they just need HomeUptick. The base fee is typically $0/month since they're paying for CO separately; this subscription only accounts for HomeUptick tier usage overages.
 
-3. **HomeUptick Only** — For users who want HomeUptick access without a full CO premium subscription. Billing creates a SHELL CO account (enough to authenticate into the portal) and provides HU access. Has a base monthly fee (e.g., $20/month).
+3. **HomeUptick Only** — For users who want HomeUptick access without a full CO premium subscription. Billing creates a HOMEUPTICK CO account (enough to authenticate into the portal, with active HU-only access) and provides HU access. Has a base monthly fee (e.g., $20/month).
 
 Previously, product type was implicit — inferred from a combination of `cashoffers.managed`, `user_config.role`, and `user_config.is_premium` in the product's JSON data field. This made queries difficult and required code to reverse-engineer the product's intent from multiple flags.
 
@@ -20,7 +20,7 @@ Add an explicit `product_category` column to the `Products` table with three val
 |---|---|---|---|---|---|
 | Premium CashOffers | `premium_cashoffers` | true | AGENT | 1 | Paid |
 | External CashOffers | `external_cashoffers` | false | — | 0 | $0 (overages only) |
-| HomeUptick Only | `homeuptick_only` | true | SHELL | 0 | Paid |
+| HomeUptick Only | `homeuptick_only` | true | HOMEUPTICK | 0 | Paid |
 
 The `data` JSON field still holds CashOffers configuration (managed flag, user_config) and HomeUptick templates (tier pricing, free trial settings). `product_category` is a quick-filter label for queries, not a replacement for the detailed config.
 
@@ -31,7 +31,7 @@ The `data` JSON field still holds CashOffers configuration (managed flag, user_c
 The manage page needs to show the right products to users without a billing subscription:
 
 - User has an active external CO account → show `external_cashoffers` products
-- User has no CO account or only SHELL access → show `homeuptick_only` products
+- User has no CO account or only SHELL/HOMEUPTICK access → show `homeuptick_only` products
 - Existing subscribers see `premium_cashoffers` upgrade/downgrade options
 
 Without `product_category`, every query that needs to distinguish product types must parse nested JSON — which is fragile, slow, and impossible to index.
@@ -113,7 +113,7 @@ For users with CO managed externally (brokerage, KW Offerings). HU overages only
 
 ### `homeuptick_only`
 
-HU access with SHELL CO account for portal login.
+HU access with HOMEUPTICK CO account for portal login.
 
 ```json
 {
@@ -124,7 +124,7 @@ HU access with SHELL CO account for portal login.
     "managed": true,
     "user_config": {
       "is_premium": 0,
-      "role": "SHELL",
+      "role": "HOMEUPTICK",
       "whitelabel_id": null
     }
   },
@@ -142,7 +142,7 @@ HU access with SHELL CO account for portal login.
 }
 ```
 
-**Required fields:** `cashoffers.managed = true`, `cashoffers.user_config.role = "SHELL"`, `cashoffers.user_config.is_premium = 0`.
+**Required fields:** `cashoffers.managed = true`, `cashoffers.user_config.role = "HOMEUPTICK"`, `cashoffers.user_config.is_premium = 0`.
 
 **HomeUptick:** May include a free trial configuration. The `free_trial` block seeds `Homeuptick_Subscriptions` with trial dates. **Note: billing-managed free trials are WIP — do not configure `free_trial` on products until the signup UI properly communicates trial terms.**
 

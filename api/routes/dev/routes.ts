@@ -572,7 +572,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     const productTypeConfig = {
       "p-co":    { managed: true,  role: "AGENT" as const, is_premium: 1, product_category: "premium_cashoffers" as const },
       "p-hu":    { managed: false, role: "AGENT" as const, is_premium: 0, product_category: "external_cashoffers" as const },
-      "p-trial": { managed: true,  role: "SHELL" as const, is_premium: 0, product_category: "homeuptick_only" as const },
+      "p-trial": { managed: true,  role: "HOMEUPTICK" as const, is_premium: 0, product_category: "homeuptick_only" as const },
     }[productType]
 
     // Create user (whitelabel_id and role vary per scenario/product type)
@@ -1329,7 +1329,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         if (data?.cashoffers?.user_config?.is_premium !== 1) {
           issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "premium_cashoffers must have user_config.is_premium=1" })
         }
-        if (!data?.cashoffers?.user_config?.role || data.cashoffers.user_config.role === "SHELL") {
+        if (!data?.cashoffers?.user_config?.role || data.cashoffers.user_config.role === "SHELL" || data.cashoffers.user_config.role === "HOMEUPTICK") {
           issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `premium_cashoffers has unexpected role: ${data?.cashoffers?.user_config?.role}` })
         }
       }
@@ -1347,8 +1347,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         if (!data?.cashoffers?.managed) {
           issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "homeuptick_only must have cashoffers.managed=true" })
         }
-        if (data?.cashoffers?.user_config?.role !== "SHELL") {
-          issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `homeuptick_only should have role=SHELL, got ${data?.cashoffers?.user_config?.role}` })
+        if (data?.cashoffers?.user_config?.role !== "HOMEUPTICK") {
+          issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `homeuptick_only should have role=HOMEUPTICK, got ${data?.cashoffers?.user_config?.role}` })
         }
         if (data?.cashoffers?.user_config?.is_premium === 1) {
           issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "homeuptick_only should not have is_premium=1" })

@@ -83,9 +83,10 @@ Before testing, understand these distinctions from the [Billing Scenario Matrix]
 
 | Concept                                   | Definition                                                                                                                                                                                                                                                                            |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Product categories**                    | `premium_cashoffers` (CO Premium, managed=true). `external_cashoffers` (HU standalone, managed=false). `homeuptick_only` (HU + SHELL CO, card required) — explicit `product_category` column on Products table. See [Product Categories](../business/decisions/product-categories.md) |
+| **Product categories**                    | `premium_cashoffers` (CO Premium, managed=true). `external_cashoffers` (HU standalone, managed=false). `homeuptick_only` (HU + HOMEUPTICK CO, card required) — explicit `product_category` column on Products table. See [Product Categories](../business/decisions/product-categories.md) |
 | **`managed` flag**                        | `true` = billing controls CO access. `false` = CO is external, billing only manages HU                                                                                                                                                                                                |
-| **SHELL role**                            | Zero-feature CO access. Exists solely so HU login works (HU auth depends entirely on CO). Preserved on subscription end/suspension                                                                                                                                                    |
+| **HOMEUPTICK role**                       | Active HU-only CO access. Assigned to `homeuptick_only` subscribers. Designates billing is active but user only has HomeUptick access                                                                                                                                                  |
+| **SHELL role**                            | Deactivated CO access. Set on subscription suspension/deactivation (DEACTIVATE_USER). Exists solely so HU login works (HU auth depends entirely on CO)                                                                                                                                |
 | **Paused vs Suspended**                   | **Paused** = admin/webhook deactivated CO account. **Suspended** = max payment retries exhausted. Different card-update behaviors                                                                                                                                                     |
 | **Combined charging**                     | CO and HU always charged together. If HU API is down at renewal, do NOT charge CO — retry the whole thing                                                                                                                                                                             |
 | **Non-user-fault failures**               | HU API down, Square outage → do NOT increment `payment_failure_count`. Retry without penalty                                                                                                                                                                                          |
@@ -224,7 +225,7 @@ yarn dev:tools state <user_id>
 
 **Scenario matrix refs:** P3 (variant: no free trial)
 
-**Process:** New user purchases a `homeuptick_only` product that has no free trial configured. Card required. Charged immediately (signup fee). CO access = SHELL (managed=true, is_premium=0, role=SHELL). HU = Paid-Active from day one.
+**Process:** New user purchases a `homeuptick_only` product that has no free trial configured. Card required. Charged immediately (signup fee). CO access = HOMEUPTICK (managed=true, is_premium=0, role=HOMEUPTICK). HU = Paid-Active from day one.
 
 ### Lifecycle
 
@@ -233,7 +234,7 @@ yarn dev:tools state <user_id>
 | 1. Land on pricing page  | `homeuptick_only` products displayed (no trial badge) | Correct price shown, no trial language                                    |
 | 2. Click "Sign Up"       | Navigates to subscribe flow                           | URL is `/{whitelabel}/subscribe/{product}`                                |
 | 3. Enter email           | System checks if user exists                          | New user proceeds; existing user gets reactivation offer                  |
-| 4. Enter name, phone     | Standard validation                                   | Fields captured (no slug step — SHELL users don't get lead capture pages) |
+| 4. Enter name, phone     | Standard validation                                   | Fields captured (no slug step — HOMEUPTICK users don't get lead capture pages) |
 | 5. Enter card details    | Square tokenizes card in browser                      | Card nonce generated                                                      |
 | 6. Review & accept terms | All consents displayed                                | TOS, general, communication checkboxes required                           |
 | 7. Submit                | Backend processes purchase                            | See backend steps below                                                   |
@@ -246,7 +247,7 @@ yarn dev:tools state <user_id>
 | A    | Validate product exists, active, `managed=true`, `product_category=homeuptick_only` | Invalid product → 400                                                        |
 | B    | Create card in Square with null user_id                                             | Card created in Square                                                       |
 | C    | Charge signup fee via Square                                                        | Transaction logged, amount matches product `signup_fee`                      |
-| D    | Create user in main API with `user_config`                                          | User: role=SHELL, `is_premium=0`, whitelabel set                             |
+| D    | Create user in main API with `user_config`                                          | User: role=HOMEUPTICK, `is_premium=0`, whitelabel set                        |
 | E    | Bind card to new user                                                               | UserCards links user_id to card_id                                           |
 | F    | Create subscription record                                                          | Status: `active`, `next_renewal_at` = now + duration, **no** `trial_ends_at` |
 | G    | Seed HomeUptick subscription from product template                                  | `Homeuptick_Subscriptions` row created, HU = Paid-Active                     |
@@ -277,7 +278,7 @@ yarn dev:tools state <user_id>
 ```bash
 yarn dev:tools scenario renewal-due --product p-hu-notrial --email test-hu-paid@dev-test.local
 yarn dev:tools state <user_id>
-# Verify: managed=true, is_premium=0, role=SHELL, HU=Paid-Active, no trial_ends_at, card on file
+# Verify: managed=true, is_premium=0, role=HOMEUPTICK, HU=Paid-Active, no trial_ends_at, card on file
 ```
 
 **Integration test:**
@@ -294,7 +295,7 @@ yarn test api/tests/integration/homeuptick-default-seeding.test.ts
 
 **Scenario matrix refs:** P3, P6
 
-**Process:** User enrolls in billing-managed HU free trial. Card required upfront. Auto-converts to paid HU at `trial_ends_at`. CO access = SHELL (zero features, allows HU login).
+**Process:** User enrolls in billing-managed HU free trial. Card required upfront. Auto-converts to paid HU at `trial_ends_at`. CO access = HOMEUPTICK (active HU-only access, allows HU login).
 
 ### Lifecycle
 
@@ -303,7 +304,7 @@ yarn test api/tests/integration/homeuptick-default-seeding.test.ts
 | 1. User selects P-TRIAL               | Product requires card                     | Card form displayed                      |
 | 2. Card entry                         | Square tokenizes                          | Card stored for auto-conversion          |
 | 3. Submit                             | No charge during trial                    | Transaction amount = 0 or no transaction |
-| 4. Subscription created               | Status: `free_trial`, `trial_ends_at` set | CO = SHELL, HU = Trial-Active            |
+| 4. Subscription created               | Status: `free_trial`, `trial_ends_at` set | CO = HOMEUPTICK, HU = Trial-Active       |
 | 5. **Clear HU auto-trial** if present | P-TRIAL replaces auto-trial               | Auto-trial removed                       |
 
 ### Edge Cases
@@ -322,7 +323,7 @@ yarn test api/tests/integration/homeuptick-default-seeding.test.ts
 ```bash
 yarn dev:tools scenario trial-expired --product p-trial --email test-ptrial@dev-test.local
 yarn dev:tools state <user_id>
-# Verify: status=free_trial, CO=SHELL, HU=Trial-Active, trial_ends_at set, card on file
+# Verify: status=free_trial, CO=HOMEUPTICK, HU=Trial-Active, trial_ends_at set, card on file
 ```
 
 ---
@@ -538,7 +539,7 @@ yarn test api/tests/integration/homeuptick-module.test.ts
 
 **Scenario matrix refs:** R3
 
-**Process:** Cron finds `homeuptick_only` subscription due for renewal. Charges HU usage-based amount based on contact count fetched from HU API. CO stays SHELL — no CO state changes.
+**Process:** Cron finds `homeuptick_only` subscription due for renewal. Charges HU usage-based amount based on contact count fetched from HU API. CO stays HOMEUPTICK — no CO state changes.
 
 ### Lifecycle
 
@@ -552,7 +553,7 @@ yarn test api/tests/integration/homeuptick-module.test.ts
 | 6. Update next_renewal_at      | now + duration                                  | Date advanced              |
 | 7. Reset payment_failure_count | Set to 0                                        | Clean slate                |
 | 8. Send renewal email          | Receipt shows HU usage breakdown                | Email sent                 |
-| 9. CO stays SHELL              | No change to CO access                          | SHELL preserved            |
+| 9. CO stays HOMEUPTICK         | No change to CO access                          | HOMEUPTICK preserved       |
 
 ### Edge Cases
 
@@ -560,7 +561,7 @@ yarn test api/tests/integration/homeuptick-module.test.ts
 | ------------------------------- | ------------------------------------------------------- | ---------- |
 | HU API unavailable              | Do not charge. Retry without incrementing failure count | R5         |
 | Tier changed since last renewal | New tier cost applied                                   | —          |
-| `cancel_on_renewal` set         | Do not renew. HU access off. SHELL preserved            | —          |
+| `cancel_on_renewal` set         | Do not renew. HU access off. HOMEUPTICK → SHELL on cancel | —          |
 | User inactive in main API       | Subscription skipped (no charge)                        | —          |
 
 ### How to Test
@@ -584,7 +585,7 @@ yarn dev:tools scenario renewal-due --product p-trial
 # 4. Trigger renewal
 yarn dev:tools cron-run <user_id>
 yarn dev:tools state <user_id>
-# Verify: HU usage charge, next_renewal_at advanced, SHELL preserved
+# Verify: HU usage charge, next_renewal_at advanced, HOMEUPTICK preserved
 ```
 
 **Integration test:**
@@ -894,17 +895,17 @@ yarn dev:tools state <user_id>
 
 **Scenario matrix refs:** P3, R3, R4, E1, X3, PZ3
 
-**Process:** Billing-managed free trial. Card required upfront. CO = SHELL. Auto-converts to paid HU at `trial_ends_at`.
+**Process:** Billing-managed free trial. Card required upfront. CO = HOMEUPTICK. Auto-converts to paid HU at `trial_ends_at`.
 
 ### Full Lifecycle
 
 | Phase                    | What Happens                                                                   | Verify                 |
 | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- |
-| **Enrollment**           | Card required; subscription created; CO=SHELL; HU=Trial-Active                 | `trial_ends_at` set    |
+| **Enrollment**           | Card required; subscription created; CO=HOMEUPTICK; HU=Trial-Active            | `trial_ends_at` set    |
 | **During trial**         | No charges; trial warning email at 10 days before end                          | Email sent             |
 | **Conversion (success)** | Charge card for HU usage; HU→Paid-Active; continues as P-HU                    | First charge processed |
 | **Conversion (failure)** | Enter retry ladder; HU access revoked at `trial_ends_at`; on success, restored | Retry schedule applies |
-| **Cancel during trial**  | `cancel_on_renewal` → no conversion; HU off; SHELL preserved                   | X3                     |
+| **Cancel during trial**  | `cancel_on_renewal` → no conversion; HU off; HOMEUPTICK → SHELL on cancel      | X3                     |
 | **Pause during trial**   | Trial paused; `trial_ends_at` **extended** by pause duration on resume         | PZ3                    |
 
 ### Edge Cases
@@ -928,7 +929,7 @@ yarn dev:tools cron-run <user_id>
 yarn dev:tools scenario trial-expired
 yarn dev:tools cron-run <user_id>
 yarn dev:tools state <user_id>
-# Verify: conversion charge, HU Paid-Active, SHELL preserved
+# Verify: conversion charge, HU Paid-Active, HOMEUPTICK preserved
 
 # Trial conversion failure
 yarn dev:tools scenario trial-expired
@@ -1357,9 +1358,9 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 - [ ] `premium_cashoffers` purchase — existing user had `homeuptick_only` trial (trial ended, upgraded) `[P4]`
 - [ ] `external_cashoffers` enrollment — via manage flow (managed=false, CO untouched) `[P2]`
 - [ ] `external_cashoffers` enrollment — KW/team member `[P7]`
-- [ ] `homeuptick_only` purchase (no trial) — new user, card charged, CO=SHELL, HU=Paid-Active `[P3]`
+- [ ] `homeuptick_only` purchase (no trial) — new user, card charged, CO=HOMEUPTICK, HU=Paid-Active `[P3]`
 - [ ] `homeuptick_only` purchase (no trial) — user had auto-trial (auto-trial cleared) `[P6]`
-- [ ] `homeuptick_only` enrollment (free trial, WIP) — card required, CO=SHELL, HU=Trial-Active `[P3]`
+- [ ] `homeuptick_only` enrollment (free trial, WIP) — card required, CO=HOMEUPTICK, HU=Trial-Active `[P3]`
 - [ ] `homeuptick_only` enrollment (free trial, WIP) — user had auto-trial (auto-trial cleared) `[P6]`
 - [ ] Free signup (no card, amount=0)
 - [ ] Investor signup (additional consent, role=INVESTOR)
@@ -1375,7 +1376,7 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 - [ ] `premium_cashoffers` renewal — user ≤500 contacts (HU usage = $0, base included)
 - [ ] `premium_cashoffers` renewal — user >500 contacts (HU usage-based tier charged)
 - [ ] `external_cashoffers` renewal — HU-only usage-based charge `[R2]`
-- [ ] `homeuptick_only` renewal (no trial) — HU usage-based charge, CO=SHELL unchanged `[R2]`
+- [ ] `homeuptick_only` renewal (no trial) — HU usage-based charge, CO=HOMEUPTICK unchanged `[R2]`
 - [ ] `homeuptick_only` conversion (free trial, WIP) — auto-convert at trial_ends_at `[R3]`
 - [ ] `homeuptick_only` conversion failure — (WIP) enters retry ladder `[R4]`
 - [ ] HU tier changed since last renewal — new tier auto-applied `[P8]`
@@ -1408,7 +1409,7 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 
 - [ ] cancel_on_renewal `premium_cashoffers` — CO per whitelabel, HU off, SHELL preserved `[X1]`
 - [ ] cancel_on_renewal `external_cashoffers` — HU off, CO untouched `[X2]`
-- [ ] cancel_on_renewal `homeuptick_only` — (WIP) no conversion, HU off, SHELL preserved `[X3]`
+- [ ] cancel_on_renewal `homeuptick_only` — (WIP) no conversion, HU off, HOMEUPTICK → SHELL `[X3]`
 - [ ] Immediate cancellation (admin) `[X4]`
 - [ ] Uncancel before renewal
 - [ ] Downgrade `premium_cashoffers` → free (is_premium=0, HU base removed, HU off) `[D1]`
@@ -1416,7 +1417,7 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 
 ### Free Trials (WIP — not in initial release)
 
-- [ ] `homeuptick_only` enrollment (card required, CO=SHELL) `[P3]`
+- [ ] `homeuptick_only` enrollment (card required, CO=HOMEUPTICK) `[P3]`
 - [ ] `homeuptick_only` warning email (10 days before)
 - [ ] `homeuptick_only` → paid conversion (success, charge card) `[R3]`
 - [ ] `homeuptick_only` → conversion failure (retry ladder, HU revoked at trial_ends_at) `[R4, E1]`

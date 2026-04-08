@@ -8,7 +8,8 @@ Exhaustive list of every CashOffers / HomeUptick billing scenario the system mus
 - **HU pricing is usage-based**, calculated at charge time from the HU API.
 - **CO and HU are always charged together** on the same subscription. If HU API is unavailable at renewal, do not charge CO either — retry the whole thing.
 - **`managed` flag** determines what billing touches on suspension/failure. `managed=true` → billing controls CO access. `managed=false` → CO is external, billing only manages HU.
-- **SHELL role** = zero-feature CO access. Users keep SHELL on subscription end/suspension. It exists solely to allow HU login (HU auth depends entirely on CO).
+- **HOMEUPTICK role** = active HU-only CO access. Assigned to `homeuptick_only` subscribers. Designates that billing is active but the user only has HomeUptick access (no full CO features).
+- **SHELL role** = deactivated CO access. Set on subscription suspension/deactivation (DEACTIVATE_USER strategy). Exists solely to allow HU login (HU auth depends entirely on CO).
 - **Paused vs Suspended**: Paused = admin deactivated CO account (webhook-driven). Suspended = max payment retries exhausted. Different resume behaviors.
 - **Non-user-fault failures** (HU API down, Square outage) do NOT increment `payment_failure_count`.
 - **No remove card** — only replace.
@@ -20,13 +21,13 @@ Exhaustive list of every CashOffers / HomeUptick billing scenario the system mus
 |---|---|---|---|---|---|---|
 | **P-CO** | CO Premium | `premium_cashoffers` | true | Premium (is_premium=1) | Base 500 included; usage-based tiers auto-applied by contact count | CO base + HU usage combined charge |
 | **P-HU** | HU Paid (standalone) | `external_cashoffers` | false | External (not managed) | Usage-based paid | HU only |
-| **P-TRIAL** | HU Free Trial | `homeuptick_only` | true | SHELL | Trial (card required, auto-converts to paid at trial end) | Nothing during trial; HU billing starts at conversion |
+| **P-TRIAL** | HU Free Trial | `homeuptick_only` | true | HOMEUPTICK | Trial (card required, auto-converts to paid at trial end) | Nothing during trial; HU billing starts at conversion |
 
 ### Product Notes
 
 - **`premium_cashoffers`** covers all CO premium subscriptions. HU tiers are not a separate product — they're automatic based on contact count and calculated at charge time.
 - **`external_cashoffers`** is for users whose CO is managed externally (KW Offerings agents, team members). `managed=false` ensures billing never touches their CO account. Purchased via manage flow (`/purchase/existing`), NOT the main signup page.
-- **`homeuptick_only`** is a billing-managed HU subscription with SHELL CO access. May include a free trial (WIP — not in initial release). Requires card upfront. Auto-converts to paid HU at trial end.
+- **`homeuptick_only`** is a billing-managed HU subscription with HOMEUPTICK CO access. May include a free trial (WIP — not in initial release). Requires card upfront. Auto-converts to paid HU at trial end.
 
 ## HU Data States
 
@@ -61,10 +62,10 @@ HU state lives in the subscription's HU data section, not the subscription statu
 | 8 | P-HU | Suspended | Paid-Suspended | External (untouched) | HU access off; CO unaffected |
 | 9 | P-HU | Paused (CO deactivated) | Paused | External (deactivated) | Nothing; resume on `user.activated` |
 | 10 | P-HU | cancel_on_renewal | Active until period end | External (untouched) | Cancel at renewal; HU access off; CO unaffected |
-| 11 | P-TRIAL | Active | Trial-Active | SHELL | No charge; monitors `trial_ends_at` |
-| 12 | P-TRIAL | Conversion at trial end | Trial-Active → Paid-Active | SHELL | Charge card; start HU billing; transition to P-HU equivalent |
+| 11 | P-TRIAL | Active | Trial-Active | HOMEUPTICK | No charge; monitors `trial_ends_at` |
+| 12 | P-TRIAL | Conversion at trial end | Trial-Active → Paid-Active | HOMEUPTICK | Charge card; start HU billing; transition to P-HU equivalent |
 | 13 | P-TRIAL | Paused (CO deactivated) | Trial-Paused | SHELL (deactivated) | No charge; `trial_ends_at` extended by pause duration on resume |
-| 14 | P-TRIAL | cancel_on_renewal | Trial-Active | SHELL | Cancel at trial end instead of converting; HU access off; SHELL preserved |
+| 14 | P-TRIAL | cancel_on_renewal | Trial-Active | HOMEUPTICK | Cancel at trial end instead of converting; HU access off; on cancellation SHELL via DEACTIVATE_USER |
 | 15 | None | N/A | Auto-Trial (HU-driven) | Free / any | Billing not involved; billing pauses auto-trial on CO deactivation |
 
 ## Lifecycle Events
@@ -75,7 +76,7 @@ HU state lives in the subscription's HU data section, not the subscription statu
 |---|---|---|
 | P1 | New user purchases P-CO | Create subscription; CO premium; HU base 500 included. If user had HU auto-trial → **clear it** (CO premium supersedes). If user had P-TRIAL → **end trial, upgrade** |
 | P2 | New user purchases P-HU | Create subscription (managed=false); CO untouched; HU paid starts |
-| P3 | New user starts P-TRIAL | Require card; create subscription; CO SHELL; HU trial starts with `trial_ends_at`. If user had auto-trial → **clear it** (P-TRIAL replaces) |
+| P3 | New user starts P-TRIAL | Require card; create subscription; CO HOMEUPTICK; HU trial starts with `trial_ends_at`. If user had auto-trial → **clear it** (P-TRIAL replaces) |
 | P4 | P-TRIAL user purchases P-CO | **End trial early**; upgrade to P-CO; CO → premium; HU base included (better than trial access); charge CO amount |
 | P5 | HU auto-trial user purchases P-CO | **Clear auto-trial**; create P-CO subscription; CO premium; HU base 500 |
 | P6 | HU auto-trial user starts P-TRIAL | **Clear auto-trial**; P-TRIAL takes over as billing-managed trial |
@@ -177,7 +178,7 @@ HU state lives in the subscription's HU data section, not the subscription statu
 | Auto-converts to paid | No, access simply turned off | Yes, charges card at `trial_ends_at` |
 | Billing involvement | None (except pause on CO deactivation) | Full lifecycle management |
 | Cleared when | User purchases P-CO or P-TRIAL | User purchases P-CO (superseded) |
-| CO access during trial | Whatever they already have | SHELL (created at enrollment) |
+| CO access during trial | Whatever they already have | HOMEUPTICK (created at enrollment) |
 
 ## Suspension Behavior by Product and Whitelabel
 
