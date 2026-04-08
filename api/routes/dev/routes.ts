@@ -17,6 +17,8 @@
  *   POST /dev/card/:user_id/break           — Replace card with invalid one (forces payment failures)
  *   POST /dev/card/:user_id/fix             — Restore card with valid sandbox card
  *   POST /dev/user/:user_id/set-password    — Set password for a user (for testing manage flows)
+ *   POST /dev/refund/:user_id               — Refund the most recent payment (or specific transaction)
+ *   POST /dev/property-unlock/:property_token — Test property unlock flow ($50 sandbox charge)
  */
 
 import { createHmac } from "crypto"
@@ -1489,6 +1491,171 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
           verdict: errors.length === 0 ? "PASS" : "FAIL",
         },
         issues,
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POST /dev/refund/:transaction_id — Refund a transaction by its internal ID
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.post("/refund/:transaction_id", async (c) => {
+    const txId = parseInt(c.req.param("transaction_id"), 10)
+
+    // Find the transaction by internal ID
+    const transaction = await db
+      .selectFrom("Transactions")
+      .where("transaction_id", "=", txId)
+      .selectAll()
+      .executeTakeFirst()
+
+    if (!transaction) {
+      return c.json({ success: "error", error: `Transaction ${txId} not found` }, 404)
+    }
+
+    if (transaction.status === "refunded") {
+      return c.json({ success: "error", error: `Transaction ${txId} is already refunded` }, 400)
+    }
+
+    if (!transaction.square_transaction_id) {
+      return c.json({ success: "error", error: `Transaction ${txId} has no square_transaction_id — cannot refund` }, 400)
+    }
+
+    const userId = transaction.user_id
+
+    const user = await db
+      .selectFrom("Users")
+      .where("user_id", "=", userId)
+      .select(["user_id", "email"])
+      .executeTakeFirst()
+
+    if (!user) {
+      return c.json({ success: "error", error: `User ${userId} not found` }, 404)
+    }
+
+    logger.info("[DEV] Processing refund", {
+      userId,
+      transactionId: transaction.transaction_id,
+      squareTransactionId: transaction.square_transaction_id,
+      type: transaction.type,
+      amount: transaction.amount,
+    })
+
+    const { refundPaymentUseCase } = await import("@api/use-cases/payment")
+
+    const result = await refundPaymentUseCase.execute({
+      userId,
+      squareTransactionId: transaction.square_transaction_id,
+      email: user.email,
+      context: {
+        testMode: transaction.square_environment === "sandbox",
+        source: "ADMIN" as const,
+        userId,
+      },
+    })
+
+    if (!result.success) {
+      return c.json({
+        success: "error",
+        error: (result as any).error ?? "Refund failed",
+        data: {
+          transaction_id: transaction.transaction_id,
+          square_transaction_id: transaction.square_transaction_id,
+          amount: transaction.amount,
+          amount_formatted: formatAmount(transaction.amount),
+          type: transaction.type,
+        },
+      }, 400)
+    }
+
+    return c.json({
+      success: "success",
+      data: {
+        user_id: userId,
+        email: user.email,
+        refund: result.data,
+        original_transaction: {
+          transaction_id: transaction.transaction_id,
+          square_transaction_id: transaction.square_transaction_id,
+          amount: transaction.amount,
+          amount_formatted: formatAmount(transaction.amount),
+          type: transaction.type,
+          environment: transaction.square_environment,
+        },
+        hint: `Check yarn dev:tools state ${userId} for updated transaction log.`,
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POST /dev/property-unlock/:property_token — Test property unlock flow
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const PropertyUnlockSchema = z.object({
+    user_id: z.number().int().positive(),
+  })
+
+  router.post("/property-unlock/:property_token", async (c) => {
+    const propertyToken = c.req.param("property_token")
+    const rawBody = await c.req.json().catch(() => null)
+    const parsed = PropertyUnlockSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return c.json({ success: "error", error: "user_id is required in the request body" }, 400)
+    }
+    const { user_id: userId } = parsed.data
+
+    const user = await db
+      .selectFrom("Users")
+      .where("user_id", "=", userId)
+      .select(["user_id", "email", "name"])
+      .executeTakeFirst()
+
+    if (!user) {
+      return c.json({ success: "error", error: `User ${userId} not found` }, 404)
+    }
+
+    logger.info("[DEV] Processing property unlock", { userId, propertyToken })
+
+    // Use the real use case — same code path as production.
+    // Passes the sandbox test nonce as the card token (no stored card needed).
+    const { unlockPropertyUseCase } = await import("@api/use-cases/property")
+    const cardNonce = "cnon:card-nonce-ok" // Square sandbox test nonce
+
+    const result = await unlockPropertyUseCase.execute({
+      propertyToken,
+      cardToken: cardNonce,
+      userId,
+      email: user.email,
+      context: { testMode: true, source: "ADMIN" as const, userId },
+    })
+
+    if (!result.success) {
+      return c.json({
+        success: "error",
+        error: (result as any).error ?? "Property unlock failed",
+        code: (result as any).code,
+        data: { user_id: userId, property_token: propertyToken },
+      }, 400)
+    }
+
+    return c.json({
+      success: "success",
+      data: {
+        user_id: userId,
+        email: user.email,
+        property_token: result.data!.propertyToken,
+        property_address: result.data!.propertyAddress,
+        transaction_id: result.data!.transactionId,
+        square_payment_id: result.data!.squarePaymentId,
+        amount: result.data!.amount,
+        amount_formatted: formatAmount(result.data!.amount),
+        unlocked: result.data!.unlocked,
+        card_nonce: cardNonce,
+        environment: "sandbox",
+        hint: [
+          `yarn dev:tools state ${userId}  — verify transaction logged`,
+          `yarn dev:tools refund ${userId}  — test refunding this charge`,
+        ].join("\n"),
       },
     })
   })

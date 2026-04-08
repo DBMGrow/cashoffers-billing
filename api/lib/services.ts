@@ -99,6 +99,7 @@ eventBus.subscribe("SubscriptionPaused", emailNotificationHandler)
 eventBus.subscribe("SubscriptionCancelled", emailNotificationHandler)
 eventBus.subscribe("SubscriptionDowngraded", emailNotificationHandler)
 eventBus.subscribe("SubscriptionUpgraded", emailNotificationHandler)
+eventBus.subscribe("PropertyUnlocked", emailNotificationHandler)
 
 eventBus.subscribe("PaymentProcessed", transactionLoggingHandler)
 eventBus.subscribe("PaymentFailed", transactionLoggingHandler)
@@ -124,14 +125,28 @@ eventBus.subscribe("SubscriptionDeactivated", homeUptickAccountHandler)
 eventBus.subscribe("SubscriptionCancelled", homeUptickAccountHandler)
 
 
+// Map env-style keys to their nested config paths
+const configKeyMap: Record<string, () => unknown> = {
+  API_URL: () => config.api.url,
+  API_MASTER_TOKEN: () => config.api.masterToken,
+  API_KEY: () => config.api.key,
+  ADMIN_EMAIL: () => config.adminEmail,
+}
+
+function resolveConfigValue(key: string): unknown {
+  const resolver = configKeyMap[key]
+  if (resolver) return resolver()
+  return (config as any)[key]
+}
+
 export const configService: IConfigService = {
   get: (key: string) => {
-    const value = (config as any)[key]
+    const value = resolveConfigValue(key)
     if (typeof value === "object") return JSON.stringify(value)
     return String(value || "")
   },
   getOrThrow: (key: string) => {
-    const value = (config as any)[key]
+    const value = resolveConfigValue(key)
     if (!value) throw new Error(`Config key ${key} not found`)
     if (typeof value === "object") return JSON.stringify(value)
     return String(value)

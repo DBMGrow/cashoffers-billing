@@ -13,6 +13,7 @@ import SubscriptionPausedEmail from './subscription-paused.email'
 import SubscriptionSuspendedEmail from './subscription-suspended.email'
 import CardUpdatedEmail from './card-updated.email'
 import RefundEmail from './refund.email'
+import PropertyUnlockedEmail from './property-unlocked.email'
 import DailyHealthReportEmail from './daily-health-report.email'
 import type { DailyHealthReportEmailProps } from './daily-health-report.email'
 
@@ -253,6 +254,56 @@ describe('RefundEmail', () => {
     expect(html).toContain('$250.00')
     expect(html).toContain('January 31, 2024')
     expect(html).toContain('Refunded')
+  })
+})
+
+// ─── Property Unlocked ────────────────────────────────────────────────────
+
+describe('PropertyUnlockedEmail', () => {
+  it('renders property address, amount, and transaction ID', async () => {
+    const html = await renderTemplate(PropertyUnlockedEmail, {
+      propertyAddress: '1234 Oak Ridge Dr, Springfield, IL',
+      amount: '$50.00',
+      transactionID: 'TXN-987654321',
+      date: 'April 7, 2026',
+    })
+    expect(html).toContain('1234 Oak Ridge Dr, Springfield, IL')
+    expect(html).toContain('$50.00')
+    expect(html).toContain('TXN-987654321')
+    expect(html).toContain('April 7, 2026')
+  })
+
+  it('renders property image when provided', async () => {
+    const html = await renderTemplate(PropertyUnlockedEmail, {
+      propertyAddress: '1234 Oak Ridge Dr, Springfield, IL',
+      propertyImageUrl: 'https://example.com/property.jpg',
+      amount: '$50.00',
+      transactionID: 'TXN-987654321',
+      date: 'April 7, 2026',
+    })
+    expect(html).toContain('https://example.com/property.jpg')
+  })
+
+  it('renders without image when not provided', async () => {
+    const html = await renderTemplate(PropertyUnlockedEmail, {
+      propertyAddress: '1234 Oak Ridge Dr, Springfield, IL',
+      amount: '$50.00',
+      transactionID: 'TXN-987654321',
+      date: 'April 7, 2026',
+    })
+    expect(html).toContain('Property Unlocked')
+    expect(html).toContain('one-time charge')
+  })
+
+  it('renders product name when provided', async () => {
+    const html = await renderTemplate(PropertyUnlockedEmail, {
+      propertyAddress: '1234 Oak Ridge Dr, Springfield, IL',
+      amount: '$50.00',
+      transactionID: 'TXN-987654321',
+      date: 'April 7, 2026',
+      productName: 'Property Unlock',
+    })
+    expect(html).toContain('Property Unlock')
   })
 })
 

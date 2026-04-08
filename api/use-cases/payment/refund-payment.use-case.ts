@@ -76,12 +76,13 @@ export class RefundPaymentUseCase implements IRefundPaymentUseCase {
         return failure("Transaction has already been refunded", "ALREADY_REFUNDED")
       }
 
-      if (transaction.type !== "payment") {
-        logger.warn("Cannot refund non-payment transaction", {
+      const refundableTypes = ["payment", "property_unlock", "subscription"]
+      if (!refundableTypes.includes(transaction.type)) {
+        logger.warn("Cannot refund transaction of this type", {
           transactionId: transaction.transaction_id,
           type: transaction.type,
         })
-        return failure("Only payment transactions can be refunded", "INVALID_TRANSACTION_TYPE")
+        return failure(`Transaction type '${transaction.type}' is not refundable`, "INVALID_TRANSACTION_TYPE")
       }
 
       // Validate transaction amount

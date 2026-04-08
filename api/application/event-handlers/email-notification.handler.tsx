@@ -23,6 +23,7 @@ import SubscriptionCreatedEmail from '@api/infrastructure/email/templates/subscr
 import TrialWelcomeEmail from '@api/infrastructure/email/templates/trial-welcome.email'
 import SubscriptionRenewalEmail from '@api/infrastructure/email/templates/subscription-renewal.email'
 import PaymentConfirmationEmail from '@api/infrastructure/email/templates/payment-confirmation.email'
+import PropertyUnlockedEmail from '@api/infrastructure/email/templates/property-unlocked.email'
 import PaymentErrorEmail from '@api/infrastructure/email/templates/payment-error.email'
 import RefundEmail from '@api/infrastructure/email/templates/refund.email'
 import CardUpdatedEmail from '@api/infrastructure/email/templates/card-updated.email'
@@ -499,7 +500,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handlePropertyUnlocked(event: PropertyUnlockedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, amount, externalTransactionId, propertyAddress, userId } = event.payload
+        const { email, amount, externalTransactionId, propertyAddress, propertyImageUrl, productName, userId } = event.payload
 
         this.logger.info('Sending property unlocked email', {
           email,
@@ -509,20 +510,22 @@ export class EmailNotificationHandler extends BaseEventHandler {
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
         const html = await render(
-          <PaymentConfirmationEmail
+          <PropertyUnlockedEmail
+            propertyAddress={propertyAddress || 'Unknown Property'}
+            propertyImageUrl={propertyImageUrl}
             amount={this.formatCurrency(amount)}
             transactionID={externalTransactionId}
             date={this.formatDate()}
-            description={propertyAddress ? `Property Unlock — ${propertyAddress}` : 'Property Unlock'}
+            productName={productName}
             whitelabel={this.toBrandingProps(whitelabelInfo)}
           />
         )
 
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Property Unlocked',
+          subject: `Property Unlocked — ${propertyAddress || 'Property Details Available'}`,
           html,
-          templateName: 'payment-confirmation',
+          templateName: 'property-unlocked',
           fromName: this.fromName(whitelabelInfo),
         })
       },

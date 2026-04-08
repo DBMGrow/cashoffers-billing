@@ -409,6 +409,60 @@ async function cmdFixCard(userId: string) {
   console.log()
 }
 
+async function cmdRefund(transactionId: string) {
+  header(`Refund — Transaction ${transactionId}`)
+
+  const data = await api("POST", `/refund/${transactionId}`)
+
+  console.log(green("\n✓ Refund completed\n"))
+  kv("User ID", data.user_id, 2)
+  kv("Email", data.email, 2)
+
+  section("Original Transaction")
+  kv("Transaction ID", data.original_transaction.transaction_id, 4)
+  kv("Square ID", data.original_transaction.square_transaction_id, 4)
+  kv("Amount", data.original_transaction.amount_formatted, 4)
+  kv("Type", data.original_transaction.type, 4)
+  kv("Environment", data.original_transaction.environment, 4)
+
+  section("Refund")
+  kv("Refund ID", data.refund.refundId, 4)
+  kv("Amount", `$${(data.refund.amount / 100).toFixed(2)}`, 4)
+  kv("Status", green(data.refund.status), 4)
+
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${data.user_id}`)}`)
+  console.log()
+}
+
+async function cmdPropertyUnlock(propertyToken: string, options: { user: string }) {
+  if (!options.user) {
+    console.error(red("\n✗ --user <user_id> is required"))
+    console.error(dim("  Example: yarn dev:tools property-unlock abc123 --user 42\n"))
+    process.exit(1)
+  }
+  const userId = options.user
+
+  header(`Property Unlock — Token: ${propertyToken}`)
+  console.log(yellow("\n⚠  This charges $50 via sandbox test nonce (no card on file needed).\n"))
+
+  const data = await api("POST", `/property-unlock/${propertyToken}`, { user_id: parseInt(userId, 10) })
+
+  console.log(green("\n✓ Property unlocked\n"))
+  kv("Property Token", data.property_token, 2)
+  kv("Property Address", data.property_address, 2)
+  kv("User ID", data.user_id, 2)
+  kv("Email", data.email, 2)
+  kv("Transaction ID", data.transaction_id, 2)
+  kv("Square Payment ID", data.square_payment_id, 2)
+  kv("Amount", data.amount_formatted, 2)
+  kv("Card Nonce", dim(data.card_nonce), 2)
+  kv("Environment", data.environment, 2)
+
+  console.log(`\n  ${dim("→")} ${cyan(`yarn dev:tools state ${userId}`)}`)
+  console.log(`  ${dim("→")} ${cyan(`yarn dev:tools refund ${userId}`)}  ${dim("(to test refunding this charge)")}`)
+  console.log()
+}
+
 async function cmdVerify() {
   header("Product & Subscription Verification")
   const data = await api("GET", "/verify")
@@ -556,6 +610,17 @@ program
   .command("fix-card <user_id>")
   .description("Restore user's card with a valid sandbox card (payments will succeed)")
   .action(cmdFixCard)
+
+program
+  .command("refund <transaction_id>")
+  .description("Refund a transaction by its internal transaction ID")
+  .action(cmdRefund)
+
+program
+  .command("property-unlock <property_token>")
+  .description("Test property unlock flow — charges $50 on user's sandbox card")
+  .requiredOption("-u, --user <user_id>", "User ID to charge")
+  .action(cmdPropertyUnlock)
 
 program
   .command("verify")

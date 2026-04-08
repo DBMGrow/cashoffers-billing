@@ -15,6 +15,8 @@ export interface PropertyUnlockedPayload {
   propertyId: number
   /** Property address */
   propertyAddress?: string
+  /** Property photo URL */
+  propertyImageUrl?: string
   /** Amount charged in cents */
   amount: number
   /** Currency code (e.g., 'USD') */

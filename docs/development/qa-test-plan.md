@@ -4,13 +4,12 @@ Complete walkthrough of every system process, its lifecycle, edge cases, and how
 
 > **Definitive reference:** [Billing Scenario Matrix](../business/capabilities/billing-scenario-matrix.md) — all product types, state combinations, lifecycle events, and edge cases.
 
-## Progress: 78% complete (18 / 23 active sections verified)
+## Progress: 100% complete (23 / 23 active sections verified)
 
-| Status      | Count | Sections    |
-| ----------- | ----- | ----------- |
-| VERIFIED    | 18    | 1–15, 17–19 |
-| IN-PROGRESS | 5     | 20–23, 26b  |
-| SHELVED     | 3     | 3b, 16, 26  |
+| Status      | Count | Sections           |
+| ----------- | ----- | ------------------ |
+| VERIFIED    | 23    | 1–15, 17–23, 26b  |
+| SHELVED     | 3     | 3b, 16, 26         |
 
 > **3 shelved sections** (free trial related) are excluded from the active count. Un-shelve them when the free trial UI is ready.
 
@@ -57,12 +56,12 @@ yarn dev:tools auth-link <user_id>
 17. Pause (CO Deactivation via Webhook) — `VERIFIED`
 18. Resume (CO Reactivation via Webhook) — `VERIFIED`
 19. Card Update — `VERIFIED`
-20. Plan Change (Upgrade) — `IN-PROGRESS`
-21. Plan Change (Downgrade) — `IN-PROGRESS`
-22. Payment Refund — `IN-PROGRESS`
-23. Property Unlock — `IN-PROGRESS`
+20. Plan Change (Upgrade) — `VERIFIED`
+21. Plan Change (Downgrade) — `VERIFIED`
+22. Payment Refund — `VERIFIED`
+23. Property Unlock — `VERIFIED`
 24. Cron: Trial Warning & Expiration — `SHELVED`
-    26b. Manage Billing: Premium User Without Subscription — `IN-PROGRESS`
+    26b. Manage Billing: Premium User Without Subscription — `VERIFIED`
 
 ---
 
@@ -1124,7 +1123,7 @@ yarn test api/tests/integration/card-update-retry.test.ts
 
 ---
 
-## 20. Plan Change (Upgrade) — `IN-PROGRESS`
+## 20. Plan Change (Upgrade) — `VERIFIED`
 
 **Process:** Existing user upgrades to a higher-tier plan with prorated charge.
 
@@ -1162,7 +1161,7 @@ yarn test api/tests/integration/card-update-retry.test.ts
 
 ---
 
-## 21. Plan Change (Downgrade) — `IN-PROGRESS`
+## 21. Plan Change (Downgrade) — `VERIFIED`
 
 **Process:** User switches to a lower-tier plan. Takes effect immediately.
 
@@ -1184,7 +1183,7 @@ yarn test api/tests/integration/card-update-retry.test.ts
 
 ---
 
-## 22. Payment Refund — `IN-PROGRESS`
+## 22. Payment Refund — `VERIFIED`
 
 **Process:** Admin refunds a completed payment.
 
@@ -1208,17 +1207,20 @@ yarn test api/tests/integration/card-update-retry.test.ts
 ### How to Test
 
 ```bash
-curl -X POST http://localhost:3000/api/payment/refund \
-  -H "Authorization: Bearer <admin_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"transaction_id": <id>}'
+# Refund most recent payment for a user
+yarn dev:tools refund <user_id>
+
+# Refund a specific transaction
+yarn dev:tools refund <user_id> --transaction-id <square_transaction_id>
+
+# Verify refund was recorded
 yarn dev:tools state <user_id>
-# Check transactions for refund record
+# Check transactions for refund record + original marked as "refunded"
 ```
 
 ---
 
-## 23. Property Unlock — `IN-PROGRESS`
+## 23. Property Unlock — `VERIFIED`
 
 **Process:** One-time $50 charge to unlock a property.
 
@@ -1240,7 +1242,21 @@ yarn dev:tools state <user_id>
 | Invalid token                              | Error before charge    |
 | No card on file                            | Error                  |
 
-**No integration test exists (gap). No dev CLI command exists.**
+### How to Test
+
+```bash
+# Create a test user with a sandbox card
+yarn dev:tools scenario renewal-due
+
+# Charge $50 for a property unlock (any token works for dev testing)
+yarn dev:tools property-unlock <property_token> --user <user_id>
+
+# Verify transaction was logged
+yarn dev:tools state <user_id>
+
+# Test refunding the property unlock charge
+yarn dev:tools refund <user_id>
+```
 
 ---
 
@@ -1272,7 +1288,7 @@ yarn dev:tools cron-run <user_id>
 
 ---
 
-## 26b. Manage Billing: Premium User Without Subscription — `IN-PROGRESS`
+## 26b. Manage Billing: Premium User Without Subscription — `VERIFIED`
 
 **Process:** Premium user with no billing subscription visits the manage billing section. Two distinct scenarios exist:
 

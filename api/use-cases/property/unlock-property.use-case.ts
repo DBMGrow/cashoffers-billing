@@ -1,11 +1,11 @@
 import axios from "axios"
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { IPaymentProvider, CreatePaymentRequest } from "@api/infrastructure/payment/payment-provider.interface"
-import { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import type { TransactionRepository } from "@api/lib/repositories"
 import type { ProductRepository } from "@api/lib/repositories"
 import { IConfigService } from "@api/config/config.interface"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
+import type { ICriticalAlertService } from "@api/domain/services/critical-alert.service"
 import { IUnlockPropertyUseCase } from "./unlock-property.use-case.interface"
 import { UnlockPropertyInput, UnlockPropertyOutput } from "../types/property.types"
 import { UseCaseResult, success, failure } from "../base/use-case.interface"
@@ -16,11 +16,11 @@ import { v4 as uuidv4 } from "uuid"
 interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
-  emailService: IEmailService
   transactionRepository: TransactionRepository
   productRepository: ProductRepository
   config: IConfigService
   eventBus: IEventBus
+  criticalAlertService: ICriticalAlertService
 }
 
 /**
@@ -136,15 +136,29 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
           })
 
           // Notify admin of critical refund failure
-          await this.sendAdminCriticalErrorEmail(paymentId, validatedInput.propertyToken, refundErrorMessage)
+          await this.deps.criticalAlertService.alertCriticalError(
+            'Property Unlock Refund Failed — Manual Intervention Required',
+            refundError instanceof Error ? refundError : new Error(refundErrorMessage),
+            {
+              paymentId,
+              propertyToken: validatedInput.propertyToken,
+              impact: 'Payment was charged but property unlock AND automatic refund both failed',
+              action: 'Issue manual refund via Square Dashboard immediately',
+            }
+          )
         }
 
         // Notify admin of property unlock failure
-        await this.sendAdminPropertyUpdateErrorEmail(
-          validatedInput.propertyToken,
-          propertyAddress,
-          paymentId,
-          errorMessage
+        await this.deps.criticalAlertService.alertMainApiFailure(
+          updateError instanceof Error ? updateError : new Error(errorMessage),
+          {
+            propertyToken: validatedInput.propertyToken,
+            propertyAddress,
+            paymentId,
+            refundStatus: 'completed',
+            impact: 'Property unlock failed — payment was automatically refunded',
+            action: 'Check main API logs and retry property unlock manually if needed',
+          }
         )
 
         return failure(
@@ -180,6 +194,7 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
           email: validatedInput.email,
           propertyId: property?.id || 0,
           propertyAddress,
+          propertyImageUrl: property?.photo_url || undefined,
           amount,
           currency: "USD",
           externalTransactionId: paymentId,
@@ -212,54 +227,13 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
       })
 
       // Notify admin of unexpected error
-      await this.sendAdminErrorEmail(errorMessage)
+      await this.deps.criticalAlertService.alertCriticalError(
+        'Property Unlock Error',
+        error instanceof Error ? error : new Error(errorMessage),
+        { duration: Date.now() - startTime }
+      )
 
       return failure(errorMessage, "PROPERTY_UNLOCK_ERROR")
-    }
-  }
-
-  private async sendAdminPropertyUpdateErrorEmail(
-    propertyToken: string,
-    propertyAddress: string,
-    paymentId: string,
-    error: string
-  ): Promise<void> {
-    try {
-      await this.deps.emailService.sendPlainEmail({
-        to: this.deps.config.get("ADMIN_EMAIL"),
-        subject: "Property Unlock Failure - Payment Refunded",
-        text: `Property unlock failed for ${propertyAddress} (${propertyToken})\n\nPayment ${paymentId} was automatically refunded.\n\nError: ${error}`,
-      })
-    } catch (emailError) {
-      this.deps.logger.error("Failed to send admin property update error email", { error: emailError })
-    }
-  }
-
-  private async sendAdminCriticalErrorEmail(
-    paymentId: string,
-    propertyToken: string,
-    refundError: string
-  ): Promise<void> {
-    try {
-      await this.deps.emailService.sendPlainEmail({
-        to: this.deps.config.get("ADMIN_EMAIL"),
-        subject: "CRITICAL: Property Unlock Refund Failed - Manual Intervention Required",
-        text: `CRITICAL ERROR: Automatic refund failed for property unlock\n\nPayment ID: ${paymentId}\nProperty Token: ${propertyToken}\n\nRefund Error: ${refundError}\n\nManual intervention required to issue refund.`,
-      })
-    } catch (emailError) {
-      this.deps.logger.error("Failed to send admin critical error email", { error: emailError })
-    }
-  }
-
-  private async sendAdminErrorEmail(error: string): Promise<void> {
-    try {
-      await this.deps.emailService.sendPlainEmail({
-        to: this.deps.config.get("ADMIN_EMAIL"),
-        subject: "Property Unlock Error",
-        text: `There was an error processing a property unlock: ${error}`,
-      })
-    } catch (emailError) {
-      this.deps.logger.error("Failed to send admin error email", { error: emailError })
     }
   }
 
@@ -307,7 +281,7 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
     const apiToken = this.deps.config.get("API_MASTER_TOKEN")
 
     try {
-      const response = await axios.put(`${apiUrl}/properties/${propertyToken}/full`,
+      const response = await axios.put(`${apiUrl}/properties/${propertyToken}`,
         { is_unlocked: 2 },
         {
           headers: {
