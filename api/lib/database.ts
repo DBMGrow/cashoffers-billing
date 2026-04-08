@@ -1,6 +1,7 @@
 import { DB } from "./db"
 import { Kysely, MysqlDialect } from "kysely"
 import { createPool } from "mysql2"
+import type { MysqlPool } from "kysely"
 import { config } from "@api/config/config.service"
 
 export const db = new Kysely<DB>({
@@ -12,6 +13,6 @@ export const db = new Kysely<DB>({
       password: config.database.password,
       port: config.database.port,
       connectionLimit: 10,
-    }),
+    }) as unknown as MysqlPool,
   }),
 })

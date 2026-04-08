@@ -180,9 +180,9 @@ export interface GetSubscriptionsInput {
 export interface GetSubscriptionsOutput {
   subscriptions: Array<{
     subscriptionId: number
-    userId: number
+    userId: number | null
     subscriptionName: string
-    productId: number
+    productId: number | null
     amount: number
     duration: string
     status: string

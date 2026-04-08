@@ -162,6 +162,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
           environment,
         })
 
+        if (!userId) {
+          this.logger.info('Skipping subscription created email — no userId available', {
+            email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
         // Fetch whitelabel for this user
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 

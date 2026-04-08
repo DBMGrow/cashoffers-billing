@@ -123,8 +123,10 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
       // Get user email for event notification
       let userEmail: string | undefined
       try {
-        const user = await userApiClient.getUser(subscription.user_id)
-        userEmail = user?.email
+        if (subscription.user_id) {
+          const user = await userApiClient.getUser(subscription.user_id)
+          userEmail = user?.email
+        }
       } catch (error) {
         logger.warn("Failed to fetch user email", { userId: subscription.user_id, error })
       }
@@ -133,17 +135,19 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
       const metadata = await this.buildSuspensionMetadata(subscription)
 
       // Publish SubscriptionPausedEvent (triggers email and premium deactivation)
-      await eventBus.publish(
-        SubscriptionPausedEvent.create({
-          subscriptionId: subscription.subscription_id,
-          userId: subscription.user_id,
-          email: userEmail,
-          subscriptionName: subscription.subscription_name || undefined,
-          reason: 'user_request',
-          pausedBy: 'user',
-          previousStatus: 'active',
-        }, metadata)
-      )
+      if (subscription.user_id) {
+        await eventBus.publish(
+          SubscriptionPausedEvent.create({
+            subscriptionId: subscription.subscription_id,
+            userId: subscription.user_id,
+            email: userEmail,
+            subscriptionName: subscription.subscription_name || undefined,
+            reason: 'user_request',
+            pausedBy: 'user',
+            previousStatus: 'active',
+          }, metadata)
+        )
+      }
 
       logger.info("Subscription paused successfully", {
         subscriptionId: validatedInput.subscriptionId,

@@ -83,10 +83,13 @@ export const ProductDataSchema = z
 /**
  * Create product request body
  */
+export const ProductCategorySchema = z.enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"])
+
 export const CreateProductRequestSchema = z.object({
   product_name: z.string().min(1, "Product name is required"),
   product_description: z.string().optional(),
   product_type: ProductTypeSchema,
+  product_category: ProductCategorySchema,
   price: z.number(),
   data: ProductDataSchema.optional(),
 })

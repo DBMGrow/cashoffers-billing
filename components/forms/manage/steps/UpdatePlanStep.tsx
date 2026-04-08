@@ -32,7 +32,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
   const { data: currentSubscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ["subscription", user.api_token],
     queryFn: async () => {
-      const { data: json } = await axios.get<ApiResponse<Subscription[]>>("/api/subscription/single", {
+      const { data: json } = await axios.get<ApiResponse<{ subscriptions: Subscription[] }>>("/api/subscription/single", {
         headers: {
           "x-api-token": user.api_token,
         },
@@ -54,7 +54,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
         "/api/manage/purchase",
         {
           product_id: productId,
-          subscription_id: currentSubscription.subscriptionId,
+          subscription_id: currentSubscription.subscription_id,
         },
         {
           headers: {
@@ -81,7 +81,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
         "/api/manage/checkplan",
         {
           subscription: {
-            user_id: currentSubscription.userId,
+            user_id: user.user_id,
             data: currentSubscription.data,
           },
           productID: productId,
@@ -168,7 +168,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
   const availablePlans = products.filter(
     (p: Product) =>
       p.product_type === "subscription" &&
-      Number(p.product_id) !== Number(currentSubscription.productId) &&
+      Number(p.product_id) !== Number(currentSubscription.product_id) &&
       !isProductFree(p)
   )
 

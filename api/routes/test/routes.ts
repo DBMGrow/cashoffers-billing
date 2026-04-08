@@ -132,7 +132,7 @@ if (config.nodeEnv !== "production") {
           email: body.email,
           api_token: apiToken,
         },
-      })
+      }, 200)
     } catch (error: any) {
       console.error("Error creating test user:", error)
       return c.json(
@@ -163,7 +163,7 @@ if (config.nodeEnv !== "production") {
               user_id: z.number(),
               product_id: z.number(),
               amount: z.number(),
-              status: z.string().optional(),
+              status: z.enum(["active", "cancelled", "disabled", "expired", "inactive", "paused", "suspended", "trial"]).optional(),
               subscription_name: z.string().optional(),
               duration: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
               renewal_date: z.string().optional(), // ISO date string
@@ -302,6 +302,17 @@ if (config.nodeEnv !== "production") {
           },
         },
       },
+      400: {
+        description: "Bad request",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal("error"),
+              error: z.string(),
+            }),
+          },
+        },
+      },
     },
   })
 
@@ -320,7 +331,7 @@ if (config.nodeEnv !== "production") {
         return c.json({
           success: "success" as const,
           message: "User not found (already cleaned up or never existed)",
-        })
+        }, 200)
       }
 
       // Delete related data (in order of foreign key dependencies)
@@ -354,7 +365,7 @@ if (config.nodeEnv !== "production") {
           deleted_subscriptions: Number(deletedSubscriptions[0]?.numDeletedRows || 0),
           deleted_cards: Number(deletedCards[0]?.numDeletedRows || 0),
         },
-      })
+      }, 200)
     } catch (error: any) {
       console.error("Error cleaning up test user:", error)
       return c.json(

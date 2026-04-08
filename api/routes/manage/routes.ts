@@ -41,12 +41,13 @@ app.openapi(CheckPlanRoute, async (c) => {
     const user = c.get("user")
 
     // If team subscription with a valid team_id, fetch team details
-    if (subscription?.data?.cashoffers?.user_config?.is_team_plan && subscription.data.team_id) {
+    const subData = subscription?.data as any
+    if (subData?.cashoffers?.user_config?.is_team_plan && subData.team_id) {
       try {
         const teamUsers = await db
           .selectFrom("Users")
           .select(["user_id", "email", "name"])
-          .where("team_id", "=", subscription.data.team_id)
+          .where("team_id", "=", subData.team_id)
           .where("active", "=", 1)
           .execute()
 
@@ -57,7 +58,7 @@ app.openapi(CheckPlanRoute, async (c) => {
         }))
         responseBody.numberOfUsers = teamUsers.length
       } catch (err) {
-        console.error("checkplan: Failed to query team users", { teamId: subscription.data.team_id, error: err })
+        console.error("checkplan: Failed to query team users", { teamId: subData.team_id, error: err })
       }
     }
 
@@ -372,11 +373,11 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       | undefined
     const validCategories = ["premium_cashoffers", "external_cashoffers", "homeuptick_only"]
 
-    let productCategory: string
+    let productCategory: "premium_cashoffers" | "external_cashoffers" | "homeuptick_only"
     let reason: string
 
     if (categoryOverride && validCategories.includes(categoryOverride)) {
-      productCategory = categoryOverride
+      productCategory = categoryOverride as typeof productCategory
       reason = `Admin-directed enrollment: category override to ${categoryOverride}`
     } else {
       const isPremium = fullUser?.is_premium === 1
@@ -653,7 +654,7 @@ app.openapi(ManagePurchaseRoute, async (c) => {
         proratedCharge: proratedAmount,
         transactionId: chargeDetails?.transactionId,
         renewalDate: updatedSubscription?.renewal_date ?? undefined,
-        environment: paymentContext?.environment,
+        environment: paymentContext?.testMode ? 'sandbox' : 'production',
       })
     )
 

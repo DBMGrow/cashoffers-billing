@@ -91,7 +91,7 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
         data: {
           subscription: {
             subscriptionId: data.subscriptionId,
-            userId: data.userId,
+            userId: data.userId ?? 0,
             productId: data.productId,
             amount: data.amount,
           },
@@ -153,10 +153,11 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
 
     const data = useCaseResult.data
 
+    const existingUserId = data.userId ?? sessionUser.user_id
     const [product, user, userCards] = await Promise.all([
       productRepository.findById(typeof body.product_id === "number" ? body.product_id : parseInt(body.product_id, 10)),
-      userApiClient.getUser(data.userId),
-      userCardRepository.findByUserId(data.userId),
+      userApiClient.getUser(existingUserId),
+      userCardRepository.findByUserId(existingUserId),
     ])
 
     return c.json(
@@ -165,7 +166,7 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
         data: {
           subscription: {
             subscriptionId: data.subscriptionId,
-            userId: data.userId,
+            userId: data.userId ?? 0,
             productId: data.productId,
             amount: data.amount,
           },

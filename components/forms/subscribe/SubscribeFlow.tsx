@@ -39,7 +39,7 @@ const cardDataSchema = z.object({
 })
 
 const subscribeSchema = z.object({
-  product: z.number(),
+  product: z.union([z.number(), z.literal("free"), z.literal("freeinvestor")]),
   email: z.string().email(),
   name: z.string().min(2),
   phone: z.string().min(10),
@@ -51,7 +51,7 @@ const subscribeSchema = z.object({
 })
 
 interface SubscribeFlowProps {
-  initialProduct: number
+  initialProduct: number | "free" | "freeinvestor"
   whitelabel: WhitelabelType
   coupon?: string | null
   mockPurchase?: boolean

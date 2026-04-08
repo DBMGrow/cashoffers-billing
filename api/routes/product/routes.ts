@@ -33,13 +33,14 @@ app.openapi(GetAllProductsRoute, async (c) => {
 // Create new product
 app.openapi(CreateProductRoute, async (c) => {
   const body = c.req.valid("json")
-  const { product_name, product_description, product_type, price, data } = body
+  const { product_name, product_description, product_type, product_category, price, data } = body
 
   const now = new Date()
   const product = await productRepository.create({
     product_name,
     product_description,
     product_type,
+    product_category,
     price,
     data: data as any,
     createdAt: now,

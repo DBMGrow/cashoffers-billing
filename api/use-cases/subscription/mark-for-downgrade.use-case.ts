@@ -67,25 +67,29 @@ export class MarkForDowngradeUseCase implements IMarkForDowngradeUseCase {
         // Get user email for event notification
         let userEmail: string | undefined
         try {
-          const user = await userApiClient.getUser(subscription.user_id)
-          userEmail = user?.email
+          if (subscription.user_id) {
+            const user = await userApiClient.getUser(subscription.user_id)
+            userEmail = user?.email
+          }
         } catch (error) {
           logger.warn("Failed to fetch user email", { userId: subscription.user_id, error })
         }
 
         // Publish event (triggers email notifications to user and admin)
-        await eventBus.publish(
-          SubscriptionDowngradedEvent.create({
-            subscriptionId: subscription.subscription_id,
-            userId: subscription.user_id,
-            email: userEmail,
-            currentSubscriptionName: subscription.subscription_name || undefined,
-            reason: 'user_request',
-            downgradedBy: 'user',
-            effectiveDate: subscription.renewal_date ? new Date(subscription.renewal_date) : undefined,
-            downgradeOnRenewal: true,
-          })
-        )
+        if (subscription.user_id) {
+          await eventBus.publish(
+            SubscriptionDowngradedEvent.create({
+              subscriptionId: subscription.subscription_id,
+              userId: subscription.user_id,
+              email: userEmail,
+              currentSubscriptionName: subscription.subscription_name || undefined,
+              reason: 'user_request',
+              downgradedBy: 'user',
+              effectiveDate: subscription.renewal_date ? new Date(subscription.renewal_date) : undefined,
+              downgradeOnRenewal: true,
+            })
+          )
+        }
       }
 
       logger.info("Downgrade on renewal flag updated successfully", {

@@ -188,6 +188,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         amount: pricing.initialAmount,
         proratedCharge: activeSubscription ? undefined : 0,
         userCreated: false,
+        userProvisioned: true,
       })
     } catch (error) {
       return this.handleError(error, purchaseRequestId, startTime, {

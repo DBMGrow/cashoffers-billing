@@ -198,7 +198,7 @@ export default function SystemAlertEmail({
       )}
 
       {/* Context */}
-      {context && Object.keys(context).length > 0 && (
+      {context != null && Object.keys(context).length > 0 && (
         <SummaryTable>
           <SummaryRow isHeader label="Context" value="" />
           {Object.entries(context).map(([key, value], i, arr) => (
@@ -251,7 +251,7 @@ export default function SystemAlertEmail({
         </div>
       )}
 
-      {context?.action && (
+      {context?.action != null && (
         <InfoBox variant="info" title="Recommended Action">
           {String(context.action)}
         </InfoBox>

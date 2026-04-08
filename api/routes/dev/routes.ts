@@ -1522,6 +1522,9 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     }
 
     const userId = transaction.user_id
+    if (!userId) {
+      return c.json({ success: "error", error: `Transaction ${txId} has no user_id — cannot refund` }, 400)
+    }
 
     const user = await db
       .selectFrom("Users")

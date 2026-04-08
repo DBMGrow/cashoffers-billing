@@ -193,6 +193,10 @@ export const GetProductsRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request",
     },
+    404: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Whitelabel not found",
+    },
   },
   tags: ["Signup"],
   summary: "Get products",

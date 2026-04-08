@@ -1,5 +1,5 @@
 export interface SubscribeFormData {
-  product: number
+  product: number | "free" | "freeinvestor"
   email: string
   name: string
   phone: string

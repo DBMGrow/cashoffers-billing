@@ -76,7 +76,7 @@ export class WhitelabelResolverService {
         name: whitelabel.name,
         branding: {
           ...DEFAULT_BRANDING,
-          ...(whitelabel.data || {}),
+          ...((whitelabel.data as Record<string, unknown>) || {}),
         } as WhitelabelData,
       }
     } catch (error) {
@@ -102,7 +102,7 @@ export class WhitelabelResolverService {
         name: whitelabel.name,
         branding: {
           ...DEFAULT_BRANDING,
-          ...(whitelabel.data || {}),
+          ...((whitelabel.data as Record<string, unknown>) || {}),
         } as WhitelabelData,
       }
     } catch (error) {
@@ -129,7 +129,7 @@ export class WhitelabelResolverService {
       name: whitelabel.name,
       branding: {
         ...DEFAULT_BRANDING,
-        ...(whitelabel.data || {}),
+        ...((whitelabel.data as Record<string, unknown>) || {}),
       } as WhitelabelData,
     }
   }
@@ -152,7 +152,7 @@ export class WhitelabelResolverService {
           name: whitelabel.name,
           branding: {
             ...DEFAULT_BRANDING,
-            ...(whitelabel.data || {}),
+            ...((whitelabel.data as Record<string, unknown>) || {}),
           } as WhitelabelData,
         }
       }

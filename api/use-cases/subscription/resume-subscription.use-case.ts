@@ -100,7 +100,7 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
       })
 
       // Publish SubscriptionResumedEvent
-      if (eventBus) {
+      if (eventBus && subscription.user_id) {
         await eventBus.publish(
           SubscriptionResumedEvent.create({
             subscriptionId: subscription.subscription_id,

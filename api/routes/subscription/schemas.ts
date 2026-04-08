@@ -64,7 +64,7 @@ export const GetSubscriptionsQuerySchema = PaginationQuerySchema
  */
 export const SubscriptionSchema = z.object({
   subscriptionId: z.number(),
-  userId: z.number(),
+  userId: z.number().nullable(),
   subscriptionName: z.string(),
   amount: z.number(),
   duration: z.string(),

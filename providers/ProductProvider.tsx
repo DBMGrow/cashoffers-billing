@@ -11,6 +11,7 @@ export interface Product {
   product_name: string
   product_description: string | null
   product_type: "none" | "one-time" | "subscription"
+  product_category?: "premium_cashoffers" | "external_cashoffers" | "homeuptick_only"
   price: number
   active: number
   data: ProductData | null

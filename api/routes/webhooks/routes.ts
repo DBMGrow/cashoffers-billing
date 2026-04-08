@@ -68,7 +68,7 @@ app.openapi(CashOffersWebhookRoute, async (c) => {
 
   await webhookHandler.handle(body as any)
 
-  return c.json({ success: "success" as const, data: { received: true } })
+  return c.json({ success: "success" as const, data: { received: true } }, 200)
 })
 
 export const webhookRoutes = app
