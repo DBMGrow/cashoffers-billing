@@ -8,6 +8,13 @@ export interface SubscriptionUpgradedPayload {
   email?: string
   fromProductData?: ProductData
   toProductData?: ProductData
+  newProductId?: number
+  newPlanName?: string
+  newAmount?: number
+  proratedCharge?: number
+  transactionId?: string
+  renewalDate?: Date
+  environment?: 'production' | 'sandbox'
 }
 
 export class SubscriptionUpgradedEvent implements IDomainEvent {

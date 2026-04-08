@@ -17,6 +17,7 @@ import type { SubscriptionDeactivatedEvent } from '@api/domain/events/subscripti
 import type { SubscriptionPausedEvent } from '@api/domain/events/subscription-paused.event'
 import type { SubscriptionCancelledEvent } from '@api/domain/events/subscription-cancelled.event'
 import type { SubscriptionDowngradedEvent } from '@api/domain/events/subscription-downgraded.event'
+import type { SubscriptionUpgradedEvent } from '@api/domain/events/subscription-upgraded.event'
 
 import SubscriptionCreatedEmail from '@api/infrastructure/email/templates/subscription-created.email'
 import TrialWelcomeEmail from '@api/infrastructure/email/templates/trial-welcome.email'
@@ -29,6 +30,7 @@ import SubscriptionSuspendedEmail from '@api/infrastructure/email/templates/subs
 import SubscriptionPausedEmail from '@api/infrastructure/email/templates/subscription-paused.email'
 import SubscriptionCancelledEmail from '@api/infrastructure/email/templates/subscription-cancelled.email'
 import SubscriptionDowngradedEmail from '@api/infrastructure/email/templates/subscription-downgraded.email'
+import SubscriptionPlanUpdatedEmail from '@api/infrastructure/email/templates/subscription-plan-updated.email'
 
 /**
  * Handles sending email notifications in response to domain events.
@@ -59,6 +61,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
       'SubscriptionPaused',
       'SubscriptionCancelled',
       'SubscriptionDowngraded',
+      'SubscriptionUpgraded',
     ]
   }
 
@@ -125,6 +128,9 @@ export class EmailNotificationHandler extends BaseEventHandler {
         break
       case 'SubscriptionDowngraded':
         await this.handleSubscriptionDowngraded(event as SubscriptionDowngradedEvent)
+        break
+      case 'SubscriptionUpgraded':
+        await this.handleSubscriptionUpgraded(event as SubscriptionUpgradedEvent)
         break
       default:
         this.logger.warn('Unhandled event type in EmailNotificationHandler', {
@@ -776,6 +782,56 @@ export class EmailNotificationHandler extends BaseEventHandler {
       },
       event,
       'Failed to send subscription downgraded email'
+    )
+  }
+
+  private async handleSubscriptionUpgraded(event: SubscriptionUpgradedEvent): Promise<void> {
+    await this.safeExecute(
+      async () => {
+        const { email, userId, newPlanName, newAmount, proratedCharge, transactionId, renewalDate, environment } = event.payload
+
+        if (!email) {
+          this.logger.debug('No email provided for subscription upgrade notification', {
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
+        this.logger.info('Sending subscription plan updated email', {
+          email,
+          subscriptionId: event.payload.subscriptionId,
+        })
+
+        const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
+
+        const formattedAmount = newAmount ? this.formatCurrency(newAmount) : 'N/A'
+        const formattedRenewalDate = renewalDate
+          ? new Date(renewalDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          : undefined
+
+        const html = await render(
+          <SubscriptionPlanUpdatedEmail
+            subscription={newPlanName ?? 'your new plan'}
+            amount={formattedAmount}
+            effectiveDate={this.formatDate()}
+            nextRenewalDate={formattedRenewalDate}
+            transactionID={transactionId}
+            proratedCharge={proratedCharge && proratedCharge > 0 ? this.formatCurrency(proratedCharge) : undefined}
+            isSandbox={this.isSandbox(environment)}
+            whitelabel={this.toBrandingProps(whitelabelInfo)}
+          />
+        )
+
+        await this.emailService.sendEmail({
+          to: email,
+          subject: this.formatSubject('Your Subscription Plan Has Been Updated', environment),
+          html,
+          templateName: 'subscription-plan-updated',
+          fromName: this.fromName(whitelabelInfo),
+        })
+      },
+      event,
+      'Failed to send subscription plan updated email'
     )
   }
 }

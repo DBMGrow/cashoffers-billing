@@ -8,8 +8,10 @@ import { SummaryRow } from './components/summary-row'
 export interface SubscriptionPlanUpdatedEmailProps {
   subscription: string
   amount: string
-  date: string
+  effectiveDate: string
+  nextRenewalDate?: string
   transactionID?: string
+  proratedCharge?: string
   isSandbox?: boolean
   whitelabel?: WhitelabelBrandingProps
 }
@@ -17,8 +19,10 @@ export interface SubscriptionPlanUpdatedEmailProps {
 export default function SubscriptionPlanUpdatedEmail({
   subscription,
   amount,
-  date,
+  effectiveDate,
+  nextRenewalDate,
   transactionID,
+  proratedCharge,
   isSandbox,
   whitelabel,
 }: SubscriptionPlanUpdatedEmailProps) {
@@ -36,16 +40,21 @@ export default function SubscriptionPlanUpdatedEmail({
       </EmailText>
 
       <SummaryTable>
-        <SummaryRow label="Effective Date" value={date} bordered={false} />
+        <SummaryRow label="Effective Date" value={effectiveDate} bordered={false} />
         {transactionID && (
           <SummaryRow label="Transaction ID" value={transactionID} bordered={false} />
+        )}
+        {proratedCharge && (
+          <SummaryRow label="Prorated Charge" value={proratedCharge} bordered={false} />
         )}
       </SummaryTable>
 
       <SummaryTable>
         <SummaryRow isHeader label="Plan Details" value="" />
         <SummaryRow label="New Plan" value={subscription} />
-        <SummaryRow label="Next Renewal Date" value={date} />
+        {nextRenewalDate && (
+          <SummaryRow label="Next Renewal Date" value={nextRenewalDate} />
+        )}
         <SummaryRow isTotal label="Renewal Amount" value={amount} bordered={false} />
       </SummaryTable>
 
@@ -59,6 +68,8 @@ export default function SubscriptionPlanUpdatedEmail({
 SubscriptionPlanUpdatedEmail.PreviewProps = {
   subscription: 'Premium Monthly',
   amount: '$99.00',
-  date: 'February 28, 2024',
+  effectiveDate: 'February 28, 2024',
+  nextRenewalDate: 'March 28, 2024',
   transactionID: 'txn_1234567890',
+  proratedCharge: '$42.50',
 } satisfies SubscriptionPlanUpdatedEmailProps

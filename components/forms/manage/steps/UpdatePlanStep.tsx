@@ -26,6 +26,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [proratedInfo, setProratedInfo] = useState<any>(null)
   const [checkingPlan, setCheckingPlan] = useState(false)
+  const [changeResult, setChangeResult] = useState<any>(null)
 
   // Fetch current subscription
   const { data: currentSubscription, isLoading: subscriptionLoading } = useQuery({
@@ -63,8 +64,8 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
       )
       return data
     },
-    onSuccess: () => {
-      onSuccess()
+    onSuccess: (result) => {
+      setChangeResult(result.data)
     },
     onError: (error: any) => {
       onError(error.response?.data?.error || "Failed to change plan")
@@ -118,6 +119,51 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
 
   if (productsLoading) return <Spinner />
 
+  // Show success screen after plan change
+  if (changeResult) {
+    const sub = changeResult.subscription
+    const charge = changeResult.charge
+    const newAmount = sub?.amount ? (sub.amount / 100).toFixed(2) : "N/A"
+
+    return (
+      <div className="w-full flex flex-col gap-4">
+        <P>Your plan has been updated successfully.</P>
+
+        <Table
+          footer={
+            <div className="flex flex-col gap-3">
+              {charge && (
+                <p className="text-sm text-default-500">
+                  A prorated charge of <strong>${(charge.amount / 100).toFixed(2)}</strong> has been
+                  processed. Transaction ID: {charge.transactionId}
+                </p>
+              )}
+              {!charge && (
+                <p className="text-sm text-default-500">
+                  No charge was applied for this plan change.
+                </p>
+              )}
+              <div className="w-[200px]">
+                <ThemeButton color="primary" onPress={onSuccess}>
+                  Done
+                </ThemeButton>
+              </div>
+            </div>
+          }
+        >
+          <Row label="New Plan" value={sub?.subscription_name || "Updated"} />
+          <Row label="New Rate" value={`$${newAmount} / ${sub?.duration || "monthly"}`} />
+          {sub?.renewal_date && (
+            <Row label="Next Renewal" value={formatDate(sub.renewal_date)} />
+          )}
+          {charge && (
+            <Row label="Charged Today" value={`$${(charge.amount / 100).toFixed(2)}`} variant="primary" />
+          )}
+        </Table>
+      </div>
+    )
+  }
+
   // Filter to subscription products, excluding current plan and free products
   const availablePlans = products.filter(
     (p: Product) =>
@@ -152,6 +198,16 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
       ? Math.round(prorated.percentOfTimeRemaining * 100)
       : null
 
+    // Team plan detection
+    const currentIsTeamPlan = !!(
+      currentSubscription?.data?.cashoffers?.user_config?.is_team_plan
+      ?? currentSubscription?.data?.user_config?.is_team_plan
+    )
+    const newIsTeamPlan = !!(
+      selectedProduct?.data?.cashoffers?.user_config?.is_team_plan
+      ?? selectedProduct?.data?.user_config?.is_team_plan
+    )
+
     // Team size info — from product data (new plan) and checkplan response (current usage)
     const newTeamMax =
       selectedProduct?.data?.cashoffers?.user_config?.team_members
@@ -163,7 +219,12 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
       ?? currentSubscription?.data?.user_config?.team_members
       ?? null
     const currentTeamCount = proratedInfo.numberOfUsers ?? null
-    const hasTeamChange = newTeamMax !== null || currentTeamMax !== null
+    const hasTeamChange = currentIsTeamPlan || newIsTeamPlan
+
+    // Block team→individual if there are active team members (excluding the owner)
+    const teamToIndividual = currentIsTeamPlan && !newIsTeamPlan
+    const hasActiveTeamMembers = currentTeamCount !== null && currentTeamCount > 1
+    const isBlocked = teamToIndividual && hasActiveTeamMembers
 
     return (
       <div className="w-full flex flex-col gap-4">
@@ -192,7 +253,14 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
                 </p>
               )}
 
-              {hasTeamChange && currentTeamCount !== null && newTeamMax !== null && currentTeamCount > newTeamMax && (
+              {isBlocked && (
+                <p className="text-sm text-danger font-medium">
+                  You have {currentTeamCount! - 1} active team member(s). You must remove all
+                  team members before switching to an individual plan.
+                </p>
+              )}
+
+              {!isBlocked && hasTeamChange && currentTeamCount !== null && newTeamMax !== null && currentTeamCount > newTeamMax && (
                 <p className="text-sm text-warning-600 font-medium">
                   Warning: You currently have {currentTeamCount} team members but the new plan
                   only supports up to {newTeamMax}. You may need to remove team members before switching.
@@ -213,7 +281,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
                 <ThemeButton
                   color="secondary"
                   onPress={handleConfirmChange}
-                  isDisabled={changePlanMutation.isPending}
+                  isDisabled={changePlanMutation.isPending || isBlocked}
                 >
                   {changePlanMutation.isPending ? "Processing..." : "Confirm Change"}
                 </ThemeButton>

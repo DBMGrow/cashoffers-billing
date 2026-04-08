@@ -10,6 +10,8 @@ import { createPaymentUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
 import type { ProductData } from "@api/domain/types/product-data.types"
 import { config } from "@api/config/config.service"
+import { SubscriptionUpgradedEvent } from "@api/domain/events/subscription-upgraded.event"
+import { eventBus } from "@api/lib/services"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -38,33 +40,25 @@ app.openapi(CheckPlanRoute, async (c) => {
     // Get user from auth middleware (resolved from x-api-token + user_id in body)
     const user = c.get("user")
 
-    // If team subscription, fetch team details
-    if (subscription?.data?.cashoffers?.user_config?.is_team_plan) {
-      const apiToken = c.req.header("x-api-token")
-      const headers = { "x-api-token": apiToken! }
+    // If team subscription with a valid team_id, fetch team details
+    if (subscription?.data?.cashoffers?.user_config?.is_team_plan && subscription.data.team_id) {
+      try {
+        const teamUsers = await db
+          .selectFrom("Users")
+          .select(["user_id", "email", "name"])
+          .where("team_id", "=", subscription.data.team_id)
+          .where("active", "=", 1)
+          .execute()
 
-      const teamResponse = await fetch(`${config.api.url}/teams/${subscription.data.team_id}`, { headers })
-      const team: any = await teamResponse.json()
-
-      if (team.success !== "success") {
-        throw new Error("Error fetching team")
+        responseBody.teamUsers = teamUsers.map((u) => ({
+          id: u.user_id,
+          email: u.email,
+          name: u.name,
+        }))
+        responseBody.numberOfUsers = teamUsers.length
+      } catch (err) {
+        console.error("checkplan: Failed to query team users", { teamId: subscription.data.team_id, error: err })
       }
-      responseBody.team = team.data
-
-      const url = `${config.api.url}/users?team_id=${subscription.data.team_id}&active=1`
-      const teamUsersResponse = await fetch(url, { headers })
-      const teamUsers: any = await teamUsersResponse.json()
-
-      if (teamUsers.success !== "success") {
-        throw new Error("Error fetching team users")
-      }
-
-      responseBody.teamUsers = teamUsers.data?.map((user: any) => ({
-        id: user.user_id,
-        email: user.email,
-        name: user.name,
-      }))
-      responseBody.numberOfUsers = responseBody.teamUsers?.length || 0
     }
 
     // Fetch product details from database
@@ -496,7 +490,11 @@ app.openapi(ManagePurchaseRoute, async (c) => {
 
     // 2. Validate role compatibility
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
-    const productData = newProduct.data as ProductData | null
+    const productData = (
+      typeof newProduct.data === 'string'
+        ? JSON.parse(newProduct.data)
+        : newProduct.data
+    ) as ProductData | null
     const productRole = productData?.cashoffers?.user_config?.role ?? productData?.user_config?.role
     const productIsAgentType = productRole ? ["AGENT", "TEAMOWNER"].includes(productRole) : false
 
@@ -540,7 +538,49 @@ app.openapi(ManagePurchaseRoute, async (c) => {
       )
     }
 
-    // 5. Calculate prorated charge
+    // 5. Guard: block team→individual switch if team has active members
+    const currentSubData = (
+      typeof currentSubscription.data === 'string'
+        ? JSON.parse(currentSubscription.data)
+        : currentSubscription.data
+    ) as ProductData | null
+    const currentIsTeamPlan =
+      currentSubData?.cashoffers?.user_config?.is_team_plan
+      ?? currentSubData?.user_config?.is_team_plan
+      ?? false
+    const newIsTeamPlan =
+      productData?.cashoffers?.user_config?.is_team_plan
+      ?? productData?.user_config?.is_team_plan
+      ?? false
+
+    console.log("purchase: team plan check", { currentIsTeamPlan, newIsTeamPlan, currentSubData })
+
+    if (currentIsTeamPlan && !newIsTeamPlan) {
+      // Check for active team members via the CashOffers API
+      const teamId = (currentSubData as any)?.team_id
+      if (teamId) {
+        const teamUserCount = await db
+          .selectFrom("Users")
+          .select(db.fn.countAll().as("count"))
+          .where("team_id", "=", teamId)
+          .where("active", "=", 1)
+          .executeTakeFirst()
+
+        const count = Number(teamUserCount?.count ?? 0)
+        if (count > 1) {
+          return c.json(
+            {
+              success: "error" as const,
+              error: `You have ${count - 1} active team member(s). Please remove all team members before switching to an individual plan.`,
+              code: "TEAM_MEMBERS_EXIST",
+            },
+            400
+          )
+        }
+      }
+    }
+
+    // 6. Calculate prorated charge
     const proratedResult = await calculateProratedUseCase.execute({
       productId: product_id,
       userId: user.user_id,
@@ -578,13 +618,15 @@ app.openapi(ManagePurchaseRoute, async (c) => {
     }
 
     // 7. Update subscription with new product
+    const newAmount = productData?.renewal_cost || newProduct.price
     await db
       .updateTable("Subscriptions")
       .set({
         product_id: product_id,
         subscription_name: newProduct.product_name,
-        amount: productData?.renewal_cost || newProduct.price,
+        amount: newAmount,
         duration: productData?.duration,
+        data: JSON.stringify(productData),
         updatedAt: new Date(),
       })
       .where("subscription_id", "=", subscription_id)
@@ -596,6 +638,24 @@ app.openapi(ManagePurchaseRoute, async (c) => {
       .selectAll()
       .where("subscription_id", "=", subscription_id)
       .executeTakeFirst()
+
+    // 8. Publish SubscriptionUpgraded event for email + account sync
+    await eventBus.publish(
+      SubscriptionUpgradedEvent.create({
+        subscriptionId: subscription_id,
+        userId: user.user_id,
+        email: user.email,
+        fromProductData: currentSubData ?? undefined,
+        toProductData: productData ?? undefined,
+        newProductId: product_id,
+        newPlanName: newProduct.product_name,
+        newAmount,
+        proratedCharge: proratedAmount,
+        transactionId: chargeDetails?.transactionId,
+        renewalDate: updatedSubscription?.renewal_date ?? undefined,
+        environment: paymentContext?.environment,
+      })
+    )
 
     return c.json(
       {
