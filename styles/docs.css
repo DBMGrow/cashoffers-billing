@@ -1,0 +1,42 @@
+/* Fumadocs theme overrides — maps app brand colors to fumadocs CSS variables */
+
+@layer base {
+  :root {
+    --color-fd-background: hsl(0, 0%, 100%);
+    --color-fd-foreground: #112f45;
+    --color-fd-muted: hsl(210, 40%, 97%);
+    --color-fd-muted-foreground: hsl(210, 15%, 50%);
+    --color-fd-popover: hsl(0, 0%, 100%);
+    --color-fd-popover-foreground: #112f45;
+    --color-fd-card: hsl(210, 40%, 98%);
+    --color-fd-card-foreground: #112f45;
+    --color-fd-border: hsla(210, 30%, 85%, 60%);
+    /* Primary = brand teal */
+    --color-fd-primary: #4d9cb9;
+    --color-fd-primary-foreground: hsl(0, 0%, 100%);
+    --color-fd-secondary: hsl(210, 40%, 95%);
+    --color-fd-secondary-foreground: #112f45;
+    --color-fd-accent: hsla(197, 42%, 55%, 15%);
+    --color-fd-accent-foreground: #112f45;
+    --color-fd-ring: #4d9cb9;
+  }
+
+  .dark {
+    --color-fd-background: hsl(215, 30%, 10%);
+    --color-fd-foreground: hsl(210, 40%, 92%);
+    --color-fd-muted: hsl(215, 25%, 16%);
+    --color-fd-muted-foreground: hsl(210, 15%, 60%);
+    --color-fd-popover: hsl(215, 30%, 12%);
+    --color-fd-popover-foreground: hsl(210, 40%, 92%);
+    --color-fd-card: hsl(215, 28%, 14%);
+    --color-fd-card-foreground: hsl(210, 40%, 92%);
+    --color-fd-border: hsla(210, 25%, 30%, 50%);
+    --color-fd-primary: #5dafe0;
+    --color-fd-primary-foreground: hsl(215, 30%, 10%);
+    --color-fd-secondary: hsl(215, 25%, 18%);
+    --color-fd-secondary-foreground: hsl(210, 40%, 92%);
+    --color-fd-accent: hsla(197, 50%, 55%, 20%);
+    --color-fd-accent-foreground: hsl(210, 40%, 92%);
+    --color-fd-ring: #5dafe0;
+  }
+}

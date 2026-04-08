@@ -1,0 +1,235 @@
+@import "tailwindcss";
+
+@layer base {
+  :root,
+  .theme-default {
+    --color-primary: #4d9cb9;
+    --color-secondary: #ec8b33;
+    --color-white: #ffffff;
+    --color-black: #000000;
+    --color-success: #000000;
+    --color-warning: #f4ba41;
+    --color-danger: #ec8b33;
+    --color-background: #ffffff;
+    --color-foreground: #112f45;
+    --color-default-100: #f7fafc;
+    --color-default-200: #edf2f7;
+    --color-default-300: #e2e8f0;
+    --color-default-400: #cbd5e0;
+    --color-default-500: #a0aec0;
+    --color-default-600: #718096;
+    --color-default-700: #4a5568;
+    --color-default-800: #2d3748;
+    --color-default-900: #1a202c;
+  }
+
+
+}
+
+@theme inline {
+  --shadow-custom: 0 2px 40px -20px rgba(0, 23, 0, 0.55);
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-white: var(--color-white);
+  --color-black: var(--color-black);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-default-100: var(--color-default-100);
+  --color-default-200: var(--color-default-200);
+  --color-default-300: var(--color-default-300);
+  --color-default-400: var(--color-default-400);
+  --color-default-500: var(--color-default-500);
+  --color-default-600: var(--color-default-600);
+  --color-default-700: var(--color-default-700);
+  --color-default-800: var(--color-default-800);
+  --color-default-900: var(--color-default-900);
+  --radius: 0.5rem;
+  --radius-lg: 1.15rem;
+
+  --shadow: var(--shadow-custom);
+}
+
+/* Typography System */
+@layer base {
+  /* Base body text */
+  body {
+    @apply text-base text-default-700 antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* Headings */
+  h1 {
+    @apply text-4xl font-bold text-default-800 leading-tight;
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    @apply text-3xl font-bold text-default-700 leading-tight;
+    margin-bottom: 0.875rem;
+  }
+
+  h3 {
+    @apply text-xl font-bold text-default-700 leading-snug;
+    margin-bottom: 0.75rem;
+  }
+
+  h4 {
+    @apply text-lg font-semibold text-default-700 leading-snug;
+    margin-bottom: 0.625rem;
+  }
+
+  h5 {
+    @apply text-base font-semibold text-default-700 leading-normal;
+    margin-bottom: 0.5rem;
+  }
+
+  h6 {
+    @apply text-sm font-semibold text-default-700 leading-normal;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Paragraphs */
+  p {
+    @apply text-base text-default-700 leading-relaxed;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Links */
+  a {
+    @apply text-primary font-medium hover:opacity-80 transition-opacity;
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* Lists */
+  ul, ol {
+    @apply text-default-700 leading-relaxed;
+    margin-bottom: 0.75rem;
+    padding-left: 1.5rem;
+  }
+
+  ul {
+    list-style-type: disc;
+  }
+
+  ol {
+    list-style-type: decimal;
+  }
+
+  li {
+    margin-bottom: 0.25rem;
+  }
+
+  /* Emphasis */
+  strong, b {
+    @apply font-bold text-default-800;
+  }
+
+  em, i {
+    @apply italic;
+  }
+
+  /* Small text */
+  small {
+    @apply text-sm text-default-600;
+  }
+
+  /* Code */
+  code {
+    @apply text-sm bg-default-100 text-default-800 px-1.5 py-0.5 rounded;
+    font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  }
+
+  pre {
+    @apply bg-default-100 text-default-800 p-4 rounded overflow-x-auto;
+    margin-bottom: 1rem;
+  }
+
+  pre code {
+    @apply bg-transparent p-0;
+  }
+
+  /* Blockquotes */
+  blockquote {
+    @apply border-l-4 border-default-300 pl-4 italic text-default-600;
+    margin: 1rem 0;
+  }
+
+  /* HR */
+  hr {
+    @apply border-default-300 my-6;
+  }
+}
+
+/* Typography Utility Classes */
+@layer utilities {
+  /* Text color variants */
+  .text-primary-color {
+    color: var(--color-primary);
+  }
+
+  .text-secondary-color {
+    color: var(--color-secondary);
+  }
+
+  .text-muted {
+    @apply text-default-600;
+  }
+
+  .text-subtle {
+    @apply text-default-500;
+  }
+
+  /* Size variants for special cases */
+  .text-display {
+    @apply text-5xl font-bold text-default-900 leading-tight;
+  }
+
+  .text-hero {
+    @apply text-6xl font-extrabold text-default-900 leading-none;
+  }
+
+  /* Special text styles */
+  .text-price {
+    @apply text-2xl font-bold text-secondary;
+  }
+
+  .text-price-large {
+    @apply text-4xl font-bold text-secondary;
+  }
+
+  .text-caption {
+    @apply text-xs text-default-600;
+  }
+
+  .text-label {
+    @apply text-sm font-medium text-default-700;
+  }
+
+  /* Link variants */
+  .link-subtle {
+    @apply text-default-700 hover:text-primary;
+  }
+
+  .link-muted {
+    @apply text-default-600 hover:text-default-800;
+  }
+
+  /* No default styling (opt-out) */
+  .text-unstyled {
+    all: unset;
+    display: inline;
+  }
+
+  .heading-unstyled {
+    all: unset;
+    display: block;
+  }
+}

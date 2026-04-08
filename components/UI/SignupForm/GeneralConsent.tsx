@@ -1,0 +1,19 @@
+export default function GeneralConsent({ isChecked, setIsChecked }: any) {
+  const handleCheck = () => setIsChecked(!isChecked)
+
+  return (
+    <div className="flex gap-2 items-center">
+      <input type="checkbox" name="consent" id="consent" defaultChecked={isChecked} onClick={handleCheck} />
+      <label htmlFor="consent" className="text-caption">
+        I have read and agree to the{" "}
+        <a
+          className="font-bold"
+          href="https://www.instantofferspro.com/disclosure-statement-terms-of-use/"
+          target="_blank"
+        >
+          Terms & Conditions
+        </a>
+      </label>
+    </div>
+  )
+}
