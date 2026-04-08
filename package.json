@@ -4,6 +4,9 @@
   "description": "CashOffers billing and subscription management with Next.js frontend",
   "private": true,
   "packageManager": "yarn@4.13.0",
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "scripts": {
     "dev": "dotenvx run --env-file=.env.development --env-file=.env.local --overload -- sh -c 'yarn tunnel & fumadocs-mdx && next dev'",
     "tunnel": "dotenvx run --env-file=.env.development --env-file=.env.local --overload -- tsx scripts/ssh-tunnel.ts",
