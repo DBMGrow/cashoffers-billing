@@ -104,3 +104,17 @@ const buildConfig = (): IConfig => {
 }
 
 export const config: IConfig = buildConfig()
+
+// Diagnostic: verify secrets are injected at runtime (masked for safety)
+const mask = (s: string | undefined) => s ? `${s.substring(0, 6)}...${s.substring(s.length - 4)} (${s.length} chars)` : "MISSING"
+console.log("[config-diagnostic] Secrets check at startup:", {
+  NODE_ENV: process.env.NODE_ENV,
+  SQUARE_ENVIRONMENT: process.env.SQUARE_ENVIRONMENT,
+  SQUARE_ACCESS_TOKEN: mask(process.env.SQUARE_ACCESS_TOKEN),
+  SQUARE_SANDBOX_ACCESS_TOKEN: mask(process.env.SQUARE_SANDBOX_ACCESS_TOKEN),
+  SENDGRID_API_KEY: mask(process.env.SENDGRID_API_KEY),
+  configSquareDefault: config.square.defaultEnvironment,
+  configSquareProdToken: mask(config.square.production.accessToken),
+  configSquareSandboxToken: mask(config.square.sandbox.accessToken),
+  configSendgridKey: mask(config.sendgrid.apiKey),
+})

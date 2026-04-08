@@ -35,14 +35,20 @@ export class SquarePaymentProvider implements IPaymentProvider {
 
     this.locationId = squareConfig.locationId
 
+    const tokenPreview = squareConfig.accessToken
+      ? `${squareConfig.accessToken.substring(0, 6)}...${squareConfig.accessToken.substring(squareConfig.accessToken.length - 4)} (${squareConfig.accessToken.length} chars)`
+      : "MISSING"
+
     this.client = new Client({
       environment: environment === "production" ? Environment.Production : Environment.Sandbox,
       accessToken: squareConfig.accessToken,
     })
 
-    this.logger.debug(`Square payment provider initialized [${environment.toUpperCase()}]`, {
+    this.logger.info(`Square payment provider initialized [${environment.toUpperCase()}]`, {
       environment,
+      sdkEnvironment: environment === "production" ? "Production" : "Sandbox",
       locationId: this.locationId,
+      accessTokenPreview: tokenPreview,
     })
   }
 

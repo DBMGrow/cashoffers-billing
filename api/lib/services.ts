@@ -48,7 +48,7 @@ export const eventBus = new InMemoryEventBus(logger)
 const productionPaymentProvider = createSquarePaymentProvider(
   config,
   logger,
-  config.nodeEnv === "production" ? "production" : "sandbox"
+  config.square.defaultEnvironment
 )
 const sandboxPaymentProvider = config.square.sandbox.accessToken
   ? createSquarePaymentProvider(config, logger, "sandbox")
