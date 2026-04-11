@@ -94,13 +94,11 @@ Start this phase during a low-traffic window (early morning or weekend). Target:
 - [ ] Run migration **009** — Normalize subscription status values (`suspend`→`suspended`, `cancel`→`cancelled`, `pause`→`paused`, `downgrade`→`active`). Safe: no schema change, just data cleanup.
 - [ ] Run migration **011** — Restructure `Products.data` JSON in-place (moves `user_config` into `cashoffers.user_config`, adds `managed` flag). These are UPDATE statements by `product_id` — PKs, FKs, indexes, and auto_increment all stay intact. **Old code cannot read the new JSON format after this runs.**
 - [ ] Run migration **013** — Update homeuptick_only products role from SHELL to HOMEUPTICK in JSON data.
-- [ ] **Verify product data** — spot-check a few products to confirm the JSON restructure looks correct:
-  ```sql
-  SELECT product_id, product_name, product_category,
-    JSON_EXTRACT(data, '$.cashoffers.managed') as managed,
-    JSON_EXTRACT(data, '$.cashoffers.user_config.role') as role
-  FROM Products WHERE product_id IN (1, 2, 11, 54) \G
+- [ ] **Verify product data** — run the dev tools verification command against the new app:
+  ```bash
+  yarn dev:tools verify
   ```
+  This checks all products and subscriptions against expected configuration and reports a PASS/FAIL verdict with any issues. All errors must be resolved before proceeding.
 
 > **Rollback for Products**: If you need to revert, restore the original `data` column from the backup — no table drops needed:
 > ```sql
@@ -145,7 +143,7 @@ After products are restructured, run the reconciliation script to match each sub
 - [ ] **Hit the health endpoint**: `GET https://<app-platform-url>/api/health`
 - [ ] **Test a real signup flow** against production (use a real card with a small product, or a $0 free-tier product)
 - [ ] **Test the manage flow** — log in as an existing user, confirm their subscription data loads correctly
-- [ ] **Verify product listing** — `GET /api/product/products` returns products with correct new data structure
+- [ ] **Run `yarn dev:tools verify`** — confirm PASS verdict with 0 errors on products and subscriptions
 
 ---
 
