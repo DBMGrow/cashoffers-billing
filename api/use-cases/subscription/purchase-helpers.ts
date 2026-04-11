@@ -357,11 +357,14 @@ export async function createSubscriptionRecord(
   const renewalDate = calculateRenewalDate(params.pricing.productDuration)
   const now = new Date()
 
-  // Build subscription data: include user_config and cashoffers section from product
-  const subscriptionData: Record<string, unknown> = {}
+  // Build subscription data: include product config and legacy fields for backwards compatibility.
+  // renewal_cost and duration are read by the old billing system during proration and upgrade flows.
+  const subscriptionData: Record<string, unknown> = {
+    renewal_cost: params.pricing.renewalCost,
+    duration: params.pricing.productDuration,
+  }
   if (params.userConfig) subscriptionData.user_config = params.userConfig
   if (params.cashoffers) subscriptionData.cashoffers = params.cashoffers
-  const hasData = Object.keys(subscriptionData).length > 0
 
   return deps.subscriptionRepository.create({
     user_id: params.userId,
@@ -374,7 +377,7 @@ export async function createSubscriptionRecord(
     square_environment: params.payment?.environment ?? null,
     cancel_on_renewal: 0,
     downgrade_on_renewal: 0,
-    data: hasData ? JSON.stringify(subscriptionData) : null,
+    data: JSON.stringify(subscriptionData),
     createdAt: now,
     updatedAt: now,
   })

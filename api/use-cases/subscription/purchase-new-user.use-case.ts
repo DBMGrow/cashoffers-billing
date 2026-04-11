@@ -352,6 +352,25 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
           team_id: team.id,
           role: userConfig?.role,
         })
+
+        // Store team_id in subscription data so team suspension/toggle flows can find members
+        try {
+          const sub = await this.deps.subscriptionRepository.findById(context.subscriptionId)
+          if (sub) {
+            const subData = typeof sub.data === "string" ? JSON.parse(sub.data) : (sub.data || {})
+            subData.team_id = team.id
+            await this.deps.subscriptionRepository.update(context.subscriptionId, {
+              data: JSON.stringify(subData),
+            })
+          }
+        } catch (err) {
+          logger.warn("Failed to store team_id in subscription data", {
+            subscriptionId: context.subscriptionId,
+            teamId: team.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+
         logger.info("Team created and user promoted to TEAMOWNER", {
           userId,
           teamId: team.id,
