@@ -145,44 +145,32 @@ export class CreateCardUseCase implements ICreateCardUseCase {
         })
       }
 
-      // Log transaction
-      const now = new Date()
-      await transactionRepository.create({
-        user_id: userId ?? 0,
-        amount: 0,
-        type: "card",
-        memo: creatingNewCard ? "Card Created" : "Card Updated",
-        status: "completed",
-        data: JSON.stringify({ cardId, squareCustomerId }),
-        createdAt: now,
-        updatedAt: now,
-      })
+      // Publish card event (always — triggers transaction logging via handler,
+      // and email notification when sendEmailOnUpdate is true)
+      const cardPayload = {
+        cardId,
+        userId: userId ?? 0,
+        email,
+        cardLast4: last4,
+        cardBrand,
+        expirationMonth: expMonth,
+        expirationYear: expYear,
+        externalCardId: cardId,
+        paymentProvider: "Square" as const,
+        environment,
+      }
 
-      // Publish card event
-      if (sendEmailOnUpdate) {
-        const cardPayload = {
-          cardId,
-          userId: userId ?? 0,
-          email,
-          cardLast4: last4,
-          cardBrand,
-          expirationMonth: expMonth,
-          expirationYear: expYear,
-          externalCardId: cardId,
-          paymentProvider: "Square" as const,
-          environment, // Include environment in event
-        }
-
-        if (creatingNewCard) {
-          await this.deps.eventBus.publish(CardCreatedEvent.create(cardPayload))
-        } else {
-          await this.deps.eventBus.publish(
-            CardUpdatedEvent.create({
-              ...cardPayload,
-              updatedFields: ["card_id", "last_4", "card_brand", "exp_month", "exp_year"],
-            })
+      if (creatingNewCard) {
+        await this.deps.eventBus.publish(
+          CardCreatedEvent.create(cardPayload, { squareCustomerId, sendEmailOnUpdate })
+        )
+      } else {
+        await this.deps.eventBus.publish(
+          CardUpdatedEvent.create(
+            { ...cardPayload, updatedFields: ["card_id", "last_4", "card_brand", "exp_month", "exp_year"] },
+            { squareCustomerId, sendEmailOnUpdate }
           )
-        }
+        )
       }
 
       // Optionally attempt renewal of subscriptions

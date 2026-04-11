@@ -305,6 +305,24 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         paymentEnvironment = paymentResult.environment
       }
 
+      // Log payment transaction (separate from the subscription renewal transaction)
+      if (paymentId && totalAmount > 0) {
+        const now = new Date()
+        await this.deps.transactionRepository.create({
+          user_id: subscription.user_id!,
+          amount: totalAmount,
+          type: "payment",
+          memo: `Payment processed: ${subscription.subscription_name || "Subscription"} renewal`,
+          status: "completed",
+          square_transaction_id: paymentId,
+          square_environment: paymentEnvironment,
+          product_id: subscription.product_id,
+          data: JSON.stringify({ lineItems }),
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+
       // Update status to CREATING_SUBSCRIPTION (updating renewal)
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "CREATING_SUBSCRIPTION")
 

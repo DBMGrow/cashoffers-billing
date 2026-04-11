@@ -289,7 +289,6 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         logger: this.deps.logger,
         paymentProvider: this.deps.paymentProvider,
         userCardRepository: this.deps.userCardRepository,
-        transactionRepository: this.deps.transactionRepository,
         eventBus: this.deps.eventBus,
       },
       null,

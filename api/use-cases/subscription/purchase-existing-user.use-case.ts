@@ -219,7 +219,6 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
           logger: this.deps.logger,
           paymentProvider: this.deps.paymentProvider,
           userCardRepository: this.deps.userCardRepository,
-          transactionRepository: this.deps.transactionRepository,
           eventBus: this.deps.eventBus,
         },
         v.userId,

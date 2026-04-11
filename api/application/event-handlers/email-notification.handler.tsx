@@ -434,6 +434,9 @@ export class EmailNotificationHandler extends BaseEventHandler {
   }
 
   private async handleCardCreated(event: CardCreatedEvent): Promise<void> {
+    // Skip email when the publisher opted out (e.g., during purchase flow)
+    if (event.metadata?.sendEmailOnUpdate === false) return
+
     await this.safeExecute(
       async () => {
         const { email, cardLast4, environment, userId } = event.payload
@@ -470,6 +473,9 @@ export class EmailNotificationHandler extends BaseEventHandler {
   }
 
   private async handleCardUpdated(event: CardUpdatedEvent): Promise<void> {
+    // Skip email when the publisher opted out
+    if (event.metadata?.sendEmailOnUpdate === false) return
+
     await this.safeExecute(
       async () => {
         const { email, cardLast4, environment, userId } = event.payload

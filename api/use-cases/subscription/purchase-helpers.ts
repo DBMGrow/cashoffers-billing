@@ -561,7 +561,6 @@ interface CreateCardDeps {
   logger: ILogger
   paymentProvider: IPaymentProvider
   userCardRepository: UserCardRepository
-  transactionRepository: TransactionRepository
   eventBus: IEventBus
 }
 
@@ -608,32 +607,24 @@ export async function createCardHelper(
       updatedAt: now,
     })
 
-    // Log "Card Created" transaction
-    await deps.transactionRepository.create({
-      user_id: userId ?? 0,
-      amount: 0,
-      type: "card",
-      memo: "Card Created",
-      status: "completed",
-      data: JSON.stringify({ cardId: card.id, squareCustomerId: card.customerId }),
-      createdAt: now,
-      updatedAt: now,
-    })
-
+    // Publish card event — transaction logging is handled by the event handler
     await eventBus.publish(
-      CardCreatedEvent.create({
-        cardId: userCard.card_id,
-        userId: userId || 0,
-        email: input.email,
-        cardLast4: card.last4 || "****",
-        cardBrand: card.cardBrand,
-        expirationMonth: input.expMonth,
-        expirationYear: input.expYear,
-        externalCardId: card.id,
-        paymentProvider: "Square",
-        environment: card.environment,
-        isDefault: true,
-      })
+      CardCreatedEvent.create(
+        {
+          cardId: userCard.card_id,
+          userId: userId || 0,
+          email: input.email,
+          cardLast4: card.last4 || "****",
+          cardBrand: card.cardBrand,
+          expirationMonth: input.expMonth,
+          expirationYear: input.expYear,
+          externalCardId: card.id,
+          paymentProvider: "Square",
+          environment: card.environment,
+          isDefault: true,
+        },
+        { squareCustomerId: card.customerId }
+      )
     )
 
     return { success: true, cardId: userCard.card_id }

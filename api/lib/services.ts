@@ -103,6 +103,8 @@ eventBus.subscribe("PropertyUnlocked", emailNotificationHandler)
 
 eventBus.subscribe("PaymentProcessed", transactionLoggingHandler)
 eventBus.subscribe("PaymentFailed", transactionLoggingHandler)
+eventBus.subscribe("CardCreated", transactionLoggingHandler)
+eventBus.subscribe("CardUpdated", transactionLoggingHandler)
 
 eventBus.subscribe("RequestCompleted", logFlushHandler)
 
