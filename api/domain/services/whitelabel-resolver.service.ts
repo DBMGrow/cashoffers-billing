@@ -22,7 +22,7 @@ const DEFAULT_BRANDING: WhitelabelData = {
   logo_url: "/assets/logos/default-logo.png",
   marketing_website: "https://instantoffers.pro",
   support_email: "support@cashoffers.pro",
-  billing_url: "https://billing.cashoffers.pro",
+  billing_url: "https://account.cashoffers.pro",
 }
 
 export class WhitelabelResolverService {

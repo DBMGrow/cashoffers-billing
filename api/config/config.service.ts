@@ -69,7 +69,7 @@ const buildConfig = (): IConfig => {
     },
 
     app: {
-      url: process.env.APP_URL || "https://billing.cashoffers.com",
+      url: process.env.APP_URL || "https://account.cashoffers.pro",
     },
 
     jwtSecret: process.env.JWT_SECRET!,

@@ -66,7 +66,7 @@ app.doc("/openapi.json", (_c) => ({
   servers: [
     { url: "http://localhost:3000", description: "Development" },
     { url: "https://billing.staging.cashoffers.pro", description: "Staging" },
-    { url: "https://billing.cashoffers.pro", description: "Production" },
+    { url: "https://account.cashoffers.pro", description: "Production" },
   ],
 }))
 

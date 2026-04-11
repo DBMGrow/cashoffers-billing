@@ -1,10 +1,10 @@
-import { StandardEmail, type WhitelabelBrandingProps } from './components/standard-email'
-import { EmailHeading } from './components/email-heading'
-import { EmailDivider } from './components/email-divider'
-import { EmailText } from './components/email-text'
-import { SummaryTable } from './components/summary-table'
-import { SummaryRow } from './components/summary-row'
-import { ActionButton } from './components/action-button'
+import { StandardEmail, type WhitelabelBrandingProps } from "./components/standard-email"
+import { EmailHeading } from "./components/email-heading"
+import { EmailDivider } from "./components/email-divider"
+import { EmailText } from "./components/email-text"
+import { SummaryTable } from "./components/summary-table"
+import { SummaryRow } from "./components/summary-row"
+import { ActionButton } from "./components/action-button"
 
 export interface TrialWelcomeEmailProps {
   trialDays: number
@@ -19,8 +19,8 @@ export default function TrialWelcomeEmail({
   isSandbox,
   whitelabel,
 }: TrialWelcomeEmailProps) {
-  const brandName = whitelabel?.name ?? 'CashOffers'
-  const billingUrl = whitelabel?.billing_url ?? 'https://billing.cashoffers.com'
+  const brandName = whitelabel?.name ?? "CashOffers"
+  const billingUrl = whitelabel?.billing_url ?? "https://account.cashoffers.pro"
   return (
     <StandardEmail
       title="Welcome to Your Free Trial"
@@ -41,19 +41,17 @@ export default function TrialWelcomeEmail({
         <SummaryRow label="Trial Expires" value={expirationDate} bordered={false} />
       </SummaryTable>
 
-      <EmailText style={{ marginTop: '20px' }}>
-        No payment is required during your trial. When your trial ends, you can upgrade to a paid
-        plan to continue using all features.
+      <EmailText style={{ marginTop: "20px" }}>
+        No payment is required during your trial. When your trial ends, you can upgrade to a paid plan to continue using
+        all features.
       </EmailText>
 
-      <ActionButton href={billingUrl}>
-        Explore Your Dashboard
-      </ActionButton>
+      <ActionButton href={billingUrl}>Explore Your Dashboard</ActionButton>
     </StandardEmail>
   )
 }
 
 TrialWelcomeEmail.PreviewProps = {
   trialDays: 90,
-  expirationDate: 'June 15, 2026',
+  expirationDate: "June 15, 2026",
 } satisfies TrialWelcomeEmailProps
