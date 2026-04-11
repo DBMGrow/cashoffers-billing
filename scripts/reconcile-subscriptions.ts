@@ -209,19 +209,16 @@ function resolveSubscriptionCharacteristics(
     sub.user_role ??
     "AGENT"
 
-  // Team plan detection
-  const is_team_plan =
-    (dataUserConfig?.is_team_plan as boolean) ??
-    (cashoffersUserConfig?.is_team_plan as boolean) ??
-    (subData.team as boolean) ??
-    role === "TEAMOWNER"
+  // Team plan detection — only TEAMOWNER role is a team plan
+  const is_team_plan = role === "TEAMOWNER"
 
-  // Team members
-  const team_members =
-    (dataUserConfig?.team_members as number) ??
-    (cashoffersUserConfig?.team_members as number) ??
-    (subData.team_members as number) ??
-    0
+  // Team members — only relevant for TEAMOWNER
+  const team_members = is_team_plan
+    ? ((dataUserConfig?.team_members as number) ??
+       (cashoffersUserConfig?.team_members as number) ??
+       (subData.team_members as number) ??
+       0)
+    : 0
 
   // Team ID: preserve from old subscription data or user
   const team_id =
@@ -381,6 +378,22 @@ async function main() {
     for (const sub of subscriptions) {
       const row = sub as unknown as SubscriptionRow
       const isActive = row.status !== null && activeStatuses.has(row.status)
+
+      // Skip specific subscriptions that require manual reconciliation
+      const MANUAL_SKIP_IDS = new Set([37, 116])
+      if (MANUAL_SKIP_IDS.has(row.subscription_id)) {
+        results.push({
+          subscription_id: row.subscription_id,
+          status: "skipped",
+          old_product_id: row.product_id,
+          new_product_id: null,
+          old_data: null,
+          new_data: null,
+          reason: "manually excluded — requires manual reconciliation",
+          amount: row.amount,
+        })
+        continue
+      }
 
       // Skip deferred-provisioning subscriptions (user_id NULL, created by new code)
       if (row.user_id === null) {

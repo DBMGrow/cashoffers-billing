@@ -1,0 +1,66 @@
+product_id,whitelabel_code,product_name,team_size,signup_fee,renewal_cost
+1,kwofferings,Individual,,$250.00,$250.00
+2,kwofferings,Small Team,6,$250.00,$850.00
+3,kwofferings,Medium Team,11,$250.00,"$1,375.00"
+4,kwofferings,Large Team,16,$250.00,"$1,750.00"
+5,kwofferings,Custom Team (20),20,$0.00,"$2,000.00"
+6,yhsgr,Custom Team (50),50,$0.00,"$1,750.00"
+7,kwofferings,Custom Team (75),75,$0.00,"$1,500.00"
+8,yhsgr,Custom Team (100),100,$0.00,$250.00
+9,kwofferings,Custom Team (200),200,$0.00,"$15,000.00"
+10,,Individual No Signup,,$0.00,$250.00
+11,default,Investor,,$250.00,$99.00
+12,,Property Unlock,,$50.00,
+13,yhsgr,Individual,,$250.00,$250.00
+14,yhsgr,Small Team,6,$250.00,$850.00
+15,yhsgr,Medium Team,11,$250.00,"$1,375.00"
+16,yhsgr,Large Team,16,$250.00,"$1,750.00"
+17,yhsgr,Mini Team,3,$0.00,$500.00
+18,yhsgr,Mini Team,3,$250.00,$500.00
+19,,Property Unlock,,$50.00,
+20,,KW Subscribe,,$0.00,$0.00
+21,uco,Individual,,$0.00,$299.00
+22,uco,3 Agents,3,$0.00,$599.00
+23,uco,6 Agents,6,$0.00,$949.00
+24,uco,11 Agents,11,$0.00,"$1,499.00"
+25,uco,16 Agents,16,$0.00,"$1,999.00"
+26,mop,Individual,,$0.00,$250.00
+27,mop,3 Agents,3,$0.00,$500.00
+28,mop,6 Agents,6,$0.00,$850.00
+29,mop,11 Agents,11,$0.00,"$1,375.00"
+30,mop,16 Agents,16,$0.00,"$1,750.00"
+33,eco,Individual,,$0.00,$250.00
+34,eco,3 Agents,3,$0.00,$500.00
+35,eco,6 Agents,6,$0.00,$850.00
+36,eco,11 Agents,11,$0.00,"$1,375.00"
+37,eco,16 Agents,16,$0.00,"$1,750.00"
+38,ehsa,Individual,,$0.00,$299.00
+39,ehsa,3 Agents,3,$0.00,$599.00
+40,ehsa,6 Agents,6,$0.00,$949.00
+41,ehsa,11 Agents,11,$0.00,"$1,499.00"
+42,ehsa,16 Agents,16,$0.00,"$1,999.00"
+43,default,Small Team,6,$250.00,$850.00
+44,default,Medium Team,11,$250.00,"$1,375.00"
+45,default,Large Team,16,$250.00,"$1,750.00"
+46,kwofferings,Investor,,$250.00,$99.00
+47,yhsgr,Investor,,$250.00,$99.00
+49,uco,Investor,,$250.00,$99.00
+50,mop,Investor,,$250.00,$99.00
+51,kwofferings,Free Agent,,$0.00,$0.00
+52,kwofferings,Free Investor,,$0.00,$0.00
+53,kwofferings,HomeUptick Access,,$0.00,$0.00
+54,homeuptick,HomeUptick,,$0.00,$20.00
+55,default,HomeUptick Access,,$0.00,$0.00
+56,iop,Individual,,$250.00,$250.00
+57,iop,Small Team,6,$250.00,$850.00
+58,iop,Medium Team,11,$250.00,"$1,375.00"
+59,iop,Large Team,16,$250.00,"$1,750.00"
+60,iop,Investor,,$250.00,$99.00
+61,default,Individual,,$250.00,$250.00
+62,default,Custom Team (11),11,$0.00,$850.00
+63,yhsgr,Custom Team YHS (6),6,$0.00,$250.00
+64,iop,Small Team,6,$250.00,$850.00
+65,iop,Custom Team IOP (5),5,$250.00,$250.00
+66,default,Investor 250,,$250.00,$250.00
+67,iop,Mini Team,3,$0.00,$500.00
+68,kwofferings,Test,,$1.00,$1.00

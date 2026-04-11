@@ -1321,13 +1321,18 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         continue
       }
 
+      // One-time products don't configure users — skip data-structure checks
+      if (product.product_type === "one-time") {
+        continue
+      }
+
       // Validate category-specific config
       if (category === "premium_cashoffers") {
         if (!data?.cashoffers?.managed) {
           issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "premium_cashoffers must have cashoffers.managed=true" })
         }
-        if (data?.cashoffers?.user_config?.is_premium !== 1) {
-          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "premium_cashoffers must have user_config.is_premium=1" })
+        if (data?.cashoffers?.user_config?.is_premium == null) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "premium_cashoffers must have user_config.is_premium set" })
         }
         if (!data?.cashoffers?.user_config?.role || data.cashoffers.user_config.role === "SHELL" || data.cashoffers.user_config.role === "HOMEUPTICK") {
           issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `premium_cashoffers has unexpected role: ${data?.cashoffers?.user_config?.role}` })
@@ -1350,8 +1355,8 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         if (data?.cashoffers?.user_config?.role !== "HOMEUPTICK") {
           issues.push({ severity: "warning", entity: "Product", id: product.product_id, message: `homeuptick_only should have role=HOMEUPTICK, got ${data?.cashoffers?.user_config?.role}` })
         }
-        if (data?.cashoffers?.user_config?.is_premium === 1) {
-          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "homeuptick_only should not have is_premium=1" })
+        if (data?.cashoffers?.user_config?.is_premium !== 1) {
+          issues.push({ severity: "error", entity: "Product", id: product.product_id, message: "homeuptick_only must have user_config.is_premium=1" })
         }
       }
 
@@ -1381,6 +1386,15 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       .execute()
     stats.subscriptions = subscriptions.length
 
+    // Batch-load all users referenced by active subscriptions (avoids N+1 queries)
+    const subUserIds = [...new Set(subscriptions.map((s) => s.user_id).filter((id): id is number => id != null))]
+    const usersMap = new Map<number, { user_id: number; is_premium: number | null; role: string | null; active: number | null }>()
+    if (subUserIds.length > 0) {
+      const users = await db.selectFrom("Users").select(["user_id", "is_premium", "role", "active"]).where("user_id", "in", subUserIds).execute()
+      for (const u of users) usersMap.set(u.user_id, u)
+    }
+    stats.users_checked = usersMap.size
+
     for (const sub of subscriptions) {
       // Check subscription has a valid product
       if (!sub.product_id) {
@@ -1394,8 +1408,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
 
       // Check user exists
       if (sub.user_id) {
-        const user = await db.selectFrom("Users").select(["user_id", "is_premium", "role", "active"]).where("user_id", "=", sub.user_id).executeTakeFirst()
-        stats.users_checked++
+        const user = usersMap.get(sub.user_id)
 
         if (!user) {
           issues.push({ severity: "error", entity: "Subscription", id: sub.subscription_id, message: `User ${sub.user_id} not found in Users table` })
@@ -1433,19 +1446,19 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     const huSubs = await db.selectFrom("Homeuptick_Subscriptions").selectAll().execute()
     stats.hu_subscriptions = huSubs.length
 
+    // Batch-load active subscription user_ids and user existence for HU checks
+    const huUserIds = [...new Set(huSubs.map((h) => h.user_id).filter((id): id is number => id != null))]
+    const activeSubUserIds = new Set(subscriptions.map((s) => s.user_id).filter((id): id is number => id != null))
+    const huUsersMap = new Map<number, boolean>()
+    if (huUserIds.length > 0) {
+      const huUsers = await db.selectFrom("Users").select("user_id").where("user_id", "in", huUserIds).execute()
+      for (const u of huUsers) huUsersMap.set(u.user_id, true)
+    }
+
     for (const hu of huSubs) {
       // Check that the user has a corresponding billing subscription or is a valid external user
-      const userSub = await db
-        .selectFrom("Subscriptions")
-        .select("subscription_id")
-        .where("user_id", "=", hu.user_id)
-        .where("status", "in", ["active", "trial", "paused", "suspended"])
-        .executeTakeFirst()
-
-      if (!userSub) {
-        // Check if user exists at all
-        const user = await db.selectFrom("Users").select("user_id").where("user_id", "=", hu.user_id).executeTakeFirst()
-        if (!user) {
+      if (!hu.user_id || !activeSubUserIds.has(hu.user_id)) {
+        if (!hu.user_id || !huUsersMap.has(hu.user_id)) {
           issues.push({ severity: "error", entity: "Homeuptick_Subscription", id: hu.homeuptick_id, message: `User ${hu.user_id} not found` })
         } else {
           issues.push({ severity: "warning", entity: "Homeuptick_Subscription", id: hu.homeuptick_id, message: `User ${hu.user_id} has HU record but no active billing subscription (may be external user)` })
