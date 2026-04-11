@@ -30,6 +30,7 @@ import {
   validateAndParseProduct,
   resolveCardRecord,
   processInitialPayment,
+  createPaymentTransactionRecord,
   createSubscriptionRecord,
   createTransactionRecord,
   publishPurchaseEvents,
@@ -160,6 +161,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       let cardIdString: string | null = null
       let userCard: { card_id: string | null; square_customer_id: string | null; last_4: string | null } | null = null
       let payment: { id: string; environment: "production" | "sandbox" } | null = null
+      let paymentTransaction: { transaction_id: number } | null = null
 
       if (isFree) {
         // Free product — skip card creation and payment
@@ -172,6 +174,14 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
         payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
         rollback.paymentId = payment.id
+
+        // Log payment transaction
+        paymentTransaction = await createPaymentTransactionRecord(this.deps, {
+          userId: null,
+          product,
+          pricing,
+          payment,
+        })
       }
 
       // Create subscription before user exists — refund gate closes here
@@ -199,6 +209,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         purchaseRequestId,
         subscriptionId: subscription.subscription_id,
         transactionId: transaction.transaction_id,
+        paymentTransactionId: paymentTransaction?.transaction_id ?? null,
         cardIdString,
         isFree,
         resolvedWhitelabelId,
@@ -278,6 +289,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         logger: this.deps.logger,
         paymentProvider: this.deps.paymentProvider,
         userCardRepository: this.deps.userCardRepository,
+        transactionRepository: this.deps.transactionRepository,
         eventBus: this.deps.eventBus,
       },
       null,
@@ -312,6 +324,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       purchaseRequestId: number
       subscriptionId: number
       transactionId: number
+      paymentTransactionId: number | null
       cardIdString: string | null
       isFree: boolean
       whitelabelName?: string
@@ -389,6 +402,25 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
           user_id: userId,
           updatedAt: new Date(),
         })
+
+        // Link the "Card Created" transaction to the new user
+        const cardTransactions = await this.deps.transactionRepository.findAll({
+          type: "card",
+          user_id: 0,
+        })
+        const cardTransaction = cardTransactions.find((t) => {
+          try {
+            const data = JSON.parse(t.data ?? "{}")
+            return data.cardId === context.cardIdString
+          } catch {
+            return false
+          }
+        })
+        if (cardTransaction) {
+          await this.deps.transactionRepository.update(cardTransaction.transaction_id, {
+            user_id: userId,
+          })
+        }
       }
 
       // Bind subscription to the new user
@@ -398,10 +430,17 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         updatedAt: new Date(),
       })
 
-      // Link transaction to the new user
+      // Link subscription transaction to the new user
       await this.deps.transactionRepository.update(context.transactionId, {
         user_id: userId,
       })
+
+      // Link payment transaction to the new user
+      if (context.paymentTransactionId) {
+        await this.deps.transactionRepository.update(context.paymentTransactionId, {
+          user_id: userId,
+        })
+      }
 
       // Update purchase request with the new user id
       await this.deps.purchaseRequestRepository.update(context.purchaseRequestId, {

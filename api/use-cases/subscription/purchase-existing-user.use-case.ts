@@ -21,6 +21,7 @@ import {
   validateAndParseProduct,
   resolveCardRecord,
   processInitialPayment,
+  createPaymentTransactionRecord,
   createSubscriptionRecord,
   createTransactionRecord,
   publishPurchaseEvents,
@@ -117,6 +118,14 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       if (pricing.initialAmount > 0) {
         payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
         capturedPaymentId = payment.id
+
+        // Log payment transaction
+        await createPaymentTransactionRecord(this.deps, {
+          userId: v.userId,
+          product,
+          pricing,
+          payment,
+        })
       } else {
         logger.info("Skipping payment for free purchase", { purchaseRequestId, initialAmount: 0 })
       }
@@ -210,6 +219,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
           logger: this.deps.logger,
           paymentProvider: this.deps.paymentProvider,
           userCardRepository: this.deps.userCardRepository,
+          transactionRepository: this.deps.transactionRepository,
           eventBus: this.deps.eventBus,
         },
         v.userId,

@@ -338,6 +338,36 @@ export async function processInitialPayment(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// createPaymentTransactionRecord
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function createPaymentTransactionRecord(
+  deps: { transactionRepository: TransactionRepository },
+  params: {
+    /** null when user provisioning is deferred (new-user purchase flow) */
+    userId: number | null
+    product: { product_id: number; product_name: string }
+    pricing: PurchasePricing
+    payment: { id: string; environment: "production" | "sandbox" }
+  }
+) {
+  const now = new Date()
+  return deps.transactionRepository.create({
+    user_id: params.userId,
+    amount: params.pricing.initialAmount,
+    type: "payment",
+    memo: `Payment processed: ${params.product.product_name}`,
+    status: "completed",
+    square_transaction_id: params.payment.id,
+    square_environment: params.payment.environment,
+    product_id: params.product.product_id,
+    data: JSON.stringify({ signupFee: params.pricing.signupFee, renewalCost: params.pricing.renewalCost }),
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // createSubscriptionRecord
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -531,6 +561,7 @@ interface CreateCardDeps {
   logger: ILogger
   paymentProvider: IPaymentProvider
   userCardRepository: UserCardRepository
+  transactionRepository: TransactionRepository
   eventBus: IEventBus
 }
 
@@ -573,6 +604,18 @@ export async function createCardHelper(
       exp_month: input.expMonth.toString(),
       exp_year: input.expYear.toString(),
       cardholder_name: input.cardholderName,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    // Log "Card Created" transaction
+    await deps.transactionRepository.create({
+      user_id: userId ?? 0,
+      amount: 0,
+      type: "card",
+      memo: "Card Created",
+      status: "completed",
+      data: JSON.stringify({ cardId: card.id, squareCustomerId: card.customerId }),
       createdAt: now,
       updatedAt: now,
     })
