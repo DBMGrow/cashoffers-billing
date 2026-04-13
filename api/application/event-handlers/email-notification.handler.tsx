@@ -715,24 +715,38 @@ export class EmailNotificationHandler extends BaseEventHandler {
         }
 
         // DOWNGRADE_TO_FREE: send a downgrade email — the user ends up on the free plan.
+        // cancelOnRenewal: true  → scheduled (user stays on current plan until renewal)
+        // cancelOnRenewal: false → already downgraded at renewal (immediate)
         if (suspensionStrategy === "DOWNGRADE_TO_FREE") {
+          const immediateDowngrade = !cancelOnRenewal
+
           this.logger.info("Sending subscription downgraded-to-free email (cancel_on_renewal + DOWNGRADE_TO_FREE)", {
             email,
             subscriptionId: event.payload.subscriptionId,
+            immediate: immediateDowngrade,
           })
 
           const html = await render(
             <SubscriptionDowngradedEmail
               subscription={subscriptionName ?? "your subscription"}
               targetPlan="Free"
-              immediate={true}
+              effectiveDate={
+                effectiveDate
+                  ? effectiveDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                  : undefined
+              }
+              immediate={immediateDowngrade}
               whitelabel={this.toBrandingProps(whitelabelInfo)}
             />
           )
 
+          const subject = immediateDowngrade
+            ? "Your Subscription Has Been Downgraded to Free"
+            : "Your Subscription Will Be Downgraded to Free"
+
           await this.emailService.sendEmail({
             to: email,
-            subject: "Your Subscription Has Been Downgraded to Free",
+            subject,
             html,
             templateName: "subscription-downgraded",
             fromName: this.fromName(whitelabelInfo),
