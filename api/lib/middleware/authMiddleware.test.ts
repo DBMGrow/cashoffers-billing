@@ -57,14 +57,14 @@ function makeApp(permissions: string | string[] | null = null) {
   app.get(
     "/protected",
     authMiddleware(permissions),
-    (c) => c.json({ success: true, user: c.get("user" as any), token_owner: c.get("token_owner" as any) })
+    (c) => c.json({ success: true, user: (c as any).get("user"), token_owner: (c as any).get("token_owner") })
   )
   app.post(
     "/protected",
     authMiddleware(permissions),
     async (c) => {
       const body = await c.req.json().catch(() => ({}))
-      return c.json({ success: true, user: c.get("user" as any), body })
+      return c.json({ success: true, user: (c as any).get("user"), body })
     }
   )
   app.delete(
@@ -86,7 +86,7 @@ describe("authMiddleware", () => {
       const res = await app.request("/protected")
 
       expect(res.status).toBe(401)
-      const body = await res.json()
+      const body = await res.json() as any
       expect(body.ref).toBe("0000B")
     })
 
@@ -137,7 +137,7 @@ describe("authMiddleware", () => {
       })
 
       expect(res.status).toBe(401)
-      const body = await res.json()
+      const body = await res.json() as any
       expect(body.ref).toBe("0000D")
     })
   })
@@ -174,7 +174,7 @@ describe("authMiddleware", () => {
       })
 
       expect(res.status).toBe(403)
-      const body = await res.json()
+      const body = await res.json() as any
       expect(body.ref).toBe("0000F")
     })
 
@@ -214,7 +214,7 @@ describe("authMiddleware", () => {
         headers: { "x-api-token": "admin_token" },
       })
 
-      const body = await res.json()
+      const body = await res.json() as any
       expect(body.token_owner.user_id).toBe(1)
       expect(body.token_owner.email).toBe("admin@cashoffers.com")
       expect(body.token_owner.capabilities).toContain("payments_create")
@@ -228,7 +228,7 @@ describe("authMiddleware", () => {
         headers: { "x-api-token": "admin_token" },
       })
 
-      const body = await res.json()
+      const body = await res.json() as any
       expect(body.user.user_id).toBe(1) // Same as token_owner
     })
   })
@@ -280,7 +280,7 @@ describe("authMiddleware", () => {
       })
 
       expect(res.status).toBe(404)
-      const body = await res.json()
+      const body = await res.json() as any
       expect(body.ref).toBe("0000C")
     })
   })

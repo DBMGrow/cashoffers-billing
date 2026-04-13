@@ -319,7 +319,7 @@ describe('CashOffersAccountHandler', () => {
 
     describe('DOWNGRADE_TO_FREE suspension strategy', () => {
       it('calls updateUser with is_premium 0 but keeps existing role on SubscriptionPaused', async () => {
-        const productData = makeProductData({ whitelabel_id: null })
+        const productData = makeProductData({ whitelabel_id: undefined })
         await eventBus.publish(
           SubscriptionPausedEvent.create(
             { subscriptionId, userId },

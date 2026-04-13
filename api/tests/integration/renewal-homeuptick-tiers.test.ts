@@ -159,7 +159,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
         email: 'user@test.com',
       })
       expect(result.success).toBe(true)
-      expect(result.data?.amount).toBe(25000)
+      expect((result as any).data?.amount).toBe(25000)
       expect(huApiClient.getClientCount).not.toHaveBeenCalled()
     })
   })
@@ -174,7 +174,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
 
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       expect(result.success).toBe(true)
-      expect(result.data?.amount).toBe(25000) // No addon
+      expect((result as any).data?.amount).toBe(25000) // No addon
     })
   })
 
@@ -189,7 +189,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       expect(result.success).toBe(true)
       // base 25000 + tier 2 addon 7500 = 32500
-      expect(result.data?.amount).toBe(32500)
+      expect((result as any).data?.amount).toBe(32500)
     })
 
     it('includes a HomeUptick line item in the charge', async () => {
@@ -212,7 +212,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
 
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       // base 25000 + 22500 = 47500
-      expect(result.data?.amount).toBe(47500)
+      expect((result as any).data?.amount).toBe(47500)
     })
   })
 
@@ -226,7 +226,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
 
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       expect(result.success).toBe(true)
-      expect(result.data?.amount).toBe(25000)
+      expect((result as any).data?.amount).toBe(25000)
     })
 
     it('sends a critical alert for non-401 errors', async () => {
@@ -257,7 +257,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
 
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       expect(result.success).toBe(true)
-      expect(result.data?.amount).toBe(25000)
+      expect((result as any).data?.amount).toBe(25000)
       expect(criticalAlertService.alertCriticalError).not.toHaveBeenCalled()
     })
   })
@@ -282,7 +282,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
 
         const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
         expect(result.success).toBe(true)
-        expect(result.data?.amount).toBe(25000 + expectedAddon)
+        expect((result as any).data?.amount).toBe(25000 + expectedAddon)
       }
     )
   })
@@ -311,7 +311,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       expect(result.success).toBe(true)
       // base 0 + tier 2 addon 7500 = 7500
-      expect(result.data?.amount).toBe(7500)
+      expect((result as any).data?.amount).toBe(7500)
     })
 
     it('charges $0 when user has 0 contacts', async () => {
@@ -334,7 +334,7 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
 
       const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
       expect(result.success).toBe(true)
-      expect(result.data?.amount).toBe(0)
+      expect((result as any).data?.amount).toBe(0)
     })
   })
 })

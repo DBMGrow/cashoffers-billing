@@ -128,7 +128,7 @@ describe('CashOffersWebhookHandler', () => {
       const resumeCall = updateCalls.find((c) => c[1]?.status === 'active')
       expect(resumeCall).toBeDefined()
 
-      const newRenewalDate: Date = resumeCall[1].renewal_date
+      const newRenewalDate: Date = resumeCall![1].renewal_date
       // resume + 14 remaining days = Apr 15
       const expected = new Date('2026-04-15')
       expect(newRenewalDate.toDateString()).toBe(expected.toDateString())

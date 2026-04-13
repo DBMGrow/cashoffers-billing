@@ -57,6 +57,7 @@ describe("CreateProductUseCase", () => {
       const result = await useCase.execute({
         productName: "",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 25000,
       })
 
@@ -70,6 +71,7 @@ describe("CreateProductUseCase", () => {
       const result = await useCase.execute({
         productName: "Test Plan",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: -100,
       })
 
@@ -83,6 +85,7 @@ describe("CreateProductUseCase", () => {
       const result = await useCase.execute({
         productName: "Test Plan",
         productType: "invalid_type" as any,
+        productCategory: "premium_cashoffers",
         price: 25000,
       })
 
@@ -98,6 +101,7 @@ describe("CreateProductUseCase", () => {
       const result = await useCase.execute({
         productName: "Premium Monthly",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 25000,
       })
 
@@ -114,6 +118,7 @@ describe("CreateProductUseCase", () => {
       await useCase.execute({
         productName: "Premium Monthly",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 25000,
       })
 
@@ -133,6 +138,7 @@ describe("CreateProductUseCase", () => {
       await useCase.execute({
         productName: "Premium Monthly",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 25000,
         data: productData,
       })
@@ -148,6 +154,7 @@ describe("CreateProductUseCase", () => {
       await useCase.execute({
         productName: "Simple Plan",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 0,
       })
 
@@ -160,6 +167,7 @@ describe("CreateProductUseCase", () => {
         productName: "Premium Monthly",
         productDescription: "Full access plan",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 25000,
       })
 
@@ -171,6 +179,7 @@ describe("CreateProductUseCase", () => {
       await useCase.execute({
         productName: "Premium Monthly",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 25000,
       })
 
@@ -182,6 +191,7 @@ describe("CreateProductUseCase", () => {
       const result = await useCase.execute({
         productName: "Free Tier",
         productType: "subscription",
+        productCategory: "premium_cashoffers",
         price: 0,
       })
 

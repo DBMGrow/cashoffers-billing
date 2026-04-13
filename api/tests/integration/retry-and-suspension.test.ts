@@ -14,7 +14,7 @@
  * All other retry tests pass against the current implementation.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { InMemoryEventBus } from '@api/infrastructure/events/in-memory-event-bus'
 import { RenewSubscriptionUseCase } from '@api/use-cases/subscription/renew-subscription.use-case'
 import {

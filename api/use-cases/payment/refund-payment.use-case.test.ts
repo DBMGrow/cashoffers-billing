@@ -116,7 +116,7 @@ describe("RefundPaymentUseCase", () => {
 
     useCase = new RefundPaymentUseCase({
       logger: new ConsoleLogger(),
-      paymentProvider,
+      paymentProvider: paymentProvider as any,
       emailService,
       transactionRepository: transactionRepo as any,
       userApiClient,
