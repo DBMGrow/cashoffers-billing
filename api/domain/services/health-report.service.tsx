@@ -72,17 +72,31 @@ export class HealthReportService implements IHealthReportService {
 
       successfulRenewals: metrics.subscriptions.successfulRenewals,
       failedRenewals: metrics.subscriptions.failedRenewals,
-      failedRenewalsColor: metrics.subscriptions.failedRenewals > 5 ? '#dc2626' : '#6b7280',
+      failedRenewalsColor: (() => {
+        const { renewalFailureRate } = this.computeRates(metrics)
+        const total = metrics.subscriptions.successfulRenewals + metrics.subscriptions.failedRenewals
+        if (renewalFailureRate > 0.25 && total >= 5) return '#dc2626'
+        if (renewalFailureRate > 0.10 && total >= 5) return '#d97706'
+        return '#6b7280'
+      })(),
       newSubscriptions: metrics.subscriptions.newSubscriptions,
       cancelledSubscriptions: metrics.subscriptions.cancelledSubscriptions,
       activeSubscriptions: metrics.subscriptions.activeSubscriptions,
       subscriptionsInRetry: metrics.subscriptions.subscriptionsInRetry,
-      retryColor: metrics.subscriptions.subscriptionsInRetry > 10 ? '#d97706' : '#6b7280',
+      retryColor: (() => {
+        const { retryRate } = this.computeRates(metrics)
+        if (retryRate > 0.05 && metrics.subscriptions.subscriptionsInRetry >= 3) return '#d97706'
+        return '#6b7280'
+      })(),
       pausedSubscriptions: metrics.subscriptions.pausedSubscriptions,
 
       successfulPayments: metrics.payments.successfulPayments,
       failedPayments: metrics.payments.failedPayments,
-      failedPaymentsColor: metrics.payments.failedPayments > 5 ? '#dc2626' : '#6b7280',
+      failedPaymentsColor: (() => {
+        const { paymentFailureRate } = this.computeRates(metrics)
+        if (paymentFailureRate > 0.10 && metrics.payments.failedPayments >= 5) return '#dc2626'
+        return '#6b7280'
+      })(),
       refunds: metrics.payments.refunds,
 
       totalErrors: metrics.errors.totalErrors,
@@ -107,16 +121,20 @@ export class HealthReportService implements IHealthReportService {
     overallStatus: 'good' | 'warning' | 'critical'
     statusMessage: string
   } {
+    const { renewalFailureRate, retryRate } = this.computeRates(metrics)
+
     if (metrics.errors.criticalErrors > 0) {
       return {
         overallStatus: 'critical',
         statusMessage: `${metrics.errors.criticalErrors} critical error${metrics.errors.criticalErrors > 1 ? 's' : ''} detected. Immediate attention required.`,
       }
     }
-    if (metrics.subscriptions.failedRenewals > 10) {
+    // Critical: >25% renewal failure rate with at least 5 attempts
+    const totalRenewals = metrics.subscriptions.successfulRenewals + metrics.subscriptions.failedRenewals
+    if (renewalFailureRate > 0.25 && totalRenewals >= 5) {
       return {
         overallStatus: 'critical',
-        statusMessage: `High number of failed renewals (${metrics.subscriptions.failedRenewals}). System may be experiencing issues.`,
+        statusMessage: `${Math.round(renewalFailureRate * 100)}% renewal failure rate (${metrics.subscriptions.failedRenewals}/${totalRenewals}). System may be experiencing issues.`,
       }
     }
     if (metrics.errors.totalErrors > 20) {
@@ -125,35 +143,57 @@ export class HealthReportService implements IHealthReportService {
         statusMessage: `Elevated error count (${metrics.errors.totalErrors}). Monitor system closely.`,
       }
     }
-    if (metrics.subscriptions.failedRenewals > 5) {
+    // Warning: >10% renewal failure rate with at least 5 attempts
+    if (renewalFailureRate > 0.10 && totalRenewals >= 5) {
       return {
         overallStatus: 'warning',
-        statusMessage: `${metrics.subscriptions.failedRenewals} failed renewals. Review failure reasons.`,
+        statusMessage: `${Math.round(renewalFailureRate * 100)}% renewal failure rate (${metrics.subscriptions.failedRenewals}/${totalRenewals}). Review failure reasons.`,
       }
     }
-    if (metrics.subscriptions.subscriptionsInRetry > 15) {
+    // Warning: >5% of active subscriptions in retry
+    if (retryRate > 0.05 && metrics.subscriptions.subscriptionsInRetry >= 3) {
       return {
         overallStatus: 'warning',
-        statusMessage: `${metrics.subscriptions.subscriptionsInRetry} subscriptions in retry state.`,
+        statusMessage: `${Math.round(retryRate * 100)}% of active subscriptions in retry (${metrics.subscriptions.subscriptionsInRetry}/${metrics.subscriptions.activeSubscriptions}).`,
       }
     }
     return { overallStatus: 'good', statusMessage: 'All systems operating normally.' }
   }
 
+  private computeRates(metrics: DailyHealthMetrics) {
+    const totalRenewals = metrics.subscriptions.successfulRenewals + metrics.subscriptions.failedRenewals
+    const renewalFailureRate = totalRenewals > 0
+      ? metrics.subscriptions.failedRenewals / totalRenewals
+      : 0
+
+    const retryRate = metrics.subscriptions.activeSubscriptions > 0
+      ? metrics.subscriptions.subscriptionsInRetry / metrics.subscriptions.activeSubscriptions
+      : 0
+
+    const totalPayments = metrics.payments.successfulPayments + metrics.payments.failedPayments
+    const paymentFailureRate = totalPayments > 0
+      ? metrics.payments.failedPayments / totalPayments
+      : 0
+
+    return { renewalFailureRate, retryRate, paymentFailureRate }
+  }
+
   private generateActionItems(metrics: DailyHealthMetrics): string[] | undefined {
     const items: string[] = []
+    const { renewalFailureRate, retryRate, paymentFailureRate } = this.computeRates(metrics)
+    const totalRenewals = metrics.subscriptions.successfulRenewals + metrics.subscriptions.failedRenewals
 
     if (metrics.errors.criticalErrors > 0) {
       items.push(`• Review ${metrics.errors.criticalErrors} critical error(s) immediately`)
     }
-    if (metrics.subscriptions.failedRenewals > 5) {
-      items.push(`• Investigate ${metrics.subscriptions.failedRenewals} failed renewal(s) and contact affected users`)
+    if (renewalFailureRate > 0.10 && totalRenewals >= 5) {
+      items.push(`• Investigate ${Math.round(renewalFailureRate * 100)}% renewal failure rate (${metrics.subscriptions.failedRenewals} failed) and contact affected users`)
     }
-    if (metrics.subscriptions.subscriptionsInRetry > 15) {
-      items.push(`• Monitor ${metrics.subscriptions.subscriptionsInRetry} subscription(s) in retry queue`)
+    if (retryRate > 0.05 && metrics.subscriptions.subscriptionsInRetry >= 3) {
+      items.push(`• Monitor ${metrics.subscriptions.subscriptionsInRetry} subscription(s) in retry queue (${Math.round(retryRate * 100)}% of active)`)
     }
-    if (metrics.payments.failedPayments > 10) {
-      items.push(`• Review payment gateway logs for ${metrics.payments.failedPayments} failed payment(s)`)
+    if (paymentFailureRate > 0.10 && metrics.payments.failedPayments >= 5) {
+      items.push(`• Review payment gateway logs — ${Math.round(paymentFailureRate * 100)}% payment failure rate (${metrics.payments.failedPayments} failed)`)
     }
     if (metrics.errors.totalErrors > 20) {
       items.push(`• Review application logs - ${metrics.errors.totalErrors} errors logged today`)
