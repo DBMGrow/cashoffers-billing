@@ -39,6 +39,13 @@ app.use("/", authMiddleware("payments_read_all")) // For GET /
 app.use("/single", authMiddleware(null)) // For GET /single
 app.use("/pause/:subscription_id", authMiddleware("payments_create"))
 app.use("/resume/:subscription_id", authMiddleware("payments_create"))
+// cancel/uncancel/downgrade/undowngrade do finer-grained owner-or-admin
+// checks inside the handler via checkSubscriptionAuthorization, so we only
+// need auth (no capability requirement) at the middleware layer.
+app.use("/cancel/:subscription_id", authMiddleware(null))
+app.use("/uncancel/:subscription_id", authMiddleware(null))
+app.use("/downgrade/:subscription_id", authMiddleware(null))
+app.use("/undowngrade/:subscription_id", authMiddleware(null))
 
 // POST / and PUT / use payments_create
 app.use("/", authMiddleware("payments_create"))
