@@ -141,7 +141,7 @@ export class HealthMetricsService implements IHealthMetricsService {
     const allSubscriptions = await this.subscriptionRepository.findAll()
     const activeSubscriptions = allSubscriptions.filter((s: any) => s.status === 'active').length
     const subscriptionsInRetry = allSubscriptions.filter(
-      (s: any) => s.next_renewal_attempt !== null && new Date(s.next_renewal_attempt) > new Date()
+      (s: any) => (s.payment_failure_count ?? 0) > 0 && s.status === 'active'
     ).length
     const pausedSubscriptions = allSubscriptions.filter((s: any) => s.status === 'paused').length
 
