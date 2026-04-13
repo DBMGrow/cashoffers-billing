@@ -173,7 +173,7 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
         user_id: validatedInput.userId,
         amount,
         type: "property_unlock",
-        memo: `Property unlock: ${propertyAddress}`,
+        memo: `Property unlock: ${propertyAddress} (${validatedInput.propertyToken})`,
         status: "completed",
         square_transaction_id: paymentId,
         data: this.serializePayment(payment),

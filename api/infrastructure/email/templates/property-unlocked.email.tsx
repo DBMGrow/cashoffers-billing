@@ -112,6 +112,10 @@ export default function PropertyUnlockedEmail({
       <EmailText variant="muted" style={{ marginTop: spacing.lg, marginBottom: "0" }}>
         This is a one-time charge. No recurring payments will be made for this property.
       </EmailText>
+
+      <EmailText variant="muted" style={{ marginTop: spacing.md, marginBottom: "0" }}>
+        NOTE: The charge will appear as REMRKTCO on your statement.
+      </EmailText>
     </StandardEmail>
   )
 }

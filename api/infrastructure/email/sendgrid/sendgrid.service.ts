@@ -63,6 +63,8 @@ export class SendGridEmailService implements IEmailService {
         subject: request.subject,
       })
 
+      const isStaging = this.config.environment === 'staging'
+
       const msg = {
         to: request.to,
         from: {
@@ -72,7 +74,8 @@ export class SendGridEmailService implements IEmailService {
         subject: request.subject,
         text: request.text,
         html: request.html || request.text,
-        bcc: this.config.sendgrid.fromEmail, // BCC to system email for record keeping
+        // BCC to system email for record keeping; skip in staging to avoid noise
+        ...(isStaging ? {} : { bcc: this.config.sendgrid.fromEmail }),
       }
 
       await sgMail.send(msg)
