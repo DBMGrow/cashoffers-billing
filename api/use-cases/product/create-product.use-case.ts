@@ -42,6 +42,7 @@ export class CreateProductUseCase implements ICreateProductUseCase {
         product_name: validatedInput.productName,
         product_description: validatedInput.productDescription || null,
         product_type: validatedInput.productType,
+        product_category: validatedInput.productCategory,
         price: validatedInput.price,
         data: validatedInput.data ? JSON.stringify(validatedInput.data) : null,
         createdAt: new Date(),

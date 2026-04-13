@@ -19,6 +19,7 @@ describe("Subscription Entity", () => {
       data: null,
       cancelOnRenewal: false,
       downgradeOnRenewal: false,
+      paymentFailureCount: 0,
       ...overrides,
     })
   }
@@ -66,6 +67,7 @@ describe("Subscription Entity", () => {
         data: null,
         cancelOnRenewal: false,
         downgradeOnRenewal: false,
+        paymentFailureCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       }

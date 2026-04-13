@@ -58,6 +58,13 @@ export default async function subscriptionsCron() {
         continue
       }
 
+      if (subscriptionData.user_id == null) {
+        cronLogger.warn('Subscription has no user_id, skipping', {
+          subscriptionId: subscriptionData.subscription_id,
+        })
+        continue
+      }
+
       const user = await getUser(subscriptionData.user_id)
       const email = user?.email || ""
 

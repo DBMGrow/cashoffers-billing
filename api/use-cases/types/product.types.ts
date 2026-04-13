@@ -10,6 +10,7 @@ export interface CreateProductInput {
   productName: string
   productDescription?: string
   productType: "none" | "one-time" | "subscription"
+  productCategory: "premium_cashoffers" | "external_cashoffers" | "homeuptick_only"
   price: number // in cents
   data?: Record<string, any>
 }

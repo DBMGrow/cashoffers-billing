@@ -56,6 +56,13 @@ export class PremiumActivationHandler extends BaseEventHandler {
           subscriptionId: event.payload.subscriptionId,
         })
 
+        if (userId == null) {
+          this.logger.warn('Skipping activation: userId not yet available (deferred provisioning)', {
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
         await this.userApiClient.activateUser(userId)
 
         this.logger.info('User fully activated (active = 1, is_premium = 1)', {

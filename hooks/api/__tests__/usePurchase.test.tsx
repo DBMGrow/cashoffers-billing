@@ -47,7 +47,6 @@ describe("usePurchase", () => {
       exp_month: 12,
       exp_year: 2025,
       cardholder_name: "Test User",
-      isInvestor: false,
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -79,7 +78,6 @@ describe("usePurchase", () => {
       exp_month: 12,
       exp_year: 2025,
       cardholder_name: "Test User",
-      isInvestor: false,
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))

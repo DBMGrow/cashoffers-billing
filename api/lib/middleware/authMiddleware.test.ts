@@ -24,6 +24,7 @@ const adminUser = {
   role: "ADMIN",
   active: 1,
   api_token: "admin_token",
+  whitelabel_id: 4,
   capabilities: ["payments_create", "payments_read_all", "payments_delete_all"],
 }
 
@@ -34,6 +35,7 @@ const regularUser = {
   role: "AGENT",
   active: 1,
   api_token: "user_token",
+  whitelabel_id: 4,
   capabilities: [],
 }
 
@@ -44,6 +46,7 @@ const targetUser = {
   role: "AGENT",
   active: 1,
   api_token: null,
+  whitelabel_id: 4,
 }
 
 /**

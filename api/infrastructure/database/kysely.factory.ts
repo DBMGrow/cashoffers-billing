@@ -1,5 +1,6 @@
 import { DB } from "@api/lib/db"
 import { Kysely, MysqlDialect } from "kysely"
+import type { MysqlPool } from "kysely"
 import { createPool } from "mysql2"
 import type { IConfig } from "@api/config/config.interface"
 
@@ -16,7 +17,7 @@ export const createKyselyDatabase = (config: IConfig): Kysely<DB> => {
     connectionLimit: 10,
   })
 
-  const dialect = new MysqlDialect({ pool })
+  const dialect = new MysqlDialect({ pool: pool as unknown as MysqlPool })
 
   return new Kysely<DB>({ dialect })
 }
@@ -36,7 +37,7 @@ export const createTestKyselyDatabase = (
     connectionLimit: 10,
   })
 
-  const dialect = new MysqlDialect({ pool: testPool })
+  const dialect = new MysqlDialect({ pool: testPool as unknown as MysqlPool })
 
   return new Kysely<DB>({ dialect })
 }

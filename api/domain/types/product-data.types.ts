@@ -17,6 +17,8 @@ export interface ProductUserConfig {
   is_team_plan?: boolean
   /** Maximum number of team members for team plans */
   team_members?: number
+  /** Associated whitelabel ID for suspension-behavior resolution */
+  whitelabel_id?: number
 }
 
 export interface CashOffersConfig {

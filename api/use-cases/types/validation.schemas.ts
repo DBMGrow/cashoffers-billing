@@ -276,6 +276,11 @@ export const CreateProductInputSchema = z.object({
   productName: z.string().min(1, "Product name is required"),
   productDescription: z.string().optional(),
   productType: z.enum(["none", "one-time", "subscription"] as const),
+  productCategory: z.enum([
+    "premium_cashoffers",
+    "external_cashoffers",
+    "homeuptick_only",
+  ] as const),
   price: z.number().int().min(0, "Price must be a non-negative integer"),
   data: z.any().optional(),
 })
