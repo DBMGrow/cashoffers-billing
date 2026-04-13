@@ -3,6 +3,7 @@ import {
   SuccessResponseSchema,
   ErrorResponseSchema,
   SubscriptionIdParamSchema,
+  UserIdParamSchema,
   PaginationQuerySchema,
   PositiveIntSchema,
   EmailSchema,
@@ -557,6 +558,54 @@ export const RetryRenewalRoute = {
   tags: ["Subscriptions"],
   summary: "Retry renewal (admin)",
   description: "Immediately retry renewal for a subscription. Requires payments_create permission (admin).",
+}
+
+/**
+ * POST /subscription/run-renewal/:user_id - Admin: run renewal process for a specific user
+ */
+export const RunRenewalForUserRoute = {
+  method: "post" as const,
+  path: "/run-renewal/{user_id}",
+  request: {
+    params: UserIdParamSchema,
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SuccessResponseSchema(
+            z.object({
+              subscriptionId: z.number(),
+              userId: z.number(),
+              email: z.string(),
+              result: z.any(),
+            })
+          ),
+        },
+      },
+      description: "Renewal executed for user",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Renewal failed or no active subscription",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "User or subscription not found",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Forbidden - admin only",
+    },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Internal server error",
+    },
+  },
+  tags: ["Subscriptions"],
+  summary: "Run renewal for user (admin)",
+  description:
+    "Run the subscription renewal process for a specific user, equivalent to what the cron would do. Looks up the user's active subscription and processes renewal. Requires payments_create permission (admin).",
 }
 
 /**

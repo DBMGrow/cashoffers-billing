@@ -13,6 +13,7 @@ import {
   renewSubscriptionUseCase,
 } from "@api/use-cases/subscription"
 import { subscriptionRepository } from "@api/lib/repositories"
+import { db } from "@api/lib/database"
 import { executeUseCase } from "../helpers/use-case-handler"
 import { checkSubscriptionAuthorization } from "../helpers/subscription-auth"
 import {
@@ -28,6 +29,7 @@ import {
   DowngradeSubscriptionRoute,
   UndowngradeSubscriptionRoute,
   RetryRenewalRoute,
+  RunRenewalForUserRoute,
 } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -249,6 +251,53 @@ app.openapi(RetryRenewalRoute, async (c) => {
   return c.json({
     success: "success" as const,
     data: { subscriptionId, success: result.success },
+  }, 200 as const)
+})
+
+// Run renewal for a specific user (admin) — production-safe equivalent of the cron for a single user
+app.use("/run-renewal/:user_id", authMiddleware("payments_create"))
+app.openapi(RunRenewalForUserRoute, async (c) => {
+  const userId = Number(c.req.valid("param").user_id)
+
+  // Find the user's active subscription
+  const activeSubs = await subscriptionRepository.findActiveByUserId(userId)
+  if (activeSubs.length === 0) {
+    return c.json({ success: "error" as const, error: `No active subscription found for user ${userId}`, code: "NOT_FOUND" }, 404 as const)
+  }
+
+  const sub = activeSubs.find((s) => s.status === "active") ?? activeSubs[0]
+
+  // Resolve the user's email
+  const dbUser = await db
+    .selectFrom("Users")
+    .where("user_id", "=", userId)
+    .select("email")
+    .executeTakeFirst()
+  if (!dbUser) {
+    return c.json({ success: "error" as const, error: `User ${userId} not found`, code: "NOT_FOUND" }, 404 as const)
+  }
+
+  const result = await renewSubscriptionUseCase.execute({
+    subscriptionId: sub.subscription_id,
+    email: dbUser.email,
+  })
+
+  if (!result.success) {
+    return c.json({
+      success: "error" as const,
+      error: result.error ?? "Renewal failed",
+      code: "RENEWAL_FAILED",
+    }, 400 as const)
+  }
+
+  return c.json({
+    success: "success" as const,
+    data: {
+      subscriptionId: sub.subscription_id,
+      userId,
+      email: dbUser.email,
+      result: result.data,
+    },
   }, 200 as const)
 })
 
