@@ -1,8 +1,8 @@
-import axios from "axios"
 import { createElement } from "react"
 import { render } from "@react-email/render"
 import { config } from "@api/config/config.service"
 import { logger, emailService, eventBus } from "@api/lib/services"
+import { db } from "@api/lib/database"
 import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
@@ -26,14 +26,15 @@ export default async function subscriptionsCron() {
       subscriptionIds: subscriptions.map((sub: any) => sub.subscription_id),
     })
 
-    const usersResponse = await axios.get(config.api.url + "/users/mini?page=1&limit=50000", {
-      headers: {
-        "x-api-token": config.api.masterToken,
-      },
-    })
-    const users: any = usersResponse.data
+    // Fetch users directly from DB instead of bulk-loading all via API (which can 504)
+    const userCache = new Map<number, any>()
 
-    if (users?.success !== "success") throw new Error("Error fetching users")
+    async function getUser(userId: number) {
+      if (userCache.has(userId)) return userCache.get(userId)
+      const user = await db.selectFrom("Users").selectAll().where("user_id", "=", userId).executeTakeFirst()
+      userCache.set(userId, user)
+      return user
+    }
 
     for (const subscription of subscriptions) {
       const subscriptionData = subscription
@@ -57,7 +58,7 @@ export default async function subscriptionsCron() {
         continue
       }
 
-      const user = users?.data?.find((u: any) => u.user_id === subscriptionData.user_id)
+      const user = await getUser(subscriptionData.user_id)
       const email = user?.email || ""
 
       if (!email) {
@@ -124,7 +125,7 @@ export default async function subscriptionsCron() {
           )
 
           // Send trial-expired email
-          const trialUser = users?.data?.find((u: any) => u.user_id === trial.user_id)
+          const trialUser = trial.user_id ? await getUser(trial.user_id) : null
           if (trialUser?.email) {
             try {
               const html = await render(createElement(TrialExpiredEmail, {}))
@@ -155,7 +156,7 @@ export default async function subscriptionsCron() {
 
       for (const trial of expiringTrials) {
         try {
-          const trialUser = users?.data?.find((u: any) => u.user_id === trial.user_id)
+          const trialUser = trial.user_id ? await getUser(trial.user_id) : null
           if (!trialUser?.email) continue
 
           const renewalDate = new Date(trial.renewal_date!)
