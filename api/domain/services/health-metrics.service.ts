@@ -84,11 +84,21 @@ export class HealthMetricsService implements IHealthMetricsService {
 
   async getDailyHealthMetrics(date?: Date): Promise<DailyHealthMetrics> {
     const reportDate = date || new Date()
-    const endDate = new Date(reportDate)
-    endDate.setHours(23, 59, 59, 999)
 
-    const startDate = new Date(reportDate)
-    startDate.setHours(0, 0, 0, 0)
+    let startDate: Date
+    let endDate: Date
+
+    if (date) {
+      // Explicit date: use that day's midnight-to-midnight window
+      startDate = new Date(reportDate)
+      startDate.setHours(0, 0, 0, 0)
+      endDate = new Date(reportDate)
+      endDate.setHours(23, 59, 59, 999)
+    } else {
+      // No date specified: last 24 hours ending now
+      endDate = new Date(reportDate)
+      startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000)
+    }
 
     // Gather all metrics in parallel for efficiency
     const [
@@ -118,16 +128,24 @@ export class HealthMetricsService implements IHealthMetricsService {
     return status === 'completed' || status === 'success'
   }
 
-  private isRenewalTransaction(t: any): boolean {
-    // Renewal transactions are subscription-type records with renewal-related memos
-    return t.type === 'subscription' && typeof t.memo === 'string' &&
-      /renewal|renewed|\(failed\)|\(new card declined\)/i.test(t.memo)
-  }
-
   private isNewSubscriptionTransaction(t: any): boolean {
     // New subscription transactions have "Subscription created" in the memo
     return t.type === 'subscription' && typeof t.memo === 'string' &&
       /subscription created/i.test(t.memo)
+  }
+
+  private isSubscriptionLifecycleEvent(t: any): boolean {
+    // Non-renewal subscription events: creates, updates, pauses, resumes
+    if (t.type !== 'subscription' || typeof t.memo !== 'string') return false
+    return /subscription (created|updated|paused|resumed)/i.test(t.memo)
+  }
+
+  private isRenewalTransaction(t: any): boolean {
+    // Renewal transactions are subscription-type records that are NOT lifecycle
+    // events (creates, updates, pauses, resumes). This covers:
+    //   - Successful: memo is the subscription name (e.g. "Premium CashOffers")
+    //   - Failed: memo ends with "(failed)" or "(new card declined)"
+    return t.type === 'subscription' && !this.isSubscriptionLifecycleEvent(t)
   }
 
   private async getSubscriptionMetrics(startDate: Date, endDate: Date) {
