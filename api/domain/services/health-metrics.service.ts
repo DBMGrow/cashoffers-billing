@@ -114,27 +114,38 @@ export class HealthMetricsService implements IHealthMetricsService {
     }
   }
 
+  private isSuccessStatus(status: string | null): boolean {
+    return status === 'completed' || status === 'success'
+  }
+
+  private isRenewalTransaction(t: any): boolean {
+    // Renewal transactions are subscription-type records with renewal-related memos
+    return t.type === 'subscription' && typeof t.memo === 'string' &&
+      /renewal|renewed|\(failed\)|\(new card declined\)/i.test(t.memo)
+  }
+
+  private isNewSubscriptionTransaction(t: any): boolean {
+    // New subscription transactions have "Subscription created" in the memo
+    return t.type === 'subscription' && typeof t.memo === 'string' &&
+      /subscription created/i.test(t.memo)
+  }
+
   private async getSubscriptionMetrics(startDate: Date, endDate: Date) {
-    // Get renewal transactions
-    const renewalTransactions = await this.transactionRepository.findByDateRange(
+    const transactions = await this.transactionRepository.findByDateRange(
       startDate,
       endDate
     )
 
-    const successfulRenewals = renewalTransactions.filter(
-      (t: any) => t.type === 'renewal' && t.status === 'success'
+    const successfulRenewals = transactions.filter(
+      (t: any) => this.isRenewalTransaction(t) && this.isSuccessStatus(t.status)
     ).length
 
-    const failedRenewals = renewalTransactions.filter(
-      (t: any) => t.type === 'renewal' && t.status === 'failed'
+    const failedRenewals = transactions.filter(
+      (t: any) => this.isRenewalTransaction(t) && t.status === 'failed'
     ).length
 
-    const newSubscriptions = renewalTransactions.filter(
-      (t: any) => t.type === 'purchase' && t.status === 'success'
-    ).length
-
-    const cancelledSubscriptions = renewalTransactions.filter(
-      (t: any) => t.type === 'cancellation'
+    const newSubscriptions = transactions.filter(
+      (t: any) => this.isNewSubscriptionTransaction(t) && this.isSuccessStatus(t.status)
     ).length
 
     // Get current subscription counts
@@ -144,6 +155,11 @@ export class HealthMetricsService implements IHealthMetricsService {
       (s: any) => (s.payment_failure_count ?? 0) > 0 && s.status === 'active'
     ).length
     const pausedSubscriptions = allSubscriptions.filter((s: any) => s.status === 'paused').length
+
+    // Count subscriptions cancelled within the report period (by updatedAt)
+    const cancelledSubscriptions = allSubscriptions.filter(
+      (s: any) => s.status === 'cancelled' && s.updatedAt >= startDate && s.updatedAt <= endDate
+    ).length
 
     return {
       successfulRenewals,
@@ -162,12 +178,15 @@ export class HealthMetricsService implements IHealthMetricsService {
       endDate
     )
 
+    // Payment types that represent real monetary transactions
+    const monetaryTypes = ['payment', 'subscription', 'property_unlock']
+
     const successfulPayments = transactions.filter(
-      (t: any) => ['purchase', 'renewal'].includes(t.type) && t.status === 'success'
+      (t: any) => monetaryTypes.includes(t.type) && this.isSuccessStatus(t.status) && Number(t.amount || 0) > 0
     )
 
     const failedPayments = transactions.filter(
-      (t: any) => ['purchase', 'renewal'].includes(t.type) && t.status === 'failed'
+      (t: any) => monetaryTypes.includes(t.type) && t.status === 'failed'
     ).length
 
     const refunds = transactions.filter((t: any) => t.type === 'refund').length
