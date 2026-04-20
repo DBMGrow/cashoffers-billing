@@ -72,6 +72,51 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
     return `${prefix}-${Date.now()}@dev-test.local`
   }
 
+  // ── Sensitive-data redaction ─────────────────────────────────────────────
+  //
+  // Masks values whose key name looks like a credential, token, card number,
+  // signature, or other secret. Applied recursively, including inside JSON
+  // strings so that serialized metadata blobs are also scrubbed before leaving
+  // the server. Err on the side of over-redacting: these endpoints exist for
+  // debugging and must never leak raw credentials into logs or terminals.
+  const SENSITIVE_KEY_REGEX = /(^|[_\-.])(password|passwd|pwd|secret|token|api[_\-]?key|apikey|authorization|bearer|private[_\-]?key|privkey|access[_\-]?token|refresh[_\-]?token|id[_\-]?token|jwt|cookie|session[_\-]?id|client[_\-]?secret|encryption[_\-]?key|signature|hash|credential|cvv|cvc|card[_\-]?number|pan|account[_\-]?number|routing[_\-]?number|ssn)([_\-.]|$)/i
+
+  function shouldRedactKey(key: string): boolean {
+    return SENSITIVE_KEY_REGEX.test(key)
+  }
+
+  function redactSensitive(value: unknown): unknown {
+    if (value == null) return value
+    if (typeof value === "string") {
+      // Try to parse strings that look like JSON so nested secrets get redacted too.
+      const trimmed = value.trim()
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try {
+          const parsed = JSON.parse(trimmed)
+          return redactSensitive(parsed)
+        } catch {
+          return value
+        }
+      }
+      return value
+    }
+    if (Array.isArray(value)) {
+      return value.map(redactSensitive)
+    }
+    if (typeof value === "object") {
+      const out: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (shouldRedactKey(k)) {
+          out[k] = "[REDACTED]"
+        } else {
+          out[k] = redactSensitive(v)
+        }
+      }
+      return out
+    }
+    return value
+  }
+
   // ── Shared webhook handler instance ──────────────────────────────────────
 
   const webhookHandler = new CashOffersWebhookHandler({
@@ -1728,6 +1773,413 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         manage_url: manageUrl,
         expires_in: "30 days",
         goto: needsEnrollment ? "enrollment" : undefined,
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/logs — Query BillingLogs with filters (sensitive data redacted)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/logs", async (c) => {
+    const q = c.req.query()
+    const limit = Math.min(parseInt(q.limit ?? "50", 10) || 50, 500)
+    const sinceHours = q.since ? parseFloat(q.since) : null
+
+    let query = db
+      .selectFrom("BillingLogs")
+      .select([
+        "log_id", "level", "component", "context_type", "message",
+        "metadata", "request_id", "user_id", "error_stack", "service", "createdAt",
+      ])
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+
+    if (q.user_id) {
+      const uid = parseInt(q.user_id, 10)
+      if (!isNaN(uid)) query = query.where("user_id", "=", uid)
+    }
+    if (q.level && ["debug", "info", "warn", "error"].includes(q.level)) {
+      query = query.where("level", "=", q.level as "debug" | "info" | "warn" | "error")
+    }
+    if (q.context_type && ["http_request", "cron_job", "event_handler", "background"].includes(q.context_type)) {
+      query = query.where("context_type", "=", q.context_type as any)
+    }
+    if (q.component) query = query.where("component", "=", q.component)
+    if (q.request_id) query = query.where("request_id", "=", q.request_id)
+    if (q.search) query = query.where("message", "like", `%${q.search}%`)
+    if (sinceHours != null && !isNaN(sinceHours)) {
+      query = query.where("createdAt", ">=", new Date(Date.now() - sinceHours * 3600_000))
+    }
+
+    const rows = await query.execute()
+
+    const redacted = rows.map((r) => ({
+      ...r,
+      metadata: redactSensitive(r.metadata),
+    }))
+
+    return c.json({
+      success: "success",
+      data: {
+        count: redacted.length,
+        filters: {
+          user_id: q.user_id ?? null,
+          level: q.level ?? null,
+          component: q.component ?? null,
+          context_type: q.context_type ?? null,
+          request_id: q.request_id ?? null,
+          search: q.search ?? null,
+          since_hours: sinceHours,
+          limit,
+        },
+        logs: redacted,
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/logs/:log_id — Single log entry with full detail
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/logs/:log_id", async (c) => {
+    const logId = parseInt(c.req.param("log_id"), 10)
+    if (!logId || isNaN(logId)) {
+      return c.json({ success: "error", error: "Invalid log_id" }, 400)
+    }
+
+    const row = await db
+      .selectFrom("BillingLogs")
+      .where("log_id", "=", logId)
+      .selectAll()
+      .executeTakeFirst()
+
+    if (!row) return c.json({ success: "error", error: `Log ${logId} not found` }, 404)
+
+    return c.json({
+      success: "success",
+      data: {
+        ...row,
+        metadata: redactSensitive(row.metadata),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/logs/request/:request_id — All logs for one request
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/logs/request/:request_id", async (c) => {
+    const requestId = c.req.param("request_id")
+    if (!requestId) return c.json({ success: "error", error: "Missing request_id" }, 400)
+
+    const rows = await db
+      .selectFrom("BillingLogs")
+      .where("request_id", "=", requestId)
+      .select([
+        "log_id", "level", "component", "context_type", "message",
+        "metadata", "user_id", "error_stack", "createdAt",
+      ])
+      .orderBy("createdAt", "asc")
+      .execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        request_id: requestId,
+        count: rows.length,
+        logs: rows.map((r) => ({ ...r, metadata: redactSensitive(r.metadata) })),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/subscriptions — Query Subscriptions with filters
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/query/subscriptions", async (c) => {
+    const q = c.req.query()
+    const limit = Math.min(parseInt(q.limit ?? "50", 10) || 50, 500)
+
+    let query = db
+      .selectFrom("Subscriptions")
+      .leftJoin("Products", "Products.product_id", "Subscriptions.product_id")
+      .select([
+        "Subscriptions.subscription_id",
+        "Subscriptions.subscription_name",
+        "Subscriptions.user_id",
+        "Subscriptions.product_id",
+        "Subscriptions.status",
+        "Subscriptions.amount",
+        "Subscriptions.duration",
+        "Subscriptions.renewal_date",
+        "Subscriptions.next_renewal_attempt",
+        "Subscriptions.cancel_on_renewal",
+        "Subscriptions.downgrade_on_renewal",
+        "Subscriptions.suspension_date",
+        "Subscriptions.payment_failure_count",
+        "Subscriptions.square_environment",
+        "Subscriptions.data",
+        "Subscriptions.createdAt",
+        "Subscriptions.updatedAt",
+        "Products.product_name",
+      ])
+      .orderBy("Subscriptions.createdAt", "desc")
+      .limit(limit)
+
+    if (q.user_id) {
+      const uid = parseInt(q.user_id, 10)
+      if (!isNaN(uid)) query = query.where("Subscriptions.user_id", "=", uid)
+    }
+    if (q.status) query = query.where("Subscriptions.status", "=", q.status as any)
+    if (q.product_id) {
+      const pid = parseInt(q.product_id, 10)
+      if (!isNaN(pid)) query = query.where("Subscriptions.product_id", "=", pid)
+    }
+    if (q.overdue === "true") {
+      query = query
+        .where("Subscriptions.status", "=", "active")
+        .where("Subscriptions.renewal_date", "<=", new Date())
+    }
+    if (q.failures_gte) {
+      const n = parseInt(q.failures_gte, 10)
+      if (!isNaN(n)) query = query.where("Subscriptions.payment_failure_count", ">=", n)
+    }
+
+    const rows = await query.execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        count: rows.length,
+        subscriptions: rows.map((s) => ({
+          ...s,
+          data: redactSensitive(s.data),
+          amount_formatted: formatAmount(s.amount),
+          renewal_in: daysFromNow(s.renewal_date),
+        })),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/transactions — Query Transactions with filters
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/query/transactions", async (c) => {
+    const q = c.req.query()
+    const limit = Math.min(parseInt(q.limit ?? "50", 10) || 50, 500)
+    const sinceHours = q.since ? parseFloat(q.since) : null
+
+    let query = db
+      .selectFrom("Transactions")
+      .select([
+        "transaction_id", "user_id", "product_id", "type", "status", "amount",
+        "memo", "square_transaction_id", "square_environment", "data", "createdAt",
+      ])
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+
+    if (q.user_id) {
+      const uid = parseInt(q.user_id, 10)
+      if (!isNaN(uid)) query = query.where("user_id", "=", uid)
+    }
+    if (q.status) query = query.where("status", "=", q.status)
+    if (q.type) query = query.where("type", "=", q.type)
+    if (sinceHours != null && !isNaN(sinceHours)) {
+      query = query.where("createdAt", ">=", new Date(Date.now() - sinceHours * 3600_000))
+    }
+
+    const rows = await query.execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        count: rows.length,
+        transactions: rows.map((t) => ({
+          ...t,
+          data: redactSensitive(t.data),
+          amount_formatted: formatAmount(t.amount),
+        })),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/purchase-requests — Query PurchaseRequests with filters
+  //
+  // PurchaseRequests track every purchase attempt (new purchase, renewal,
+  // upgrade) with granular status transitions. Critical for spotting requests
+  // that failed mid-flow: a row stuck in VALIDATING / PROCESSING_PAYMENT /
+  // CREATING_SUBSCRIPTION / FINALIZING / PENDING is one where the system lost
+  // track (crash, unhandled error, deploy interruption). Use `--stuck` to
+  // surface exactly those rows.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const PURCHASE_REQUEST_IN_PROGRESS_STATUSES = [
+    "PENDING",
+    "VALIDATING",
+    "PROCESSING_PAYMENT",
+    "CREATING_SUBSCRIPTION",
+    "FINALIZING",
+  ] as const
+
+  router.get("/query/purchase-requests", async (c) => {
+    const q = c.req.query()
+    const limit = Math.min(parseInt(q.limit ?? "50", 10) || 50, 500)
+    const sinceHours = q.since ? parseFloat(q.since) : null
+    const stuckMinutes = q.stuck_minutes ? parseFloat(q.stuck_minutes) : 5
+
+    let query = db
+      .selectFrom("PurchaseRequests")
+      .leftJoin("Products", "Products.product_id", "PurchaseRequests.product_id")
+      .select([
+        "PurchaseRequests.request_id",
+        "PurchaseRequests.request_uuid",
+        "PurchaseRequests.request_type",
+        "PurchaseRequests.source",
+        "PurchaseRequests.user_id",
+        "PurchaseRequests.email",
+        "PurchaseRequests.product_id",
+        "PurchaseRequests.subscription_id",
+        "PurchaseRequests.status",
+        "PurchaseRequests.failure_reason",
+        "PurchaseRequests.error_code",
+        "PurchaseRequests.retry_count",
+        "PurchaseRequests.max_retries",
+        "PurchaseRequests.next_retry_at",
+        "PurchaseRequests.subscription_id_result",
+        "PurchaseRequests.transaction_id_result",
+        "PurchaseRequests.amount_charged",
+        "PurchaseRequests.user_created",
+        "PurchaseRequests.prorated_amount",
+        "PurchaseRequests.started_at",
+        "PurchaseRequests.completed_at",
+        "PurchaseRequests.processing_duration_ms",
+        "PurchaseRequests.createdAt",
+        "PurchaseRequests.updatedAt",
+        "Products.product_name",
+      ])
+      .orderBy("PurchaseRequests.createdAt", "desc")
+      .limit(limit)
+
+    if (q.user_id) {
+      const uid = parseInt(q.user_id, 10)
+      if (!isNaN(uid)) query = query.where("PurchaseRequests.user_id", "=", uid)
+    }
+    if (q.email) query = query.where("PurchaseRequests.email", "like", `%${q.email}%`)
+    if (q.status) query = query.where("PurchaseRequests.status", "=", q.status.toUpperCase() as any)
+    if (q.request_type) {
+      query = query.where("PurchaseRequests.request_type", "=", q.request_type.toUpperCase() as any)
+    }
+    if (q.source) query = query.where("PurchaseRequests.source", "=", q.source.toUpperCase() as any)
+    if (sinceHours != null && !isNaN(sinceHours)) {
+      query = query.where("PurchaseRequests.createdAt", ">=", new Date(Date.now() - sinceHours * 3600_000))
+    }
+    if (q.stuck === "true" && !isNaN(stuckMinutes)) {
+      query = query
+        .where("PurchaseRequests.status", "in", PURCHASE_REQUEST_IN_PROGRESS_STATUSES as unknown as any)
+        .where("PurchaseRequests.updatedAt", "<=", new Date(Date.now() - stuckMinutes * 60_000))
+    }
+
+    const rows = await query.execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        count: rows.length,
+        filters: {
+          user_id: q.user_id ?? null,
+          email: q.email ?? null,
+          status: q.status ?? null,
+          request_type: q.request_type ?? null,
+          source: q.source ?? null,
+          since_hours: sinceHours,
+          stuck: q.stuck === "true",
+          stuck_minutes: q.stuck === "true" ? stuckMinutes : null,
+          limit,
+        },
+        purchase_requests: rows.map((r) => ({
+          ...r,
+          amount_charged_formatted: formatAmount(r.amount_charged),
+          prorated_amount_formatted: formatAmount(r.prorated_amount),
+          user_created: Boolean(r.user_created),
+          is_stuck:
+            PURCHASE_REQUEST_IN_PROGRESS_STATUSES.includes(r.status as any) &&
+            r.updatedAt.getTime() < Date.now() - stuckMinutes * 60_000,
+        })),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/purchase-request/:request_id — Single purchase request
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/query/purchase-request/:request_id", async (c) => {
+    const idParam = c.req.param("request_id")
+    const numericId = parseInt(idParam, 10)
+    const isNumeric = !isNaN(numericId) && String(numericId) === idParam
+
+    let query = db
+      .selectFrom("PurchaseRequests")
+      .leftJoin("Products", "Products.product_id", "PurchaseRequests.product_id")
+      .selectAll("PurchaseRequests")
+      .select(["Products.product_name"])
+
+    query = isNumeric
+      ? query.where("PurchaseRequests.request_id", "=", numericId)
+      : query.where("PurchaseRequests.request_uuid", "=", idParam)
+
+    const row = await query.executeTakeFirst()
+
+    if (!row) {
+      return c.json({ success: "error", error: `Purchase request ${idParam} not found` }, 404)
+    }
+
+    return c.json({
+      success: "success",
+      data: {
+        ...row,
+        request_data: redactSensitive(row.request_data),
+        amount_charged_formatted: formatAmount(row.amount_charged),
+        prorated_amount_formatted: formatAmount(row.prorated_amount),
+        user_created: Boolean(row.user_created),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/find-user — Find users by email substring
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/query/find-user", async (c) => {
+    const q = c.req.query()
+    const email = q.email
+    if (!email) return c.json({ success: "error", error: "Missing email query param" }, 400)
+
+    const limit = Math.min(parseInt(q.limit ?? "20", 10) || 20, 100)
+
+    const rows = await db
+      .selectFrom("Users")
+      .select([
+        "user_id", "email", "name", "role", "is_premium", "active",
+        "whitelabel_id", "created",
+      ])
+      .where("email", "like", `%${email}%`)
+      .orderBy("created", "desc")
+      .limit(limit)
+      .execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        count: rows.length,
+        users: rows.map((u) => ({
+          ...u,
+          is_premium: Boolean(u.is_premium),
+          active: Boolean(u.active),
+        })),
       },
     })
   })

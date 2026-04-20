@@ -504,6 +504,379 @@ async function cmdAuthLink(userId: string) {
   console.log()
 }
 
+// ─── Query commands (BillingLogs, Subscriptions, Transactions, Users) ───────
+//
+// All responses are redacted server-side before leaving the /dev route handlers
+// (SENSITIVE_KEY_REGEX in api/routes/dev/routes.ts), so the CLI can safely
+// print metadata / data blobs verbatim. Do NOT add client-side display of any
+// raw secret a user asks for — if it's not already redacted, the fix goes in
+// the server, not here.
+
+function levelColor(level: string) {
+  return level === "error" ? red : level === "warn" ? yellow : level === "debug" ? gray : cyan
+}
+
+function formatMetadata(meta: unknown, indent = 8): string {
+  if (meta == null) return ""
+  try {
+    const pretty = JSON.stringify(meta, null, 2)
+    if (pretty === "{}" || pretty === "null") return ""
+    const pad = " ".repeat(indent)
+    return pretty.split("\n").map((l) => pad + l).join("\n")
+  } catch {
+    return ""
+  }
+}
+
+async function cmdLogs(userIdArg: string | undefined, options: {
+  level?: string
+  component?: string
+  contextType?: string
+  requestId?: string
+  search?: string
+  since?: string
+  limit?: string
+}) {
+  const params = new URLSearchParams()
+  if (userIdArg) params.set("user_id", userIdArg)
+  if (options.level) params.set("level", options.level)
+  if (options.component) params.set("component", options.component)
+  if (options.contextType) params.set("context_type", options.contextType)
+  if (options.requestId) params.set("request_id", options.requestId)
+  if (options.search) params.set("search", options.search)
+  if (options.since) params.set("since", options.since)
+  if (options.limit) params.set("limit", options.limit)
+
+  const qs = params.toString()
+  const data = await api("GET", `/logs${qs ? `?${qs}` : ""}`)
+
+  header(`Billing Logs — ${data.count} result${data.count === 1 ? "" : "s"}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No matching logs"))
+    console.log()
+    return
+  }
+
+  for (const log of data.logs) {
+    const lc = levelColor(log.level)
+    const time = dim(new Date(log.createdAt).toLocaleString())
+    const levelTag = lc(log.level.toUpperCase().padEnd(5))
+    const comp = log.component ? dim(`[${log.component}]`) : ""
+    const user = log.user_id != null ? dim(`user:${log.user_id}`) : ""
+    const req = log.request_id ? dim(`req:${String(log.request_id).slice(0, 8)}`) : ""
+
+    console.log(`  ${time}  ${levelTag}  ${comp}  ${user}  ${req}`)
+    console.log(`        log_id:${log.log_id}  ${bold(log.message)}`)
+
+    const metaText = formatMetadata(log.metadata)
+    if (metaText) console.log(gray(metaText))
+
+    if (log.error_stack) {
+      const stackFirst = String(log.error_stack).split("\n")[0]
+      console.log(`        ${red("stack:")} ${dim(stackFirst)}`)
+    }
+    console.log()
+  }
+
+  console.log(dim(`  → yarn dev:tools log <log_id>                    (full detail)`))
+  console.log(dim(`  → yarn dev:tools logs-request <request_id>       (trace one request)`))
+  console.log()
+}
+
+async function cmdLog(logId: string) {
+  header(`Log — ID ${logId}`)
+  const log = await api("GET", `/logs/${logId}`)
+
+  const lc = levelColor(log.level)
+  kv("log_id", log.log_id, 2)
+  kv("level", lc(log.level), 2)
+  kv("component", log.component ?? "—", 2)
+  kv("context_type", log.context_type, 2)
+  kv("service", log.service ?? "—", 2)
+  kv("user_id", log.user_id ?? "—", 2)
+  kv("request_id", log.request_id ?? "—", 2)
+  kv("createdAt", new Date(log.createdAt).toLocaleString(), 2)
+
+  section("Message")
+  console.log(`  ${bold(log.message)}`)
+
+  if (log.metadata) {
+    section("Metadata (sensitive keys redacted)")
+    console.log(formatMetadata(log.metadata, 2))
+  }
+
+  if (log.error_stack) {
+    section("Error stack")
+    console.log(red(String(log.error_stack).split("\n").map((l: string) => "  " + l).join("\n")))
+  }
+  console.log()
+}
+
+async function cmdLogsRequest(requestId: string) {
+  header(`Request Trace — ${requestId}`)
+  const data = await api("GET", `/logs/request/${encodeURIComponent(requestId)}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No logs found for that request_id"))
+    console.log()
+    return
+  }
+
+  console.log(dim(`  ${data.count} log entries, in time order\n`))
+
+  for (const log of data.logs) {
+    const lc = levelColor(log.level)
+    const time = dim(new Date(log.createdAt).toLocaleTimeString())
+    const levelTag = lc(log.level.toUpperCase().padEnd(5))
+    const comp = log.component ? dim(`[${log.component}]`) : ""
+    console.log(`  ${time}  ${levelTag}  ${comp}  ${log.message}`)
+    const metaText = formatMetadata(log.metadata, 10)
+    if (metaText) console.log(gray(metaText))
+    if (log.error_stack) {
+      const stackFirst = String(log.error_stack).split("\n")[0]
+      console.log(`          ${red("stack:")} ${dim(stackFirst)}`)
+    }
+  }
+  console.log()
+}
+
+async function cmdSubsQuery(userIdArg: string | undefined, options: {
+  status?: string
+  productId?: string
+  overdue?: boolean
+  failuresGte?: string
+  limit?: string
+}) {
+  const params = new URLSearchParams()
+  if (userIdArg) params.set("user_id", userIdArg)
+  if (options.status) params.set("status", options.status)
+  if (options.productId) params.set("product_id", options.productId)
+  if (options.overdue) params.set("overdue", "true")
+  if (options.failuresGte) params.set("failures_gte", options.failuresGte)
+  if (options.limit) params.set("limit", options.limit)
+
+  const qs = params.toString()
+  const data = await api("GET", `/query/subscriptions${qs ? `?${qs}` : ""}`)
+
+  header(`Subscriptions — ${data.count} result${data.count === 1 ? "" : "s"}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No matching subscriptions"))
+    console.log()
+    return
+  }
+
+  for (const s of data.subscriptions) {
+    const statusColor =
+      s.status === "active" ? green :
+      s.status === "trial" ? cyan :
+      s.status === "paused" ? yellow : red
+
+    console.log(`  [${s.subscription_id}] ${bold(s.subscription_name)}  ${dim(`user:${s.user_id}`)}`)
+    console.log(`       Status:      ${statusColor(s.status ?? "null")}`)
+    console.log(`       Product:     ${s.product_name ?? "—"}  (id:${s.product_id ?? "—"})`)
+    console.log(`       Amount:      ${s.amount_formatted}  (${s.duration})`)
+    console.log(`       Renewal:     ${s.renewal_date}  ${dim(`(${s.renewal_in})`)}`)
+    if (s.payment_failure_count > 0) {
+      const pc = s.payment_failure_count >= 3 ? red : yellow
+      console.log(`       Failures:    ${pc(`${s.payment_failure_count} / 4`)}`)
+    }
+    if (s.next_renewal_attempt) console.log(`       Next retry:  ${yellow(String(s.next_renewal_attempt))}`)
+    if (s.suspension_date) console.log(`       Suspended:   ${yellow(String(s.suspension_date))}`)
+    const flags = [
+      s.cancel_on_renewal ? "cancel_on_renewal" : null,
+      s.downgrade_on_renewal ? "downgrade_on_renewal" : null,
+    ].filter(Boolean)
+    if (flags.length) console.log(`       Flags:       ${red(flags.join(", "))}`)
+    console.log(`       Environment: ${s.square_environment ?? "production"}`)
+    console.log()
+  }
+}
+
+async function cmdTransactionsQuery(userIdArg: string | undefined, options: {
+  status?: string
+  type?: string
+  since?: string
+  limit?: string
+}) {
+  const params = new URLSearchParams()
+  if (userIdArg) params.set("user_id", userIdArg)
+  if (options.status) params.set("status", options.status)
+  if (options.type) params.set("type", options.type)
+  if (options.since) params.set("since", options.since)
+  if (options.limit) params.set("limit", options.limit)
+
+  const qs = params.toString()
+  const data = await api("GET", `/query/transactions${qs ? `?${qs}` : ""}`)
+
+  header(`Transactions — ${data.count} result${data.count === 1 ? "" : "s"}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No matching transactions"))
+    console.log()
+    return
+  }
+
+  for (const t of data.transactions) {
+    const statusColor =
+      t.status === "completed" ? green :
+      t.status === "failed" ? red : yellow
+    const time = dim(new Date(t.createdAt).toLocaleString())
+    console.log(
+      `  ${time}  ${String(t.type).padEnd(12)}  ${statusColor(String(t.status ?? "").padEnd(10))}  ${t.amount_formatted.padEnd(10)}  ${dim(`tx:${t.transaction_id}`)}  ${dim(`user:${t.user_id ?? "—"}`)}`
+    )
+    if (t.memo) console.log(`        ${dim(t.memo)}`)
+    if (t.square_transaction_id) console.log(`        ${dim(`square:${t.square_transaction_id}`)}`)
+  }
+  console.log()
+}
+
+function purchaseRequestStatusColor(status: string | null | undefined) {
+  if (!status) return gray
+  const s = String(status).toUpperCase()
+  if (s === "COMPLETED") return green
+  if (s === "FAILED") return red
+  if (s === "RETRY_SCHEDULED") return yellow
+  if (s === "PENDING") return cyan
+  // In-progress states
+  return yellow
+}
+
+async function cmdPurchaseRequests(userIdArg: string | undefined, options: {
+  email?: string
+  status?: string
+  requestType?: string
+  source?: string
+  stuck?: boolean
+  stuckMinutes?: string
+  since?: string
+  limit?: string
+}) {
+  const params = new URLSearchParams()
+  if (userIdArg) params.set("user_id", userIdArg)
+  if (options.email) params.set("email", options.email)
+  if (options.status) params.set("status", options.status)
+  if (options.requestType) params.set("request_type", options.requestType)
+  if (options.source) params.set("source", options.source)
+  if (options.stuck) params.set("stuck", "true")
+  if (options.stuckMinutes) params.set("stuck_minutes", options.stuckMinutes)
+  if (options.since) params.set("since", options.since)
+  if (options.limit) params.set("limit", options.limit)
+
+  const qs = params.toString()
+  const data = await api("GET", `/query/purchase-requests${qs ? `?${qs}` : ""}`)
+
+  header(`Purchase Requests — ${data.count} result${data.count === 1 ? "" : "s"}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No matching purchase requests"))
+    console.log()
+    return
+  }
+
+  for (const r of data.purchase_requests) {
+    const statusColor = purchaseRequestStatusColor(r.status)
+    const time = dim(new Date(r.createdAt).toLocaleString())
+    const stuckTag = r.is_stuck ? red(" [STUCK]") : ""
+
+    console.log(`  ${time}  ${bold(`req:${r.request_id}`)}  ${statusColor(String(r.status ?? "").padEnd(22))}${stuckTag}`)
+    console.log(`       Type:        ${r.request_type}  (source:${r.source ?? "—"})`)
+    console.log(`       User/Email:  ${r.user_id ?? "—"}  ${dim(r.email)}`)
+    console.log(`       Product:     ${r.product_name ?? "—"}  (id:${r.product_id})`)
+    console.log(`       Charged:     ${r.amount_charged_formatted}${r.prorated_amount != null ? `  (prorated: ${r.prorated_amount_formatted})` : ""}`)
+    if (r.retry_count > 0 || r.max_retries > 0) {
+      const rc = r.retry_count >= r.max_retries ? red : yellow
+      console.log(`       Retries:     ${rc(`${r.retry_count} / ${r.max_retries}`)}${r.next_retry_at ? `  next: ${yellow(new Date(r.next_retry_at).toLocaleString())}` : ""}`)
+    }
+    if (r.started_at) {
+      const dur = r.processing_duration_ms != null ? `${r.processing_duration_ms}ms` : "—"
+      console.log(`       Timing:      started:${dim(new Date(r.started_at).toLocaleString())}  duration:${dur}`)
+    }
+    if (r.subscription_id_result || r.transaction_id_result) {
+      console.log(`       Results:     sub:${r.subscription_id_result ?? "—"}  tx:${r.transaction_id_result ?? "—"}`)
+    }
+    if (r.failure_reason) {
+      console.log(`       ${red("Failure:")}     ${r.failure_reason}${r.error_code ? dim(`  [${r.error_code}]`) : ""}`)
+    }
+    console.log(dim(`       uuid:${r.request_uuid}`))
+    console.log()
+  }
+
+  console.log(dim(`  → yarn dev:tools purchase-request <request_id>   (full detail)`))
+  console.log()
+}
+
+async function cmdPurchaseRequest(requestId: string) {
+  header(`Purchase Request — ${requestId}`)
+  const r = await api("GET", `/query/purchase-request/${encodeURIComponent(requestId)}`)
+
+  const statusColor = purchaseRequestStatusColor(r.status)
+  kv("request_id", r.request_id, 2)
+  kv("request_uuid", r.request_uuid, 2)
+  kv("request_type", r.request_type, 2)
+  kv("source", r.source ?? "—", 2)
+  kv("status", statusColor(r.status ?? "—"), 2)
+  kv("user_id", r.user_id ?? "—", 2)
+  kv("email", r.email, 2)
+  kv("product", `${r.product_name ?? "—"} (id:${r.product_id})`, 2)
+  kv("subscription_id", r.subscription_id ?? "—", 2)
+  kv("idempotency_key", r.idempotency_key ?? "—", 2)
+  kv("user_created", r.user_created, 2)
+  kv("createdAt", new Date(r.createdAt).toLocaleString(), 2)
+  kv("updatedAt", new Date(r.updatedAt).toLocaleString(), 2)
+
+  section("Timing")
+  kv("started_at", r.started_at ? new Date(r.started_at).toLocaleString() : "—", 2)
+  kv("completed_at", r.completed_at ? new Date(r.completed_at).toLocaleString() : "—", 2)
+  kv("processing_duration_ms", r.processing_duration_ms ?? "—", 2)
+
+  section("Retries")
+  kv("retry_count", r.retry_count, 2)
+  kv("max_retries", r.max_retries, 2)
+  kv("next_retry_at", r.next_retry_at ? new Date(r.next_retry_at).toLocaleString() : "—", 2)
+
+  section("Results")
+  kv("subscription_id_result", r.subscription_id_result ?? "—", 2)
+  kv("transaction_id_result", r.transaction_id_result ?? "—", 2)
+  kv("amount_charged", r.amount_charged_formatted, 2)
+  kv("card_id_result", r.card_id_result ?? "—", 2)
+  kv("prorated_amount", r.prorated_amount_formatted, 2)
+
+  if (r.failure_reason || r.error_code) {
+    section("Failure")
+    kv("error_code", r.error_code ?? "—", 2)
+    if (r.failure_reason) console.log(`  ${red("reason:")}\n  ${r.failure_reason}`)
+  }
+
+  section("Request data (sensitive keys redacted)")
+  console.log(formatMetadata(r.request_data, 2))
+  console.log()
+}
+
+async function cmdFindUser(email: string, options: { limit?: string }) {
+  const params = new URLSearchParams({ email })
+  if (options.limit) params.set("limit", options.limit)
+
+  const data = await api("GET", `/query/find-user?${params.toString()}`)
+
+  header(`Find User — "${email}" — ${data.count} match${data.count === 1 ? "" : "es"}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No users match that email"))
+    console.log()
+    return
+  }
+
+  for (const u of data.users) {
+    console.log(`  [${u.user_id}] ${bold(u.email)}  ${dim(u.name ?? "")}`)
+    console.log(`       role:${u.role}  is_premium:${u.is_premium}  active:${u.active}  whitelabel:${u.whitelabel_id}`)
+    console.log(`       created: ${dim(new Date(u.created).toLocaleString())}`)
+    console.log(`       ${dim("→")} ${cyan(`yarn dev:tools state ${u.user_id}`)}`)
+    console.log()
+  }
+}
+
 // ─── CLI Definition ───────────────────────────────────────────────────────────
 
 const program = new Command()
@@ -631,6 +1004,118 @@ program
   .command("auth-link <user_id>")
   .description("Generate a valid auth link for the /manage routes (30-day expiry)")
   .action(cmdAuthLink)
+
+// ─── Query commands (debugging billing data) ─────────────────────────────────
+
+program
+  .command("logs [user_id]")
+  .description("Query billinglogs table (sensitive keys are redacted server-side)")
+  .addHelpText("after", `
+Options are AND-ed together. Omit user_id to search across all users.
+
+Examples:
+  yarn dev:tools logs 42
+  yarn dev:tools logs --level error --since 24
+  yarn dev:tools logs --component payment-processor --limit 100
+  yarn dev:tools logs --request-id abc-123
+  yarn dev:tools logs --search "renewal failed" --since 72`)
+  .option("--level <level>", "Filter by level: debug, info, warn, error")
+  .option("--component <name>", "Filter by component (e.g. payment-processor)")
+  .option("--context-type <type>", "http_request | cron_job | event_handler | background")
+  .option("--request-id <id>", "Filter by request_id")
+  .option("--search <text>", "Case-sensitive LIKE search on message")
+  .option("--since <hours>", "Only logs from the last N hours")
+  .option("--limit <n>", "Max rows (default 50, max 500)")
+  .action(cmdLogs)
+
+program
+  .command("log <log_id>")
+  .description("Show a single billing log entry with full metadata and stack")
+  .action(cmdLog)
+
+program
+  .command("logs-request <request_id>")
+  .description("Show all billing logs for one request_id (full trace, time-ordered)")
+  .action(cmdLogsRequest)
+
+program
+  .command("subs [user_id]")
+  .description("Query Subscriptions table with filters")
+  .addHelpText("after", `
+Examples:
+  yarn dev:tools subs 42
+  yarn dev:tools subs --status suspended
+  yarn dev:tools subs --overdue
+  yarn dev:tools subs --failures-gte 2 --limit 20`)
+  .option("--status <status>", "active | trial | paused | cancelled | suspended | expired | inactive | disabled")
+  .option("--product-id <id>", "Filter by product_id")
+  .option("--overdue", "Active subscriptions with renewal_date in the past")
+  .option("--failures-gte <n>", "Subscriptions with payment_failure_count >= N")
+  .option("--limit <n>", "Max rows (default 50, max 500)")
+  .action(cmdSubsQuery)
+
+program
+  .command("transactions [user_id]")
+  .description("Query Transactions table with filters")
+  .addHelpText("after", `
+Examples:
+  yarn dev:tools transactions 42
+  yarn dev:tools transactions --status failed --since 24
+  yarn dev:tools transactions --type charge --limit 100
+  yarn dev:tools transactions --type webhook`)
+  .option("--status <status>", "completed | failed | pending (depends on type)")
+  .option("--type <type>", "charge | refund | webhook")
+  .option("--since <hours>", "Only transactions from the last N hours")
+  .option("--limit <n>", "Max rows (default 50, max 500)")
+  .action(cmdTransactionsQuery)
+
+program
+  .command("purchase-requests [user_id]")
+  .description("Query PurchaseRequests table (every purchase attempt, with status transitions)")
+  .addHelpText("after", `
+Critical for spotting purchases that failed mid-flow — the PurchaseRequests
+table records every attempt at a new purchase, renewal, or upgrade with a
+granular status. A row stuck in an in-progress status (PENDING, VALIDATING,
+PROCESSING_PAYMENT, CREATING_SUBSCRIPTION, FINALIZING) means the system lost
+track of it: crash, unhandled exception, deploy interruption, etc. Use --stuck
+to surface exactly those rows.
+
+Statuses:
+  PENDING   VALIDATING   PROCESSING_PAYMENT   CREATING_SUBSCRIPTION
+  FINALIZING   COMPLETED   FAILED   RETRY_SCHEDULED
+
+Request types:   NEW_PURCHASE | RENEWAL | UPGRADE
+Sources:         API | CRON | ADMIN
+
+Examples:
+  yarn dev:tools purchase-requests 42
+  yarn dev:tools purchase-requests --status FAILED --since 24
+  yarn dev:tools purchase-requests --stuck
+  yarn dev:tools purchase-requests --stuck --stuck-minutes 15
+  yarn dev:tools purchase-requests --type RENEWAL --source CRON --since 168
+  yarn dev:tools purchase-requests --email @acme.com`)
+  .option("--email <email>", "Filter by email substring (LIKE %email%)")
+  .option("--status <status>", "PENDING | VALIDATING | PROCESSING_PAYMENT | CREATING_SUBSCRIPTION | FINALIZING | COMPLETED | FAILED | RETRY_SCHEDULED")
+  .option("--type <type>", "NEW_PURCHASE | RENEWAL | UPGRADE", (v) => v)
+  .option("--source <source>", "API | CRON | ADMIN")
+  .option("--stuck", "Non-terminal requests older than --stuck-minutes (default 5) — likely failed mid-flow")
+  .option("--stuck-minutes <n>", "Minutes threshold for --stuck (default 5)")
+  .option("--since <hours>", "Only requests from the last N hours")
+  .option("--limit <n>", "Max rows (default 50, max 500)")
+  .action((userId, opts) =>
+    cmdPurchaseRequests(userId, { ...opts, requestType: opts.type })
+  )
+
+program
+  .command("purchase-request <request_id>")
+  .description("Show a single purchase request with full detail (accepts request_id or request_uuid)")
+  .action(cmdPurchaseRequest)
+
+program
+  .command("find-user <email>")
+  .description("Find users by email substring (LIKE %email%)")
+  .option("--limit <n>", "Max rows (default 20, max 100)")
+  .action(cmdFindUser)
 
 // ─── env subcommand group ─────────────────────────────────────────────────────
 

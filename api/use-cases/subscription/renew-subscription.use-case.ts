@@ -23,6 +23,8 @@ import type { IHomeUptickApiClient } from "@api/infrastructure/external-api/home
 import type { ProductData } from "@api/domain/types/product-data.types"
 import type { WhitelabelRepository, ProductRepository, HomeUptickSubscriptionRepository } from "@api/lib/repositories"
 import type { ICriticalAlertService } from "@api/domain/services/critical-alert.service"
+import { SquareApiError, isCriticalSquareError } from "@api/infrastructure/payment/error/payment-error.types"
+import type { IPaymentErrorTranslator } from "@api/infrastructure/payment/error/payment-error-translator.interface"
 
 interface Dependencies {
   logger: ILogger
@@ -40,6 +42,7 @@ interface Dependencies {
   homeUptickSubscriptionRepository?: HomeUptickSubscriptionRepository
   whitelabelRepository?: WhitelabelRepository
   criticalAlertService?: ICriticalAlertService
+  paymentErrorTranslator?: IPaymentErrorTranslator
   adminAlertEmail?: string
 }
 
@@ -435,20 +438,63 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         amount: totalAmount,
       })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      const rawErrorMessage = error instanceof Error ? error.message : "Unknown error"
+      const squareCode = error instanceof SquareApiError ? error.squareCode : undefined
+      const isCriticalSquare = isCriticalSquareError(error)
+
+      // Translate Square errors into a user-friendly message. Card declines
+      // (including TRANSACTION_LIMIT) should surface to the user as a clear
+      // decline reason, not as raw Square API output.
+      let userFacingMessage = rawErrorMessage
+      if (error instanceof SquareApiError && this.deps.paymentErrorTranslator && !isCriticalSquare) {
+        const translated = this.deps.paymentErrorTranslator.translate(error)
+        userFacingMessage = translated.message
+      }
+
       logger.error("Subscription renewal error", {
-        error: errorMessage,
+        error: rawErrorMessage,
         subscriptionId: input.subscriptionId,
         duration: new Date().getTime() - startTime.getTime(),
+        squareCode,
+        criticalSquareError: isCriticalSquare || undefined,
       })
 
       // Mark purchase request as failed if it was created
       if (purchaseRequestId) {
         try {
-          await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, errorMessage, "RENEWAL_ERROR")
+          await this.deps.purchaseRequestRepository.markAsFailed(
+            purchaseRequestId,
+            rawErrorMessage,
+            isCriticalSquare ? "SQUARE_PLATFORM_ERROR" : "RENEWAL_ERROR"
+          )
         } catch (updateError) {
           logger.error("Failed to update purchase request status", { updateError })
         }
+      }
+
+      // Critical Square errors = platform/auth/outage problems that will keep
+      // failing until a developer fixes something (invalid token, disabled app,
+      // Square outage, etc.). Page the developer immediately, don't spam the
+      // user, and don't burn their retry budget.
+      if (isCriticalSquare && this.deps.criticalAlertService) {
+        try {
+          await this.deps.criticalAlertService.alertSquareApiFailure(
+            error instanceof Error ? error : new Error(rawErrorMessage),
+            {
+              subscriptionId: input.subscriptionId,
+              email: input.email,
+              squareCode,
+              impact:
+                "Renewal blocked by Square platform error. User was NOT charged and retry budget was NOT consumed.",
+              action:
+                "Check Square credentials, application status, and Square's status page. Once resolved, the subscription will retry on its existing schedule.",
+            }
+          )
+        } catch (alertError) {
+          logger.error("Failed to send Square critical alert", { alertError })
+        }
+
+        return failure(rawErrorMessage, "SQUARE_PLATFORM_ERROR")
       }
 
       if (isCancelOnRenewal) {
@@ -459,7 +505,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
             await this.deps.emailService.sendEmail({
               to: this.deps.adminAlertEmail,
               subject: `[ERROR] Cancel-on-renewal failed — subscription ${input.subscriptionId}`,
-              html: `<p>An error occurred while processing a cancel-on-renewal for subscription <strong>${input.subscriptionId}</strong> (user: ${input.email}).</p><p><strong>Error:</strong> ${errorMessage}</p>`,
+              html: `<p>An error occurred while processing a cancel-on-renewal for subscription <strong>${input.subscriptionId}</strong> (user: ${input.email}).</p><p><strong>Error:</strong> ${rawErrorMessage}</p>`,
               templateName: "system-error",
             })
           } catch (alertError) {
@@ -467,11 +513,18 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           }
         }
       } else {
-        // Handle renewal failure (keeps existing retry logic for backward compatibility)
-        await this.handleRenewalFailure(input.subscriptionId, input.email, errorMessage, input.triggeredBy)
+        // Pass the user-friendly message + Square code through so the
+        // PaymentFailed email shows a human-readable decline reason.
+        await this.handleRenewalFailure(
+          input.subscriptionId,
+          input.email,
+          userFacingMessage,
+          input.triggeredBy,
+          squareCode
+        )
       }
 
-      return failure(errorMessage, "RENEWAL_ERROR")
+      return failure(rawErrorMessage, "RENEWAL_ERROR")
     }
   }
 
@@ -558,7 +611,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     subscriptionId: number,
     email: string,
     error: string,
-    triggeredBy?: "cron" | "card_update"
+    triggeredBy?: "cron" | "card_update",
+    errorCode?: string
   ): Promise<void> {
     const { logger, eventBus, subscriptionRepository, transactionRepository } = this.deps
 
@@ -604,7 +658,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
             paymentType: "renewal",
             environment: subscription.square_environment || "production",
             errorMessage: error,
-            errorCode: "CARD_DECLINED",
+            errorCode: errorCode ?? "CARD_DECLINED",
             willRetry: existingNextAttempt !== undefined,
             nextRetryDate: existingNextAttempt,
             triggerSource: "card_update",
@@ -707,7 +761,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           paymentType: "renewal",
           environment: subscription.square_environment || "production",
           errorMessage: error,
-          errorCode: "RENEWAL_ERROR",
+          errorCode: errorCode ?? "RENEWAL_ERROR",
           willRetry: true,
           nextRetryDate: nextAttempt,
           triggerSource: "cron",

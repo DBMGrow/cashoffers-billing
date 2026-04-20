@@ -1,4 +1,4 @@
-import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient, criticalAlertService } from '@api/lib/services'
+import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient, criticalAlertService, paymentErrorTranslator } from '@api/lib/services'
 import { config } from '@api/config/config.service'
 import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository, whitelabelRepository, homeUptickSubscriptionRepository } from '@api/lib/repositories'
 import { CreateSubscriptionUseCase } from './create-subscription.use-case'
@@ -42,6 +42,7 @@ export const renewSubscriptionUseCase = new RenewSubscriptionUseCase({
   homeUptickSubscriptionRepository,
   whitelabelRepository,
   criticalAlertService,
+  paymentErrorTranslator,
   adminAlertEmail: config.adminEmail,
 })
 

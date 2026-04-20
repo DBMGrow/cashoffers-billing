@@ -22,6 +22,11 @@ export class SquareErrorTranslator implements IPaymentErrorTranslator {
     CVV_FAILURE: PaymentErrorCategory.CARD_DECLINED,
     ADDRESS_VERIFICATION_FAILURE: PaymentErrorCategory.CARD_DECLINED,
     GENERIC_DECLINE: PaymentErrorCategory.CARD_DECLINED,
+    TRANSACTION_LIMIT: PaymentErrorCategory.CARD_DECLINED,
+    CARD_DECLINED_CALL_ISSUER: PaymentErrorCategory.CARD_DECLINED,
+    CARD_DECLINED_VERIFICATION_REQUIRED: PaymentErrorCategory.CARD_DECLINED,
+    CHIP_INSERTION_REQUIRED: PaymentErrorCategory.CARD_DECLINED,
+    VOICE_FAILURE: PaymentErrorCategory.CARD_DECLINED,
 
     // Insufficient funds
     INSUFFICIENT_FUNDS: PaymentErrorCategory.INSUFFICIENT_FUNDS,
@@ -100,6 +105,26 @@ export class SquareErrorTranslator implements IPaymentErrorTranslator {
     GENERIC_DECLINE: {
       title: "Payment Declined",
       message: "Your payment was declined. Please contact your bank or try a different payment method.",
+    },
+    TRANSACTION_LIMIT: {
+      title: "Payment Declined",
+      message:
+        "Your payment was declined because the transaction exceeds an allowable limit. Please contact your bank to authorize the charge, or try a different card.",
+    },
+    CARD_DECLINED_CALL_ISSUER: {
+      title: "Contact Your Bank",
+      message:
+        "Your payment was declined by your bank. Please contact your card issuer to authorize this transaction, then try again.",
+    },
+    CARD_DECLINED_VERIFICATION_REQUIRED: {
+      title: "Verification Required",
+      message:
+        "Your bank requires additional verification for this transaction. Please contact your card issuer, then try again.",
+    },
+    VOICE_FAILURE: {
+      title: "Payment Declined",
+      message:
+        "Your bank declined this transaction. Please contact your card issuer or try a different payment method.",
     },
     TEMPORARY_ERROR: {
       title: "Temporary Error",

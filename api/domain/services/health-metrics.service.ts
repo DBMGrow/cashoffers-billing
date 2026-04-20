@@ -128,6 +128,20 @@ export class HealthMetricsService implements IHealthMetricsService {
     return status === 'completed' || status === 'success'
   }
 
+  private parseMetadata(metadata: unknown): Record<string, unknown> | null {
+    if (!metadata) return null
+    if (typeof metadata === 'object') return metadata as Record<string, unknown>
+    if (typeof metadata === 'string') {
+      try {
+        const parsed = JSON.parse(metadata)
+        return parsed && typeof parsed === 'object' ? parsed : null
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
   private isNewSubscriptionTransaction(t: any): boolean {
     // New subscription transactions have "Subscription created" in the memo
     return t.type === 'subscription' && typeof t.memo === 'string' &&
@@ -230,13 +244,20 @@ export class HealthMetricsService implements IHealthMetricsService {
     const logs = await this.billingLogRepository.findByDateRange(startDate, endDate)
 
     const errorLogs = logs.filter((log: any) => log.level === 'error')
-    const criticalErrors = errorLogs.filter(
-      (log: any) =>
-        log.message.toLowerCase().includes('square') ||
-        log.message.toLowerCase().includes('database') ||
-        log.message.toLowerCase().includes('api') ||
-        log.message.toLowerCase().includes('critical')
-    )
+
+    // "Critical" in the daily report = platform/config/infra failures that need
+    // developer attention. It should NOT include expected downstream noise from
+    // normal user card declines (which cascade into Square/renewal error logs).
+    const criticalErrors = errorLogs.filter((log: any) => {
+      const metadata = this.parseMetadata(log.metadata)
+      // Explicitly flagged critical Square platform errors (token/config/outage)
+      if (metadata?.criticalSquareError === true) return true
+      // Database/connection failures
+      const msg = String(log.message || '').toLowerCase()
+      if (msg.includes('database') || msg.includes('connection refused')) return true
+      if (msg.includes('critical')) return true
+      return false
+    })
 
     // Get top 10 most recent errors
     const recentErrors: ErrorSummary[] = errorLogs

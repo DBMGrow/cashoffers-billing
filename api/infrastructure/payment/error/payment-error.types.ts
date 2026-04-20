@@ -100,6 +100,45 @@ export class SquareApiError extends Error {
 }
 
 /**
+ * Square error codes that represent a *platform* problem — invalid credentials,
+ * disabled application, service outages. These will keep failing until a
+ * developer fixes something on our side, so they must page the developer.
+ *
+ * Codes that surface as a declined-payment to the end user (CARD_DECLINED,
+ * CVV_FAILURE, TRANSACTION_LIMIT, etc.) are NOT in this list — those flow
+ * through the normal "payment failed" email path with a friendly message.
+ *
+ * See https://developer.squareup.com/reference/square/enums/ErrorCode
+ */
+const CRITICAL_SQUARE_CODES = new Set<string>([
+  "UNAUTHORIZED",
+  "FORBIDDEN",
+  "INSUFFICIENT_SCOPES",
+  "INVALID_TOKEN",
+  "EXPIRED_TOKEN",
+  "INVALID_LOCATION",
+  "LOCATION_NOT_ACTIVATED",
+  "APPLICATION_DISABLED",
+  "ACCOUNT_UNUSABLE",
+  "MERCHANT_SUBSCRIPTION_NOT_FOUND",
+  "INTERNAL_SERVER_ERROR",
+  "SERVICE_UNAVAILABLE",
+  "GATEWAY_TIMEOUT",
+])
+
+/**
+ * True when the Square error is a platform/auth/outage problem that requires
+ * developer intervention and will keep failing until resolved. Card-level
+ * declines (including seller-account TRANSACTION_LIMIT) are NOT critical —
+ * those are handled as user-facing payment failures with a friendly message.
+ */
+export function isCriticalSquareError(error: unknown): error is SquareApiError {
+  if (!(error instanceof SquareApiError)) return false
+  if (CRITICAL_SQUARE_CODES.has(error.squareCode)) return true
+  return error.squareErrors.some((e) => e.code && CRITICAL_SQUARE_CODES.has(e.code))
+}
+
+/**
  * Recovery suggestions for common error scenarios
  */
 export const RecoverySuggestions = {
