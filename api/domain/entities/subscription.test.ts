@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { Subscription } from "./subscription"
 import { Money } from "../value-objects/money"
 import { SubscriptionStatus } from "../value-objects/subscription-status"
@@ -186,6 +186,15 @@ describe("Subscription Entity", () => {
   })
 
   describe("Business Rules - Renewal", () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date("2024-01-01"))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it("should renew active subscription", () => {
       const subscription = createTestSubscription({
         renewalDate: new Date("2024-01-01"),
@@ -240,6 +249,24 @@ describe("Subscription Entity", () => {
       })
 
       expect(() => subscription.renew()).toThrow("Cannot renew subscription")
+    })
+
+    it("should advance from now (not from the stale renewalDate) when long overdue", () => {
+      // Subscription was suspended back in February; user resumes in June.
+      // Renewing once must move the renewal date to ~July, not March, so the
+      // user gets a full forward period instead of being immediately renewed
+      // again on the next cron tick.
+      vi.setSystemTime(new Date("2024-06-15"))
+
+      const subscription = createTestSubscription({
+        status: SubscriptionStatus.suspended(),
+        renewalDate: new Date("2024-02-01"),
+      })
+
+      const renewed = subscription.renew()
+
+      expect(renewed.renewalDate).toEqual(new Date("2024-07-15"))
+      expect(renewed.isActive()).toBe(true)
     })
   })
 
@@ -320,7 +347,16 @@ describe("Subscription Entity", () => {
   })
 
   describe("Renewal Date Calculation", () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it("should calculate monthly renewal correctly", () => {
+      vi.setSystemTime(new Date("2024-01-15"))
       const subscription = createTestSubscription({
         duration: Duration.monthly(),
         renewalDate: new Date("2024-01-15"),
@@ -331,6 +367,7 @@ describe("Subscription Entity", () => {
     })
 
     it("should calculate yearly renewal correctly", () => {
+      vi.setSystemTime(new Date("2024-01-01"))
       const subscription = createTestSubscription({
         duration: Duration.yearly(),
         renewalDate: new Date("2024-01-01"),
@@ -341,6 +378,7 @@ describe("Subscription Entity", () => {
     })
 
     it("should calculate weekly renewal correctly", () => {
+      vi.setSystemTime(new Date("2024-01-01"))
       const subscription = createTestSubscription({
         duration: Duration.weekly(),
         renewalDate: new Date("2024-01-01"),

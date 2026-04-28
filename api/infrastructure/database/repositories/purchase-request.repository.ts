@@ -162,6 +162,34 @@ export class PurchaseRequestRepository {
       .execute()
   }
 
+  /**
+   * Returns a non-terminal RENEWAL PurchaseRequest for the given subscription,
+   * or null if none exists. Used to short-circuit duplicate renewal attempts
+   * so the same subscription can't be charged twice by two near-simultaneous
+   * triggers (e.g. cron + card-update).
+   *
+   * In-flight = status not in ('COMPLETED', 'FAILED'). RETRY_SCHEDULED counts
+   * as in-flight too: it's a deferred retry that will pick this subscription
+   * up on its own schedule.
+   */
+  async findInFlightRenewal(
+    subscriptionId: number,
+    trx?: TransactionContext
+  ): Promise<Selectable<PurchaseRequests> | null> {
+    const db = trx ?? this.db
+
+    const result = await db
+      .selectFrom('PurchaseRequests')
+      .where('request_type', '=', 'RENEWAL')
+      .where('subscription_id', '=', subscriptionId)
+      .where('status', 'not in', ['COMPLETED', 'FAILED'])
+      .selectAll()
+      .orderBy('createdAt', 'desc')
+      .executeTakeFirst()
+
+    return result || null
+  }
+
   async markAsProcessing(id: number, trx?: TransactionContext): Promise<Selectable<PurchaseRequests>> {
     return await this.update(id, {
       status: 'VALIDATING',

@@ -1301,10 +1301,12 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       .where("user_id", "=", userId)
       .execute()
 
-    // Retry renewal for suspended subscriptions (mirrors production CardUpdatedRetryHandler)
+    // Retry renewal for overdue subscriptions (mirrors CreateCardUseCase post-update loop)
     const subscriptions = await subscriptionRepository.findByUserId(userId)
     const needsRetry = subscriptions.filter(
-      (s) => s.status === 'suspended' || s.next_renewal_attempt !== null
+      (s) =>
+        (s.status === 'active' || s.status === 'suspended') &&
+        (!s.renewal_date || new Date(s.renewal_date) <= new Date())
     )
 
     const renewalResults: Array<{ subscription_id: number; status: string; result: string }> = []

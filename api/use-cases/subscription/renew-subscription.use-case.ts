@@ -94,6 +94,33 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         return failure("Subscription has no product", "INVALID_SUBSCRIPTION")
       }
 
+      // Idempotency guard: if another RENEWAL is already in flight for this
+      // subscription (e.g. cron and a card-update fired within the same tick),
+      // skip rather than charge the card a second time. This is defense in
+      // depth — the upstream callers should already be deduping by the time
+      // they reach here.
+      if (this.deps.purchaseRequestRepository.findInFlightRenewal) {
+        const inFlight = await this.deps.purchaseRequestRepository.findInFlightRenewal(
+          validatedInput.subscriptionId
+        )
+        if (inFlight) {
+          logger.info("Skipping renewal: another renewal already in flight", {
+            subscriptionId: validatedInput.subscriptionId,
+            inFlightRequestId: inFlight.request_id,
+            inFlightStatus: inFlight.status,
+          })
+          return success({
+            subscriptionId: validatedInput.subscriptionId,
+            transactionId: "",
+            nextRenewalDate: subscription.renewal_date
+              ? new Date(subscription.renewal_date)
+              : new Date(),
+            amount: 0,
+            skipped: true,
+          })
+        }
+      }
+
       // 0. Create PurchaseRequest for tracking (status: PENDING, type: RENEWAL, source: CRON)
       const purchaseRequest = await this.deps.purchaseRequestRepository.create({
         request_uuid: uuidv4(),
@@ -337,10 +364,16 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
 
       // Update subscription and log transaction atomically
       await this.deps.transactionManager.runInTransaction(async (trx) => {
-        // Update subscription with renewed entity data
+        // Update subscription with renewed entity data. Explicitly clear
+        // suspension_date: it lives on the DB row but not on the domain
+        // entity, so the mapper alone leaves a stale value behind after a
+        // suspended subscription is successfully renewed.
         await this.deps.subscriptionRepository.update(
           validatedInput.subscriptionId,
-          SubscriptionMapper.toDatabase(renewedEntity) as any,
+          {
+            ...(SubscriptionMapper.toDatabase(renewedEntity) as any),
+            suspension_date: null,
+          },
           trx
         )
 

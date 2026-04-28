@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { RenewSubscriptionUseCase } from "./renew-subscription.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
 import { MockPaymentProvider } from "@api/infrastructure/payment/mock/mock-payment.provider"
@@ -325,6 +325,12 @@ describe("RenewSubscriptionUseCase", () => {
 
   describe("Successful Renewal", () => {
     beforeEach(() => {
+      // Pin "now" to the seeded renewal_date so the catchup logic in
+      // Subscription.renew() (jump to max(now, oldRenewalDate) + period)
+      // still produces the expected 2024-02-01 next renewal.
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date("2024-01-01"))
+
       // Add subscription
       subscriptionRepo.addSubscription({
         subscription_id: 1,
@@ -359,6 +365,10 @@ describe("RenewSubscriptionUseCase", () => {
         expMonth: 12,
         expYear: 2025,
       })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
     })
 
     it("should renew subscription successfully", async () => {
@@ -455,6 +465,17 @@ describe("RenewSubscriptionUseCase", () => {
   })
 
   describe("Renewal Date Calculation", () => {
+    beforeEach(() => {
+      // Pin "now" so the catchup logic in Subscription.renew() doesn't push
+      // the new renewal date past the seeded fixture dates.
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date("2024-01-01"))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it("should calculate daily renewal correctly", async () => {
       subscriptionRepo.addSubscription({
         subscription_id: 2,

@@ -21,7 +21,6 @@ import { manageRoutes } from "./routes/manage/routes"
 import { testRoutes } from "./routes/test/routes"
 import { devRoutes } from "./routes/dev/routes"
 import { webhookRoutes } from "./routes/webhooks/routes"
-import "./lib/late-handlers"
 
 // Import middleware
 import { errorHandler } from "./lib/middleware/errorHandler"

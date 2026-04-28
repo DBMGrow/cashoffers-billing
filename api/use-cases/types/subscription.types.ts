@@ -83,6 +83,8 @@ export interface RenewSubscriptionOutput {
   transactionId: string
   nextRenewalDate: Date
   amount: number
+  /** True if another renewal was already in flight and this call was a no-op. */
+  skipped?: boolean
 }
 
 /**

@@ -233,8 +233,13 @@ export class Subscription extends Entity<number> {
       return this.cancel()
     }
 
-    // Calculate next renewal date
-    const nextRenewalDate = this.duration.calculateNextRenewalDate(this.renewalDate)
+    // Anchor the next renewal to "now" if the existing renewal date is already
+    // in the past (e.g. resuming a long-suspended subscription). Without this,
+    // a single renew() call only advances by one period, which can leave the
+    // new date still in the past and trigger an immediate second renewal.
+    const now = new Date()
+    const baseDate = this.renewalDate > now ? this.renewalDate : now
+    const nextRenewalDate = this.duration.calculateNextRenewalDate(baseDate)
 
     return new Subscription({
       ...this.props,
