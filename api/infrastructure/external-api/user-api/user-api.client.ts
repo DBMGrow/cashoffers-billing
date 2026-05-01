@@ -142,7 +142,17 @@ export class UserApiClient implements IUserApiClient {
       return this.parseUserResponse(data)
     } catch (error) {
       const duration = Date.now() - startTime
-      this.logger.error("Failed to update user", error, { userId, duration })
+      const responseData = (error as any)?.response?.data
+      this.logger.error("Failed to update user", error, {
+        userId,
+        duration,
+        requestBody: userData,
+        responseData,
+      })
+      if (responseData) {
+        const detail = typeof responseData === "string" ? responseData : JSON.stringify(responseData)
+        throw new Error(`Request failed with status code ${(error as any).response.status}: ${detail}`)
+      }
       throw error
     }
   }
