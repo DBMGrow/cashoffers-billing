@@ -170,7 +170,7 @@ app.openapi(SendReactivationRoute, async (c) => {
     const { email } = c.req.valid("json")
 
     await axios.post(
-      `${config.api.routeAuthV2}/signup/reactivate/sendrequest`,
+      `${config.api.urlV2}/signup/reactivate/sendrequest`,
       { email },
       { headers: { "Content-Type": "application/json" } }
     )
