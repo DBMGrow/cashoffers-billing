@@ -48,6 +48,7 @@ export interface IConfig {
     masterToken: string
     key: string // API_KEY - token for calling main auth API
     route?: string // API_ROUTE - internal/billing API base URL (optional)
+    routeAuthV2: string // API_ROUTE_AUTH_V2 - main API v2 auth/signup base URL
   }
 
   // App

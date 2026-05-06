@@ -1,10 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import axios from "axios"
-import { createElement } from "react"
-import { render } from "@react-email/render"
 import { config } from "@api/config/config.service"
-import AccountReactivationEmail from "@api/infrastructure/email/templates/account-reactivation.email"
 import {
   CheckUserExistsRoute,
   CheckSlugExistsRoute,
@@ -14,7 +11,6 @@ import {
   GetUniqueSlugRoute,
 } from "./schemas"
 import { db } from "@api/lib/database"
-import { emailService } from "@api/lib/services"
 import { checkSlugExists } from "./utils"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -166,60 +162,18 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
 
 /**
  * POST /signup/sendreactivation
- * Sends reactivation email to inactive premium users
+ * Thin proxy to the main API's reactivation endpoint, which owns the
+ * token generation, persistence, and email delivery.
  */
 app.openapi(SendReactivationRoute, async (c) => {
   try {
-    const body = c.req.valid("json")
-    const { email } = body
+    const { email } = c.req.valid("json")
 
-    // Fetch user from database
-    const user = await db.selectFrom("Users").selectAll().where("email", "=", email).executeTakeFirst()
-
-    if (!user) {
-      return c.json(
-        {
-          success: "error" as const,
-          error: "User not found",
-        },
-        400
-      )
-    }
-
-    // Verify user can downgrade (is_premium && !active)
-    if (!user.is_premium || user.active) {
-      return c.json(
-        {
-          success: "error" as const,
-          error: "User is not eligible for reactivation",
-        },
-        400
-      )
-    }
-
-    // Generate reactivation token
-    const reactivationToken =
-      Math.random().toString(36).substring(2, 10).toUpperCase() +
-      Math.random().toString(36).substring(2, 10).toUpperCase()
-
-    // Build reactivation URL
-    const reactivationUrl = `${config.app.url}/subscribe?reactivation_token=${reactivationToken}&email=${encodeURIComponent(email)}`
-
-    // Send reactivation email
-    const html = await render(
-      createElement(AccountReactivationEmail, {
-        name: user.name || "User",
-        reactivationUrl,
-      })
+    await axios.post(
+      `${config.api.routeAuthV2}/signup/reactivate/sendrequest`,
+      { email },
+      { headers: { "Content-Type": "application/json" } }
     )
-    await emailService.sendEmail({
-      to: email,
-      subject: "Reactivate Your CashOffers Account",
-      html,
-      templateName: "account-reactivation",
-    })
-
-    console.log(`Reactivation email sent to ${email} with token ${reactivationToken}`)
 
     return c.json(
       {
@@ -229,8 +183,10 @@ app.openapi(SendReactivationRoute, async (c) => {
       200
     )
   } catch (error: any) {
-    console.error("Error in sendreactivation API:", error)
-    return c.json({ success: "error" as const, error: error.message }, 400)
+    const upstreamMessage = error?.response?.data?.error || error?.response?.data?.message
+    const message = upstreamMessage || error?.message || "Failed to send reactivation email"
+    console.error("Error proxying sendreactivation to main API:", message)
+    return c.json({ success: "error" as const, error: message }, 400)
   }
 })
 

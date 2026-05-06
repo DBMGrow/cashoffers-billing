@@ -18,6 +18,7 @@ const buildConfig = (): IConfig => {
     "API_URL",
     "API_MASTER_TOKEN",
     "API_KEY",
+    "API_ROUTE_AUTH_V2",
     "SENDGRID_API_KEY",
     "DEV_EMAIL",
     "JWT_SECRET",
@@ -66,6 +67,7 @@ const buildConfig = (): IConfig => {
       masterToken: process.env.API_MASTER_TOKEN!,
       key: process.env.API_KEY!,
       route: process.env.API_ROUTE,
+      routeAuthV2: process.env.API_ROUTE_AUTH_V2!,
     },
 
     app: {
