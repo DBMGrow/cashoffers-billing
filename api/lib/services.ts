@@ -80,7 +80,7 @@ export const healthReportService = createHealthReportService(healthMetricsServic
 
 export const criticalAlertService = createCriticalAlertService(emailService, config, logger)
 
-export const whitelabelResolverService = createWhitelabelResolverService(db)
+export const whitelabelResolverService = createWhitelabelResolverService(db, userApiClient)
 
 // Register event handlers
 const emailNotificationHandler = new EmailNotificationHandler(emailService, logger)

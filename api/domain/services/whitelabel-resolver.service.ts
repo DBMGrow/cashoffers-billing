@@ -8,6 +8,7 @@
 import { Kysely } from "kysely"
 import type { DB } from "@api/lib/db"
 import { WhitelabelData } from "@api/domain/types/whitelabel-data.types"
+import type { IUserApiClient } from "@api/infrastructure/external-api/user-api.interface"
 
 export interface ResolvedWhitelabel {
   whitelabel_id: number
@@ -26,14 +27,48 @@ const DEFAULT_BRANDING: WhitelabelData = {
 }
 
 export class WhitelabelResolverService {
-  constructor(private db: Kysely<DB>) {}
+  constructor(
+    private db: Kysely<DB>,
+    private userApiClient?: IUserApiClient
+  ) {}
 
   /**
-   * Resolve whitelabel for a user by looking up their subscriptions
+   * Resolve whitelabel for a user.
+   *
+   * Priority order:
+   * 1. User's whitelabel_id (admin-managed, source of truth)
+   * 2. whitelabel_code on the product tied to the user's latest active subscription
+   * 3. Default whitelabel
    */
   async resolveForUser(userId: number): Promise<ResolvedWhitelabel> {
     try {
-      // Get the user's latest active subscription
+      // 1. Prefer the user's explicitly assigned whitelabel_id (via user API)
+      if (this.userApiClient) {
+        const user = await this.userApiClient.getUser(userId)
+        if (user?.whitelabel_id) {
+          return this.resolveById(user.whitelabel_id)
+        }
+      }
+
+      // 1.5. Fall back to whitelabel_id on the Users table in the billing DB.
+      // This covers free/whitelabel users who have no active paid subscription —
+      // the user API may not return whitelabel_id, but the DB is authoritative.
+      const dbUser = await this.db
+        .selectFrom("Users")
+        .where("user_id", "=", userId)
+        .select(["whitelabel_id"])
+        .executeTakeFirst()
+
+      if (dbUser?.whitelabel_id) {
+        const resolved = await this.resolveById(dbUser.whitelabel_id)
+        // Only use the DB user's whitelabel if it resolves to something
+        // non-default (code !== "default"), avoiding a no-op fallthrough.
+        if (resolved.code !== "default") {
+          return resolved
+        }
+      }
+
+      // 2. Fall back to the whitelabel_code on the user's active subscription's product
       const subscription = await this.db
         .selectFrom("Subscriptions")
         .innerJoin("Products", "Products.product_id", "Subscriptions.product_id")
@@ -47,7 +82,6 @@ export class WhitelabelResolverService {
         return this.resolveByCode(subscription.whitelabel_code)
       }
 
-      // Fall back to default whitelabel
       return this.resolveDefault()
     } catch (error) {
       console.error("Error resolving whitelabel for user", { userId, error })
@@ -179,6 +213,6 @@ export class WhitelabelResolverService {
 /**
  * Create a whitelabel resolver service instance
  */
-export const createWhitelabelResolverService = (db: Kysely<DB>): WhitelabelResolverService => {
-  return new WhitelabelResolverService(db)
+export const createWhitelabelResolverService = (db: Kysely<DB>, userApiClient?: IUserApiClient): WhitelabelResolverService => {
+  return new WhitelabelResolverService(db, userApiClient)
 }
