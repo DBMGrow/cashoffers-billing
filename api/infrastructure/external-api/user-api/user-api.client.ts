@@ -2,7 +2,7 @@ import axios from "axios"
 import { v4 as uuidv4 } from "uuid"
 import type { IConfig } from "@api/config/config.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
-import type { IUserApiClient, User, CreateUserRequest, CreateTeamRequest, Team } from "../user-api.interface"
+import type { IUserApiClient, User, CreateUserRequest, UpdateUserRequest, CreateTeamRequest, Team } from "../user-api.interface"
 
 /**
  * User API Client Implementation
@@ -121,13 +121,18 @@ export class UserApiClient implements IUserApiClient {
     }
   }
 
-  async updateUser(userId: number, userData: Partial<User>): Promise<User> {
+  async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
     const startTime = Date.now()
 
     try {
       this.logger.debug("Updating user via API", { userId })
 
-      const response = await axios.put(`${this.config.api.url}/users/${userId}`, userData, {
+      // Main API requires is_premium / active as 0|1, not booleans.
+      const body: Record<string, unknown> = { ...userData }
+      if (typeof body.is_premium === "boolean") body.is_premium = body.is_premium ? 1 : 0
+      if (typeof body.active === "boolean") body.active = body.active ? 1 : 0
+
+      const response = await axios.put(`${this.config.api.url}/users/${userId}`, body, {
         headers: {
           "Content-Type": "application/json",
           "x-api-token": this.config.api.masterToken,

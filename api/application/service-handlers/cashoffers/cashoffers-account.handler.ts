@@ -42,31 +42,29 @@ export class CashOffersAccountHandler implements IEventHandler {
   }
 
   async handle(event: IDomainEvent): Promise<void> {
-    try {
-      switch (event.eventType) {
-        case 'SubscriptionCreated':
-          await this.handleCreated(event)
-          break
-        case 'SubscriptionRenewed':
-          await this.handleRenewed(event)
-          break
-        case 'SubscriptionPaused':
-        case 'SubscriptionDeactivated':
-        case 'SubscriptionCancelled':
-          await this.handleSuspension(event)
-          break
-        case 'SubscriptionResumed':
-          await this.handleResumed(event)
-          break
-        case 'SubscriptionUpgraded':
-          await this.handleUpgraded(event)
-          break
-      }
-    } catch (error) {
-      this.logger.error(`CashOffersAccountHandler error on ${event.eventType}`, {
-        error: error instanceof Error ? error.message : String(error),
-        eventId: event.eventId,
-      })
+    // Errors must propagate: AdminAlertHandler wraps this handler and only
+    // fires a critical alert when the inner handler throws. The InMemoryEventBus
+    // isolates handler failures via Promise.allSettled, so re-throwing here
+    // does NOT roll back the renewal or trigger a user-facing "payment failed"
+    // email — it just routes the failure to the admin for manual action.
+    switch (event.eventType) {
+      case 'SubscriptionCreated':
+        await this.handleCreated(event)
+        break
+      case 'SubscriptionRenewed':
+        await this.handleRenewed(event)
+        break
+      case 'SubscriptionPaused':
+      case 'SubscriptionDeactivated':
+      case 'SubscriptionCancelled':
+        await this.handleSuspension(event)
+        break
+      case 'SubscriptionResumed':
+        await this.handleResumed(event)
+        break
+      case 'SubscriptionUpgraded':
+        await this.handleUpgraded(event)
+        break
     }
   }
 
@@ -115,7 +113,7 @@ export class CashOffersAccountHandler implements IEventHandler {
 
       if (needsUpdate) {
         await this.userApiClient.updateUser(userId, {
-          is_premium: userConfig.is_premium === 1,
+          is_premium: userConfig.is_premium,
           role: userConfig.role,
           whitelabel_id: whitelabelId,
         })
@@ -143,7 +141,7 @@ export class CashOffersAccountHandler implements IEventHandler {
     if (needsUpdate) {
       await this.userApiClient.updateUser(userId, {
         role: userConfig.role,
-        is_premium: userConfig.is_premium === 1,
+        is_premium: userConfig.is_premium,
       })
     }
 
@@ -183,12 +181,12 @@ export class CashOffersAccountHandler implements IEventHandler {
     if (strategy === 'DEACTIVATE_USER') {
       await this.userApiClient.updateUser(userId, {
         role: 'SHELL',
-        is_premium: false,
+        is_premium: 0,
       })
     } else {
       // DOWNGRADE_TO_FREE or unresolved default
       await this.userApiClient.updateUser(userId, {
-        is_premium: false,
+        is_premium: 0,
       })
     }
 
@@ -235,11 +233,11 @@ export class CashOffersAccountHandler implements IEventHandler {
         if (strategy === 'DEACTIVATE_USER') {
           await this.userApiClient.updateUser(member.user_id, {
             role: 'SHELL',
-            is_premium: false,
+            is_premium: 0,
           })
         } else {
           await this.userApiClient.updateUser(member.user_id, {
-            is_premium: false,
+            is_premium: 0,
           })
         }
       } catch (err) {
@@ -293,7 +291,7 @@ export class CashOffersAccountHandler implements IEventHandler {
       try {
         await this.userApiClient.updateUser(member.user_id, {
           role: 'AGENT',
-          is_premium: userConfig.is_premium === 1,
+          is_premium: userConfig.is_premium,
         })
       } catch (err) {
         this.logger.error('Failed to reactivate team member', {
@@ -317,7 +315,7 @@ export class CashOffersAccountHandler implements IEventHandler {
 
     await this.userApiClient.updateUser(userId, {
       role: userConfig.role,
-      is_premium: userConfig.is_premium === 1,
+      is_premium: userConfig.is_premium,
     })
 
     // If team plan, reactivate all team members
@@ -360,7 +358,7 @@ export class CashOffersAccountHandler implements IEventHandler {
       await this.userApiClient.updateUser(userId, {
         team_id: team.id,
         role,
-        is_premium: toUserConfig.is_premium === 1,
+        is_premium: toUserConfig.is_premium,
       })
 
       // Store team_id in subscription data so checkplan can find it
@@ -388,7 +386,7 @@ export class CashOffersAccountHandler implements IEventHandler {
     } else {
       await this.userApiClient.updateUser(userId, {
         role,
-        is_premium: toUserConfig.is_premium === 1,
+        is_premium: toUserConfig.is_premium,
       })
     }
   }
