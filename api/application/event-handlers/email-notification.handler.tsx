@@ -387,7 +387,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
         const { userId } = event.payload
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
         const brandingProps = this.toBrandingProps(whitelabelInfo)
-        const billingUrl = brandingProps.billing_url ?? "https://account.cashoffers.pro"
+        const billingBase = (brandingProps.billing_url ?? "https://account.cashoffers.pro").replace(/\/$/, "")
+        const billingUrl = `${billingBase}/manage`
 
         const html = await render(
           <PaymentErrorEmail
@@ -592,7 +593,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
         const { userId } = event.payload
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
         const brandingProps = this.toBrandingProps(whitelabelInfo)
-        const billingUrl = brandingProps.billing_url ?? "https://account.cashoffers.pro"
+        const billingBase = (brandingProps.billing_url ?? "https://account.cashoffers.pro").replace(/\/$/, "")
+        const billingUrl = `${billingBase}/manage`
 
         const html = await render(
           <SubscriptionSuspendedEmail
