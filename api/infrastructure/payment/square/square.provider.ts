@@ -23,12 +23,15 @@ export class SquarePaymentProvider implements IPaymentProvider {
   private environment: "production" | "sandbox"
   private locationId: string
 
+  private logger: ILogger
+
   constructor(
     config: IConfig,
-    private logger: ILogger,
+    logger: ILogger,
     environment: "production" | "sandbox"
   ) {
     this.environment = environment
+    this.logger = logger.child({ component: "SquarePaymentProvider" })
 
     // Use the appropriate config based on environment
     const squareConfig = environment === "production" ? config.square.production : config.square.sandbox
@@ -116,16 +119,30 @@ export class SquarePaymentProvider implements IPaymentProvider {
       }
     } catch (error) {
       const duration = Date.now() - startTime
-      this.logger.error("Square payment creation failed", error, {
+      let logMessage = "Square payment creation failed"
+      let primaryCode: string | undefined
+      let errorMessages: string | undefined
+      if (error instanceof ApiError) {
+        const errors = error.result?.errors || []
+        primaryCode = errors[0]?.code || "UNKNOWN"
+        errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
+        logMessage = `Square payment creation failed: ${errorMessages || primaryCode}`
+      } else if (error instanceof Error) {
+        logMessage = `Square payment creation failed: ${error.message}`
+      }
+      this.logger.error(logMessage, error, {
         idempotencyKey,
         duration,
+        squareCode: primaryCode,
+        squareErrors: errorMessages,
       })
 
       if (error instanceof ApiError) {
-        const errors = error.result?.errors || []
-        const primaryCode = errors[0]?.code || "UNKNOWN"
-        const errorMessages = errors.map((e: any) => `${e.code}: ${e.detail}`).join(", ")
-        throw new SquareApiError(`Square API error: ${errorMessages}`, primaryCode, errors)
+        throw new SquareApiError(
+          `Square API error: ${errorMessages}`,
+          primaryCode || "UNKNOWN",
+          error.result?.errors || []
+        )
       }
 
       throw error
