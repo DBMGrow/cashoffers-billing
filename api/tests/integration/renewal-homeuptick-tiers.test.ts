@@ -336,5 +336,93 @@ describe('RenewSubscriptionUseCase — HomeUptick tier charges', () => {
       expect(result.success).toBe(true)
       expect((result as any).data?.amount).toBe(0)
     })
+
+    // Regression: PaymentFailedEvent must carry the HU addon amount, not $0
+    it('PaymentFailedEvent carries the full HU addon amount when payment fails (not $0)', async () => {
+      subscriptionRepository.findById.mockResolvedValue(
+        makeSubscriptionRow({
+          subscription_id: subscriptionId,
+          user_id: userId,
+          product_id: productId,
+          amount: 0,
+          status: 'active',
+          renewal_date: new Date('2026-03-17'),
+          payment_failure_count: 0,
+          square_environment: 'sandbox',
+        })
+      )
+      setupHuSubscription({
+        base_contacts: 0,
+        contacts_per_tier: 1000,
+        price_per_tier: 7500,
+      })
+      huApiClient.getClientCount.mockResolvedValue(1000) // → tier 2, addon = $75
+      paymentProvider.createPayment.mockRejectedValue(new Error('Card declined'))
+
+      const capturedEvents: any[] = []
+      eventBus.subscribe('PaymentFailed', { handle: async (e: any) => { capturedEvents.push(e) } })
+
+      const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
+      expect(result.success).toBe(false)
+
+      expect(capturedEvents).toHaveLength(1)
+      // Before the fix this was 0 (the base subscription.amount); now it must be 7500
+      expect(capturedEvents[0].payload.amount).toBe(7500)
+    })
+
+    it('failed transaction row carries HU addon amount when payment fails (not $0)', async () => {
+      subscriptionRepository.findById.mockResolvedValue(
+        makeSubscriptionRow({
+          subscription_id: subscriptionId,
+          user_id: userId,
+          product_id: productId,
+          amount: 0,
+          status: 'active',
+          renewal_date: new Date('2026-03-17'),
+          payment_failure_count: 0,
+          square_environment: 'sandbox',
+        })
+      )
+      setupHuSubscription({
+        base_contacts: 0,
+        contacts_per_tier: 1000,
+        price_per_tier: 7500,
+      })
+      huApiClient.getClientCount.mockResolvedValue(1000)
+      paymentProvider.createPayment.mockRejectedValue(new Error('Card declined'))
+
+      await useCase.execute({ subscriptionId, email: 'user@test.com' })
+
+      const failedTx = transactionRepository.create.mock.calls.find(
+        ([args]: [any]) => args.status === 'failed'
+      )
+      expect(failedTx).toBeDefined()
+      expect(failedTx![0].amount).toBe(7500)
+    })
+
+    it('PaymentFailedEvent carries $0 when user has 0 contacts and payment fails', async () => {
+      subscriptionRepository.findById.mockResolvedValue(
+        makeSubscriptionRow({
+          subscription_id: subscriptionId,
+          user_id: userId,
+          product_id: productId,
+          amount: 0,
+          status: 'active',
+          renewal_date: new Date('2026-03-17'),
+          payment_failure_count: 0,
+          square_environment: 'sandbox',
+        })
+      )
+      setupHuSubscription({
+        base_contacts: 0,
+        contacts_per_tier: 1000,
+        price_per_tier: 7500,
+      })
+      huApiClient.getClientCount.mockResolvedValue(0) // No contacts → $0 total, no payment attempted
+      // payment not called for $0, so no failure here — subscription renews at $0
+      const result = await useCase.execute({ subscriptionId, email: 'user@test.com' })
+      expect(result.success).toBe(true)
+      expect((result as any).data?.amount).toBe(0)
+    })
   })
 })

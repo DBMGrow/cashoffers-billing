@@ -70,6 +70,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     const startTime = new Date()
     let purchaseRequestId: number | null = null
     let isCancelOnRenewal = false
+    let totalAmount = 0
 
     try {
       // Validate input with Zod
@@ -152,7 +153,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         },
       ]
 
-      let totalAmount = subscription.amount || 0
+      totalAmount = subscription.amount || 0
 
       // Look up product data for event metadata (cashoffers config, etc.)
       const subscriptionData = subscription.data
@@ -553,7 +554,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           input.email,
           userFacingMessage,
           input.triggeredBy,
-          squareCode
+          squareCode,
+          totalAmount
         )
       }
 
@@ -645,7 +647,8 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
     email: string,
     error: string,
     triggeredBy?: "cron" | "card_update",
-    errorCode?: string
+    errorCode?: string,
+    amountAttempted?: number
   ): Promise<void> {
     const { logger, eventBus, subscriptionRepository, transactionRepository } = this.deps
 
@@ -666,9 +669,10 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           ? new Date(subscription.next_renewal_attempt as unknown as string)
           : undefined
 
+        const failedAmount = amountAttempted ?? subscription.amount ?? 0
         await transactionRepository.create({
           user_id: subscription.user_id!,
-          amount: subscription.amount || 0,
+          amount: failedAmount,
           type: "subscription",
           memo: `${subscription.subscription_name || "Subscription"} (new card declined)`,
           status: "failed",
@@ -682,7 +686,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           PaymentFailedEvent.create({
             userId: subscription.user_id!,
             email,
-            amount: subscription.amount || 0,
+            amount: failedAmount,
             currency: "USD",
             paymentProvider: "Square",
             subscriptionId,
@@ -767,10 +771,11 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         updatedAt: now,
       })
 
+      const failedAmount = amountAttempted ?? subscription.amount ?? 0
       // Log failed transaction (use environment from subscription if available)
       await transactionRepository.create({
         user_id: subscription.user_id!,
-        amount: subscription.amount || 0,
+        amount: failedAmount,
         type: "subscription",
         memo: `${subscription.subscription_name || "Subscription"} (failed)`,
         status: "failed",
@@ -785,7 +790,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         PaymentFailedEvent.create({
           userId: subscription.user_id!,
           email,
-          amount: subscription.amount || 0,
+          amount: failedAmount,
           currency: "USD",
           paymentProvider: "Square",
           subscriptionId,

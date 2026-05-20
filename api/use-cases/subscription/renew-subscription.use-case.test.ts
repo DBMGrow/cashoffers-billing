@@ -665,6 +665,20 @@ describe("RenewSubscriptionUseCase", () => {
       expect(paymentFailed?.payload.paymentType).toBe("renewal")
     })
 
+    // Regression: PaymentFailedEvent must use the computed totalAmount, not subscription.amount
+    it("PaymentFailedEvent carries the correct amount that was attempted", async () => {
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({
+        subscriptionId: 1,
+        email: "user@test.com",
+      })
+
+      const events = eventBus.getPublishedEvents()
+      const paymentFailed = events.find((e) => e.eventType === "PaymentFailed")
+      expect(paymentFailed?.payload.amount).toBe(25000)
+    })
+
     it("should update next renewal attempt on failure", async () => {
       paymentProvider.setNextPaymentStatus("FAILED")
 
