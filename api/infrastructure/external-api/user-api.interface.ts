@@ -21,7 +21,7 @@ export interface IUserApiClient {
   /**
    * Update user
    */
-  updateUser(userId: number, userData: Partial<User>): Promise<User>
+  updateUser(userId: number, userData: UpdateUserRequest): Promise<User>
 
   /**
    * Activate user premium status (sets is_premium = true only)
@@ -94,6 +94,26 @@ export interface CreateUserRequest {
   // Team fields
   team_id?: number
   // Password reset fields
+  reset_token?: string
+  reset_created?: string
+}
+
+/**
+ * Update user request. Mirrors the main API's wire contract: is_premium and
+ * active are accepted as 0|1 (preferred) or boolean (legacy callers). The
+ * client coerces booleans to 0|1 before sending.
+ */
+export interface UpdateUserRequest {
+  email?: string
+  name?: string
+  first_name?: string
+  last_name?: string
+  phone?: string
+  active?: boolean | 0 | 1
+  is_premium?: boolean | 0 | 1
+  role?: string
+  team_id?: number
+  whitelabel_id?: number
   reset_token?: string
   reset_created?: string
 }

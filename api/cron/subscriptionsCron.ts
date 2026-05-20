@@ -97,15 +97,24 @@ export default async function subscriptionsCron() {
             subscriptionId: subscriptionData.subscription_id,
           })
         } else {
-          cronLogger.error('Failed to renew subscription', undefined, {
-            subscriptionId: subscriptionData.subscription_id,
-            error: result.error,
-          })
+          cronLogger.error(
+            `Failed to renew subscription ${subscriptionData.subscription_id}: ${result.error || 'no error reason returned'}`,
+            undefined,
+            {
+              subscriptionId: subscriptionData.subscription_id,
+              error: result.error,
+            }
+          )
         }
       } catch (error: any) {
-        cronLogger.error('Error renewing subscription', error, {
-          subscriptionId: subscriptionData.subscription_id,
-        })
+        const reason = error instanceof Error ? error.message : String(error)
+        cronLogger.error(
+          `Error renewing subscription ${subscriptionData.subscription_id}: ${reason}`,
+          error,
+          {
+            subscriptionId: subscriptionData.subscription_id,
+          }
+        )
       }
     }
     // Expire trials whose renewal_date has passed

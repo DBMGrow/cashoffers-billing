@@ -66,7 +66,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: RenewSubscriptionInput): Promise<UseCaseResult<RenewSubscriptionOutput>> {
-    const { logger } = this.deps
+    const logger = this.deps.logger.child({ component: "RenewSubscriptionUseCase" })
     const startTime = new Date()
     let purchaseRequestId: number | null = null
     let isCancelOnRenewal = false
@@ -485,13 +485,19 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         userFacingMessage = translated.message
       }
 
-      logger.error("Subscription renewal error", {
-        error: rawErrorMessage,
-        subscriptionId: input.subscriptionId,
-        duration: new Date().getTime() - startTime.getTime(),
-        squareCode,
-        criticalSquareError: isCriticalSquare || undefined,
-      })
+      const reasonSuffix = squareCode
+        ? `[${squareCode}] ${rawErrorMessage}`
+        : rawErrorMessage
+      logger.error(
+        `Subscription renewal failed for subscription ${input.subscriptionId}: ${reasonSuffix}`,
+        {
+          error: rawErrorMessage,
+          subscriptionId: input.subscriptionId,
+          duration: new Date().getTime() - startTime.getTime(),
+          squareCode,
+          criticalSquareError: isCriticalSquare || undefined,
+        }
+      )
 
       // Mark purchase request as failed if it was created
       if (purchaseRequestId) {

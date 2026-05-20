@@ -3,6 +3,7 @@ import type {
   IUserApiClient,
   User,
   CreateUserRequest,
+  UpdateUserRequest,
   CreateTeamRequest,
   Team,
 } from '../user-api.interface'
@@ -67,7 +68,7 @@ export class MockUserApiClient implements IUserApiClient {
     return user
   }
 
-  async updateUser(userId: number, userData: Partial<User>): Promise<User> {
+  async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
     if (this.shouldFail) {
       throw new Error(this.failureReason)
     }
@@ -77,9 +78,18 @@ export class MockUserApiClient implements IUserApiClient {
       throw new Error('User not found')
     }
 
+    // Mirror the real client: accept 0|1 or boolean for is_premium/active.
+    const normalized: Partial<User> = { ...userData } as Partial<User>
+    if (typeof userData.is_premium === 'number') {
+      normalized.is_premium = userData.is_premium === 1
+    }
+    if (typeof userData.active === 'number') {
+      normalized.active = userData.active === 1
+    }
+
     const updatedUser: User = {
       ...user,
-      ...userData,
+      ...normalized,
       id: userId, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
     }
