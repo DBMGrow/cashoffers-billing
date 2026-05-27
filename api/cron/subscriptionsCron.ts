@@ -42,16 +42,17 @@ export default async function subscriptionsCron() {
         subscriptionId: subscriptionData.subscription_id,
       })
 
-      if (subscriptionData.cancel_on_renewal) {
-        // Cancel subscription logic is handled during renewal
-        // The subscription should be deactivated, not renewed
-        cronLogger.info('Subscription marked for cancellation, skipping renewal', {
-          subscriptionId: subscriptionData.subscription_id,
-        })
-        continue
-      } else if (subscriptionData.downgrade_on_renewal) {
-        // Downgrade subscription logic is handled during renewal
-        // The subscription should be downgraded to a lower tier
+      // NOTE: cancel_on_renewal is intentionally NOT short-circuited here.
+      // RenewSubscriptionUseCase handles it: it cancels the subscription (no
+      // charge) and emits SubscriptionCancelledEvent, which drives the
+      // whitelabel suspension strategy (DEACTIVATE_USER → SHELL role,
+      // DOWNGRADE_TO_FREE → is_premium 0, role preserved). Skipping it here
+      // left cancelled subscriptions stuck "active" with a past renewal date,
+      // re-surfacing every cron tick and never downgrading the user.
+      if (subscriptionData.downgrade_on_renewal) {
+        // downgrade_on_renewal is currently unused (nothing sets a downgrade
+        // target product). Skip defensively so an unhandled flag can never
+        // trigger a full-price charge if it were ever set.
         cronLogger.info('Subscription marked for downgrade, skipping renewal', {
           subscriptionId: subscriptionData.subscription_id,
         })

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 
 // Mock all external dependencies before importing the cron function
-vi.mock("axios")
 vi.mock("@api/lib/services", () => ({
   logger: {
     child: vi.fn(() => ({
@@ -40,6 +39,34 @@ vi.mock("@api/use-cases/subscription", () => ({
   },
 }))
 
+// The cron fetches users directly from the DB (db.selectFrom("Users")...).
+// Mock the Kysely query builder chain used by subscriptionsCron.getUser.
+vi.mock("@api/lib/database", () => {
+  const usersById: Record<number, { user_id: number; email: string; active: number }> = {
+    1: { user_id: 1, email: "user1@test.com", active: 1 },
+    2: { user_id: 2, email: "user2@test.com", active: 1 },
+    3: { user_id: 3, email: "inactive@test.com", active: 0 },
+  }
+  return {
+    db: {
+      selectFrom: vi.fn(() => {
+        let capturedUserId: number | undefined
+        const chain: any = {
+          selectAll: vi.fn(() => chain),
+          where: vi.fn((col: string, _op: string, val: number) => {
+            if (col === "user_id") capturedUserId = val
+            return chain
+          }),
+          executeTakeFirst: vi.fn(async () =>
+            capturedUserId != null ? usersById[capturedUserId] : undefined
+          ),
+        }
+        return chain
+      }),
+    },
+  }
+})
+
 vi.mock("@react-email/render", () => ({
   render: vi.fn().mockResolvedValue("<html>email</html>"),
 }))
@@ -62,36 +89,20 @@ vi.mock("@api/config/config.service", () => ({
   },
 }))
 
-import axios from "axios"
 import subscriptionsCron from "./subscriptionsCron"
 import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
 import { emailService, eventBus } from "@api/lib/services"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 
-const mockAxios = vi.mocked(axios)
 const mockSubscriptionRepo = vi.mocked(subscriptionRepository)
 const mockTransactionRepo = vi.mocked(transactionRepository)
 const mockEmailService = vi.mocked(emailService)
 const mockEventBus = vi.mocked(eventBus)
 const mockRenewUseCase = vi.mocked(renewSubscriptionUseCase)
 
-const usersResponse = {
-  data: {
-    success: "success",
-    data: [
-      { user_id: 1, email: "user1@test.com", active: 1 },
-      { user_id: 2, email: "user2@test.com", active: 1 },
-      { user_id: 3, email: "inactive@test.com", active: 0 },
-    ],
-  },
-}
-
 describe("subscriptionsCron", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // Default: users API returns successfully
-    mockAxios.get = vi.fn().mockResolvedValue(usersResponse)
 
     // Default: no subscriptions to process
     mockSubscriptionRepo.findSubscriptionsForCronProcessing = vi.fn().mockResolvedValue([])
@@ -119,14 +130,20 @@ describe("subscriptionsCron", () => {
       })
     })
 
-    it("should skip subscriptions marked for cancellation", async () => {
+    it("should route cancel-on-renewal subscriptions to the renewal use case (which cancels them and applies the whitelabel suspension strategy)", async () => {
       mockSubscriptionRepo.findSubscriptionsForCronProcessing = vi.fn().mockResolvedValue([
         { subscription_id: 1, user_id: 1, cancel_on_renewal: 1, downgrade_on_renewal: 0 },
       ])
 
       await subscriptionsCron()
 
-      expect(mockRenewUseCase.execute).not.toHaveBeenCalled()
+      // Previously the cron short-circuited cancel_on_renewal with `continue`,
+      // leaving the subscription stuck active. It must now reach the use case,
+      // which detects cancelOnRenewal and cancels + emits SubscriptionCancelledEvent.
+      expect(mockRenewUseCase.execute).toHaveBeenCalledWith({
+        subscriptionId: 1,
+        email: "user1@test.com",
+      })
     })
 
     it("should skip subscriptions marked for downgrade", async () => {
@@ -296,8 +313,10 @@ describe("subscriptionsCron", () => {
   })
 
   describe("Fatal Error Handling", () => {
-    it("should send admin email when users API call fails", async () => {
-      mockAxios.get = vi.fn().mockRejectedValue(new Error("API unreachable"))
+    it("should send admin email when loading subscriptions fails", async () => {
+      mockSubscriptionRepo.findSubscriptionsForCronProcessing = vi
+        .fn()
+        .mockRejectedValue(new Error("DB unreachable"))
 
       await subscriptionsCron()
 
@@ -308,8 +327,10 @@ describe("subscriptionsCron", () => {
       )
     })
 
-    it("should log a failed transaction when users API call fails", async () => {
-      mockAxios.get = vi.fn().mockRejectedValue(new Error("API unreachable"))
+    it("should log a failed transaction when loading subscriptions fails", async () => {
+      mockSubscriptionRepo.findSubscriptionsForCronProcessing = vi
+        .fn()
+        .mockRejectedValue(new Error("DB unreachable"))
 
       await subscriptionsCron()
 
@@ -323,22 +344,11 @@ describe("subscriptionsCron", () => {
     })
 
     it("should not throw when the cron encounters a fatal error", async () => {
-      mockAxios.get = vi.fn().mockRejectedValue(new Error("Fatal failure"))
+      mockSubscriptionRepo.findSubscriptionsForCronProcessing = vi
+        .fn()
+        .mockRejectedValue(new Error("Fatal failure"))
 
       await expect(subscriptionsCron()).resolves.toBeUndefined()
-    })
-
-    it("should handle case where users API returns non-success response", async () => {
-      mockAxios.get = vi.fn().mockResolvedValue({
-        data: { success: "error", message: "Unauthorized" },
-      })
-
-      await subscriptionsCron()
-
-      // Should send admin notification due to the "Error fetching users" throw
-      expect(mockEmailService.sendPlainEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ subject: "Subscription Cron Error" })
-      )
     })
   })
 })
