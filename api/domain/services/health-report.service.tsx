@@ -89,6 +89,13 @@ export class HealthReportService implements IHealthReportService {
         return '#6b7280'
       })(),
       pausedSubscriptions: metrics.subscriptions.pausedSubscriptions,
+      pastDueSubscriptions: metrics.subscriptions.pastDueSubscriptions,
+      pastDueColor: (() => {
+        const pastDue = metrics.subscriptions.pastDueSubscriptions
+        if (pastDue >= 10) return '#dc2626'
+        if (pastDue > 0) return '#d97706'
+        return '#6b7280'
+      })(),
 
       successfulPayments: metrics.payments.successfulPayments,
       failedPayments: metrics.payments.failedPayments,
@@ -197,6 +204,9 @@ export class HealthReportService implements IHealthReportService {
     }
     if (metrics.errors.totalErrors > 20) {
       items.push(`• Review application logs - ${metrics.errors.totalErrors} errors logged today`)
+    }
+    if (metrics.subscriptions.pastDueSubscriptions > 0) {
+      items.push(`• ${metrics.subscriptions.pastDueSubscriptions} active subscription(s) past due (renewal date passed) — verify the renewal cron is processing them`)
     }
 
     return items.length > 0 ? items : undefined

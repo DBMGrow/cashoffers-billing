@@ -28,6 +28,8 @@ export interface DailyHealthReportEmailProps {
   subscriptionsInRetry: number
   retryColor: string
   pausedSubscriptions: number
+  pastDueSubscriptions: number
+  pastDueColor: string
 
   // Payment metrics
   successfulPayments: number
@@ -103,6 +105,8 @@ export default function DailyHealthReportEmail({
   subscriptionsInRetry,
   retryColor,
   pausedSubscriptions,
+  pastDueSubscriptions,
+  pastDueColor,
   successfulPayments,
   failedPayments,
   failedPaymentsColor,
@@ -194,6 +198,7 @@ export default function DailyHealthReportEmail({
           <MetricRow label="Active Subscriptions" value={String(activeSubscriptions)} />
           <MetricRow label="Subscriptions in Retry" value={String(subscriptionsInRetry)} valueColor={retryColor} />
           <MetricRow label="Paused Subscriptions" value={String(pausedSubscriptions)} />
+          <MetricRow label="Past Due Subscriptions" value={String(pastDueSubscriptions)} valueColor={pastDueColor} />
         </ReportSection>
 
         {/* Payment Metrics */}
@@ -272,6 +277,8 @@ DailyHealthReportEmail.PreviewProps = {
   subscriptionsInRetry: 2,
   retryColor: "#d97706",
   pausedSubscriptions: 4,
+  pastDueSubscriptions: 6,
+  pastDueColor: "#d97706",
   successfulPayments: 50,
   failedPayments: 2,
   failedPaymentsColor: "#dc2626",

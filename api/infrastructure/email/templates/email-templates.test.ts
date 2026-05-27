@@ -39,6 +39,8 @@ const baseHealthReport: DailyHealthReportEmailProps = {
   subscriptionsInRetry: 0,
   retryColor: '#6b7280',
   pausedSubscriptions: 3,
+  pastDueSubscriptions: 0,
+  pastDueColor: '#6b7280',
   successfulPayments: 47,
   failedPayments: 0,
   failedPaymentsColor: '#6b7280',
@@ -322,6 +324,16 @@ describe('DailyHealthReportEmail', () => {
     expect(html).toContain('$1,234.56')
     expect(html).toContain('42') // successfulRenewals
     expect(html).toContain('200') // activeSubscriptions
+  })
+
+  it('renders the past due subscriptions row', async () => {
+    const html = await renderTemplate(DailyHealthReportEmail, {
+      ...baseHealthReport,
+      pastDueSubscriptions: 6,
+      pastDueColor: '#d97706',
+    })
+    expect(html).toContain('Past Due Subscriptions')
+    expect(html).toContain('6')
   })
 
   it('does NOT render failure reasons section when absent', async () => {

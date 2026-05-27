@@ -31,6 +31,7 @@ export interface DailyHealthMetrics {
     activeSubscriptions: number
     subscriptionsInRetry: number
     pausedSubscriptions: number
+    pastDueSubscriptions: number
   }
 
   // Payment metrics
@@ -188,6 +189,18 @@ export class HealthMetricsService implements IHealthMetricsService {
     ).length
     const pausedSubscriptions = allSubscriptions.filter((s: any) => s.status === 'paused').length
 
+    // Past due: active subscriptions whose renewal_date has already passed as of
+    // the report time. These should have renewed/charged but haven't — a growing
+    // count signals the renewal cron is not draining its queue (e.g. cancel-on-renewal
+    // subs that never get deactivated). Mirrors the "overdue" definition used by the
+    // system overview / dev tools (active + renewal_date in the past).
+    const pastDueSubscriptions = allSubscriptions.filter(
+      (s: any) =>
+        s.status === 'active' &&
+        s.renewal_date != null &&
+        new Date(s.renewal_date) <= endDate
+    ).length
+
     // Count subscriptions cancelled within the report period (by updatedAt)
     const cancelledSubscriptions = allSubscriptions.filter(
       (s: any) => s.status === 'cancelled' && s.updatedAt >= startDate && s.updatedAt <= endDate
@@ -201,6 +214,7 @@ export class HealthMetricsService implements IHealthMetricsService {
       activeSubscriptions,
       subscriptionsInRetry,
       pausedSubscriptions,
+      pastDueSubscriptions,
     }
   }
 
