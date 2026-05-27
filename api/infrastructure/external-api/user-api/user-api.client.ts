@@ -213,13 +213,30 @@ export class UserApiClient implements IUserApiClient {
     }
   }
 
+  async shellUser(userId: number): Promise<void> {
+    const startTime = Date.now()
+
+    try {
+      this.logger.info("Shelling user (setting role = SHELL, is_premium = false)", { userId })
+
+      await this.updateUser(userId, { role: "SHELL", is_premium: false })
+
+      const duration = Date.now() - startTime
+      this.logger.info("User shelled successfully", { userId, duration })
+    } catch (error) {
+      const duration = Date.now() - startTime
+      this.logger.error("Failed to shell user", error, { userId, duration })
+      throw error
+    }
+  }
+
   async activateUser(userId: number): Promise<void> {
     const startTime = Date.now()
 
     try {
-      this.logger.info("Fully activating user (setting active = true AND is_premium = true)", { userId })
+      this.logger.info("Fully activating user (setting active = true, is_premium = true, role = AGENT)", { userId })
 
-      await this.updateUser(userId, { active: true, is_premium: true })
+      await this.updateUser(userId, { active: true, is_premium: true, role: "AGENT" })
 
       const duration = Date.now() - startTime
       this.logger.info("User fully activated successfully", { userId, duration })

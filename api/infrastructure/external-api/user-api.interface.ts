@@ -39,8 +39,15 @@ export interface IUserApiClient {
   deactivateUser(userId: number): Promise<void>
 
   /**
-   * Fully activate user (sets both active = true AND is_premium = true)
-   * Use this for subscription renewals to ensure users are both active and premium
+   * Shell a user: sets role = SHELL and is_premium = false.
+   * Used for non-KW white labels on subscription lapse — the account stays
+   * accessible so the user can log in and see the resubscribe prompt.
+   */
+  shellUser(userId: number): Promise<void>
+
+  /**
+   * Fully activate user (sets active = true, is_premium = true, role = AGENT).
+   * Use this for subscription renewals and payment recovery.
    */
   activateUser(userId: number): Promise<void>
 
