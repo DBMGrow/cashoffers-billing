@@ -87,6 +87,9 @@ export interface CreateUserRequest {
   last_name?: string
   phone?: string
   password?: string
+  slug?: string
+  name_team?: string
+  name_broker?: string
   // New fields from product configuration
   is_premium?: 0 | 1
   role?: string
