@@ -242,6 +242,7 @@ export default function ManageFlow() {
             onBack={() => goToStep("dashboard")}
             onUpdateCard={() => goToStep("card")}
             onChangePlan={() => goToStep("changePlan")}
+            onEnroll={() => goToStep("enrollment")}
           />
         )
       case "card":

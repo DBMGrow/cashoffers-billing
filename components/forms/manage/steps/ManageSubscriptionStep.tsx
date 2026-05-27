@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 import { Spinner } from "@/components/Theme/Spinner"
@@ -15,6 +16,7 @@ interface ManageSubscriptionStepProps {
   onBack: () => void
   onUpdateCard: () => void
   onChangePlan: () => void
+  onEnroll: () => void
 }
 
 export default function ManageSubscriptionStep({
@@ -22,6 +24,7 @@ export default function ManageSubscriptionStep({
   onBack,
   onUpdateCard,
   onChangePlan,
+  onEnroll,
 }: ManageSubscriptionStepProps) {
   const { data, error, isLoading } = useQuery({
     queryKey: ["subscription", user.api_token],
@@ -31,21 +34,25 @@ export default function ManageSubscriptionStep({
           "x-api-token": user.api_token,
         },
       })
-      if (json.success !== "success" || !json.data?.subscriptions?.[0]) {
+      if (json.success !== "success") {
         throw new Error("Failed to load subscription")
       }
-      return json.data.subscriptions[0]
+      return json.data?.subscriptions?.[0] ?? null
     },
   })
+
+  useEffect(() => {
+    if (!isLoading && !error && data === null) {
+      onEnroll()
+    }
+  }, [isLoading, error, data, onEnroll])
 
   if (error) {
     console.error(error)
     return <P>There was an error loading your subscription</P>
   }
 
-  if (isLoading) return <Spinner />
-
-  if (!data) return <P>We couldn&apos;t find your subscription.</P>
+  if (isLoading || data === null) return <Spinner />
 
   const subscriptionAmount = data.amount ? data.amount / 100 : 0
 
