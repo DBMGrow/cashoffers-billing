@@ -191,14 +191,26 @@ export class HealthMetricsService implements IHealthMetricsService {
 
     // Past due: active subscriptions whose renewal_date has already passed as of
     // the report time. These should have renewed/charged but haven't — a growing
-    // count signals the renewal cron is not draining its queue (e.g. cancel-on-renewal
-    // subs that never get deactivated). Mirrors the "overdue" definition used by the
-    // system overview / dev tools (active + renewal_date in the past).
+    // count signals the renewal cron is not draining its queue (e.g. inactive users
+    // whose subscriptions are skipped but never deactivated).
+    //
+    // This must mirror what the renewal cron actually processes
+    // (findSubscriptionsForCronProcessing), otherwise it counts subscriptions the
+    // cron can never drain and the metric inflates indefinitely:
+    //   - Exclude user_id == null: un-provisioned (pending_provisioning) subs have
+    //     no user bound and are explicitly skipped by the cron query. They are a
+    //     provisioning backlog, not a renewal problem.
+    //   - Compare against "now", not endDate. When the report is generated for a
+    //     specific day, endDate is that day's 23:59:59, so subscriptions due *later
+    //     the same day* would be miscounted as past due even though they renew
+    //     normally on a later cron tick. Cap the reference at the current instant.
+    const pastDueReference = new Date(Math.min(endDate.getTime(), Date.now()))
     const pastDueSubscriptions = allSubscriptions.filter(
       (s: any) =>
         s.status === 'active' &&
+        s.user_id != null &&
         s.renewal_date != null &&
-        new Date(s.renewal_date) <= endDate
+        new Date(s.renewal_date) <= pastDueReference
     ).length
 
     // Count subscriptions cancelled within the report period (by updatedAt)
