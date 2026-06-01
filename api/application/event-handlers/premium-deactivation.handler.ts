@@ -182,8 +182,8 @@ export class PremiumDeactivationHandler extends BaseEventHandler {
       })
 
       if (suspensionBehavior === 'DEACTIVATE_USER') {
-        this.logger.info('Deactivating user (setting active = 0)', { userId, whitelabelId })
-        await this.userApiClient.deactivateUser(userId)
+        this.logger.info('Shelling user (setting role = SHELL, is_premium = 0)', { userId, whitelabelId })
+        await this.userApiClient.shellUser(userId)
       } else {
         // DOWNGRADE_TO_FREE
         this.logger.info('Downgrading user to free (setting is_premium = 0)', { userId, whitelabelId })
