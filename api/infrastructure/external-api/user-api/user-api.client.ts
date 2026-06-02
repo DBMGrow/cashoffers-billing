@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid"
 import type { IConfig } from "@api/config/config.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { IUserApiClient, User, CreateUserRequest, UpdateUserRequest, CreateTeamRequest, Team } from "../user-api.interface"
+import { DEFAULT_HTTP_TIMEOUT_MS, withHttpRetry } from "../http-retry"
 
 /**
  * User API Client Implementation
@@ -18,18 +19,42 @@ export class UserApiClient implements IUserApiClient {
     })
   }
 
+  /**
+   * Wrap an outbound API call with a timeout (applied per-request by callers)
+   * and exponential-backoff retry on transient failures (network errors, 429,
+   * 5xx including Cloudflare 522). Without this a single origin blip during the
+   * renewal cron fails provisioning and pages on-call.
+   */
+  private withRetry<T>(operation: () => Promise<T>, context: Record<string, unknown>): Promise<T> {
+    return withHttpRetry(operation, {
+      onRetry: ({ attempt, delayMs, error }) => {
+        this.logger.warn("Retrying user API request after transient failure", {
+          ...context,
+          attempt,
+          delayMs,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      },
+    })
+  }
+
   async getUser(userId: number): Promise<User | null> {
     const startTime = Date.now()
 
     try {
       this.logger.debug("Fetching user from API", { userId })
 
-      const response = await axios.get(`${this.config.api.url}/users/${userId}`, {
-        headers: {
-          "x-api-token": this.config.api.masterToken,
-        },
-        validateStatus: (status) => status < 500, // Don't throw on 4xx errors
-      })
+      const response = await this.withRetry(
+        () =>
+          axios.get(`${this.config.api.url}/users/${userId}`, {
+            headers: {
+              "x-api-token": this.config.api.masterToken,
+            },
+            timeout: DEFAULT_HTTP_TIMEOUT_MS,
+            validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+          }),
+        { operation: "getUser", userId }
+      )
 
       if (response.status === 404) {
         this.logger.debug("User not found", { userId })
@@ -59,11 +84,16 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.debug("Fetching user by email from API", { email })
 
-      const response = await axios.get(`${this.config.api.url}/users?email=${encodeURIComponent(email)}`, {
-        headers: {
-          "x-api-token": this.config.api.masterToken,
-        },
-      })
+      const response = await this.withRetry(
+        () =>
+          axios.get(`${this.config.api.url}/users?email=${encodeURIComponent(email)}`, {
+            headers: {
+              "x-api-token": this.config.api.masterToken,
+            },
+            timeout: DEFAULT_HTTP_TIMEOUT_MS,
+          }),
+        { operation: "getUserByEmail", email }
+      )
 
       const data: any = response.data
       const duration = Date.now() - startTime
@@ -88,11 +118,14 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.info("Creating new user via API", { email: userData.email })
 
+      // POST is not idempotent: a timeout-then-retry could create a duplicate
+      // user if the origin processed the first request. Use a timeout but no retry.
       const response = await axios.post(`${this.config.api.url}/users`, userData, {
         headers: {
           "Content-Type": "application/json",
           "x-api-token": this.config.api.masterToken,
         },
+        timeout: DEFAULT_HTTP_TIMEOUT_MS,
       })
 
       const data: any = response.data
@@ -132,12 +165,17 @@ export class UserApiClient implements IUserApiClient {
       if (typeof body.is_premium === "boolean") body.is_premium = body.is_premium ? 1 : 0
       if (typeof body.active === "boolean") body.active = body.active ? 1 : 0
 
-      const response = await axios.put(`${this.config.api.url}/users/${userId}`, body, {
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-token": this.config.api.masterToken,
-        },
-      })
+      const response = await this.withRetry(
+        () =>
+          axios.put(`${this.config.api.url}/users/${userId}`, body, {
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-token": this.config.api.masterToken,
+            },
+            timeout: DEFAULT_HTTP_TIMEOUT_MS,
+          }),
+        { operation: "updateUser", userId }
+      )
 
       const data: any = response.data
       const duration = Date.now() - startTime
@@ -271,11 +309,13 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.info("Creating team via API", { teamname: params.teamname, ownerId: params.owner_id })
 
+      // POST is not idempotent: no retry, to avoid creating a duplicate team.
       const response = await axios.post(`${this.config.api.url}/teams`, params, {
         headers: {
           "Content-Type": "application/json",
           "x-api-token": this.config.api.masterToken,
         },
+        timeout: DEFAULT_HTTP_TIMEOUT_MS,
       })
 
       const data: any = response.data
