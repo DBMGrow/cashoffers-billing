@@ -1,5 +1,5 @@
 import { logger, paymentProvider, emailService, eventBus, configService, userApiClient, transactionManager, homeUptickApiClient } from '@api/lib/services'
-import { userCardRepository, transactionRepository, subscriptionRepository, purchaseRequestRepository, whitelabelRepository } from '@api/lib/repositories'
+import { userCardRepository, transactionRepository, subscriptionRepository, purchaseRequestRepository, whitelabelRepository, productRepository } from '@api/lib/repositories'
 import { config } from '@api/config/config.service'
 import { CreatePaymentUseCase } from './create-payment.use-case'
 import { RefundPaymentUseCase } from './refund-payment.use-case'
@@ -35,6 +35,7 @@ const renewSubscriptionUseCaseForCard = new RenewSubscriptionUseCase({
   transactionRepository,
   userCardRepository,
   purchaseRequestRepository,
+  productRepository,
   config: configService,
   transactionManager,
   eventBus,
