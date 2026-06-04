@@ -195,3 +195,23 @@ export async function getUserById(
     return null
   }
 }
+
+/**
+ * Resolve a user's api_token from their email.
+ * Used by the JWT/SSO verify flow when the main system signs an email-based
+ * token (the api_token is never embedded in the link).
+ */
+export async function getApiTokenByEmail(email: string): Promise<string | null> {
+  try {
+    const result = await db
+      .selectFrom("Users")
+      .select(["api_token"])
+      .where("email", "=", email)
+      .executeTakeFirst()
+
+    return result?.api_token ?? null
+  } catch (error) {
+    console.error("Error fetching api_token by email:", error)
+    return null
+  }
+}

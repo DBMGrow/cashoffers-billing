@@ -3,7 +3,7 @@ import type { HonoVariables } from "@api/types/hono"
 import { setCookie, deleteCookie } from "hono/cookie"
 import { LoginRoute, LogoutRoute, CheckAuthRoute, VerifyJwtRoute } from "./schemas"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
-import { getUserFromToken } from "@api/utils/getUserFromToken"
+import { getUserFromToken, getApiTokenByEmail } from "@api/utils/getUserFromToken"
 import jwt from "jsonwebtoken"
 import axios from "axios"
 import { config } from "@api/config/config.service"
@@ -82,7 +82,12 @@ app.openapi(VerifyJwtRoute, async (c) => {
     return c.json({ success: "error" as const, error: "Invalid or expired token" }, 401)
   }
 
-  const apiToken: string | undefined = payload?.api_token
+  // The main system signs SSO links with an email payload ({ email, iat, exp }),
+  // while internal dev links embed an api_token directly. Support both.
+  let apiToken: string | undefined = payload?.api_token
+  if (!apiToken && payload?.email) {
+    apiToken = (await getApiTokenByEmail(payload.email)) ?? undefined
+  }
   if (!apiToken) {
     return c.json({ success: "error" as const, error: "Invalid token payload" }, 401)
   }

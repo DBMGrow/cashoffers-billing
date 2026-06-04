@@ -122,9 +122,10 @@ export default function ManageFlow() {
     return "dashboard"
   }
 
-  // If a JWT token is in the URL, verify it to establish a session
+  // If a JWT token is in the URL, verify it to establish a session.
+  // The main system SSO links use `?t=`; internal dev links use `?token=`.
   useEffect(() => {
-    const token = searchParams.get("token")
+    const token = searchParams.get("t") || searchParams.get("token")
     if (!token) return
 
     async function verifyToken(jwt: string) {
@@ -136,8 +137,9 @@ export default function ManageFlow() {
           await refetchSession()
         }
       } finally {
-        // Strip token from URL regardless of outcome
+        // Strip the token from the URL regardless of outcome
         const params = new URLSearchParams(searchParams.toString())
+        params.delete("t")
         params.delete("token")
         const qs = params.toString()
         router.replace(`/manage${qs ? `?${qs}` : ""}`)
@@ -165,7 +167,7 @@ export default function ManageFlow() {
   useEffect(() => {
     if (isCheckingSession) return
     // Wait for JWT verification to complete before routing
-    if (searchParams.get("token") && !jwtVerified) return
+    if ((searchParams.get("t") || searchParams.get("token")) && !jwtVerified) return
 
     if (sessionUser) {
       setUser(sessionUser)
