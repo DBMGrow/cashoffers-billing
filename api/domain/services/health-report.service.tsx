@@ -27,27 +27,56 @@ export class HealthReportService implements IHealthReportService {
       date: date?.toISOString(),
     })
 
+    // Building the report is shared work — if it fails, nothing can be sent.
+    let html: string
+    let subject: string
     try {
       const metrics = await this.healthMetricsService.getDailyHealthMetrics(date)
       const props = this.buildEmailProps(metrics)
-      const html = await render(<DailyHealthReportEmail {...props} />)
-      const subject = `Daily Billing System Health Report - ${props.reportDate}`
+      html = await render(<DailyHealthReportEmail {...props} />)
+      subject = `Daily Billing System Health Report - ${props.reportDate}`
+    } catch (error) {
+      this.logger.error('Failed to build daily health report', error, { recipients })
+      throw error
+    }
 
-      for (const recipient of recipients) {
+    // Send to each recipient independently so one bad address doesn't block the rest.
+    const failures: string[] = []
+    for (const recipient of recipients) {
+      try {
         await this.emailService.sendEmail({
           to: recipient,
           subject,
           html,
           templateName: 'daily-health-report',
         })
+      } catch (error) {
+        failures.push(recipient)
+        this.logger.error('Failed to send daily health report to recipient', error, {
+          recipient,
+        })
       }
+    }
 
+    const sentCount = recipients.length - failures.length
+
+    // Only fail the whole job if no one received it.
+    if (sentCount === 0) {
+      const error = new Error('Daily health report failed to send to all recipients')
+      this.logger.error(error.message, error, { recipients, failures })
+      throw error
+    }
+
+    if (failures.length > 0) {
+      this.logger.warn('Daily health report sent with partial failures', {
+        recipientCount: recipients.length,
+        sentCount,
+        failures,
+      })
+    } else {
       this.logger.info('Daily health report sent successfully', {
         recipientCount: recipients.length,
       })
-    } catch (error) {
-      this.logger.error('Failed to send daily health report', error, { recipients })
-      throw error
     }
   }
 

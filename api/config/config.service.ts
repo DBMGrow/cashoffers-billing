@@ -86,6 +86,10 @@ const buildConfig = (): IConfig => {
     email: {
       adminEmail: process.env.ADMIN_EMAIL || undefined,
       devEmail: process.env.DEV_EMAIL!,
+      healthReportRecipients:
+        process.env.HEALTH_REPORT_RECIPIENTS?.split(",")
+          .map((e) => e.trim())
+          .filter(Boolean) ?? [],
     },
 
     adminEmail: process.env.ADMIN_EMAIL || process.env.DEV_EMAIL!, // Backward compatibility

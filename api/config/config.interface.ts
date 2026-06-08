@@ -71,6 +71,8 @@ export interface IConfig {
   email: {
     adminEmail?: string
     devEmail: string
+    // Additional daily health report recipients (from HEALTH_REPORT_RECIPIENTS, comma-separated)
+    healthReportRecipients: string[]
   }
 
   // Deprecated - use email.devEmail instead (defaults to devEmail if adminEmail not set)

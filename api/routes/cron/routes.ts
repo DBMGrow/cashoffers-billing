@@ -4,6 +4,7 @@ import subscriptionsCron from "@api/cron/subscriptionsCron"
 import { RunCronRoute, SendHealthReportRoute } from "./schemas"
 import { config } from "@api/config/config.service"
 import { healthReportService } from "@api/lib/services"
+import { resolveHealthReportRecipients } from "@api/domain/services/health-report-recipients"
 // TODO: suspendSubscriptionsCron doesn't exist yet - need to implement or remove
 // import suspendSubscriptionsCron from "@api/cron/suspendSubscriptionsCron"
 
@@ -36,14 +37,8 @@ app.openapi(SendHealthReportRoute, async (c) => {
   // Parse date if provided
   const reportDate = date ? new Date(date) : new Date()
 
-  // Send to dev email (primary) and admin email (fallback)
-  const recipients: string[] = []
-  if (config.email.devEmail) {
-    recipients.push(config.email.devEmail)
-  }
-  if (config.email.adminEmail && config.email.adminEmail !== config.email.devEmail) {
-    recipients.push(config.email.adminEmail)
-  }
+  // Recipients: DEV_EMAIL (primary), ADMIN_EMAIL, and any HEALTH_REPORT_RECIPIENTS
+  const recipients = resolveHealthReportRecipients(config.email)
 
   // Ensure we have at least one recipient
   if (recipients.length === 0) {
