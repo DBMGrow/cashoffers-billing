@@ -29,6 +29,8 @@ export default function UpdateCardStep({ user, onBack, onError }: UpdateCardStep
           exp_month: token.details.card.expMonth,
           exp_year: token.details.card.expYear,
           cardholder_name: user.name || "Cardholder",
+        }, {
+          headers: { "x-api-token": user.api_token },
         })
 
         if (result.success === "success") {
