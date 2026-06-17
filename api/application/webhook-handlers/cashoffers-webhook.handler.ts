@@ -26,7 +26,7 @@ type WebhookEvent =
  *
  * Processes incoming webhook events from the CashOffers main API:
  * - user.deactivated → pause user's active subscription
- * - user.activated → resume user's suspended subscription (with renewal date adjustment)
+ * - user.activated → resume user's most recent paused/suspended/cancelled subscription (with renewal date adjustment)
  * - user.created (free user) → create free trial subscription
  */
 export class CashOffersWebhookHandler {
@@ -64,32 +64,65 @@ export class CashOffersWebhookHandler {
     }
   }
 
+  // Statuses a reactivation is allowed to resume. We resume not just 'paused'
+  // (set by handleUserDeactivated) but also 'suspended' (terminal dunning) and
+  // 'cancelled' (e.g. trial expiry — see subscriptionsCron). Previously only
+  // 'paused' was handled, so a user who signed back up with a cancelled/suspended
+  // subscription was left premium-in-UI but with no active sub, and the renewal
+  // cron (active-only) never charged them again — ticket #1475.
+  private static readonly RESUMABLE_STATUSES = new Set(['paused', 'suspended', 'cancelled'])
+
   private async handleUserActivated(userId: number): Promise<void> {
-    const { subscriptionRepository } = this.deps
+    const { subscriptionRepository, logger } = this.deps
     const subscriptions = await subscriptionRepository.findByUserId(userId)
 
-    const suspended = subscriptions.filter((s) => s.status === 'paused')
-    for (const sub of suspended) {
-      const now = new Date()
-      let newRenewalDate = sub.renewal_date ? new Date(sub.renewal_date) : now
+    // Idempotency / safety: if the user already has a live subscription, there is
+    // nothing to resume — and resuming another row on top would double-bill.
+    if (subscriptions.some((s) => s.status === 'active' || s.status === 'trial')) return
 
-      if (sub.suspension_date && sub.renewal_date) {
-        const suspensionDate = new Date(sub.suspension_date)
-        const originalRenewalDate = new Date(sub.renewal_date)
-        const daysRemaining = Math.round(
-          (originalRenewalDate.getTime() - suspensionDate.getTime()) / (1000 * 60 * 60 * 24)
-        )
-        newRenewalDate = new Date(now)
-        newRenewalDate.setDate(now.getDate() + daysRemaining)
-      }
+    // Resume only the most recent resumable subscription (highest subscription_id).
+    // A user may carry old cancelled rows from prior plans; reviving all of them
+    // would create duplicate active subscriptions and duplicate charges.
+    const sub = subscriptions
+      .filter((s) => CashOffersWebhookHandler.RESUMABLE_STATUSES.has(s.status ?? ''))
+      .sort((a, b) => (b.subscription_id ?? 0) - (a.subscription_id ?? 0))[0]
+    if (!sub) return
 
-      await subscriptionRepository.update(sub.subscription_id, {
-        status: 'active',
-        suspension_date: null,
-        renewal_date: newRenewalDate,
-        updatedAt: now,
-      } as any)
+    const now = new Date()
+    let newRenewalDate = sub.renewal_date ? new Date(sub.renewal_date) : now
+
+    if (sub.suspension_date && sub.renewal_date) {
+      const suspensionDate = new Date(sub.suspension_date)
+      const originalRenewalDate = new Date(sub.renewal_date)
+      const daysRemaining = Math.round(
+        (originalRenewalDate.getTime() - suspensionDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
+      newRenewalDate = new Date(now)
+      newRenewalDate.setDate(now.getDate() + daysRemaining)
     }
+
+    // Never resume with a renewal date in the past. A long-dead subscription
+    // (e.g. cancelled a year ago) would otherwise be charged immediately and then,
+    // since the cron advances from the stale date, charged repeatedly to "catch up"
+    // on every missed cycle. Clamp to now so the user is billed for the new period
+    // going forward, once.
+    if (newRenewalDate.getTime() < now.getTime()) {
+      newRenewalDate = now
+    }
+
+    await subscriptionRepository.update(sub.subscription_id, {
+      status: 'active',
+      suspension_date: null,
+      renewal_date: newRenewalDate,
+      updatedAt: now,
+    } as any)
+
+    logger.info('Resumed subscription on user.activated', {
+      userId,
+      subscriptionId: sub.subscription_id,
+      previousStatus: sub.status,
+      renewalDate: newRenewalDate,
+    })
   }
 
   private async handleUserCreated(userId: number): Promise<void> {
