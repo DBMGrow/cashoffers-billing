@@ -78,6 +78,14 @@ export class MockUserApiClient implements IUserApiClient {
       throw new Error('User not found')
     }
 
+    // Mirror the real client: never strip premium from integration-managed
+    // users (premium is governed by an external integration, e.g. KW
+    // Community/Chargify). #1473, #1494.
+    const wantsPremiumOff = userData.is_premium === 0 || userData.is_premium === false
+    if (wantsPremiumOff && user.integration_id != null) {
+      return user
+    }
+
     // Mirror the real client: accept 0|1 or boolean for is_premium/active.
     const normalized: Partial<User> = { ...userData } as Partial<User>
     if (typeof userData.is_premium === 'number') {
@@ -115,6 +123,10 @@ export class MockUserApiClient implements IUserApiClient {
 
   async deactivateUser(userId: number): Promise<void> {
     await this.updateUser(userId, { active: false })
+  }
+
+  async shellUser(userId: number): Promise<void> {
+    await this.updateUser(userId, { role: 'SHELL', is_premium: false })
   }
 
   async activateUser(userId: number): Promise<void> {
@@ -155,6 +167,7 @@ export class MockUserApiClient implements IUserApiClient {
       is_premium: user.is_premium ?? false,
       created_at: user.created_at || new Date().toISOString(),
       updated_at: user.updated_at || new Date().toISOString(),
+      integration_id: user.integration_id ?? null,
     }
 
     this.users.set(userId, fullUser)

@@ -82,6 +82,13 @@ export interface User {
   role?: string
   team_id?: number
   whitelabel_id?: number
+  /**
+   * External integration that governs this user's premium status (e.g. KW
+   * Community / Chargify = 1). When set, premium is controlled by that
+   * integration — the billing system must NOT strip premium from these users.
+   * See updateUser() guard (#1473, #1494).
+   */
+  integration_id?: number | null
 }
 
 /**

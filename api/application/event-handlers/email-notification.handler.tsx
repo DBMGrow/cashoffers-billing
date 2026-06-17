@@ -92,6 +92,27 @@ export class EmailNotificationHandler extends BaseEventHandler {
     return environment === "sandbox"
   }
 
+  /**
+   * Whether this user's plan is governed by an external integration (e.g. KW
+   * Community / Chargify). Such users must NOT receive Square billing
+   * lapse/suspension/cancellation/downgrade emails — their premium isn't
+   * controlled here, so a "downgraded to Free" notice is wrong and alarming
+   * (#1494; pairs with the UserApiClient.updateUser premium guard).
+   *
+   * On lookup failure we return false (don't suppress) — a possibly-redundant
+   * email is safer than silently dropping a legitimate one.
+   */
+  private async isIntegrationManaged(userId: number | null | undefined): Promise<boolean> {
+    if (userId == null) return false
+    try {
+      const user = await userApiClient.getUser(userId)
+      return user?.integration_id != null
+    } catch {
+      this.logger.warn("Failed to check integration_id for email suppression", { userId })
+      return false
+    }
+  }
+
   async handle(event: IDomainEvent): Promise<void> {
     switch (event.eventType) {
       case "SubscriptionCreated":
@@ -585,6 +606,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
           return
         }
 
+        if (await this.isIntegrationManaged(event.payload.userId)) {
+          this.logger.info("Skipping subscription deactivated email for integration-managed user", {
+            userId: event.payload.userId,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
         this.logger.info("Sending subscription deactivated email", {
           email,
           subscriptionId: event.payload.subscriptionId,
@@ -625,6 +654,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
 
         if (!email) {
           this.logger.debug("No email provided for subscription pause notification", {
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
+        if (await this.isIntegrationManaged(event.payload.userId)) {
+          this.logger.info("Skipping subscription paused email for integration-managed user", {
+            userId: event.payload.userId,
             subscriptionId: event.payload.subscriptionId,
           })
           return
@@ -680,6 +717,17 @@ export class EmailNotificationHandler extends BaseEventHandler {
         let suspensionStrategy: string | undefined
         try {
           const user = await userApiClient.getUser(userId)
+          // Integration-managed users (e.g. KW Community/Chargify) are governed by an
+          // external integration — don't send them Square cancel/downgrade emails. The
+          // premium itself is already protected in UserApiClient.updateUser. (#1494)
+          if (user?.integration_id != null) {
+            this.logger.info("Skipping subscription cancellation/downgrade email for integration-managed user", {
+              userId,
+              subscriptionId: event.payload.subscriptionId,
+              integrationId: user.integration_id,
+            })
+            return
+          }
           if (user?.whitelabel_id) {
             const behavior = await whitelabelRepository.getSuspensionBehavior(user.whitelabel_id)
             if (behavior) suspensionStrategy = behavior
@@ -801,6 +849,14 @@ export class EmailNotificationHandler extends BaseEventHandler {
 
         if (!email) {
           this.logger.debug("No email provided for subscription downgrade notification", {
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
+        if (await this.isIntegrationManaged(event.payload.userId)) {
+          this.logger.info("Skipping subscription downgraded email for integration-managed user", {
+            userId: event.payload.userId,
             subscriptionId: event.payload.subscriptionId,
           })
           return

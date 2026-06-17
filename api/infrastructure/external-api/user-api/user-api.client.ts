@@ -157,6 +157,26 @@ export class UserApiClient implements IUserApiClient {
   async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
     const startTime = Date.now()
 
+    // Guard: never strip premium from integration-managed users. Their premium
+    // is governed by an external integration (KW Community / Chargify), not by
+    // this Square billing system, so a lapse/cancel here must not downgrade
+    // them. A KW agent updating her card was wrongly moved to free (#1494; same
+    // root cause as #1473). Any update that turns is_premium off for a user
+    // with integration_id set is skipped entirely (this also covers the
+    // role=SHELL downgrade path) and logged for audit.
+    const wantsPremiumOff = userData.is_premium === 0 || userData.is_premium === false
+    if (wantsPremiumOff) {
+      const existing = await this.getUser(userId)
+      if (existing && existing.integration_id != null) {
+        this.logger.warn("Skipping premium downgrade for integration-managed user", {
+          userId,
+          integrationId: existing.integration_id,
+          requested: userData,
+        })
+        return existing
+      }
+    }
+
     try {
       this.logger.debug("Updating user via API", { userId })
 
@@ -377,6 +397,7 @@ export class UserApiClient implements IUserApiClient {
       updated_at: userData.updated || userData.updated_at || new Date().toISOString(),
       reset_token: userData.reset_token,
       whitelabel_id: userData.whitelabel_id ?? undefined,
+      integration_id: userData.integration_id ?? null,
     }
   }
 }
