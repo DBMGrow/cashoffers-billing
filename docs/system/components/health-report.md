@@ -10,6 +10,14 @@ Generates a daily billing-system health report (subscription metrics, payment ou
 - `api/domain/services/health-metrics.service.ts` — gathers the metrics
 - `api/infrastructure/email/templates/daily-health-report.email.tsx` — email template
 
+## Metrics
+
+Computed in `health-metrics.service.ts`. Notes on the non-obvious ones:
+
+- **Successful Renewals vs Paid Renewals** — a renewal is any successful `subscription`-type transaction that isn't a lifecycle event (create/update/pause/resume). Free plans (e.g. the $0 "Free Agent" product) renew through the same cron path and count toward `successfulRenewals`. `paidRenewals` is the subset with `amount > 0`, so a day of all-free renewals reads as "N renewals, $0 revenue" without looking like paid activity stalled.
+- **Active Subscriptions vs Paid Active Subscriptions** — `activeSubscriptions` is the raw count of `status = 'active'` rows, which is dominated by $0 plans. `paidActiveSubscriptions` counts only active subs with `amount > 0` — the actual paying base.
+- **Revenue de-duplication** — a single Square charge is written as **two** rows: a `payment` row and a `subscription` row sharing one `square_transaction_id` (both the renewal and new-purchase flows do this). `totalRevenue`, `successfulPayments`, and `averageTransactionValue` collapse rows by `square_transaction_id` so one charge is counted once. Rows without a charge id (manual/legacy entries) can't be correlated and are each kept distinct.
+
 ## Trigger
 - Called by HTTP POST `/api/cron/health-report` with the `CRON_SECRET` in the body
 - Expected to be triggered by an external scheduler

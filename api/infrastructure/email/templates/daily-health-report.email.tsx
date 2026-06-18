@@ -20,11 +20,13 @@ export interface DailyHealthReportEmailProps {
 
   // Subscription metrics
   successfulRenewals: number
+  paidRenewals: number
   failedRenewals: number
   failedRenewalsColor: string
   newSubscriptions: number
   cancelledSubscriptions: number
   activeSubscriptions: number
+  paidActiveSubscriptions: number
   subscriptionsInRetry: number
   retryColor: string
   pausedSubscriptions: number
@@ -97,11 +99,13 @@ export default function DailyHealthReportEmail({
   totalRevenue,
   averageTransactionValue,
   successfulRenewals,
+  paidRenewals,
   failedRenewals,
   failedRenewalsColor,
   newSubscriptions,
   cancelledSubscriptions,
   activeSubscriptions,
+  paidActiveSubscriptions,
   subscriptionsInRetry,
   retryColor,
   pausedSubscriptions,
@@ -193,9 +197,11 @@ export default function DailyHealthReportEmail({
         {/* Subscription Metrics */}
         <ReportSection>
           <SectionHeader>Subscription Metrics</SectionHeader>
+          <MetricRow label="Paid Renewals" value={`${paidRenewals} of ${successfulRenewals}`} />
           <MetricRow label="New Subscriptions" value={String(newSubscriptions)} />
           <MetricRow label="Cancelled Subscriptions" value={String(cancelledSubscriptions)} />
           <MetricRow label="Active Subscriptions" value={String(activeSubscriptions)} />
+          <MetricRow label="Active Subscriptions (Paid)" value={String(paidActiveSubscriptions)} />
           <MetricRow label="Subscriptions in Retry" value={String(subscriptionsInRetry)} valueColor={retryColor} />
           <MetricRow label="Paused Subscriptions" value={String(pausedSubscriptions)} />
           <MetricRow label="Past Due Subscriptions" value={String(pastDueSubscriptions)} valueColor={pastDueColor} />
@@ -269,11 +275,13 @@ DailyHealthReportEmail.PreviewProps = {
   totalRevenue: "$4,850.00",
   averageTransactionValue: "$97.00",
   successfulRenewals: 48,
+  paidRenewals: 12,
   failedRenewals: 2,
   failedRenewalsColor: "#dc2626",
   newSubscriptions: 5,
   cancelledSubscriptions: 1,
   activeSubscriptions: 312,
+  paidActiveSubscriptions: 96,
   subscriptionsInRetry: 2,
   retryColor: "#d97706",
   pausedSubscriptions: 4,

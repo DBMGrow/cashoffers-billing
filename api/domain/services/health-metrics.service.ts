@@ -25,10 +25,16 @@ export interface DailyHealthMetrics {
   // Subscription metrics
   subscriptions: {
     successfulRenewals: number
+    // Of successfulRenewals, those that actually charged money (amount > 0).
+    // Free plans (e.g. $0 "Free Agent") renew through the same path and inflate
+    // successfulRenewals without producing revenue.
+    paidRenewals: number
     failedRenewals: number
     newSubscriptions: number
     cancelledSubscriptions: number
     activeSubscriptions: number
+    // Of activeSubscriptions, those on a paid plan (amount > 0).
+    paidActiveSubscriptions: number
     subscriptionsInRetry: number
     pausedSubscriptions: number
     pastDueSubscriptions: number
@@ -173,6 +179,16 @@ export class HealthMetricsService implements IHealthMetricsService {
       (t: any) => this.isRenewalTransaction(t) && this.isSuccessStatus(t.status)
     ).length
 
+    // Paid renewals: successful renewals that actually charged money. A renewal is a
+    // single subscription-type row, so amount > 0 here is not subject to the
+    // payment/subscription double-recording handled in getPaymentMetrics.
+    const paidRenewals = transactions.filter(
+      (t: any) =>
+        this.isRenewalTransaction(t) &&
+        this.isSuccessStatus(t.status) &&
+        Number(t.amount || 0) > 0
+    ).length
+
     const failedRenewals = transactions.filter(
       (t: any) => this.isRenewalTransaction(t) && t.status === 'failed'
     ).length
@@ -183,7 +199,14 @@ export class HealthMetricsService implements IHealthMetricsService {
 
     // Get current subscription counts
     const allSubscriptions = await this.subscriptionRepository.findAll()
-    const activeSubscriptions = allSubscriptions.filter((s: any) => s.status === 'active').length
+    const activeSubscriptionList = allSubscriptions.filter((s: any) => s.status === 'active')
+    const activeSubscriptions = activeSubscriptionList.length
+    // Paid active subscriptions: the active subs on a paid plan. The raw active
+    // count is dominated by $0 plans (e.g. "Free Agent"), so on its own it
+    // overstates the paying base.
+    const paidActiveSubscriptions = activeSubscriptionList.filter(
+      (s: any) => Number(s.amount || 0) > 0
+    ).length
     const subscriptionsInRetry = allSubscriptions.filter(
       (s: any) => (s.payment_failure_count ?? 0) > 0 && s.status === 'active'
     ).length
@@ -220,10 +243,12 @@ export class HealthMetricsService implements IHealthMetricsService {
 
     return {
       successfulRenewals,
+      paidRenewals,
       failedRenewals,
       newSubscriptions,
       cancelledSubscriptions,
       activeSubscriptions,
+      paidActiveSubscriptions,
       subscriptionsInRetry,
       pausedSubscriptions,
       pastDueSubscriptions,
@@ -239,9 +264,23 @@ export class HealthMetricsService implements IHealthMetricsService {
     // Payment types that represent real monetary transactions
     const monetaryTypes = ['payment', 'subscription', 'property_unlock']
 
-    const successfulPayments = transactions.filter(
+    const successfulPaymentRows = transactions.filter(
       (t: any) => monetaryTypes.includes(t.type) && this.isSuccessStatus(t.status) && Number(t.amount || 0) > 0
     )
+
+    // A single Square charge is recorded as TWO rows — a `payment` and a
+    // `subscription` row sharing the same square_transaction_id (both renewals and
+    // new purchases do this). Counting both double-counts revenue and the payment
+    // count, so collapse rows by square_transaction_id. Rows without a charge id
+    // (manual/legacy entries) can't be correlated and are each kept distinct.
+    const seenCharges = new Set<string>()
+    const successfulPayments = successfulPaymentRows.filter((t: any) => {
+      const chargeId = t.square_transaction_id
+      if (!chargeId) return true
+      if (seenCharges.has(chargeId)) return false
+      seenCharges.add(chargeId)
+      return true
+    })
 
     const failedPayments = transactions.filter(
       (t: any) => monetaryTypes.includes(t.type) && t.status === 'failed'

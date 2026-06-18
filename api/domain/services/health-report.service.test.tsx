@@ -10,10 +10,12 @@ const metrics: DailyHealthMetrics = {
   endDate: new Date("2026-06-08T00:00:00Z"),
   subscriptions: {
     successfulRenewals: 10,
+    paidRenewals: 4,
     failedRenewals: 0,
     newSubscriptions: 2,
     cancelledSubscriptions: 1,
     activeSubscriptions: 100,
+    paidActiveSubscriptions: 40,
     subscriptionsInRetry: 0,
     pausedSubscriptions: 0,
     pastDueSubscriptions: 0,

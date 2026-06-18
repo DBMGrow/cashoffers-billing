@@ -100,6 +100,7 @@ export class HealthReportService implements IHealthReportService {
       averageTransactionValue: this.formatCurrency(metrics.payments.averageTransactionValue),
 
       successfulRenewals: metrics.subscriptions.successfulRenewals,
+      paidRenewals: metrics.subscriptions.paidRenewals,
       failedRenewals: metrics.subscriptions.failedRenewals,
       failedRenewalsColor: (() => {
         const { renewalFailureRate } = this.computeRates(metrics)
@@ -111,6 +112,7 @@ export class HealthReportService implements IHealthReportService {
       newSubscriptions: metrics.subscriptions.newSubscriptions,
       cancelledSubscriptions: metrics.subscriptions.cancelledSubscriptions,
       activeSubscriptions: metrics.subscriptions.activeSubscriptions,
+      paidActiveSubscriptions: metrics.subscriptions.paidActiveSubscriptions,
       subscriptionsInRetry: metrics.subscriptions.subscriptionsInRetry,
       retryColor: (() => {
         const { retryRate } = this.computeRates(metrics)
