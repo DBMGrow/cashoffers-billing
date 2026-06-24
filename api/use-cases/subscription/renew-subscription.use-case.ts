@@ -337,9 +337,10 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       }
 
       // Log payment transaction (separate from the subscription renewal transaction)
+      let paymentTransactionId: number | null = null
       if (paymentId && totalAmount > 0) {
         const now = new Date()
-        await this.deps.transactionRepository.create({
+        const paymentTransaction = await this.deps.transactionRepository.create({
           user_id: subscription.user_id!,
           amount: totalAmount,
           type: "payment",
@@ -352,6 +353,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           createdAt: now,
           updatedAt: now,
         })
+        paymentTransactionId = paymentTransaction.transaction_id
       }
 
       // Update status to CREATING_SUBSCRIPTION (updating renewal)
@@ -426,7 +428,11 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       if (paymentId && totalAmount > 0) {
         await this.deps.eventBus.publish(
           PaymentProcessedEvent.create({
-            transactionId: transactionId!,
+            // Reference the PAYMENT transaction (it carries product_id), not the
+            // subscription row. api-v2's commission accrual keys on the row with
+            // product_id; pointing at the subscription row (NULL product) makes
+            // its renewal de-dupe skip the push and the sale never accrues.
+            transactionId: paymentTransactionId ?? transactionId!,
             externalTransactionId: paymentId,
             userId: subscription.user_id!,
             email: validatedInput.email,
