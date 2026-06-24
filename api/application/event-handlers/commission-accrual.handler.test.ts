@@ -52,9 +52,12 @@ describe("CommissionAccrualHandler", () => {
     expect(client.reverse).not.toHaveBeenCalled()
   })
 
-  it("PaymentRefunded → reverse using the ORIGINAL transaction_id", async () => {
-    await handler.handle(makeEvent("PaymentRefunded", { transactionId: 9001, originalTransactionId: 3599 }))
-    expect(client.reverse).toHaveBeenCalledWith({ transaction_id: 3599 })
+  it("PaymentRefunded → reverse using the ORIGINAL transaction_id + refunded amount", async () => {
+    await handler.handle(
+      makeEvent("PaymentRefunded", { transactionId: 9001, originalTransactionId: 3599, amount: 4900 })
+    )
+    // api-v2 /reverse needs the refunded cents to reverse the commission proportionally.
+    expect(client.reverse).toHaveBeenCalledWith({ transaction_id: 3599, chargeback_amount: 4900 })
     expect(client.accrue).not.toHaveBeenCalled()
   })
 

@@ -10,6 +10,12 @@
 export interface CommissionAccrualInput {
   /** Internal CashOffers transaction id (Transactions.transaction_id). */
   transaction_id: number
+  /**
+   * Refunded amount in cents. Required by api-v2 `/internal/commissions/reverse`
+   * (it recomputes net revenue as gross − platform_fee − chargeback_amount, so a
+   * partial refund reverses the commission proportionally). Omitted for accrue.
+   */
+  chargeback_amount?: number
 }
 
 export interface ICommissionApiClient {

@@ -6,9 +6,9 @@ import type { ICommissionApiClient } from "@api/infrastructure/external-api/comm
 /**
  * Pushes commission accrual/reversal to api-v2 the moment money moves.
  *
- * Forwards `{ transaction_id }` to api-v2's internal commission endpoints on a
- * settled payment or a refund. Billing owns only this trigger; api-v2 does all
- * the computation.
+ * Forwards the settled/refunded `transaction_id` (plus the refunded amount on a
+ * reversal) to api-v2's internal commission endpoints on a settled payment or a
+ * refund. Billing owns only this trigger; api-v2 does all the computation.
  *
  * Non-fatal by design: this is a LATENCY optimization, not a correctness
  * guarantee. The api-v2 reconciliation sweep over the shared `Transactions`
@@ -58,7 +58,13 @@ export class CommissionAccrualHandler extends BaseEventHandler {
     await this.safeExecute(
       async () => {
         if (isRefund) {
-          await this.commissionApiClient.reverse({ transaction_id: transactionId })
+          // api-v2 /reverse requires the refunded amount (cents) so it can
+          // recompute the reversed commission — a partial refund reverses
+          // proportionally. PaymentRefundedPayload.amount is the refunded cents.
+          await this.commissionApiClient.reverse({
+            transaction_id: transactionId,
+            chargeback_amount: event.payload?.amount,
+          })
         } else {
           await this.commissionApiClient.accrue({ transaction_id: transactionId })
         }
