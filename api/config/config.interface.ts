@@ -48,6 +48,7 @@ export interface IConfig {
     urlV2: string // API_URL_V2 - main API v2 base URL (e.g. https://app.cashoffers.pro/api/v2)
     masterToken: string
     key: string // API_KEY - token for calling main auth API
+    internalToken?: string // API_TOKEN_INTERNAL - service token for api-v2 /internal/* routes (commission accrual push)
     route?: string // API_ROUTE - internal/billing API base URL (optional)
   }
 

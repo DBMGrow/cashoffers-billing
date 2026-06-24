@@ -33,7 +33,10 @@ export class CommissionApiClient implements ICommissionApiClient {
         axios.post(url, input, {
           headers: {
             "Content-Type": "application/json",
-            "x-api-token": this.config.api.masterToken,
+            // api-v2 /internal/commissions/* is guarded by the internal service
+            // token (x-api-token-internal === env.API_TOKEN_INTERNAL), NOT the
+            // master token. Must match api-v2 Phase 3's commissions.internal.routes.
+            "x-api-token-internal": this.config.api.internalToken,
           },
           timeout: DEFAULT_HTTP_TIMEOUT_MS,
         }),
