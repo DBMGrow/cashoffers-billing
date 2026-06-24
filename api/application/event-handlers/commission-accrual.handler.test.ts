@@ -39,19 +39,17 @@ describe("CommissionAccrualHandler", () => {
     handler = new CommissionAccrualHandler(client, logger)
   })
 
-  it("subscribes to the three money-moving events", () => {
-    expect(handler.getEventTypes()).toEqual(["PaymentProcessed", "SubscriptionRenewed", "PaymentRefunded"])
+  it("subscribes to PaymentProcessed + PaymentRefunded only (NOT SubscriptionRenewed)", () => {
+    // SubscriptionRenewed is excluded so a renewal (which emits both events,
+    // writing two transaction rows) accrues exactly once. See getEventTypes.
+    expect(handler.getEventTypes()).toEqual(["PaymentProcessed", "PaymentRefunded"])
+    expect(handler.getEventTypes()).not.toContain("SubscriptionRenewed")
   })
 
   it("PaymentProcessed → accrue with the payment transaction_id", async () => {
     await handler.handle(makeEvent("PaymentProcessed", { transactionId: 3599 }))
     expect(client.accrue).toHaveBeenCalledWith({ transaction_id: 3599 })
     expect(client.reverse).not.toHaveBeenCalled()
-  })
-
-  it("SubscriptionRenewed → accrue with the renewal transaction_id", async () => {
-    await handler.handle(makeEvent("SubscriptionRenewed", { transactionId: 3600 }))
-    expect(client.accrue).toHaveBeenCalledWith({ transaction_id: 3600 })
   })
 
   it("PaymentRefunded → reverse using the ORIGINAL transaction_id", async () => {

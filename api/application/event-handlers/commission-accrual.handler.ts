@@ -6,9 +6,9 @@ import type { ICommissionApiClient } from "@api/infrastructure/external-api/comm
 /**
  * Pushes commission accrual/reversal to api-v2 the moment money moves.
  *
- * Subscribes to the three events that represent a transaction settling or
- * reversing, and forwards `{ transaction_id }` to api-v2's internal commission
- * endpoints. Billing owns only this trigger; api-v2 does all the computation.
+ * Forwards `{ transaction_id }` to api-v2's internal commission endpoints on a
+ * settled payment or a refund. Billing owns only this trigger; api-v2 does all
+ * the computation.
  *
  * Non-fatal by design: this is a LATENCY optimization, not a correctness
  * guarantee. The api-v2 reconciliation sweep over the shared `Transactions`
@@ -26,7 +26,14 @@ export class CommissionAccrualHandler extends BaseEventHandler {
   }
 
   getEventTypes(): string[] {
-    return ["PaymentProcessed", "SubscriptionRenewed", "PaymentRefunded"]
+    // Deliberately NOT "SubscriptionRenewed": a renewal emits BOTH
+    // PaymentProcessed and SubscriptionRenewed, which write two Transactions rows
+    // (payment + subscription) sharing one Square id but with different internal
+    // ids. Subscribing to both would accrue the same sale twice (the api-v2
+    // uq_ledger_txn_role key can't dedupe across two transaction_ids).
+    // PaymentProcessed fires for one-time charges AND renewals — and its row
+    // carries product_id — so it covers everything, exactly once.
+    return ["PaymentProcessed", "PaymentRefunded"]
   }
 
   async handle(event: IDomainEvent): Promise<void> {

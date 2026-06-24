@@ -122,9 +122,10 @@ eventBus.subscribe("SubscriptionDeactivated", cashOffersAccountHandler)
 eventBus.subscribe("SubscriptionCancelled", cashOffersAccountHandler)
 
 // Commission accrual push to api-v2 (near-real-time; the api-v2 sweep is the
-// correctness backstop). Refunds reverse; payments/renewals accrue.
+// correctness backstop). PaymentProcessed covers one-time charges AND renewals
+// exactly once; SubscriptionRenewed is intentionally NOT subscribed (it would
+// double-accrue a renewal — see CommissionAccrualHandler.getEventTypes).
 eventBus.subscribe("PaymentProcessed", commissionAccrualHandler)
-eventBus.subscribe("SubscriptionRenewed", commissionAccrualHandler)
 eventBus.subscribe("PaymentRefunded", commissionAccrualHandler)
 
 // HomeUptick account management
