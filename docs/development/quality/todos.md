@@ -49,3 +49,9 @@ Active implementation gaps tracked here. Link to discrepancy if one exists.
 ### TODO-008: Add CLI Scenarios for Pause/Resume and Cancel on Renewal
 - **File**: `scripts/dev.ts`
 - **What**: Dev CLI has no scenarios for these common operations
+
+### TODO-009: Square Dispute/Chargeback Webhook for Commission Reversal
+- **What**: The commission accrual push (`CommissionAccrualHandler`) reverses commissions on **refunds** (`PaymentRefundedEvent`). It does **not** handle Square **disputes/chargebacks** (bank-forced reversals), which neither service handles today.
+- **For now**: a chargeback is reconciled when finance records the matching refund. The api-v2 reconciliation sweep over the shared `Transactions` table remains the correctness backstop.
+- **Later**: add a Square `dispute.created` webhook handler → `POST /internal/commissions/reverse`.
+- **See**: `docs/plans/commission-accrual-push-plan.md` (§6 Out of scope)
