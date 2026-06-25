@@ -193,6 +193,20 @@ export const DeactivateSubscriptionInputSchema = z.object({
 export type DeactivateSubscriptionInputValidated = z.infer<typeof DeactivateSubscriptionInputSchema>
 
 /**
+ * Full name validator — requires both a first and last name.
+ * New agent signups (Zoho Desk #1053) were able to register through the public
+ * purchase flow with only a single name, so we require the name to contain at
+ * least two whitespace-separated parts (i.e. a space between first and last).
+ */
+export const FullNameSchema = z
+  .string({ error: "Full name is required" })
+  .trim()
+  .min(1, "Full name is required")
+  .refine((val) => val.split(/\s+/).filter(Boolean).length >= 2, {
+    message: "Please enter your first and last name",
+  })
+
+/**
  * New user purchase validation schema.
  * All card and identification fields are required.
  */
@@ -207,7 +221,7 @@ export const NewUserPurchaseInputSchema = z.object({
   expMonth: z.number().int().min(1).max(12).optional().nullable(),
   expYear: z.number().int().optional().nullable(),
   cardholderName: z.string().min(1, "Cardholder name is required").optional().nullable(),
-  name: z.string().optional().nullable(),
+  name: FullNameSchema,
   nameBroker: z.string().optional().nullable(),
   nameTeam: z.string().optional().nullable(),
   whitelabel: z.string().optional().nullable(),
