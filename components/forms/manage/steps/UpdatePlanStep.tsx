@@ -54,7 +54,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
         "/api/manage/purchase",
         {
           product_id: productId,
-          subscription_id: currentSubscription.subscription_id,
+          subscription_id: currentSubscription.subscriptionId,
         },
         {
           headers: {
@@ -168,7 +168,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
   const availablePlans = products.filter(
     (p: Product) =>
       p.product_type === "subscription" &&
-      Number(p.product_id) !== Number(currentSubscription.product_id) &&
+      Number(p.product_id) !== Number(currentSubscription.productId) &&
       !isProductFree(p)
   )
 
