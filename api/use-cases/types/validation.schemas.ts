@@ -207,7 +207,13 @@ export const NewUserPurchaseInputSchema = z.object({
   expMonth: z.number().int().min(1).max(12).optional().nullable(),
   expYear: z.number().int().optional().nullable(),
   cardholderName: z.string().min(1, "Cardholder name is required").optional().nullable(),
-  name: z.string().optional().nullable(),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, {
+      message: "Please enter your first and last name",
+    }),
   nameBroker: z.string().optional().nullable(),
   nameTeam: z.string().optional().nullable(),
   whitelabel: z.string().optional().nullable(),

@@ -18,7 +18,8 @@ interface NameStepProps {
 export default function NameStep({ form, onNext, onBack, setAllowReset }: NameStepProps) {
   const [isLoading, setIsLoading] = useState(false)
   const name = form.watch("name")
-  const isDisabled = !name || name.length < 2
+  const isFullName = (name ?? "").trim().split(/\s+/).filter(Boolean).length >= 2
+  const isDisabled = !isFullName
 
   const { currentWhitelabel } = useWhitelabel()
   const { getProductById } = useProducts({
@@ -56,14 +57,19 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
   }
 
   return (
-    <Input
-      placeholder="John Doe"
-      name="name"
-      value={name}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name", e.target.value)}
-      isDisabled={isDisabled}
-      isLoading={isLoading}
-      handleSubmit={handleSubmit}
-    />
+    <>
+      <Input
+        placeholder="John Doe"
+        name="name"
+        value={name}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name", e.target.value)}
+        isDisabled={isDisabled}
+        isLoading={isLoading}
+        handleSubmit={handleSubmit}
+      />
+      {name && !isFullName ? (
+        <p className="mt-2 text-sm text-default-400">Please enter your first and last name.</p>
+      ) : null}
+    </>
   )
 }

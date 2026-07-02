@@ -41,7 +41,12 @@ const cardDataSchema = z.object({
 const subscribeSchema = z.object({
   product: z.union([z.number(), z.literal("free"), z.literal("freeinvestor")]),
   email: z.string().email(),
-  name: z.string().min(2),
+  name: z
+    .string()
+    .min(2)
+    .refine((value) => value.trim().split(/\s+/).filter(Boolean).length >= 2, {
+      message: "Please enter your first and last name",
+    }),
   phone: z.string().min(10),
   slug: z.string().nullable(),
   name_broker: z.string().nullable(),
