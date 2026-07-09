@@ -23,7 +23,7 @@ function makeLogger(): ILogger {
 }
 
 function makeConfig(): IConfig {
-  return { api: { url: "https://api.test", masterToken: "tok" } } as unknown as IConfig
+  return { api: { url: "https://api.test", urlV2: "https://api.test/v2", masterToken: "tok" } } as unknown as IConfig
 }
 
 function userResponse(overrides: Record<string, unknown>) {

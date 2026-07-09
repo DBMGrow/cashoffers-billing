@@ -15,7 +15,7 @@ export class UserApiClient implements IUserApiClient {
     private logger: ILogger
   ) {
     this.logger.debug("User API client initialized", {
-      apiUrl: config.api.url,
+      apiUrl: config.api.urlV2,
     })
   }
 
@@ -46,7 +46,7 @@ export class UserApiClient implements IUserApiClient {
 
       const response = await this.withRetry(
         () =>
-          axios.get(`${this.config.api.url}/users/${userId}`, {
+          axios.get(`${this.config.api.urlV2}/users/${userId}`, {
             headers: {
               "x-api-token": this.config.api.masterToken,
             },
@@ -84,9 +84,12 @@ export class UserApiClient implements IUserApiClient {
     try {
       this.logger.debug("Fetching user by email from API", { email })
 
+      // v2 has no exact `?email=` filter; its list search (`search_terms`) LIKE-matches
+      // name/email/phone, so search then pick the exact email match and re-fetch the
+      // full record (the list projection may omit fields parseUser needs).
       const response = await this.withRetry(
         () =>
-          axios.get(`${this.config.api.url}/users?email=${encodeURIComponent(email)}`, {
+          axios.get(`${this.config.api.urlV2}/users?search_terms=${encodeURIComponent(email)}&limit=20`, {
             headers: {
               "x-api-token": this.config.api.masterToken,
             },
@@ -98,9 +101,12 @@ export class UserApiClient implements IUserApiClient {
       const data: any = response.data
       const duration = Date.now() - startTime
 
-      if (data.success === "success" && data.data && data.data.length > 0) {
-        this.logger.debug("User found by email", { email, duration })
-        return this.parseUser(data.data[0])
+      if (data.success === "success" && Array.isArray(data.data)) {
+        const match = data.data.find((u: any) => typeof u.email === "string" && u.email.toLowerCase() === email.toLowerCase())
+        if (match) {
+          this.logger.debug("User found by email", { email, duration })
+          return this.getUser(match.user_id || match.id)
+        }
       }
 
       this.logger.debug("User not found by email", { email, duration })
@@ -120,7 +126,7 @@ export class UserApiClient implements IUserApiClient {
 
       // POST is not idempotent: a timeout-then-retry could create a duplicate
       // user if the origin processed the first request. Use a timeout but no retry.
-      const response = await axios.post(`${this.config.api.url}/users`, userData, {
+      const response = await axios.post(`${this.config.api.urlV2}/users`, userData, {
         headers: {
           "Content-Type": "application/json",
           "x-api-token": this.config.api.masterToken,
@@ -187,7 +193,7 @@ export class UserApiClient implements IUserApiClient {
 
       const response = await this.withRetry(
         () =>
-          axios.put(`${this.config.api.url}/users/${userId}`, body, {
+          axios.put(`${this.config.api.urlV2}/users/${userId}`, body, {
             headers: {
               "Content-Type": "application/json",
               "x-api-token": this.config.api.masterToken,
@@ -202,7 +208,14 @@ export class UserApiClient implements IUserApiClient {
 
       this.logger.debug("User updated successfully", { userId, duration })
 
-      return this.parseUserResponse(data)
+      // v2's PUT /users/:id returns an empty data object (no user payload). Parse
+      // the response when it does carry a user; otherwise re-fetch for the caller.
+      if (data?.success === "success" && data.data && (data.data.user_id || data.data.id)) {
+        return this.parseUser(data.data)
+      }
+      const updated = await this.getUser(userId)
+      if (!updated) throw new Error(`User ${userId} updated but could not be re-fetched`)
+      return updated
     } catch (error) {
       const duration = Date.now() - startTime
       const responseData = (error as any)?.response?.data
@@ -330,7 +343,7 @@ export class UserApiClient implements IUserApiClient {
       this.logger.info("Creating team via API", { teamname: params.teamname, ownerId: params.owner_id })
 
       // POST is not idempotent: no retry, to avoid creating a duplicate team.
-      const response = await axios.post(`${this.config.api.url}/teams`, params, {
+      const response = await axios.post(`${this.config.api.urlV2}/teams`, params, {
         headers: {
           "Content-Type": "application/json",
           "x-api-token": this.config.api.masterToken,

@@ -252,7 +252,7 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
   }
 
   private async fetchProperty(propertyToken: string): Promise<any> {
-    const apiUrl = this.deps.config.get("API_URL")
+    const apiUrl = this.deps.config.get("API_URL_V2")
     const apiToken = this.deps.config.get("API_MASTER_TOKEN")
 
     try {
@@ -277,7 +277,7 @@ export class UnlockPropertyUseCase implements IUnlockPropertyUseCase {
   }
 
   private async updateProperty(propertyToken: string): Promise<void> {
-    const apiUrl = this.deps.config.get("API_URL")
+    const apiUrl = this.deps.config.get("API_URL_V2")
     const apiToken = this.deps.config.get("API_MASTER_TOKEN")
 
     try {

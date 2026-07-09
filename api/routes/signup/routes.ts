@@ -126,19 +126,22 @@ app.openapi(CheckSlugExistsRoute, async (c) => {
   try {
     const { slug } = c.req.valid("param")
 
+    // v2 responds 200 {exists:false} when the slug is free and 400 (CodedError)
+    // when it's taken — treat the 400 as "exists" rather than an error.
     const response = await axios.get(
-      `${config.api.url}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
+      `${config.api.urlV2}/client-site/checkslugexists/${encodeURIComponent(slug)}`,
       {
         headers: {
           "x-api-token": config.api.key,
         },
+        validateStatus: (status) => status < 500,
       }
     )
 
     const json = response.data
     const data = json?.data
 
-    if (data?.exists === false) {
+    if (response.status === 200 && data?.exists === false) {
       return c.json(
         {
           success: "success" as const,

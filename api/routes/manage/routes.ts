@@ -124,26 +124,24 @@ app.openapi(CheckTokenRoute, async (c) => {
       throw new Error("Token not valid")
     }
 
-    // Fetch user details
-    const url = `${config.api.url}/users/${decoded.id}`
-    const userResponse = await fetch(url, {
-      headers: {
-        "x-api-token": config.api.key,
-      },
-    })
+    // Resolve the user directly from the DB (billing already reads Users for the
+    // token flows — see getUserFromToken). The old path fetched v1's
+    // GET /users/:id for its `_api_token` field, which v2 does not expose.
+    const userRow: any = await db
+      .selectFrom("Users")
+      .selectAll()
+      .where("user_id", "=", decoded.id)
+      .executeTakeFirst()
 
-    const user: any = await userResponse.json()
-
-    if (user?.success !== "success") {
-      throw new Error("Error fetching user")
-    }
-
-    if (!user?.data) {
+    if (!userRow) {
       throw new Error("User not found")
     }
 
+    const { password: _password, api_token, ...safeUser } = userRow
+    const user = { data: { ...safeUser, _api_token: api_token } }
+
     // Get API token from user data
-    const apiToken = user.data._api_token
+    const apiToken = api_token
 
     // Set authentication cookie
     if (apiToken) {

@@ -21,7 +21,7 @@ app.openapi(LoginRoute, async (c) => {
 
     // Proxy login request to V2 auth API
     const response = await axios.post(
-      `${config.api.url}/auth/login`,
+      `${config.api.urlV2}/auth/login`,
       { email, password },
       {
         validateStatus: () => true, // Don't throw on any status code

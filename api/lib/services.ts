@@ -141,6 +141,7 @@ eventBus.subscribe("SubscriptionCancelled", homeUptickAccountHandler)
 // Map env-style keys to their nested config paths
 const configKeyMap: Record<string, () => unknown> = {
   API_URL: () => config.api.url,
+  API_URL_V2: () => config.api.urlV2,
   API_MASTER_TOKEN: () => config.api.masterToken,
   API_KEY: () => config.api.key,
   ADMIN_EMAIL: () => config.adminEmail,
