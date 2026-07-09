@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { ErrorResponseSchema, EmailSchema } from "../helpers/common.schemas"
+import { isFullName, FULL_NAME_REQUIRED_MESSAGE } from "@api/utils/full-name"
 
 /**
  * Purchase route schemas
@@ -20,7 +21,7 @@ export const NewUserPurchaseRequestSchema = z.object({
   exp_month: z.union([z.string(), z.number()]).optional().nullable(),
   exp_year: z.union([z.string(), z.number()]).optional().nullable(),
   cardholder_name: z.string().optional().nullable(),
-  name: z.string().optional().nullable(),
+  name: z.string().refine(isFullName, { message: FULL_NAME_REQUIRED_MESSAGE }),
   name_broker: z.string().optional().nullable(),
   name_team: z.string().optional().nullable(),
   whitelabel: z.string().optional().nullable(),

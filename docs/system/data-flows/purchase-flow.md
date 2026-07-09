@@ -42,6 +42,15 @@ sequenceDiagram
   API->>DB: Create Homeuptick_Subscriptions row (from product template or defaults)
 ```
 
+### Input validation
+
+The `name` field must be a full name — a first and last name (at least two
+whitespace-separated parts). Downstream provisioning splits `name` on whitespace
+into first/last name, so a single-word name produces an empty last name. Signups
+without a last name are rejected up front (before any card is created or charged)
+with `PURCHASE_VALIDATION_ERROR` → HTTP 400. Enforced in both the route request
+schema and the use-case schema via `isFullName` (`api/utils/full-name.ts`).
+
 ### Error Handling After Payment
 
 | Failure point | Refund? | Action |

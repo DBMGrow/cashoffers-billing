@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { isFullName, FULL_NAME_REQUIRED_MESSAGE } from "@api/utils/full-name"
 
 /**
  * Zod validation schemas for use case inputs
@@ -207,7 +208,7 @@ export const NewUserPurchaseInputSchema = z.object({
   expMonth: z.number().int().min(1).max(12).optional().nullable(),
   expYear: z.number().int().optional().nullable(),
   cardholderName: z.string().min(1, "Cardholder name is required").optional().nullable(),
-  name: z.string().optional().nullable(),
+  name: z.string().refine(isFullName, { message: FULL_NAME_REQUIRED_MESSAGE }),
   nameBroker: z.string().optional().nullable(),
   nameTeam: z.string().optional().nullable(),
   whitelabel: z.string().optional().nullable(),
