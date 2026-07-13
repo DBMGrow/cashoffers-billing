@@ -75,6 +75,8 @@ export default function ReviewStep({
     CARD_NOT_SUPPORTED: "This card type is not supported. Please try a Visa, Mastercard, or American Express.",
     CARD_DECLINED: "Your card was declined. Please try a different card or contact your bank.",
     GENERIC_DECLINE: "Your card was declined. Please try a different card or contact your bank.",
+    TRANSACTION_LIMIT:
+      "Your card was declined because the charge exceeds a transaction limit. Please contact your bank to authorize it, or try a different card.",
     PAN_FAILURE: "Your card number could not be verified. Please check your card details and try again.",
     CARDHOLDER_INSUFFICIENT_PERMISSIONS:
       "Your card issuer has blocked this transaction. Please contact your bank or use a different card.",
