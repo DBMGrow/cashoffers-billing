@@ -22,13 +22,16 @@ export interface User {
 }
 
 export interface Subscription {
-  subscription_id: number
-  subscription_name: string
-  product_id: number | string
-  renewal_cost: number
+  subscriptionId: number
+  userId?: number | null
+  subscriptionName: string
+  productId: number | string
+  amount: number
   duration?: string
   createdAt?: string
-  renewal_date?: string
+  renewalDate?: string | null
+  cancelOnRenewal?: boolean
+  downgradeOnRenewal?: boolean
   status?: string
   data: {
     renewal_cost: number
