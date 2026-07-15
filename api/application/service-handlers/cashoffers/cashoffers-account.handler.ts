@@ -154,6 +154,18 @@ export class CashOffersAccountHandler implements IEventHandler {
     if (!productData?.cashoffers?.managed) return
 
     const payload = event.payload as any
+
+    // A cancel-on-renewal is only *scheduled* here — the subscription stays active
+    // until the period ends, so the account must not be downgraded yet. The actual
+    // downgrade happens at renewal, where the event fires with cancelOnRenewal=false.
+    if (event.eventType === 'SubscriptionCancelled' && payload.cancelOnRenewal === true) {
+      this.logger.info('Skipping suspension for scheduled cancel-on-renewal', {
+        userId: payload.userId,
+        subscriptionId: payload.subscriptionId,
+      })
+      return
+    }
+
     const userId = payload.userId
 
     // Resolve suspension strategy from user's whitelabel_id (source of truth)

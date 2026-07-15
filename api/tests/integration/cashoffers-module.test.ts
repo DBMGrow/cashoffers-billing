@@ -315,6 +315,18 @@ describe('CashOffersAccountHandler', () => {
           expect.objectContaining({ role: 'SHELL', is_premium: 0 })
         )
       })
+
+      it('does NOT downgrade the user when a cancel-on-renewal is merely scheduled (cancelOnRenewal: true)', async () => {
+        const productData = makeProductData({ whitelabel_id: 5 })
+        await eventBus.publish(
+          SubscriptionCancelledEvent.create(
+            { subscriptionId, userId, cancelOnRenewal: true },
+            { productData, suspensionStrategy: 'DEACTIVATE_USER' }
+          )
+        )
+        // Subscription stays active until the period ends — no role/premium change yet.
+        expect(userApiClient.updateUser).not.toHaveBeenCalled()
+      })
     })
 
     describe('DOWNGRADE_TO_FREE suspension strategy', () => {

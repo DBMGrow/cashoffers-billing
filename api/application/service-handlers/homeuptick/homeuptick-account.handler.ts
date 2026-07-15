@@ -117,6 +117,17 @@ export class HomeUptickAccountHandler implements IEventHandler {
     if (!productData?.homeuptick?.enabled) return
 
     const payload = event.payload as any
+
+    // A cancel-on-renewal is only *scheduled* here — the subscription stays active
+    // until the period ends, so the account must not be deactivated yet. The actual
+    // deactivation happens at renewal, where the event fires with cancelOnRenewal=false.
+    if (event.eventType === 'SubscriptionCancelled' && payload.cancelOnRenewal === true) {
+      this.logger.info('Skipping deactivation for scheduled cancel-on-renewal', {
+        userId: payload.userId,
+      })
+      return
+    }
+
     await this.huApiClient.deactivateAccount(payload.userId)
   }
 }
