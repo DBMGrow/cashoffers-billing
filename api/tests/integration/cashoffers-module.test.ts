@@ -315,6 +315,21 @@ describe('CashOffersAccountHandler', () => {
           expect.objectContaining({ role: 'SHELL', is_premium: 0 })
         )
       })
+
+      it('does NOT suspend on SubscriptionCancelled when cancelOnRenewal is true (#1542)', async () => {
+        // Regression for #1542: a scheduled cancel emits SubscriptionCancelled with
+        // cancelOnRenewal: true at schedule time; suspension must defer to the renewal
+        // cron's re-emit (cancelOnRenewal: false), not fire now.
+        const productData = makeProductData({ whitelabel_id: 5 })
+        await eventBus.publish(
+          SubscriptionCancelledEvent.create(
+            { subscriptionId, userId, cancelOnRenewal: true },
+            { productData, suspensionStrategy: 'DEACTIVATE_USER' }
+          )
+        )
+        expect(userApiClient.updateUser).not.toHaveBeenCalled()
+        expect(userApiClient.deactivateUser).not.toHaveBeenCalled()
+      })
     })
 
     describe('DOWNGRADE_TO_FREE suspension strategy', () => {
