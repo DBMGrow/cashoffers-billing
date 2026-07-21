@@ -34,7 +34,12 @@ export class HomeUptickAccountHandler implements IEventHandler {
           break
         case 'SubscriptionPaused':
         case 'SubscriptionDeactivated':
+          await this.handleDeactivation(event)
+          break
         case 'SubscriptionCancelled':
+          // See CashOffersAccountHandler: a scheduled cancel (cancelOnRenewal:true) must NOT tear down the
+          // addon account until the renewal-time event (cancelOnRenewal:false) arrives (defect #1542 / #44).
+          if ((event.payload as { cancelOnRenewal?: boolean })?.cancelOnRenewal === true) break
           await this.handleDeactivation(event)
           break
       }
