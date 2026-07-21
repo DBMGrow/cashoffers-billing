@@ -316,7 +316,10 @@ describe('CashOffersAccountHandler', () => {
         )
       })
 
-      it('does NOT downgrade the user when a cancel-on-renewal is merely scheduled (cancelOnRenewal: true)', async () => {
+      it('does NOT suspend on SubscriptionCancelled when cancelOnRenewal is true (#1542)', async () => {
+        // Regression for #1542: a scheduled cancel emits SubscriptionCancelled with
+        // cancelOnRenewal: true at schedule time; suspension must defer to the renewal
+        // cron's re-emit (cancelOnRenewal: false), not fire now.
         const productData = makeProductData({ whitelabel_id: 5 })
         await eventBus.publish(
           SubscriptionCancelledEvent.create(
@@ -326,6 +329,7 @@ describe('CashOffersAccountHandler', () => {
         )
         // Subscription stays active until the period ends — no role/premium change yet.
         expect(userApiClient.updateUser).not.toHaveBeenCalled()
+        expect(userApiClient.deactivateUser).not.toHaveBeenCalled()
       })
     })
 

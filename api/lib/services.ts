@@ -18,6 +18,7 @@ import { createSquareErrorTranslator } from "@api/infrastructure/payment/error/s
 import { createSendGridEmailService } from "@api/infrastructure/email/sendgrid/sendgrid.service"
 import { createSmtpEmailService } from "@api/infrastructure/email/smtp/smtp.service"
 import { createUserApiClient } from "@api/infrastructure/external-api/user-api/user-api.client"
+import { createCommissionApiClient } from "@api/infrastructure/external-api/commission-api.client"
 import { InMemoryEventBus } from "@api/infrastructure/events/in-memory-event-bus"
 import { EmailNotificationHandler } from "@api/application/event-handlers/email-notification.handler"
 import { TransactionLoggingHandler } from "@api/application/event-handlers/transaction-logging.handler"
@@ -25,6 +26,7 @@ import { LogFlushHandler } from "@api/application/event-handlers/log-flush.handl
 import { CashOffersAccountHandler } from "@api/application/service-handlers/cashoffers/cashoffers-account.handler"
 import { HomeUptickAccountHandler } from "@api/application/service-handlers/homeuptick/homeuptick-account.handler"
 import { AdminAlertHandler } from "@api/application/event-handlers/admin-alert.handler"
+import { CommissionAccrualHandler } from "@api/application/event-handlers/commission-accrual.handler"
 import { createHomeUptickApiClient } from "@api/infrastructure/external-api/homeuptick-api/homeuptick-api.client"
 import { createHealthMetricsService } from "@api/domain/services/health-metrics.service"
 import { createHealthReportService } from "@api/domain/services/health-report.service"
@@ -69,6 +71,7 @@ export const emailService =
 
 export const userApiClient = createUserApiClient(config, logger)
 export const homeUptickApiClient = createHomeUptickApiClient(config, logger, db)
+export const commissionApiClient = createCommissionApiClient(config, logger)
 
 export const healthMetricsService = createHealthMetricsService(
   transactionRepository,
@@ -90,6 +93,7 @@ const rawCashOffersAccountHandler = new CashOffersAccountHandler(userApiClient, 
 const rawHomeUptickAccountHandler = new HomeUptickAccountHandler(homeUptickApiClient, logger)
 const cashOffersAccountHandler = new AdminAlertHandler(rawCashOffersAccountHandler, criticalAlertService, 'CashOffersAccountHandler', logger)
 const homeUptickAccountHandler = new AdminAlertHandler(rawHomeUptickAccountHandler, criticalAlertService, 'HomeUptickAccountHandler', logger)
+const commissionAccrualHandler = new CommissionAccrualHandler(commissionApiClient, logger)
 
 eventBus.subscribe("SubscriptionCreated", emailNotificationHandler)
 eventBus.subscribe("SubscriptionRenewed", emailNotificationHandler)
@@ -116,6 +120,13 @@ eventBus.subscribe("SubscriptionUpgraded", cashOffersAccountHandler)
 eventBus.subscribe("SubscriptionPaused", cashOffersAccountHandler)
 eventBus.subscribe("SubscriptionDeactivated", cashOffersAccountHandler)
 eventBus.subscribe("SubscriptionCancelled", cashOffersAccountHandler)
+
+// Commission accrual push to api-v2 (near-real-time; the api-v2 sweep is the
+// correctness backstop). PaymentProcessed covers one-time charges AND renewals
+// exactly once; SubscriptionRenewed is intentionally NOT subscribed (it would
+// double-accrue a renewal — see CommissionAccrualHandler.getEventTypes).
+eventBus.subscribe("PaymentProcessed", commissionAccrualHandler)
+eventBus.subscribe("PaymentRefunded", commissionAccrualHandler)
 
 // HomeUptick account management
 eventBus.subscribe("SubscriptionCreated", homeUptickAccountHandler)

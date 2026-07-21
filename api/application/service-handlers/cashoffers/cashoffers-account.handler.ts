@@ -56,7 +56,16 @@ export class CashOffersAccountHandler implements IEventHandler {
         break
       case 'SubscriptionPaused':
       case 'SubscriptionDeactivated':
+        await this.handleSuspension(event)
+        break
       case 'SubscriptionCancelled':
+        // A scheduled cancel-on-renewal emits SubscriptionCancelled with cancelOnRenewal:true at SCHEDULE
+        // time — the user keeps their plan until renewal. The renewal cron re-emits it with
+        // cancelOnRenewal:false when the period actually ends; only THEN do we suspend. Skipping the deferred
+        // marker here stops the premature downgrade-to-SHELL at schedule time (defect #1542 / ledger #44).
+        // The schedule-time event still fires so the "cancellation scheduled" email sends (email handler
+        // branches on the same flag).
+        if ((event.payload as { cancelOnRenewal?: boolean })?.cancelOnRenewal === true) break
         await this.handleSuspension(event)
         break
       case 'SubscriptionResumed':

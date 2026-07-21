@@ -67,6 +67,7 @@ const buildConfig = (): IConfig => {
       urlV2: process.env.API_URL_V2!,
       masterToken: process.env.API_MASTER_TOKEN!,
       key: process.env.API_KEY!,
+      internalToken: process.env.API_TOKEN_INTERNAL,
       route: process.env.API_ROUTE,
     },
 
