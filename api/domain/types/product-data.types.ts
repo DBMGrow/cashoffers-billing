@@ -49,6 +49,13 @@ export interface HomeUptickConfig {
  * Data stored in Products.data JSON field
  */
 export interface ProductData {
+  /**
+   * When true, the product is hidden from the billing platform's self-service
+   * plan lists (the change-plan screen and signup). Used for admin-created
+   * custom pricing that should stay purchasable via a direct admin-shared link
+   * but not be shown to every customer. Absent/false = visible (default).
+   */
+  hidden?: boolean
   /** One-time signup fee in cents */
   signup_fee?: number
   /** Recurring renewal cost in cents */

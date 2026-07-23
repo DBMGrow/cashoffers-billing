@@ -9,6 +9,7 @@ import { calculateProratedUseCase } from "@api/use-cases/subscription"
 import { createPaymentUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
 import type { ProductData } from "@api/domain/types/product-data.types"
+import { isProductHidden } from "@api/domain/services/product-visibility.service"
 import { config } from "@api/config/config.service"
 import { SubscriptionUpgradedEvent } from "@api/domain/events/subscription-upgraded.event"
 import { eventBus } from "@api/lib/services"
@@ -218,8 +219,15 @@ app.openapi(GetProductsRoute, async (c) => {
       .$if(categoryFilter !== undefined, (qb) => qb.where("product_category", "=", categoryFilter!))
       .execute()
 
-    // Filter by role compatibility (still done in JS — no JSON path support in Kysely)
+    // Filter by role compatibility and visibility (still done in JS — no JSON
+    // path support in Kysely)
     const filteredProducts = allProducts.filter((product: any) => {
+      // Hide admin-created custom-pricing plans flagged data.hidden = true — they
+      // stay purchasable via a direct admin-shared link, just not listed here.
+      if (isProductHidden(product.data)) {
+        return false
+      }
+
       const productRole = product.data?.cashoffers?.user_config?.role ?? product.data?.user_config?.role
 
       // Check role compatibility (skip if product doesn't specify a role - backward compatibility)

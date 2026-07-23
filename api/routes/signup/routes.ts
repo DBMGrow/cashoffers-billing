@@ -11,6 +11,7 @@ import {
   GetUniqueSlugRoute,
 } from "./schemas"
 import { db } from "@api/lib/database"
+import { filterVisibleProducts } from "@api/domain/services/product-visibility.service"
 import { checkSlugExists } from "./utils"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -222,7 +223,7 @@ app.openapi(GetProductsRoute, async (c) => {
     // Filter by whitelabel_code — include products matching the code
     // or products with no code set (available for all whitelabels).
     // Exclude external_cashoffers — those are managed via /purchase/existing, not signup.
-    const filteredProducts = await db
+    const products = await db
       .selectFrom("Products")
       .selectAll()
       .where("product_category", "!=", "external_cashoffers")
@@ -230,6 +231,10 @@ app.openapi(GetProductsRoute, async (c) => {
         eb.or([eb("whitelabel_code", "=", whitelabelCode), eb("whitelabel_code", "is", null)])
       )
       .execute()
+
+    // Hide admin-created custom-pricing plans flagged data.hidden = true (JSON
+    // field — filtered in JS since Kysely has no JSON path support here).
+    const filteredProducts = filterVisibleProducts(products)
 
     return c.json(
       {
