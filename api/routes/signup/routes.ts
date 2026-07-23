@@ -232,9 +232,10 @@ app.openapi(GetProductsRoute, async (c) => {
       )
       .execute()
 
-    // Hide admin-created custom-pricing plans flagged data.hidden = true (JSON
-    // field — filtered in JS since Kysely has no JSON path support here).
-    const filteredProducts = filterVisibleProducts(products)
+    // Hide plans flagged data.hidden = true (globally) or hidden from this
+    // whitelabel via data.hidden_whitelabels (JSON fields — filtered in JS since
+    // Kysely has no JSON path support here).
+    const filteredProducts = filterVisibleProducts(products, whitelabelCode)
 
     return c.json(
       {
