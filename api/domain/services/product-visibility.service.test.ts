@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { isProductHidden, filterVisibleProducts } from "./product-visibility.service"
+import {
+  isProductHidden,
+  isHiddenForWhitelabel,
+  isProductVisibleTo,
+  filterVisibleProducts,
+} from "./product-visibility.service"
 import type { ProductData } from "@api/domain/types/product-data.types"
 
 describe("isProductHidden", () => {
@@ -23,6 +28,46 @@ describe("isProductHidden", () => {
   it("does not treat truthy non-true values as hidden", () => {
     // Only an explicit boolean true hides a product.
     expect(isProductHidden({ hidden: 1 as unknown as boolean })).toBe(false)
+  })
+})
+
+describe("isHiddenForWhitelabel", () => {
+  it("returns true when the whitelabel is in data.hidden_whitelabels", () => {
+    expect(isHiddenForWhitelabel({ hidden_whitelabels: ["yhsgr"] }, "yhsgr")).toBe(true)
+  })
+
+  it("returns false when the whitelabel is not in the list", () => {
+    expect(isHiddenForWhitelabel({ hidden_whitelabels: ["yhsgr"] }, "kwofferings")).toBe(false)
+  })
+
+  it("returns false when no whitelabel is supplied", () => {
+    expect(isHiddenForWhitelabel({ hidden_whitelabels: ["yhsgr"] }, null)).toBe(false)
+    expect(isHiddenForWhitelabel({ hidden_whitelabels: ["yhsgr"] }, undefined)).toBe(false)
+  })
+
+  it("returns false when the flag is absent/empty (backward compatible)", () => {
+    expect(isHiddenForWhitelabel({ renewal_cost: 25000 }, "yhsgr")).toBe(false)
+    expect(isHiddenForWhitelabel({ hidden_whitelabels: [] }, "yhsgr")).toBe(false)
+    expect(isHiddenForWhitelabel(null, "yhsgr")).toBe(false)
+  })
+})
+
+describe("isProductVisibleTo", () => {
+  it("hides a product globally flagged hidden regardless of whitelabel", () => {
+    expect(isProductVisibleTo({ hidden: true }, "yhsgr")).toBe(false)
+    expect(isProductVisibleTo({ hidden: true }, null)).toBe(false)
+  })
+
+  it("hides a product only from the excluded whitelabel", () => {
+    const data: ProductData = { hidden_whitelabels: ["yhsgr"] }
+    expect(isProductVisibleTo(data, "yhsgr")).toBe(false)
+    expect(isProductVisibleTo(data, "kwofferings")).toBe(true)
+    expect(isProductVisibleTo(data, null)).toBe(true)
+  })
+
+  it("shows a product with no hiding flags", () => {
+    expect(isProductVisibleTo({ renewal_cost: 25000 }, "yhsgr")).toBe(true)
+    expect(isProductVisibleTo(null, "yhsgr")).toBe(true)
   })
 })
 
@@ -56,5 +101,24 @@ describe("filterVisibleProducts", () => {
   it("returns all products when none are hidden", () => {
     const visible = [{ data: { renewal_cost: 1 } }, { data: null }]
     expect(filterVisibleProducts(visible)).toHaveLength(2)
+  })
+
+  it("removes whitelabel-excluded products only for that whitelabel", () => {
+    const withExclusion: Array<{ product_name: string; data: ProductData | null }> = [
+      { product_name: "Individual No Signup", data: { hidden_whitelabels: ["yhsgr"], renewal_cost: 25000 } },
+      { product_name: "Small Team", data: { renewal_cost: 85000 } },
+    ]
+    // Viewed as YHS: the excluded plan is dropped.
+    expect(filterVisibleProducts(withExclusion, "yhsgr").map((p) => p.product_name)).toEqual(["Small Team"])
+    // Viewed as another whitelabel: both remain.
+    expect(filterVisibleProducts(withExclusion, "kwofferings").map((p) => p.product_name)).toEqual([
+      "Individual No Signup",
+      "Small Team",
+    ])
+    // No whitelabel supplied: exclusion doesn't apply.
+    expect(filterVisibleProducts(withExclusion).map((p) => p.product_name)).toEqual([
+      "Individual No Signup",
+      "Small Team",
+    ])
   })
 })

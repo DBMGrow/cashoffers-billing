@@ -56,6 +56,14 @@ export interface ProductData {
    * but not be shown to every customer. Absent/false = visible (default).
    */
   hidden?: boolean
+  /**
+   * Whitelabel codes for which this product is hidden from the self-service
+   * plan lists, while remaining visible to every other whitelabel. Used to pull
+   * a shared (whitelabel_code = NULL) plan from one whitelabel's view without
+   * duplicating it per whitelabel. Absent/empty = visible to all (default).
+   * Independent of `hidden`: a product is shown only if neither rule hides it.
+   */
+  hidden_whitelabels?: string[]
   /** One-time signup fee in cents */
   signup_fee?: number
   /** Recurring renewal cost in cents */

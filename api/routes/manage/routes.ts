@@ -9,7 +9,7 @@ import { calculateProratedUseCase } from "@api/use-cases/subscription"
 import { createPaymentUseCase } from "@api/use-cases/payment"
 import { executeUseCase } from "../helpers/use-case-handler"
 import type { ProductData } from "@api/domain/types/product-data.types"
-import { isProductHidden } from "@api/domain/services/product-visibility.service"
+import { isProductHidden, isHiddenForWhitelabel } from "@api/domain/services/product-visibility.service"
 import { config } from "@api/config/config.service"
 import { SubscriptionUpgradedEvent } from "@api/domain/events/subscription-upgraded.event"
 import { eventBus } from "@api/lib/services"
@@ -222,9 +222,10 @@ app.openapi(GetProductsRoute, async (c) => {
     // Filter by role compatibility and visibility (still done in JS — no JSON
     // path support in Kysely)
     const filteredProducts = allProducts.filter((product: any) => {
-      // Hide admin-created custom-pricing plans flagged data.hidden = true — they
-      // stay purchasable via a direct admin-shared link, just not listed here.
-      if (isProductHidden(product.data)) {
+      // Hide admin-created custom-pricing plans flagged data.hidden = true, and
+      // plans hidden from this whitelabel via data.hidden_whitelabels — both stay
+      // purchasable via a direct admin-shared link, just not listed here.
+      if (isProductHidden(product.data) || isHiddenForWhitelabel(product.data, userWhitelabelCode)) {
         return false
       }
 
