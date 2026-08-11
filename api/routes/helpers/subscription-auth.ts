@@ -24,13 +24,17 @@ export async function checkSubscriptionAuthorization(
       }
     }
 
-    // Get user and token owner from context
-    const user = c.get("user")
+    // Ownership is decided on the AUTHENTICATED caller, never the target user.
+    //
+    // `c.get("user")` is the *claimed* identity — the middleware resolves it from
+    // a caller-supplied `user_id`. Comparing that against the subscription asked
+    // "does this subscription belong to whoever the request says it belongs to?",
+    // which is true by construction for any victim's subscription. The token
+    // owner is the only identity the caller cannot choose.
     const tokenOwner = c.get("token_owner")
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
-    // Check if user is owner or has admin permission
-    const isOwner = user?.user_id === subscription.user_id
+    const isOwner = tokenOwner?.user_id === subscription.user_id
     const hasPermission = tokenOwnerCaps.includes("payments_create")
 
     if (!isOwner && !hasPermission) {
