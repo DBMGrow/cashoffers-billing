@@ -3,11 +3,19 @@
 ## Running Tests
 
 ```bash
-yarn test                    # Run all tests
-yarn test --watch            # Watch mode
+yarn test                    # Run all tests (both projects)
+yarn test --run              # Single run, no watch
+yarn test --project=api      # Backend only
+yarn test --project=frontend # Frontend only
 yarn test:ui                 # Visual test runner (Vitest UI)
 yarn test api/tests/integration/free-trial.test.ts  # Single file
 ```
+
+> **Known state:** the suite runs but is not yet green — **13 of 573 failing**
+> (see [quality/integration-test-coverage.md](../quality/integration-test-coverage.md#suite-health)).
+> All were invisible while the runner was misconfigured. The remaining ones need a
+> judgement call on whether the test or the implementation is right, so they are
+> being triaged separately rather than conformed to the code.
 
 ## Test Types
 
@@ -52,4 +60,9 @@ yarn build     # Type-check TypeScript (noEmit — no artifacts)
 
 ## Test Setup
 - `api/tests/setup.ts` — global test configuration
-- Vitest config: `vitest.config.ts`
+- Vitest config: `vitest.config.ts` — defines two **projects** (`api`, `frontend`)
+  via `test.projects`, each extending `vitest.config.api.ts` / `vitest.config.frontend.ts`.
+  `tests/e2e/` is deliberately excluded; those are Playwright specs (`yarn test:e2e`).
+
+> Vitest 4 removed workspace files. If you see the suite collecting Playwright
+> specs or failing on `@api/...` imports, the project config is not being applied.

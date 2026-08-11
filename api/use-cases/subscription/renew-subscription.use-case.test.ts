@@ -442,12 +442,26 @@ describe("RenewSubscriptionUseCase", () => {
         email: "user@test.com",
       })
 
+      // A successful renewal writes TWO records by design: the Square payment and
+      // the subscription renewal itself (see the "separate from the subscription
+      // renewal transaction" comment on the payment write). Assert them by type
+      // rather than by position — the old assertion checked transactions[0] and
+      // silently depended on the payment record not existing.
       const transactions = transactionRepo.getAll()
-      expect(transactions).toHaveLength(1)
-      expect(transactions[0].user_id).toBe(1)
-      expect(transactions[0].amount).toBe(25000)
-      expect(transactions[0].type).toBe("subscription")
-      expect(transactions[0].status).toBe("completed")
+      expect(transactions).toHaveLength(2)
+
+      const payment = transactions.find((t) => t.type === "payment")
+      const renewal = transactions.find((t) => t.type === "subscription")
+
+      expect(payment).toBeDefined()
+      expect(payment!.user_id).toBe(1)
+      expect(payment!.amount).toBe(25000)
+      expect(payment!.status).toBe("completed")
+
+      expect(renewal).toBeDefined()
+      expect(renewal!.user_id).toBe(1)
+      expect(renewal!.amount).toBe(25000)
+      expect(renewal!.status).toBe("completed")
     })
 
     it("should reactivate suspended subscription", async () => {
