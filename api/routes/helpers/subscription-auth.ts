@@ -24,14 +24,25 @@ export async function checkSubscriptionAuthorization(
       }
     }
 
-    // Get user and token owner from context
-    const user = c.get("user")
+    // Ownership is decided on the AUTHENTICATED caller, never the target user.
+    //
+    // `c.get("user")` is the *claimed* identity — the middleware resolves it from
+    // a caller-supplied `user_id`. Comparing that against the subscription asked
+    // "does this subscription belong to whoever the request says it belongs to?",
+    // which is true by construction for any victim's subscription. The token
+    // owner is the only identity the caller cannot choose.
     const tokenOwner = c.get("token_owner")
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
-    // Check if user is owner or has admin permission
-    const isOwner = user?.user_id === subscription.user_id
-    const hasPermission = tokenOwnerCaps.includes("payments_create")
+    const isOwner = tokenOwner?.user_id === subscription.user_id
+
+    // Admins act on subscriptions they do not own. `payments_create` alone was too
+    // narrow: the main platform cancels on behalf of a white-label admin who holds
+    // `payments_delete` and NOT `payments_create`, and that flow only worked before
+    // because the claimed-identity bug made `isOwner` true for them. Fixing the bug
+    // without widening this would have broken WL-admin cancellation.
+    const ADMIN_CAPABILITIES = ["payments_create", "payments_delete", "payments_delete_all"]
+    const hasPermission = ADMIN_CAPABILITIES.some((cap) => tokenOwnerCaps.includes(cap))
 
     if (!isOwner && !hasPermission) {
       return {

@@ -284,4 +284,79 @@ describe("authMiddleware", () => {
       expect(body.ref).toBe("0000C")
     })
   })
+
+  // The hole these cover: `authMiddleware(null)` used to resolve whatever
+  // `user_id` the body claimed, so an ordinary token could retarget any route at
+  // any account. Acting on behalf of someone else now needs a capability.
+  describe("Acting on behalf of another user", () => {
+    it("should deny an unprivileged caller targeting another user via POST body", async () => {
+      mockGetUserFromToken.mockResolvedValue(regularUser) // no capabilities
+      mockGetUserById.mockResolvedValue(targetUser)
+
+      const app = makeApp(null)
+      const res = await app.request("/protected", {
+        method: "POST",
+        headers: {
+          "x-api-token": "user_token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ user_id: 5 }),
+      })
+
+      expect(res.status).toBe(403)
+      const body = (await res.json()) as any
+      expect(body.ref).toBe("0000G")
+      // The victim must never be looked up, let alone put on the context.
+      expect(mockGetUserById).not.toHaveBeenCalled()
+    })
+
+    it("should deny an unprivileged caller targeting another user via GET query", async () => {
+      mockGetUserFromToken.mockResolvedValue(regularUser)
+      mockGetUserById.mockResolvedValue(targetUser)
+
+      const app = makeApp(null)
+      const res = await app.request("/protected?user_id=5", {
+        headers: { "x-api-token": "user_token" },
+      })
+
+      expect(res.status).toBe(403)
+      expect(mockGetUserById).not.toHaveBeenCalled()
+    })
+
+    it("should allow an unprivileged caller to target THEMSELVES explicitly", async () => {
+      mockGetUserFromToken.mockResolvedValue(regularUser)
+      mockGetUserById.mockResolvedValue(regularUser)
+
+      const app = makeApp(null)
+      const res = await app.request("/protected", {
+        method: "POST",
+        headers: {
+          "x-api-token": "user_token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ user_id: regularUser.user_id }),
+      })
+
+      expect(res.status).toBe(200)
+    })
+
+    it("should still allow a privileged caller to target another user", async () => {
+      mockGetUserFromToken.mockResolvedValue(adminUser)
+      mockGetUserById.mockResolvedValue(targetUser)
+
+      const app = makeApp(null)
+      const res = await app.request("/protected", {
+        method: "POST",
+        headers: {
+          "x-api-token": "admin_token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ user_id: 5 }),
+      })
+
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as any
+      expect(body.user.user_id).toBe(5)
+    })
+  })
 })

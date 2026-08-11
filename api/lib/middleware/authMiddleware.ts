@@ -26,6 +26,23 @@ const testModeAuthorizer = new TestModeAuthorizer()
  * The "token_owner" is the authenticated user making the request
  * If no user_id provided, both will be the same (token owner)
  */
+/**
+ * Capabilities that permit acting on behalf of ANOTHER user.
+ *
+ * Without this gate, `user_id` in the request body was enough to retarget any
+ * route at any account: the middleware resolved the claimed user and handlers
+ * then treated it as the authenticated one. Holding any of these means the
+ * caller is already trusted with other people's billing data.
+ */
+const ACT_ON_BEHALF_CAPABILITIES = [
+  "payments_create",
+  "payments_read_all",
+  "payments_delete",
+  "payments_delete_all",
+  "users_read_all",
+  "users_update_all",
+] as const
+
 export function authMiddleware(
   permissions: string | string[] | null
 ): MiddlewareHandler {
@@ -75,6 +92,28 @@ export function authMiddleware(
         const body = await c.req.json().catch(() => ({}))
         targetUserId = body?.user_id ? Number(body.user_id) : null
         break
+      }
+    }
+
+    // Targeting somebody else requires an elevated capability.
+    //
+    // `authMiddleware(null)` means "authenticated", never "authorised to act as
+    // whoever the body claims". Before this check, any caller with a valid API
+    // token could put `user_id` in the payload and have every downstream handler
+    // — and `checkSubscriptionAuthorization` — treat that claimed identity as
+    // the acting user, which made cancel/uncancel/downgrade and /manage/purchase
+    // operable against other people's subscriptions.
+    if (targetUserId != null && targetUserId !== tokenOwner.user_id) {
+      const canActOnBehalf = ACT_ON_BEHALF_CAPABILITIES.some((cap) =>
+        tokenOwner.capabilities.includes(cap)
+      )
+
+      if (!canActOnBehalf) {
+        return c.json({
+          success: "error",
+          error: "Unauthorized - cannot act on behalf of another user",
+          ref: "0000G",
+        }, 403)
       }
     }
 
