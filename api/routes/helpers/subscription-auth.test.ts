@@ -76,6 +76,21 @@ describe("checkSubscriptionAuthorization", () => {
     expect(result.errorResponse).toBeDefined()
   })
 
+  // The real caller this protects: api-v2's POST /subscriptions/:id/cancel runs as a
+  // white-label admin who holds `payments_delete` but NOT `payments_create`, and is
+  // not the subscription owner. It passes the owner's user_id in the body. Before the
+  // fix that worked only because `isOwner` compared the claimed identity; the admin
+  // capability is what must carry it now.
+  it("authorizes a white-label admin holding payments_delete acting on an owner's subscription", async () => {
+    const result = await runCheck({
+      tokenOwnerId: ATTACKER_ID, // not the owner
+      claimedUserId: VICTIM_ID, // api-v2 passes the owner's id
+      capabilities: ["payments_delete"],
+    })
+
+    expect(result.authorized).toBe(true)
+  })
+
   it("does not authorize an unrelated caller", async () => {
     const result = await runCheck({
       tokenOwnerId: ATTACKER_ID,

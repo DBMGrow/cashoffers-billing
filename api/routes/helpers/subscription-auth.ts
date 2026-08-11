@@ -35,7 +35,14 @@ export async function checkSubscriptionAuthorization(
     const tokenOwnerCaps = tokenOwner?.capabilities || []
 
     const isOwner = tokenOwner?.user_id === subscription.user_id
-    const hasPermission = tokenOwnerCaps.includes("payments_create")
+
+    // Admins act on subscriptions they do not own. `payments_create` alone was too
+    // narrow: the main platform cancels on behalf of a white-label admin who holds
+    // `payments_delete` and NOT `payments_create`, and that flow only worked before
+    // because the claimed-identity bug made `isOwner` true for them. Fixing the bug
+    // without widening this would have broken WL-admin cancellation.
+    const ADMIN_CAPABILITIES = ["payments_create", "payments_delete", "payments_delete_all"]
+    const hasPermission = ADMIN_CAPABILITIES.some((cap) => tokenOwnerCaps.includes(cap))
 
     if (!isOwner && !hasPermission) {
       return {
