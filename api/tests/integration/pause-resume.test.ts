@@ -86,10 +86,13 @@ describe('PauseSubscriptionUseCase — suspension_date recording', () => {
     await useCase.execute({ subscriptionId })
     const after = new Date()
 
+    // A user-initiated pause sets status "paused". "suspended" is the distinct
+    // state auto-suspension reaches after the retry budget is exhausted; both
+    // stamp suspension_date, which is what this test is really about.
     expect(subscriptionRepository.update).toHaveBeenCalledWith(
       subscriptionId,
       expect.objectContaining({
-        status: 'suspended',
+        status: 'paused',
         suspension_date: expect.any(Date),
       })
     )

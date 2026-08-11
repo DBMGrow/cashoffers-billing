@@ -11,10 +11,11 @@ yarn test:ui                 # Visual test runner (Vitest UI)
 yarn test api/tests/integration/free-trial.test.ts  # Single file
 ```
 
-> **Known state:** the suite runs but is not green — ~20 assertions are stale
-> (see [quality/discrepancies.md](../quality/discrepancies.md)). They were
-> invisible while the runner was misconfigured; they are being triaged
-> separately.
+> **Known state:** the suite runs but is not yet green — **13 of 573 failing**
+> (see [quality/integration-test-coverage.md](../quality/integration-test-coverage.md#suite-health)).
+> All were invisible while the runner was misconfigured. The remaining ones need a
+> judgement call on whether the test or the implementation is right, so they are
+> being triaged separately rather than conformed to the code.
 
 ## Test Types
 

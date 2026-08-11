@@ -1,17 +1,19 @@
 /**
  * Integration tests for subscription renewal retry escalation and auto-suspension.
  *
- * Current retry schedule:
- *   1st failure  → next attempt in +1 day
- *   2nd failure  → next attempt in +3 days (waited ~1 day)
- *   3rd failure  → next attempt in +7 days (waited ~4 days)
- *   4th failure  → SUSPEND subscription, stop retrying  ← NOT YET IMPLEMENTED
+ * Escalation is driven by `payment_failure_count`, NOT by elapsed time since
+ * `next_renewal_attempt` (see docs/business/rules/payment-retry-rules.md):
  *
- * The auto-suspension test (4th failure → suspend) FAILS because
- * RenewSubscriptionUseCase.handleRenewalFailure does not yet set
- * status = "suspended" or publish SubscriptionPausedEvent after the 4th attempt.
+ *   payment_failure_count 0 → next attempt in +1 day
+ *   payment_failure_count 1 → next attempt in +3 days
+ *   payment_failure_count 2 → next attempt in +7 days
+ *   payment_failure_count 3 → SUSPEND, stop retrying, publish SubscriptionDeactivated
  *
- * All other retry tests pass against the current implementation.
+ * These tests previously set up each scenario by back-dating
+ * `next_renewal_attempt` alone, which was how attempts were inferred before
+ * `payment_failure_count` existed. With the counter left at 0 every case took the
+ * "1st failure" branch, so the 3-day, 7-day and suspension cases failed. Auto
+ * suspension IS implemented; the header used to claim otherwise.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -133,7 +135,7 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
     })
   })
 
-  describe('2nd failure — last attempt was ~1 day ago', () => {
+  describe('2nd failure — payment_failure_count = 1', () => {
     it('schedules next attempt for today + 3 days', async () => {
       const lastAttempt = new Date(today)
       lastAttempt.setDate(today.getDate() - 1) // ~1 day ago
@@ -145,6 +147,7 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
           status: 'active',
           amount: 25000,
           next_renewal_attempt: lastAttempt,
+          payment_failure_count: 1, // one failure already recorded
         })
       )
 
@@ -156,7 +159,7 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
     })
   })
 
-  describe('3rd failure — last attempt was ~4 days ago', () => {
+  describe('3rd failure — payment_failure_count = 2', () => {
     it('schedules next attempt for today + 7 days', async () => {
       const lastAttempt = new Date(today)
       lastAttempt.setDate(today.getDate() - 4) // ~4 days ago
@@ -168,6 +171,7 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
           status: 'active',
           amount: 25000,
           next_renewal_attempt: lastAttempt,
+          payment_failure_count: 2, // two failures already recorded
         })
       )
 
@@ -179,9 +183,8 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
     })
   })
 
-  describe('4th failure — last attempt was ~11 days ago (auto-suspension)', () => {
+  describe('4th failure — payment_failure_count = 3 (auto-suspension)', () => {
     it('suspends the subscription instead of scheduling another retry', async () => {
-      // ~11 days since last attempt (1d + 3d + 7d = 11d total elapsed)
       const lastAttempt = new Date(today)
       lastAttempt.setDate(today.getDate() - 11)
 
@@ -192,6 +195,7 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
           status: 'active',
           amount: 25000,
           next_renewal_attempt: lastAttempt,
+          payment_failure_count: 3, // retry budget exhausted → suspend
         })
       )
 
@@ -205,7 +209,11 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
       })
     })
 
-    it('publishes SubscriptionPausedEvent when auto-suspending', async () => {
+    // Auto-suspension publishes SubscriptionDeactivated, not SubscriptionPaused.
+    // That is deliberate: the deactivated event is what carries the white-label
+    // suspension strategy (DEACTIVATE_USER → SHELL role, DOWNGRADE_TO_FREE →
+    // is_premium 0). SubscriptionPaused is the user-initiated pause.
+    it('publishes SubscriptionDeactivatedEvent when auto-suspending', async () => {
       const lastAttempt = new Date(today)
       lastAttempt.setDate(today.getDate() - 11)
 
@@ -216,17 +224,18 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
           status: 'active',
           amount: 25000,
           next_renewal_attempt: lastAttempt,
+          payment_failure_count: 3, // retry budget exhausted → suspend
         })
       )
 
       const publishedEventTypes: string[] = []
-      eventBus.subscribe('SubscriptionPaused', {
+      eventBus.subscribe('SubscriptionDeactivated', {
         handle: async (e) => { publishedEventTypes.push(e.eventType) }
       })
 
       await useCase.execute({ subscriptionId, email: 'user@test.com' })
 
-      expect(publishedEventTypes).toContain('SubscriptionPaused')
+      expect(publishedEventTypes).toContain('SubscriptionDeactivated')
     })
 
     it('does NOT schedule a further next_renewal_attempt after suspension', async () => {
@@ -240,6 +249,7 @@ describe('RenewSubscriptionUseCase — retry escalation', () => {
           status: 'active',
           amount: 25000,
           next_renewal_attempt: lastAttempt,
+          payment_failure_count: 3, // retry budget exhausted → suspend
         })
       )
 

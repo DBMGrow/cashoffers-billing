@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-// Mock the *deps* module, not the main module
-vi.mock("@/utils/getHomeUptickSubscription.deps", () => ({
+// Mock the *deps* module, not the main module.
+// Must use the `@api` alias — the api project defines only that one, so a `@/`
+// path silently fails to match the module the subject actually imports, and the
+// suite registers zero tests.
+vi.mock("@api/utils/getHomeUptickSubscription.deps", () => ({
   getUserFromDB: vi.fn(),
   getSubscriptionFromDB: vi.fn(),
   getClientsCount: vi.fn(),
