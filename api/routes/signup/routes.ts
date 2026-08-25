@@ -196,11 +196,18 @@ app.openapi(SendReactivationRoute, async (c) => {
  * Fetches all active products filtered by whitelabel.
  * Returns 404 if the whitelabel code is not found.
  * Excludes external_cashoffers products — those are only available via the manage flow.
+ * `?product=<id>` additionally includes that one product when it is flagged hidden.
  */
 app.openapi(GetProductsRoute, async (c) => {
   try {
     const query = c.req.valid("query")
     const whitelabelCode = query.whitelabel || "default"
+
+    // The plan the signup flow was opened on, when it was reached through a
+    // direct purchase link. Anything that isn't a positive integer is treated as
+    // "not asked for" rather than a 400 — a junk value must not break signup.
+    const parsedProductId = query.product ? Number(query.product) : NaN
+    const requestedProductId = Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : null
 
     // Validate whitelabel exists — 404 if not found
     const whitelabel = await db
@@ -234,8 +241,10 @@ app.openapi(GetProductsRoute, async (c) => {
 
     // Hide plans flagged data.hidden = true (globally) or hidden from this
     // whitelabel via data.hidden_whitelabels (JSON fields — filtered in JS since
-    // Kysely has no JSON path support here).
-    const filteredProducts = filterVisibleProducts(products, whitelabelCode)
+    // Kysely has no JSON path support here). The plan named by `product` is kept
+    // either way: hidden plans are sold through the direct link the admin shares,
+    // and the flow resolves that link against this list.
+    const filteredProducts = filterVisibleProducts(products, whitelabelCode, requestedProductId)
 
     return c.json(
       {

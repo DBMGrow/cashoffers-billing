@@ -22,15 +22,32 @@ export interface Product {
 interface FetchProductsParams {
   mode: "signup" | "manage"
   whitelabel?: string
+  /**
+   * Id of the plan the flow was opened on. Asks the signup endpoint to include
+   * that plan even when it is flagged hidden, so a plan shared as a direct
+   * purchase link can still be resolved. Ignored for non-numeric values
+   * ("free", "freeinvestor") and in manage mode.
+   */
+  product?: number | string | null
+}
+
+/**
+ * Returns the `product` query fragment for an explicitly requested plan id, or
+ * an empty string when there is no usable id to request.
+ */
+function productParam(product: number | string | null | undefined): string {
+  const id = typeof product === "string" ? Number(product) : product
+  if (typeof id !== "number" || !Number.isInteger(id) || id <= 0) return ""
+  return `&product=${id}`
 }
 
 /**
  * Fetches products from the API
  */
-async function fetchProducts({ mode, whitelabel }: FetchProductsParams): Promise<Product[]> {
+async function fetchProducts({ mode, whitelabel, product }: FetchProductsParams): Promise<Product[]> {
   const endpoint =
     mode === "signup"
-      ? `/api/signup/products?whitelabel=${whitelabel || "default"}`
+      ? `/api/signup/products?whitelabel=${whitelabel || "default"}${productParam(product)}`
       : `/api/manage/products` // Server-side filtered by user's role
 
   const response = await fetch(endpoint, {
@@ -66,7 +83,7 @@ export function isProductFree(product: Product | undefined): boolean {
 
 export function useProducts(params: FetchProductsParams) {
   const { data: products = [], isLoading, error, refetch } = useQuery({
-    queryKey: ["products", params.mode, params.whitelabel],
+    queryKey: ["products", params.mode, params.whitelabel, productParam(params.product)],
     queryFn: () => fetchProducts(params),
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep unused data in cache for 10 minutes

@@ -122,3 +122,42 @@ describe("filterVisibleProducts", () => {
     ])
   })
 })
+
+describe("filterVisibleProducts — requested product exemption", () => {
+  const products: Array<{ product_id: number; product_name: string; data: ProductData | null }> = [
+    { product_id: 12, product_name: "Individual", data: { renewal_cost: 25000 } },
+    { product_id: 95, product_name: "3rd Party Indy Agent", data: { hidden: true, renewal_cost: 5000 } },
+    { product_id: 96, product_name: "3rd Party Team", data: { hidden_whitelabels: ["yhsgr"], renewal_cost: 25000 } },
+  ]
+
+  it("keeps a globally hidden product when it is the requested one", () => {
+    expect(filterVisibleProducts(products, "yhsgr", 95).map((p) => p.product_id)).toEqual([12, 95])
+  })
+
+  it("keeps a whitelabel-excluded product when it is the requested one", () => {
+    expect(filterVisibleProducts(products, "yhsgr", 96).map((p) => p.product_id)).toEqual([12, 96])
+  })
+
+  it("keeps the requested product in its original position", () => {
+    const reordered = [products[1], products[0]]
+    expect(filterVisibleProducts(reordered, "yhsgr", 95).map((p) => p.product_id)).toEqual([95, 12])
+  })
+
+  it("exempts only the requested id, not every hidden product", () => {
+    expect(filterVisibleProducts(products, "yhsgr", 95).map((p) => p.product_id)).not.toContain(96)
+  })
+
+  it("hides everything hidden when no product is requested", () => {
+    expect(filterVisibleProducts(products, "yhsgr").map((p) => p.product_id)).toEqual([12])
+    expect(filterVisibleProducts(products, "yhsgr", null).map((p) => p.product_id)).toEqual([12])
+  })
+
+  it("matches a string product_id against the requested numeric id", () => {
+    const stringIds = [{ product_id: "95", data: { hidden: true } as ProductData }]
+    expect(filterVisibleProducts(stringIds, "yhsgr", 95)).toHaveLength(1)
+  })
+
+  it("ignores a requested id that matches no product", () => {
+    expect(filterVisibleProducts(products, "yhsgr", 404).map((p) => p.product_id)).toEqual([12])
+  })
+})

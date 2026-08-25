@@ -42,6 +42,7 @@ export default function ReviewStep({
   const { getProductById } = useProducts({
     mode: "signup",
     whitelabel,
+    product,
   })
   const productData = getProductById(product)
 
