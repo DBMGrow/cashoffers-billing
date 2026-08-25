@@ -219,4 +219,45 @@ describe("CancelOnRenewalUseCase", () => {
       expect(cancelledEvent).toBeUndefined()
     })
   })
+
+  /**
+   * Desk #1644. The renewal cron cancels via `Subscription.cancel()`, which sets
+   * status='cancelled' but PRESERVES cancel_on_renewal=1. Uncancelling such a row only
+   * cleared the flag — status stayed 'cancelled' — so the call returned success and the
+   * user stayed cancelled. It has to refuse instead of quietly doing nothing.
+   */
+  describe("Uncancel on an already-cancelled subscription (Desk #1644)", () => {
+    beforeEach(() => {
+      subscriptionRepo.addSubscription({
+        subscription_id: 2,
+        user_id: 11,
+        status: "cancelled",
+        cancel_on_renewal: 1, // the cron leaves this set
+        renewal_date: new Date("2026-08-22"),
+      })
+    })
+
+    it("fails instead of reporting a success that changed nothing", async () => {
+      const result = await useCase.execute({ subscriptionId: 2, cancel: false })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.code).toBe("SUBSCRIPTION_ALREADY_CANCELLED")
+      }
+    })
+
+    it("leaves cancel_on_renewal untouched so the row is not silently mutated", async () => {
+      await useCase.execute({ subscriptionId: 2, cancel: false })
+
+      const sub = await subscriptionRepo.findById(2)
+      expect(sub?.cancel_on_renewal).toBe(1)
+      expect(sub?.status).toBe("cancelled")
+    })
+
+    it("still allows re-marking a cancelled subscription for cancellation", async () => {
+      const result = await useCase.execute({ subscriptionId: 2, cancel: true })
+
+      expect(result.success).toBe(true)
+    })
+  })
 })

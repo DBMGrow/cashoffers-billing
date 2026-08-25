@@ -89,6 +89,28 @@ export class CancelOnRenewalUseCase implements ICancelOnRenewalUseCase {
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
       }
 
+      // Uncancelling a subscription the renewal cron has ALREADY cancelled is a no-op.
+      //
+      // `Subscription.cancel()` preserves cancel_on_renewal, so a cancelled row still
+      // carries the flag and still looks uncancellable-able. This use case only writes
+      // cancel_on_renewal — it never touches `status` — so clearing the flag on a
+      // cancelled subscription returned 200, logged a successful money mutation, and
+      // left the user just as cancelled as before. In Desk #1644 that hid a broken
+      // reactivation for two days: everyone involved believed it had been fixed.
+      //
+      // Reactivating a cancelled subscription is a deliberate billing action (it needs a
+      // new renewal date and the account restored), not a flag flip. Refuse it loudly.
+      if (!validatedInput.cancel && subscription.status === "cancelled") {
+        logger.warn("Refusing to uncancel an already-cancelled subscription", {
+          subscriptionId: validatedInput.subscriptionId,
+          status: subscription.status,
+        })
+        return failure(
+          "Subscription is already cancelled and cannot be reactivated by uncancelling. It must be reactivated explicitly.",
+          "SUBSCRIPTION_ALREADY_CANCELLED"
+        )
+      }
+
       // Update cancel_on_renewal flag (convert boolean to number for database)
       const now = new Date()
       const updated = await subscriptionRepository.update(validatedInput.subscriptionId, {
