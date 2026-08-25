@@ -132,6 +132,7 @@ export default function SubscribeFlow({
   const { getProductById, loading } = useProducts({
     mode: "signup",
     whitelabel: whitelabel || "default",
+    product: initialProduct,
   })
 
   const selectedProduct = getProductById(initialProduct)

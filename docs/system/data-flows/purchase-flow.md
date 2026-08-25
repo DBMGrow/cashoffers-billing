@@ -42,6 +42,18 @@ sequenceDiagram
   API->>DB: Create Homeuptick_Subscriptions row (from product template or defaults)
 ```
 
+### Hidden Plans (Direct Purchase Links)
+
+A plan flagged `data.hidden = true` (or hidden from a whitelabel via
+`data.hidden_whitelabels`) is kept out of the plan lists but stays on sale through the
+direct purchase link an admin shares — `/{whitelabel_code}/subscribe/{product_id}`.
+
+The signup flow resolves that link against `GET /signup/products`, so the request carries
+`?product=<id>`: the list stays filtered, and only the one named id is exempt from the
+hiding rules. The caller has to already know the id, so the exemption cannot be used to
+enumerate hidden plans. Without the parameter a hidden plan cannot be resolved and the
+flow reports "Invalid product ID".
+
 ### Error Handling After Payment
 
 | Failure point | Refund? | Action |

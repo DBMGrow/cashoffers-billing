@@ -57,7 +57,21 @@ export function isProductVisibleTo(
  * Filters out products hidden from the given whitelabel (or, when no whitelabel
  * is supplied, only globally hidden products), preserving order. Products with
  * no hiding flags are left untouched.
+ *
+ * `requestedProductId` exempts one explicitly asked-for product from both hiding
+ * rules. A hidden plan must stay resolvable through the direct purchase link the
+ * admin shares — the flag keeps it out of the plan lists, it does not withdraw
+ * it from sale — and the caller has to already know the id to name it here, so
+ * the exemption cannot be used to enumerate hidden plans.
  */
-export function filterVisibleProducts<T extends { data: unknown }>(products: T[], whitelabelCode?: string | null): T[] {
-  return products.filter((product) => isProductVisibleTo(product.data as ProductData | null, whitelabelCode))
+export function filterVisibleProducts<T extends { data: unknown; product_id?: number | string }>(
+  products: T[],
+  whitelabelCode?: string | null,
+  requestedProductId?: number | null
+): T[] {
+  return products.filter(
+    (product) =>
+      isProductVisibleTo(product.data as ProductData | null, whitelabelCode) ||
+      (requestedProductId != null && Number(product.product_id) === requestedProductId)
+  )
 }

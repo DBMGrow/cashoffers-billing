@@ -178,6 +178,7 @@ export const GetProductsRoute = {
   request: {
     query: z.object({
       whitelabel: z.string().optional(),
+      product: z.string().optional(),
     }),
   },
   responses: {
@@ -200,7 +201,10 @@ export const GetProductsRoute = {
   },
   tags: ["Signup"],
   summary: "Get products",
-  description: "Fetches all active products filtered by whitelabel. Used during signup to display available plans.",
+  description:
+    "Fetches all active products filtered by whitelabel. Used during signup to display available plans. " +
+    "Pass `product=<id>` to also include that one product when it is flagged hidden, so a plan shared as a " +
+    "direct purchase link stays resolvable without appearing in the plan list.",
 }
 
 /**

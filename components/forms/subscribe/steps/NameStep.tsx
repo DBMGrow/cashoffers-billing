@@ -21,11 +21,12 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
   const isDisabled = !name || name.length < 2
 
   const { currentWhitelabel } = useWhitelabel()
+  const product = form.getValues("product")
   const { getProductById } = useProducts({
     mode: "signup",
     whitelabel: currentWhitelabel?.code || "default",
+    product,
   })
-  const product = form.getValues("product")
   const selectedProduct = getProductById(product)
   const isInvestor = (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
 
