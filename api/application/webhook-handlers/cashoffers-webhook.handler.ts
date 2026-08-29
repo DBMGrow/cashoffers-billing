@@ -22,11 +22,30 @@ type WebhookEvent =
   | { type: 'user.created'; userId: number }
 
 /**
+ * One calendar month after `from`, clamped to the end of the target month.
+ *
+ * Plain `setMonth(getMonth() + 1)` overflows — 31 Jan becomes 3 Mar, not 28 Feb — which would
+ * silently hand the customer two or three extra days on every month-end reactivation.
+ */
+export function addOneMonth(from: Date): Date {
+  const result = new Date(from)
+  const dayOfMonth = result.getDate()
+
+  result.setMonth(result.getMonth() + 1)
+
+  // If the day changed, the target month was shorter and JS rolled us into the next one.
+  // setDate(0) steps back to the last day of the intended month.
+  if (result.getDate() !== dayOfMonth) result.setDate(0)
+
+  return result
+}
+
+/**
  * CashOffersWebhookHandler
  *
  * Processes incoming webhook events from the CashOffers main API:
  * - user.deactivated → pause user's active subscription
- * - user.activated → resume user's most recent paused/suspended/cancelled subscription (with renewal date adjustment)
+ * - user.activated → resume user's most recent paused/suspended/cancelled subscription, renewing one calendar month from the reactivation date (Desk #1644)
  * - user.created (free user) → create free trial subscription
  */
 export class CashOffersWebhookHandler {
@@ -89,26 +108,19 @@ export class CashOffersWebhookHandler {
     if (!sub) return
 
     const now = new Date()
-    let newRenewalDate = sub.renewal_date ? new Date(sub.renewal_date) : now
 
-    if (sub.suspension_date && sub.renewal_date) {
-      const suspensionDate = new Date(sub.suspension_date)
-      const originalRenewalDate = new Date(sub.renewal_date)
-      const daysRemaining = Math.round(
-        (originalRenewalDate.getTime() - suspensionDate.getTime()) / (1000 * 60 * 60 * 24)
-      )
-      newRenewalDate = new Date(now)
-      newRenewalDate.setDate(now.getDate() + daysRemaining)
-    }
-
-    // Never resume with a renewal date in the past. A long-dead subscription
-    // (e.g. cancelled a year ago) would otherwise be charged immediately and then,
-    // since the cron advances from the stale date, charged repeatedly to "catch up"
-    // on every missed cycle. Clamp to now so the user is billed for the new period
-    // going forward, once.
-    if (newRenewalDate.getTime() < now.getTime()) {
-      newRenewalDate = now
-    }
+    // Desk #1644: a reactivated account starts a fresh cycle from the day it comes back —
+    // "the renewal date [is] the date their account is reactivated +1 month".
+    //
+    // This replaces the previous rule, which carried over the days remaining at suspension
+    // and then clamped a past date to now. That rule produced two bad outcomes: a
+    // long-suspended subscription resumed with renewal = today and was charged immediately
+    // (staging subscription 83, 151 days overdue, resumed with renewal = the same day), and a
+    // briefly-suspended one resumed with only its leftover days. Always billing one month
+    // forward is what the account holder is told they are buying, and it keeps the renewal
+    // date in the future, so the "charged repeatedly to catch up" failure the old clamp
+    // guarded against cannot occur.
+    const newRenewalDate = addOneMonth(now)
 
     await subscriptionRepository.update(sub.subscription_id, {
       status: 'active',
