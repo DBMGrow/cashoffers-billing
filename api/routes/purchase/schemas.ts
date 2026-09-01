@@ -23,6 +23,8 @@ export const NewUserPurchaseRequestSchema = z.object({
   name: z.string().optional().nullable(),
   name_broker: z.string().optional().nullable(),
   name_team: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
   whitelabel: z.string().optional().nullable(),
   slug: z.string().optional().nullable(),
   url: z.string().optional().nullable(),

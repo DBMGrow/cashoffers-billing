@@ -47,6 +47,8 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
       url: body.url,
       nameBroker: body.name_broker,
       nameTeam: body.name_team,
+      city: body.city,
+      state: body.state,
       isInvestor: body.isInvestor,
       coupon: body.coupon,
       context: effectiveContext,
@@ -65,7 +67,7 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
 
     const data = useCaseResult.data
 
-    const userId = data.userId  // null when provisioning was deferred
+    const userId = data.userId // null when provisioning was deferred
 
     const [product, user, userCards] = await Promise.all([
       productRepository.findById(typeof body.product_id === "number" ? body.product_id : parseInt(body.product_id, 10)),

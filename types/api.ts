@@ -59,6 +59,8 @@ export interface PurchaseRequest {
   cardholder_name: string
   name_broker?: string | null
   name_team?: string | null
+  city?: string | null
+  state?: string | null
   slug?: string | null
   api_token?: string | null
   url?: string
