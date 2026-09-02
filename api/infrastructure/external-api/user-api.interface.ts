@@ -104,6 +104,8 @@ export interface CreateUserRequest {
   slug?: string
   name_team?: string
   name_broker?: string
+  city?: string
+  state?: string
   // New fields from product configuration
   is_premium?: 0 | 1
   role?: string

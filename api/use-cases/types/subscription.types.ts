@@ -72,7 +72,7 @@ export interface RenewSubscriptionInput {
   email: string
   context?: PaymentContext
   /** Identifies what triggered the renewal attempt. Defaults to 'cron'. */
-  triggeredBy?: 'cron' | 'card_update'
+  triggeredBy?: "cron" | "card_update"
 }
 
 /**
@@ -266,6 +266,8 @@ export interface NewUserPurchaseInput {
   name?: string | null
   nameBroker?: string | null
   nameTeam?: string | null
+  city?: string | null
+  state?: string | null
   whitelabel?: string | null
   slug?: string | null
   url?: string | null

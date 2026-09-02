@@ -18,7 +18,9 @@ interface NameStepProps {
 export default function NameStep({ form, onNext, onBack, setAllowReset }: NameStepProps) {
   const [isLoading, setIsLoading] = useState(false)
   const name = form.watch("name")
-  const isDisabled = !name || name.length < 2
+  // Require a full name: at least two words, e.g. "John Smith" - a lone "John" is invalid (CO-I240)
+  const isFullName = /\S{2,}(\s+\S+)+/.test((name ?? "").trim())
+  const isDisabled = !isFullName
 
   const { currentWhitelabel } = useWhitelabel()
   const product = form.getValues("product")
@@ -28,7 +30,8 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
     product,
   })
   const selectedProduct = getProductById(product)
-  const isInvestor = (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
+  const isInvestor =
+    (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
 
   const handleSubmit = async () => {
     if (isDisabled) return
@@ -63,6 +66,7 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
       value={name}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name", e.target.value)}
       isDisabled={isDisabled}
+      disabledReason="Please enter your full name (first and last name), not just a first name"
       isLoading={isLoading}
       handleSubmit={handleSubmit}
     />

@@ -68,9 +68,7 @@ interface RollbackContext {
   subscriptionCreated: boolean
 }
 
-type ProvisioningResult =
-  | { success: true; userId: number }
-  | { success: false; reason: string }
+type ProvisioningResult = { success: true; userId: number } | { success: false; reason: string }
 
 /**
  * PurchaseNewUserUseCase
@@ -303,7 +301,10 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
     )
 
     if (!cardResult.success) {
-      throw new PurchaseError(cardResult.error || "Card creation failed", cardResult.squareCode || "CARD_CREATION_FAILED")
+      throw new PurchaseError(
+        cardResult.error || "Card creation failed",
+        cardResult.squareCode || "CARD_CREATION_FAILED"
+      )
     }
 
     return cardResult.cardId!
@@ -345,6 +346,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         slug: v.slug ?? undefined,
         name_team: v.nameTeam ?? undefined,
         name_broker: v.nameBroker ?? undefined,
+        city: v.city ?? undefined,
+        state: v.state ?? undefined,
         is_premium: userConfig?.is_premium,
         role: isTeamPlan ? "SHELL" : userConfig?.role,
         whitelabel_id: resolvedWhitelabelId ?? 4,
@@ -372,7 +375,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         try {
           const sub = await this.deps.subscriptionRepository.findById(context.subscriptionId)
           if (sub) {
-            const subData = typeof sub.data === "string" ? JSON.parse(sub.data) : (sub.data || {})
+            const subData = typeof sub.data === "string" ? JSON.parse(sub.data) : sub.data || {}
             subData.team_id = team.id
             await this.deps.subscriptionRepository.update(context.subscriptionId, {
               data: JSON.stringify(subData),
@@ -515,7 +518,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         { emailService: this.deps.emailService, logger: this.deps.logger },
         {
           email: v.email,
-          reason: "We were unable to finish setting up your account. Our team has been notified and will reach out to you shortly.",
+          reason:
+            "We were unable to finish setting up your account. Our team has been notified and will reach out to you shortly.",
           isFree: context.isFree,
           whitelabelName: context.whitelabelName,
         }
@@ -611,7 +615,8 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
           { emailService: this.deps.emailService, logger },
           {
             email: context.email,
-            reason: "Something went wrong while processing your purchase. Our team has been notified and will reach out to you shortly.",
+            reason:
+              "Something went wrong while processing your purchase. Our team has been notified and will reach out to you shortly.",
             amountCharged: rollback.pricing?.initialAmount,
             whitelabelName: context.whitelabelName,
           }

@@ -6,6 +6,8 @@ interface InputProps {
   type?: string
   handleSubmit?: () => void
   isDisabled?: boolean
+  /** Tooltip shown when hovering the disabled Next button, explaining why it's disabled */
+  disabledReason?: string
   value: string
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   isLoading?: boolean
@@ -18,6 +20,7 @@ export default function Input({
   type = "text",
   handleSubmit,
   isDisabled,
+  disabledReason,
   value,
   onChange,
   isLoading,
@@ -73,15 +76,19 @@ export default function Input({
     <>
       <div className="flex flex-col items-stretch grow gap-2 md:items-end md:flex-row">
         <input {...inputProps} />
-        <ThemeButton
-          color="primary"
-          onPress={handleSubmit}
-          isDisabled={isDisabled}
-          isLoading={isLoading}
-          data-testid="next-button"
-        >
-          Next
-        </ThemeButton>
+        {/* The span carries the tooltip too - a disabled button doesn't get hover in every browser */}
+        <span title={isDisabled ? disabledReason : undefined} className="flex flex-col items-stretch md:items-end">
+          <ThemeButton
+            color="primary"
+            onPress={handleSubmit}
+            isDisabled={isDisabled}
+            isLoading={isLoading}
+            title={isDisabled ? disabledReason : undefined}
+            data-testid="next-button"
+          >
+            Next
+          </ThemeButton>
+        </span>
       </div>
     </>
   )

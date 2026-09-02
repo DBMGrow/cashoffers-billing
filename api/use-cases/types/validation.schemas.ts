@@ -58,10 +58,13 @@ export type CheckUserCardInfoInputValidated = z.infer<typeof CheckUserCardInfoIn
  */
 export const CreateSubscriptionInputSchema = z.object({
   userId: z.number().int().positive("User ID must be a positive integer"),
-  productId: z.union([z.number(), z.string().transform((val) => {
-    const num = parseInt(val, 10)
-    return isNaN(num) ? val : num
-  })]),
+  productId: z.union([
+    z.number(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10)
+      return isNaN(num) ? val : num
+    }),
+  ]),
   email: z.string().email("Invalid email address"),
   userAlreadyExists: z.boolean(),
   waiveSignupFee: z.boolean().optional(),
@@ -72,17 +75,20 @@ export type CreateSubscriptionInputValidated = z.infer<typeof CreateSubscription
 export const RenewSubscriptionInputSchema = z.object({
   subscriptionId: z.number().int().positive("Subscription ID must be a positive integer"),
   email: z.string().email("Invalid email address"),
-  triggeredBy: z.enum(['cron', 'card_update']).optional(),
+  triggeredBy: z.enum(["cron", "card_update"]).optional(),
 })
 
 export type RenewSubscriptionInputValidated = z.infer<typeof RenewSubscriptionInputSchema>
 
 export const UpdateSubscriptionInputSchema = z.object({
   userId: z.number().int().positive("User ID must be a positive integer"),
-  newProductId: z.union([z.number(), z.string().transform((val) => {
-    const num = parseInt(val, 10)
-    return isNaN(num) ? val : num
-  })]),
+  newProductId: z.union([
+    z.number(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10)
+      return isNaN(num) ? val : num
+    }),
+  ]),
   email: z.string().email("Invalid email address"),
 })
 
@@ -197,10 +203,13 @@ export type DeactivateSubscriptionInputValidated = z.infer<typeof DeactivateSubs
  * All card and identification fields are required.
  */
 export const NewUserPurchaseInputSchema = z.object({
-  productId: z.union([z.number(), z.string().transform((val) => {
-    const num = parseInt(val, 10)
-    return isNaN(num) ? val : num
-  })]),
+  productId: z.union([
+    z.number(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10)
+      return isNaN(num) ? val : num
+    }),
+  ]),
   email: z.string().email({ message: "Invalid email address" }),
   phone: z.string().min(1, "Phone is required"),
   cardToken: z.string().min(1, "Card token is required").optional().nullable(),
@@ -210,6 +219,8 @@ export const NewUserPurchaseInputSchema = z.object({
   name: z.string().optional().nullable(),
   nameBroker: z.string().optional().nullable(),
   nameTeam: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
   whitelabel: z.string().optional().nullable(),
   slug: z.string().optional().nullable(),
   url: z.string().optional().nullable(),
@@ -226,10 +237,13 @@ export type NewUserPurchaseInputValidated = z.infer<typeof NewUserPurchaseInputS
  */
 export const ExistingUserPurchaseInputSchema = z.object({
   userId: z.number().int().positive("User ID must be a positive integer"),
-  productId: z.union([z.number(), z.string().transform((val) => {
-    const num = parseInt(val, 10)
-    return isNaN(num) ? val : num
-  })]),
+  productId: z.union([
+    z.number(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10)
+      return isNaN(num) ? val : num
+    }),
+  ]),
   email: z.string().email({ message: "Invalid email address" }),
   cardToken: z.string().optional().nullable(),
   expMonth: z.number().int().min(1).max(12).optional().nullable(),
@@ -245,10 +259,13 @@ export type ExistingUserPurchaseInputValidated = z.infer<typeof ExistingUserPurc
  * @deprecated Use NewUserPurchaseInputSchema or ExistingUserPurchaseInputSchema instead
  */
 export const PurchaseSubscriptionInputSchema = z.object({
-  productId: z.union([z.number(), z.string().transform((val) => {
-    const num = parseInt(val, 10)
-    return isNaN(num) ? val : num
-  })]),
+  productId: z.union([
+    z.number(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10)
+      return isNaN(num) ? val : num
+    }),
+  ]),
   email: z.string().email({ message: "Invalid email address" }),
   userId: z.number().int().positive().optional(),
   name: z.string().optional(),
@@ -276,11 +293,7 @@ export const CreateProductInputSchema = z.object({
   productName: z.string().min(1, "Product name is required"),
   productDescription: z.string().optional(),
   productType: z.enum(["none", "one-time", "subscription"] as const),
-  productCategory: z.enum([
-    "premium_cashoffers",
-    "external_cashoffers",
-    "homeuptick_only",
-  ] as const),
+  productCategory: z.enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"] as const),
   price: z.number().int().min(0, "Price must be a non-negative integer"),
   data: z.any().optional(),
 })

@@ -18,6 +18,7 @@ import NameStep from "./steps/NameStep"
 import SlugStep from "./steps/SlugStep"
 import BrokerStep from "./steps/BrokerStep"
 import TeamStep from "./steps/TeamStep"
+import LocationStep from "./steps/LocationStep"
 import PhoneStep from "./steps/PhoneStep"
 import CardStep from "./steps/CardStep"
 import ReviewStep from "./steps/ReviewStep"
@@ -41,11 +42,17 @@ const cardDataSchema = z.object({
 const subscribeSchema = z.object({
   product: z.union([z.number(), z.literal("free"), z.literal("freeinvestor")]),
   email: z.string().email(),
-  name: z.string().min(2),
+  // Full name required - at least a first and last name (CO-I240 / Desk #1440)
+  name: z
+    .string()
+    .min(2)
+    .refine((value) => /\S{2,}(\s+\S+)+/.test(value.trim()), { message: "Please enter your full name" }),
   phone: z.string().min(10),
   slug: z.string().nullable(),
   name_broker: z.string().nullable(),
   name_team: z.string().nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
   coupon: z.string().nullable(),
   cardData: cardDataSchema.nullable(),
 })
@@ -64,8 +71,8 @@ const BASE_STEP_CONFIG: Record<FormStep, { title: string; description: string }>
     description: "You'll use this email to log in. You can change it later if you need to.",
   },
   name: {
-    title: "What is your Name?",
-    description: "Enter your name how you would like it to show up to your clients.",
+    title: "What is your Full Name?",
+    description: "Enter your first and last name how you would like them to show up to your clients.",
   },
   slug: {
     title: "Please choose a Domain Prefix.",
@@ -73,6 +80,7 @@ const BASE_STEP_CONFIG: Record<FormStep, { title: string; description: string }>
   },
   broker: { title: "What is your Brokerage?", description: "Enter your Brokerage name." },
   team: { title: "What is your Team Name? (Optional)", description: "Enter your Team name." },
+  location: { title: "Where are you located?", description: "Enter your City and State." },
   phone: { title: "What is your Phone Number?", description: "You can change this later." },
   card: {
     title: "What Card would you like to use?",
@@ -100,6 +108,7 @@ const SUBSCRIBE_STEPS: readonly FormStep[] = [
   "slug",
   "broker",
   "team",
+  "location",
   "phone",
   "card",
   "review",
@@ -153,12 +162,15 @@ export default function SubscribeFlow({
       slug: null,
       name_broker,
       name_team: null,
+      city: null,
+      state: null,
       coupon,
       cardData: null,
     },
   })
 
-  const isInvestor = (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
+  const isInvestor =
+    (selectedProduct?.data?.cashoffers?.user_config?.role ?? selectedProduct?.data?.user_config?.role) === "INVESTOR"
   const isHomeUptickOnly = selectedProduct?.product_category === "homeuptick_only"
 
   const userName = form.watch("name")
@@ -254,9 +266,17 @@ export default function SubscribeFlow({
           />
         )
       case "broker":
-        return <BrokerStep form={form} onNext={() => goToStep("team")} onBack={() => goToStep(isHomeUptickOnly ? "name" : "slug")} />
+        return (
+          <BrokerStep
+            form={form}
+            onNext={() => goToStep("team")}
+            onBack={() => goToStep(isHomeUptickOnly ? "name" : "slug")}
+          />
+        )
       case "team":
-        return <TeamStep form={form} onNext={() => goToStep("phone")} onBack={() => goToStep("broker")} />
+        return <TeamStep form={form} onNext={() => goToStep("location")} onBack={() => goToStep("broker")} />
+      case "location":
+        return <LocationStep form={form} onNext={() => goToStep("phone")} onBack={() => goToStep("team")} />
       case "phone":
         return (
           <PhoneStep
@@ -268,7 +288,7 @@ export default function SubscribeFlow({
               }
               return goToStep("card")
             }}
-            onBack={() => goToStep("team")}
+            onBack={() => goToStep("location")}
           />
         )
       case "card":

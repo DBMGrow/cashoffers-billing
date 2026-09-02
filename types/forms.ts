@@ -6,6 +6,8 @@ export interface SubscribeFormData {
   slug: string | null
   name_broker: string | null
   name_team: string | null
+  city: string | null
+  state: string | null
   coupon: string | null
   cardData: CardData | null
 }
@@ -34,6 +36,7 @@ export type FormStep =
   | "slug"
   | "broker"
   | "team"
+  | "location"
   | "phone"
   | "card"
   | "review"
