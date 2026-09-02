@@ -44,9 +44,12 @@ export default function LocationStep({ form, onNext, onBack }: LocationStepProps
 
   return (
     <div className="flex flex-col items-stretch grow gap-2 md:items-end md:flex-row">
+      {/* size={1} drops the input's intrinsic ~20-char width (huge at text-3xl, it pushed the
+          Next button off the row) and lets flexbox size the fields instead */}
       <input
         className={inputClassName}
         type="text"
+        size={1}
         placeholder="City"
         name="city"
         ref={cityRef}
@@ -56,8 +59,9 @@ export default function LocationStep({ form, onNext, onBack }: LocationStepProps
         data-testid="city-input"
       />
       <input
-        className={`${inputClassName} md:max-w-[30%]`}
+        className={`${inputClassName} md:grow-0 md:w-36`}
         type="text"
+        size={1}
         placeholder="State"
         name="state"
         value={state}

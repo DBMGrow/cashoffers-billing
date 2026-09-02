@@ -18,7 +18,7 @@ interface NameStepProps {
 export default function NameStep({ form, onNext, onBack, setAllowReset }: NameStepProps) {
   const [isLoading, setIsLoading] = useState(false)
   const name = form.watch("name")
-  // Require a full name: at least two words, e.g. "John Smith" — a lone "John" is invalid (CO-I240)
+  // Require a full name: at least two words, e.g. "John Smith" - a lone "John" is invalid (CO-I240)
   const isFullName = /\S{2,}(\s+\S+)+/.test((name ?? "").trim())
   const isDisabled = !isFullName
 
@@ -66,7 +66,7 @@ export default function NameStep({ form, onNext, onBack, setAllowReset }: NameSt
       value={name}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("name", e.target.value)}
       isDisabled={isDisabled}
-      disabledReason="Please enter your full name — first and last name, not just a first name"
+      disabledReason="Please enter your full name (first and last name), not just a first name"
       isLoading={isLoading}
       handleSubmit={handleSubmit}
     />

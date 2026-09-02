@@ -42,7 +42,7 @@ const cardDataSchema = z.object({
 const subscribeSchema = z.object({
   product: z.union([z.number(), z.literal("free"), z.literal("freeinvestor")]),
   email: z.string().email(),
-  // Full name required — at least a first and last name (CO-I240 / Desk #1440)
+  // Full name required - at least a first and last name (CO-I240 / Desk #1440)
   name: z
     .string()
     .min(2)

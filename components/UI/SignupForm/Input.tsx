@@ -76,7 +76,7 @@ export default function Input({
     <>
       <div className="flex flex-col items-stretch grow gap-2 md:items-end md:flex-row">
         <input {...inputProps} />
-        {/* The span carries the tooltip too — a disabled button doesn't get hover in every browser */}
+        {/* The span carries the tooltip too - a disabled button doesn't get hover in every browser */}
         <span title={isDisabled ? disabledReason : undefined} className="flex flex-col items-stretch md:items-end">
           <ThemeButton
             color="primary"
