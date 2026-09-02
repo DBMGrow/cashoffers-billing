@@ -50,7 +50,15 @@ for (const hook of hooks) {
     fs.unlinkSync(dest)
   }
 
-  fs.symlinkSync(src, dest)
+  try {
+    fs.symlinkSync(src, dest)
+  } catch (err) {
+    // Windows denies symlink creation without Developer Mode/admin (EPERM).
+    // Fall back to copying — the hook still runs; it just won't track future
+    // edits to scripts/hooks/ until the next install re-copies it.
+    if (err.code !== "EPERM") throw err
+    fs.copyFileSync(src, dest)
+  }
   fs.chmodSync(src, 0o755)
   installed++
 }
