@@ -1921,6 +1921,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
         "Subscriptions.suspension_date",
         "Subscriptions.payment_failure_count",
         "Subscriptions.square_environment",
+        "Subscriptions.provisioning_status",
         "Subscriptions.data",
         "Subscriptions.createdAt",
         "Subscriptions.updatedAt",
@@ -1934,6 +1935,13 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
       if (!isNaN(uid)) query = query.where("Subscriptions.user_id", "=", uid)
     }
     if (q.status) query = query.where("Subscriptions.status", "=", q.status as any)
+
+    // A paid-for subscription whose user was never created. The customer has been
+    // charged and cannot log in, so these are the rows that need manual repair —
+    // and nothing else in this CLI could surface them (CO-I240 / Desk #1440).
+    if (q.pending_provisioning === "1") {
+      query = query.where("Subscriptions.provisioning_status", "=", "pending_provisioning")
+    }
     if (q.product_id) {
       const pid = parseInt(q.product_id, 10)
       if (!isNaN(pid)) query = query.where("Subscriptions.product_id", "=", pid)
@@ -2181,6 +2189,138 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
           ...u,
           is_premium: Boolean(u.is_premium),
           active: Boolean(u.active),
+        })),
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POST /dev/send-reset/:user_id — Email a fresh password-reset link
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Closes the last gap in a manual provisioning repair. When user creation fails
+  // after payment, the purchase flow suppresses the welcome email on purpose
+  // (email-notification.handler: `userWasCreated === false`), so the repaired user
+  // is left with `password = 'NONE'` and no link. This asks the main API to mint a
+  // token and send it — nothing here writes `reset_token` or invents a token.
+  //
+  // Guard: this server usually runs against a TUNNELLED database while API_URL
+  // still points at staging. Sending a production user_id to the staging API mails
+  // the wrong person or 404s, so refuse a cross-environment send unless forced.
+
+  router.post("/send-reset/:user_id", async (c) => {
+    const userId = parseInt(c.req.param("user_id"), 10)
+    if (!userId) return c.json({ success: "error", error: "Invalid user_id" }, 400)
+
+    const force = c.req.query("force") === "1"
+    const apiUrl = config.api.url ?? ""
+    const apiIsStaging = /staging/i.test(apiUrl)
+    const dbIsProduction = (process.env.SSH_MODE ?? "").toLowerCase() === "production"
+
+    if (apiIsStaging && dbIsProduction && !force) {
+      return c.json({
+        success: "error",
+        error:
+          "Refusing to send: the database is production (SSH_MODE=production) but API_URL is staging. " +
+          "The reset would be sent by the staging API, which does not know this user_id. " +
+          "Point API_URL at production, or pass --force if you are certain.",
+        data: { api_url: apiUrl, ssh_mode: process.env.SSH_MODE ?? null },
+      }, 400)
+    }
+
+    const user = await db
+      .selectFrom("Users")
+      .where("user_id", "=", userId)
+      .select(["user_id", "email", "name", "role", "whitelabel_id"])
+      .executeTakeFirst()
+
+    if (!user) return c.json({ success: "error", error: `User ${userId} not found` }, 404)
+
+    logger.info("[DEV] Requesting password reset email", { userId, email: user.email })
+
+    const { createUserApiClient } = await import("@api/infrastructure/external-api/user-api/user-api.client")
+    const client = createUserApiClient(config, logger)
+
+    try {
+      await client.sendPasswordReset(userId)
+    } catch (error) {
+      return c.json({
+        success: "error",
+        error: error instanceof Error ? error.message : String(error),
+        data: { user_id: userId, email: user.email, api_url: apiUrl },
+      }, 400)
+    }
+
+    return c.json({
+      success: "success",
+      data: { user_id: userId, email: user.email, name: user.name, api_url: apiUrl, forced: force },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/product — One product with its full user-provisioning config
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Provisioning reads `data.user_config` to decide the new user's role, premium
+  // flag, and — for team plans — whether to create a Team and how many seats it
+  // gets. When a purchase fails at user creation, that config is exactly what a
+  // manual repair has to reproduce, so surface it rather than re-deriving it by
+  // hand from the purchase payload.
+
+  router.get("/query/product", async (c) => {
+    const productId = parseInt(c.req.query("product_id") ?? "", 10)
+    if (!productId) return c.json({ success: "error", error: "Missing or invalid product_id query param" }, 400)
+
+    const row = await db
+      .selectFrom("Products")
+      .selectAll()
+      .where("product_id", "=", productId)
+      .executeTakeFirst()
+
+    if (!row) return c.json({ success: "error", error: `Product ${productId} not found` }, 404)
+
+    const data = redactSensitive(row.data)
+
+    return c.json({
+      success: "success",
+      data: {
+        product: { ...row, data },
+        // Mirrors resolveUserConfig in use-cases/subscription/purchase-helpers.ts:266 —
+        // cashoffers.user_config wins, root-level user_config is the legacy fallback.
+        user_config: (data as any)?.cashoffers?.user_config ?? (data as any)?.user_config ?? null,
+      },
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /dev/query/whitelabel — Look up a whitelabel by id, code, or name
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // A purchase carries the whitelabel only as a URL slug (…/instantoffers365/
+  // subscribe/71). Provisioning resolves that to a whitelabel_id and stamps it on
+  // the new user; getting it wrong puts the agent under the wrong brand, so a
+  // repair needs the real row, not a guess.
+
+  router.get("/query/whitelabel", async (c) => {
+    const q = (c.req.query("q") ?? "").trim()
+    if (!q) return c.json({ success: "error", error: "Missing q query param" }, 400)
+
+    let query = db.selectFrom("Whitelabels").selectAll()
+    const asId = parseInt(q, 10)
+
+    query = Number.isInteger(asId) && String(asId) === q
+      ? query.where("whitelabel_id", "=", asId)
+      : query.where((eb) => eb.or([eb("code", "like", `%${q}%`), eb("name", "like", `%${q}%`)]))
+
+    const rows = await query.orderBy("whitelabel_id", "asc").limit(25).execute()
+
+    return c.json({
+      success: "success",
+      data: {
+        count: rows.length,
+        whitelabels: rows.map((w) => ({
+          ...w,
+          data: redactSensitive(w.data),
         })),
       },
     })

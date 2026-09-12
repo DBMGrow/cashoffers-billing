@@ -24,6 +24,17 @@ export interface IUserApiClient {
   updateUser(userId: number, userData: UpdateUserRequest): Promise<User>
 
   /**
+   * Ask the main API to mint a fresh password-reset token and email it to the user.
+   *
+   * The purchase flow suppresses the welcome email when provisioning fails
+   * (email-notification.handler: `userWasCreated === false`), so a user repaired by
+   * hand afterwards has `password = 'NONE'` and no way in. This is the supported way
+   * to give them one — the main API owns token generation and delivery, so nothing
+   * here invents a token or writes `reset_token` directly.
+   */
+  sendPasswordReset(userId: number): Promise<void>
+
+  /**
    * Activate user premium status (sets is_premium = true only)
    */
   activateUserPremium(userId: number): Promise<void>

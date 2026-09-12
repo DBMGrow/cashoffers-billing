@@ -154,6 +154,40 @@ export class UserApiClient implements IUserApiClient {
     }
   }
 
+  async sendPasswordReset(userId: number): Promise<void> {
+    const startTime = Date.now()
+
+    try {
+      this.logger.info("Requesting password reset email via API", { userId })
+
+      await axios.post(
+        `${this.config.api.url}/users/${userId}/send-password-reset`,
+        {},
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-token": this.config.api.masterToken,
+          },
+          timeout: DEFAULT_HTTP_TIMEOUT_MS,
+        }
+      )
+
+      this.logger.info("Password reset email requested", { userId, duration: Date.now() - startTime })
+    } catch (error) {
+      const responseData = (error as any)?.response?.data
+      this.logger.error("Failed to request password reset", error, {
+        userId,
+        duration: Date.now() - startTime,
+        responseData,
+      })
+      if (responseData) {
+        const detail = typeof responseData === "string" ? responseData : JSON.stringify(responseData)
+        throw new Error(`Request failed with status code ${(error as any).response.status}: ${detail}`)
+      }
+      throw error
+    }
+  }
+
   async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
     const startTime = Date.now()
 

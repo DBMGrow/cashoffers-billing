@@ -14,6 +14,8 @@ import type {
  */
 export class MockUserApiClient implements IUserApiClient {
   private users: Map<number, User> = new Map()
+  /** user_ids a password reset was requested for, for assertions in tests. */
+  passwordResetsSent: number[] = []
   private emailIndex: Map<string, number> = new Map()
   private teams: Map<number, Team> = new Map()
   private nextId = 1
@@ -66,6 +68,18 @@ export class MockUserApiClient implements IUserApiClient {
     this.emailIndex.set(userData.email.toLowerCase(), userId)
 
     return user
+  }
+
+  async sendPasswordReset(userId: number): Promise<void> {
+    if (this.shouldFail) {
+      throw new Error(this.failureReason)
+    }
+
+    if (!this.users.has(userId)) {
+      throw new Error('User not found')
+    }
+
+    this.passwordResetsSent.push(userId)
   }
 
   async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
