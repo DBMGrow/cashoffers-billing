@@ -55,3 +55,8 @@ Active implementation gaps tracked here. Link to discrepancy if one exists.
 - **For now**: a chargeback is reconciled when finance records the matching refund. The api-v2 reconciliation sweep over the shared `Transactions` table remains the correctness backstop.
 - **Later**: add a Square `dispute.created` webhook handler → `POST /internal/commissions/reverse`.
 - **See**: `docs/plans/commission-accrual-push-plan.md` (§6 Out of scope)
+
+### TODO-010: Payment-Failed and Plan-Updated Emails for hides_billing Users
+- **File**: `api/application/event-handlers/email-notification.handler.tsx`
+- **What**: Charge-confirmation emails (paid created receipt, renewal receipt) are suppressed for third-party-billed users (`Products.data.hides_billing`), but `payment-error` ("update your payment method" → billing URL they can't reach) and `subscription-plan-updated` (can include a prorated charge) still go to them. When the corporate card fails, the notification should arguably go to whoever owns the card, not the subscriber — needs a business decision on the recipient before changing behavior.
+- **See**: [email-notifications](../../business/capabilities/email-notifications#edge-cases)

@@ -64,6 +64,15 @@ export interface ProductData {
    * Independent of `hidden`: a product is shown only if neither rule hides it.
    */
   hidden_whitelabels?: string[]
+  /**
+   * Third-Party Billing Phase 0: corporate pays for this product's subscribers,
+   * so they get no self-service billing surface. The dashboard hides the Billing
+   * tab for these users (dashboard-mono `computeHideBilling`), and this service
+   * suppresses charge-confirmation emails for them — the charged card isn't
+   * theirs. Toggled per product from the product admin screen, never hardcoded.
+   * Absent/false = normal billing visibility (default).
+   */
+  hides_billing?: boolean
   /** One-time signup fee in cents */
   signup_fee?: number
   /** Recurring renewal cost in cents */
