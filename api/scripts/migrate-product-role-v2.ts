@@ -24,6 +24,7 @@
  * backfill assigned what was expected, and it is worth more than the row count.
  */
 
+import { sql } from "kysely"
 import { db } from "@api/lib/database"
 import { applyPlan, planProduct, type Outcome } from "@api/domain/services/product-role-backfill"
 
@@ -46,6 +47,11 @@ async function main() {
     )
     process.exit(1)
   }
+
+  // Through a tunnel DB_HOST is localhost and staging and production share a DB_NAME, so the line
+  // above cannot say which cluster this is. The server's own hostname can.
+  const { rows: identity } = await sql<{ server: string }>`SELECT @@hostname AS server`.execute(db)
+  console.log(`Server: ${identity[0]?.server ?? "(unknown)"}`)
 
   const products = await db.selectFrom("Products").select(["product_id", "product_name", "data"]).execute()
   console.log(`\nLoaded ${products.length} products\n`)

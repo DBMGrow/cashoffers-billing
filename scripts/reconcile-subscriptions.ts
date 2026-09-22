@@ -19,6 +19,9 @@
  *   npx tsx scripts/reconcile-subscriptions.ts --commit         # apply changes
  *   npx tsx scripts/reconcile-subscriptions.ts --sub 123        # single subscription
  *   npx tsx scripts/reconcile-subscriptions.ts --verbose        # show per-subscription detail
+ *   npx tsx scripts/reconcile-subscriptions.ts --resolve EXP:AGENT_EXP_PRO:4900 --resolve EXP:AGENT_EXP_ELITE:29900
+ *                                                               # which product a subscription with these
+ *                                                               # traits would land on (read-only, repeatable)
  */
 
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -30,12 +33,14 @@ import {
   buildNewSubscriptionData,
   buildProductIndex,
   findMatchingProduct,
+  makeProductKey,
   parseProductData,
   parseSubscriptionData,
   resolveSubscriptionCharacteristics,
   type ProductRow,
   type SubscriptionRow,
 } from "@api/domain/services/product-matching"
+import { isRoleV2, legacyOf } from "@api/domain/services/role-v2"
 
 type ResultStatus = "matched" | "reassigned" | "data_updated" | "skipped" | "failed"
 
@@ -57,6 +62,10 @@ const COMMIT = args.includes("--commit")
 const VERBOSE = args.includes("--verbose")
 const SUB_FLAG = args.indexOf("--sub")
 const SINGLE_SUB_ID = SUB_FLAG !== -1 ? parseInt(args[SUB_FLAG + 1], 10) : null
+// `--resolve <whitelabel>:<role_v2>:<amount>`, repeatable. Asks the matcher, against the real product
+// index, where a subscription with these traits would land, without one having to exist. It is how
+// P3 / AC24 is shown before any Express Offers subscriber does: two tiers, two products.
+const RESOLVE_PROBES = args.flatMap((a, i) => (a === "--resolve" && args[i + 1] ? [args[i + 1]] : []))
 
 // The console report is pasted into PRs, so every per-row list in it stops at this many rows. The
 // complete result set goes to a gitignored file instead, where a thousand rows cost nothing.
@@ -164,6 +173,32 @@ async function main() {
       console.log(yellow(`${roleless.length} product(s) name no resolvable role: ${roleless.map((p) => p.product_name).join(", ")}`))
     }
     console.log()
+
+    if (RESOLVE_PROBES.length > 0) {
+      console.log(bold("--- Resolve probes (no subscription read or written) ---"))
+      for (const probe of RESOLVE_PROBES) {
+        const [wl, roleV2, amountText] = probe.split(":")
+        const amount = Number(amountText)
+        if (!wl || !isRoleV2(roleV2) || !Number.isFinite(amount)) {
+          console.log(red(`  ${probe}: expected <whitelabel>:<role_v2>:<amount>`))
+          continue
+        }
+        const is_team_plan = roleV2 === "TEAMOWNER"
+        const { product, reason } = findMatchingProduct(
+          productIndex,
+          wl,
+          { role: legacyOf(roleV2), role_v2: roleV2, is_team_plan, team_members: 0 },
+          amount
+        )
+        const key = makeProductKey(wl, roleV2, is_team_plan, 0)
+        console.log(
+          product
+            ? green(`  ${probe} -> product ${product.product_id} "${product.product_name}" (key ${key}, ${reason})`)
+            : red(`  ${probe} -> no product (${reason})`)
+        )
+      }
+      console.log()
+    }
 
     // ── Load subscriptions with user + whitelabel join ─────────────────────
     let query = db
