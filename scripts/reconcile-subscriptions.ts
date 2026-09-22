@@ -4,8 +4,13 @@
  *
  * Matches each active subscription to the correct product based on:
  *   1. User's whitelabel (Users.whitelabel_id → Whitelabels.code)
- *   2. Plan characteristics (role, team_members)
+ *   2. Plan characteristics (role_v2, team_members)
  *   3. Exact price match (subscription.amount === product renewal_cost)
+ *
+ * The matching itself lives in `api/domain/services/product-matching.ts` so it can be tested, this
+ * file is the database and the report around it. Keying on `role_v2` rather than `role` is RBAC
+ * unification plan CO-I271 §9.4 / Q9: see that module's header for what it fixes and what to expect
+ * on the first run.
  *
  * Then rebuilds subscription.data in the new format the new billing system expects.
  *
@@ -19,6 +24,29 @@
 import { Kysely, MysqlDialect, sql } from "kysely"
 import { createPool } from "mysql2"
 import type { DB } from "@api/lib/db"
+import {
+  buildNewSubscriptionData,
+  buildProductIndex,
+  findMatchingProduct,
+  parseProductData,
+  parseSubscriptionData,
+  resolveSubscriptionCharacteristics,
+  type ProductRow,
+  type SubscriptionRow,
+} from "@api/domain/services/product-matching"
+
+type ResultStatus = "matched" | "reassigned" | "data_updated" | "skipped" | "failed"
+
+interface ReconcileResult {
+  subscription_id: number
+  status: ResultStatus
+  old_product_id: number | null
+  new_product_id: number | null
+  old_data: Record<string, unknown> | null
+  new_data: Record<string, unknown> | null
+  reason: string
+  amount: number
+}
 
 // ─── CLI Args ────────────────────────────────────────────────────────────────
 
@@ -70,253 +98,6 @@ function createDb(): Kysely<DB> {
   })
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ProductRow {
-  product_id: number
-  product_name: string
-  whitelabel_code: string | null
-  price: number
-  data: string | null
-}
-
-interface ParsedProduct {
-  product_id: number
-  product_name: string
-  whitelabel_code: string | null
-  signup_fee: number // Products.price
-  renewal_cost: number
-  duration: string
-  role: string
-  is_team_plan: boolean
-  team_members: number
-  cashoffers: Record<string, unknown> | null
-  raw_data: Record<string, unknown>
-}
-
-interface SubscriptionRow {
-  subscription_id: number
-  subscription_name: string
-  user_id: number | null
-  product_id: number | null
-  amount: number
-  duration: string
-  status: string | null
-  data: string | null
-  // joined from Users
-  user_role: string | null
-  user_team_id: number | null
-  user_whitelabel_id: number | null
-  // joined from Whitelabels
-  whitelabel_code: string | null
-}
-
-type ResultStatus = "matched" | "reassigned" | "data_updated" | "skipped" | "failed"
-
-interface ReconcileResult {
-  subscription_id: number
-  status: ResultStatus
-  old_product_id: number | null
-  new_product_id: number | null
-  old_data: Record<string, unknown> | null
-  new_data: Record<string, unknown> | null
-  reason: string
-  amount: number
-}
-
-// ─── Product Index ───────────────────────────────────────────────────────────
-
-/**
- * Build a lookup index from products. Key structure:
- *   whitelabel_code -> role -> team_members -> renewal_cost -> product
- *
- * This allows matching by all four dimensions. Products with null whitelabel_code
- * (free tiers, one-time) are indexed under the key "__null__".
- */
-function buildProductIndex(products: ParsedProduct[]): Map<string, ParsedProduct[]> {
-  const index = new Map<string, ParsedProduct[]>()
-  for (const p of products) {
-    const key = makeProductKey(p.whitelabel_code, p.role, p.is_team_plan, p.team_members)
-    const existing = index.get(key) || []
-    existing.push(p)
-    index.set(key, existing)
-  }
-  return index
-}
-
-function makeProductKey(
-  whitelabelCode: string | null,
-  role: string,
-  isTeamPlan: boolean,
-  teamMembers: number
-): string {
-  const wl = whitelabelCode ?? "__null__"
-  const tm = isTeamPlan ? String(teamMembers) : "0"
-  return `${wl}|${role}|${tm}`
-}
-
-// ─── Parsing ─────────────────────────────────────────────────────────────────
-
-function parseProductData(row: ProductRow): ParsedProduct {
-  const raw: Record<string, unknown> = row.data
-    ? typeof row.data === "string" ? JSON.parse(row.data) : row.data
-    : {}
-
-  // Post-migration-011 format: cashoffers.user_config at nested level
-  // Pre-migration-011 format: user_config at root
-  const cashoffers = raw.cashoffers as Record<string, unknown> | undefined
-  const userConfig = (cashoffers?.user_config ?? raw.user_config ?? {}) as Record<string, unknown>
-
-  return {
-    product_id: row.product_id,
-    product_name: row.product_name,
-    whitelabel_code: row.whitelabel_code,
-    signup_fee: row.price,
-    renewal_cost: (raw.renewal_cost as number) ?? 0,
-    duration: (raw.duration as string) ?? "monthly",
-    role: (userConfig.role as string) ?? "AGENT",
-    is_team_plan: (userConfig.is_team_plan as boolean) ?? (raw.team as boolean) ?? false,
-    team_members: (userConfig.team_members as number) ?? (raw.team_members as number) ?? 0,
-    cashoffers: cashoffers ? { ...cashoffers } : null,
-    raw_data: raw,
-  }
-}
-
-function parseSubscriptionData(data: string | null): Record<string, unknown> {
-  if (!data) return {}
-  try {
-    return typeof data === "string" ? JSON.parse(data) : data
-  } catch {
-    return {}
-  }
-}
-
-// ─── Matching ────────────────────────────────────────────────────────────────
-
-function resolveSubscriptionCharacteristics(
-  sub: SubscriptionRow,
-  subData: Record<string, unknown>
-): { role: string; is_team_plan: boolean; team_members: number; team_id: number | null } {
-  // Extract from subscription.data (old format)
-  const dataUserConfig = subData.user_config as Record<string, unknown> | undefined
-  const dataCashoffers = subData.cashoffers as Record<string, unknown> | undefined
-  const cashoffersUserConfig = dataCashoffers?.user_config as Record<string, unknown> | undefined
-
-  // Role: subscription.data.user_config.role → cashoffers.user_config.role → Users.role
-  const role =
-    (dataUserConfig?.role as string) ??
-    (cashoffersUserConfig?.role as string) ??
-    sub.user_role ??
-    "AGENT"
-
-  // Team plan detection — only TEAMOWNER role is a team plan
-  const is_team_plan = role === "TEAMOWNER"
-
-  // Team members — only relevant for TEAMOWNER
-  const team_members = is_team_plan
-    ? ((dataUserConfig?.team_members as number) ??
-       (cashoffersUserConfig?.team_members as number) ??
-       (subData.team_members as number) ??
-       0)
-    : 0
-
-  // Team ID: preserve from old subscription data or user
-  const team_id =
-    (subData.team_id as number | null) ??
-    sub.user_team_id ??
-    null
-
-  return { role, is_team_plan, team_members, team_id }
-}
-
-function findMatchingProduct(
-  index: Map<string, ParsedProduct[]>,
-  whitelabelCode: string | null,
-  characteristics: { role: string; is_team_plan: boolean; team_members: number },
-  amount: number
-): { product: ParsedProduct | null; reason: string } {
-  const key = makeProductKey(
-    whitelabelCode,
-    characteristics.role,
-    characteristics.is_team_plan,
-    characteristics.team_members
-  )
-  const candidates = index.get(key)
-
-  if (!candidates || candidates.length === 0) {
-    // Try null-whitelabel products (free tiers) as fallback
-    if (whitelabelCode !== null) {
-      const nullKey = makeProductKey(null, characteristics.role, characteristics.is_team_plan, characteristics.team_members)
-      const nullCandidates = index.get(nullKey)
-      if (nullCandidates) {
-        const priceMatch = nullCandidates.find((p) => p.renewal_cost === amount)
-        if (priceMatch) return { product: priceMatch, reason: "matched via null-whitelabel fallback" }
-      }
-    }
-    return {
-      product: null,
-      reason: `no product found for whitelabel=${whitelabelCode} role=${characteristics.role} ` +
-        `team_members=${characteristics.team_members} amount=${amount}`,
-    }
-  }
-
-  // Exact price match required
-  const priceMatch = candidates.find((p) => p.renewal_cost === amount)
-  if (!priceMatch) {
-    const availablePrices = candidates.map((p) => p.renewal_cost).join(", ")
-    return {
-      product: null,
-      reason: `PRICE MISMATCH: whitelabel=${whitelabelCode} role=${characteristics.role} ` +
-        `team_members=${characteristics.team_members} subscription.amount=${amount} ` +
-        `but available product renewal_costs=[${availablePrices}]`,
-    }
-  }
-
-  return { product: priceMatch, reason: "exact match" }
-}
-
-// ─── Data Rebuild ────────────────────────────────────────────────────────────
-
-function buildNewSubscriptionData(
-  matchedProduct: ParsedProduct,
-  oldData: Record<string, unknown>,
-  sub: SubscriptionRow,
-  characteristics: { team_id: number | null }
-): Record<string, unknown> {
-  const newData: Record<string, unknown> = {}
-
-  // Backwards-compat fields (old code reads these)
-  newData.renewal_cost = matchedProduct.renewal_cost
-  newData.duration = matchedProduct.duration
-
-  // user_config at root (old code reads subscription.data.user_config)
-  const userConfig: Record<string, unknown> = {
-    role: matchedProduct.role,
-    is_premium: matchedProduct.raw_data.user_config
-      ? (matchedProduct.raw_data.user_config as Record<string, unknown>).is_premium
-      : matchedProduct.cashoffers
-        ? ((matchedProduct.cashoffers.user_config as Record<string, unknown>)?.is_premium ?? 1)
-        : 1,
-    is_team_plan: matchedProduct.is_team_plan,
-  }
-  if (matchedProduct.is_team_plan) {
-    userConfig.team_members = matchedProduct.team_members
-  }
-  newData.user_config = userConfig
-
-  // cashoffers section (new code reads subscription.data.cashoffers)
-  if (matchedProduct.cashoffers) {
-    newData.cashoffers = { ...matchedProduct.cashoffers }
-  }
-
-  // Preserve team_id from old data / user
-  if (characteristics.team_id) {
-    newData.team_id = characteristics.team_id
-  }
-
-  return newData
-}
-
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -340,7 +121,22 @@ async function main() {
     const productById = new Map(products.map((p) => [p.product_id, p]))
 
     console.log(`Loaded ${bold(String(products.length))} subscription products`)
-    console.log(`Index keys: ${productIndex.size}`)
+    console.log(`Index keys: ${productIndex.byTier.size}`)
+
+    // The tier each product sells, printed before anything is matched. Two products that share a
+    // line here are two products reconciliation cannot tell apart, which is the defect Q9 names,
+    // so this is the first thing to read in a dry run, ahead of the counts.
+    const collisions = [...productIndex.byTier.entries()].filter(([, group]) => group.length > 1)
+    if (collisions.length > 0) {
+      console.log(dim(`${collisions.length} key(s) hold more than one product, told apart by price alone:`))
+      for (const [key, group] of collisions) {
+        console.log(dim(`  ${key}: ${group.map((p) => `${p.product_name} (${p.renewal_cost})`).join(", ")}`))
+      }
+    }
+    const roleless = products.filter((p) => p.role_v2 === null)
+    if (roleless.length > 0) {
+      console.log(yellow(`${roleless.length} product(s) name no resolvable role: ${roleless.map((p) => p.product_name).join(", ")}`))
+    }
     console.log()
 
     // ── Load subscriptions with user + whitelabel join ─────────────────────
@@ -358,6 +154,11 @@ async function main() {
         "s.status",
         "s.data",
         "u.role as user_role",
+        // `Users.role_v2` is not in the generated `api/lib/db.d.ts`, that file was last generated
+        // before the column shipped, and regenerating it here would sweep in every other schema
+        // change since. Selected as a raw fragment, typed at the SubscriptionRow boundary.
+        sql<string | null>`u.role_v2`.as("user_role_v2"),
+        "u.is_premium as user_is_premium",
         "u.team_id as user_team_id",
         "u.whitelabel_id as user_whitelabel_id",
         "w.code as whitelabel_code",
@@ -373,6 +174,10 @@ async function main() {
 
     // ── Process each subscription ──────────────────────────────────────────
     const results: ReconcileResult[] = []
+    // Subscriptions that only matched on the old, coarser key. Not a failure: it is how this
+    // script has always matched them, but it is the set that cannot be told apart by tier, so it
+    // is the set an Express Offers Pro or Elite could still be mispriced in. Worth reading.
+    const legacyMatches: number[] = []
     const activeStatuses = new Set(["active", "suspended", "paused", "trial"])
 
     for (const sub of subscriptions) {
@@ -432,12 +237,18 @@ async function main() {
       const whitelabelCode = row.whitelabel_code ?? "default"
 
       // Find matching product
-      const { product: matched, reason } = findMatchingProduct(
+      const { product: matched, reason, viaLegacyRole } = findMatchingProduct(
         productIndex,
         whitelabelCode,
-        { role: characteristics.role, is_team_plan: characteristics.is_team_plan, team_members: characteristics.team_members },
+        {
+          role: characteristics.role,
+          role_v2: characteristics.role_v2,
+          is_team_plan: characteristics.is_team_plan,
+          team_members: characteristics.team_members,
+        },
         row.amount
       )
+      if (viaLegacyRole) legacyMatches.push(row.subscription_id)
 
       if (!matched) {
         results.push({
@@ -454,7 +265,7 @@ async function main() {
       }
 
       // Build new subscription data
-      const newData = buildNewSubscriptionData(matched, subData, row, { team_id: characteristics.team_id })
+      const newData = buildNewSubscriptionData(matched, { team_id: characteristics.team_id })
 
       // Determine what changed
       const productIdChanged = row.product_id !== matched.product_id
@@ -488,6 +299,11 @@ async function main() {
     console.log(`  Data updated:   ${green(String(dataUpdated.length))} ${dim("(product_id correct, data rebuilt)")}`)
     console.log(`  Reassigned:     ${yellow(String(reassigned.length))} ${dim("(product_id changed, price verified)")}`)
     console.log(`  Skipped:        ${dim(String(skipped.length))} ${dim("(inactive / NULL user_id)")}`)
+    console.log(
+      `  Legacy-role:    ${legacyMatches.length > 0 ? yellow(String(legacyMatches.length)) : "0"} ` +
+        dim("(matched on role alone, these subscriptions record no tier)")
+    )
+    if (VERBOSE && legacyMatches.length > 0) console.log(dim(`    sub_ids: ${legacyMatches.join(", ")}`))
     console.log(`  ${failed.length > 0 ? red("FAILED:") : "Failed:"}        ${failed.length > 0 ? red(String(failed.length)) : "0"} ${failed.length > 0 ? red("← MANUAL REVIEW REQUIRED") : ""}`)
     console.log()
 
