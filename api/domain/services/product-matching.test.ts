@@ -112,6 +112,21 @@ describe("Express Offers Pro and Elite resolve to different products (AC24)", ()
     expect(reason).toContain("AGENT_EXP_ELITE")
   })
 
+  it("never lands a subscription that records no tier on an eXp product through the legacy fallback", () => {
+    // Found by a `--resolve EXP:AGENT_PREMIUM:29900` probe on staging: an untagged $299 subscription
+    // on the EXP white label fell back to `EXP|AGENT|0`, found the Elite product, and would have
+    // been promoted to AGENT_EXP_ELITE on its next renewal.
+    const sub = subscription({ amount: 29900, user_role: "AGENT", user_is_premium: 1, user_role_v2: null })
+    const { product: matched, viaLegacyRole } = findMatchingProduct(
+      index,
+      "EXP",
+      resolveSubscriptionCharacteristics(sub, {}),
+      sub.amount
+    )
+    expect(matched).toBeNull()
+    expect(viaLegacyRole).toBe(false)
+  })
+
   it("would have collided on the legacy key, which is what makes this test worth having", () => {
     // Guard against a silent regression to keying on `role`: if both tiers ever produce one key
     // again, every assertion above still passes on price alone and this is the one that fails.

@@ -22,6 +22,7 @@
  */
 
 import {
+  bitsOf,
   deriveRoleV2FromLegacy,
   isRoleV2,
   legacyOf,
@@ -103,6 +104,13 @@ export interface ProductIndex {
  * tier it is used, and where the subscription cannot name one the match is exactly the one the old
  * script made. It cannot reintroduce the Pro/Elite collision, because a subscription that names
  * either tier matches on the tier index and never reaches the fallback.
+ *
+ * **What the fallback may not reach: a product whose tier the legacy pair cannot say.** An eXp Elite
+ * product is `AGENT` on the legacy key, so without this a subscription that records no tier, at
+ * $299 on the EXP white label, fell through to it, took its `user_config` on rebuild, and was
+ * promoted to `AGENT_EXP_ELITE` at the next renewal. Found by a `--resolve EXP:AGENT_PREMIUM:29900`
+ * probe on staging. A subscription that names no tier cannot justify a tier that only exists by
+ * being named, so it reports as unmatched and goes to manual review instead.
  */
 export function buildProductIndex(products: ParsedProduct[]): ProductIndex {
   const byTier = new Map<string, ParsedProduct[]>()
@@ -110,6 +118,8 @@ export function buildProductIndex(products: ParsedProduct[]): ProductIndex {
   for (const p of products) {
     const tierKey = makeProductKey(p.whitelabel_code, p.role_v2, p.is_team_plan, p.team_members)
     byTier.set(tierKey, [...(byTier.get(tierKey) ?? []), p])
+
+    if (p.role_v2 && deriveRoleV2FromLegacy(legacyOf(p.role_v2), bitsOf(p.role_v2)?.is_premium) !== p.role_v2) continue
 
     const legacyKey = makeProductKey(
       p.whitelabel_code,
