@@ -21,6 +21,8 @@
  *   npx tsx scripts/reconcile-subscriptions.ts --verbose        # show per-subscription detail
  */
 
+import { mkdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { Kysely, MysqlDialect, sql } from "kysely"
 import { createPool } from "mysql2"
 import type { DB } from "@api/lib/db"
@@ -55,6 +57,19 @@ const COMMIT = args.includes("--commit")
 const VERBOSE = args.includes("--verbose")
 const SUB_FLAG = args.indexOf("--sub")
 const SINGLE_SUB_ID = SUB_FLAG !== -1 ? parseInt(args[SUB_FLAG + 1], 10) : null
+
+// The console report is pasted into PRs, so every per-row list in it stops at this many rows. The
+// complete result set goes to a gitignored file instead, where a thousand rows cost nothing.
+const CONSOLE_ROW_CAP = 25
+const OUT_DIR = join(__dirname, "out")
+
+/** Print at most CONSOLE_ROW_CAP rows, then say how many were left out and where they are. */
+function printCapped<T>(rows: T[], print: (row: T) => void, fullPath: string) {
+  for (const row of rows.slice(0, CONSOLE_ROW_CAP)) print(row)
+  if (rows.length > CONSOLE_ROW_CAP) {
+    console.log(dim(`  ... and ${rows.length - CONSOLE_ROW_CAP} more, all of them in ${fullPath}`))
+  }
+}
 
 // ─── ANSI helpers ────────────────────────────────────────────────────────────
 
@@ -106,9 +121,20 @@ async function main() {
   if (SINGLE_SUB_ID) console.log(`Filter: subscription_id = ${SINGLE_SUB_ID}`)
   console.log()
 
+  // The host the process actually connected with, read from the env it was given, not the tunnel
+  // anyone believes is open. Printed first so a pasted report says which database it describes.
+  console.log(`Database: ${process.env.DB_NAME} on ${process.env.DB_HOST}:${process.env.DB_PORT || "3306"}`)
+  console.log()
+
   const db = createDb()
 
   try {
+    // Through a tunnel DB_HOST is localhost and staging and production share a DB_NAME, so neither
+    // says which cluster this is. The server's own hostname does, and it cannot be a belief.
+    const { rows: identity } = await sql<{ server: string }>`SELECT @@hostname AS server`.execute(db)
+    console.log(`Server: ${bold(identity[0]?.server ?? "(unknown)")}`)
+    console.log()
+
     // ── Load products ──────────────────────────────────────────────────────
     const productRows = await db
       .selectFrom("Products")
@@ -303,8 +329,22 @@ async function main() {
       `  Legacy-role:    ${legacyMatches.length > 0 ? yellow(String(legacyMatches.length)) : "0"} ` +
         dim("(matched on role alone, these subscriptions record no tier)")
     )
-    if (VERBOSE && legacyMatches.length > 0) console.log(dim(`    sub_ids: ${legacyMatches.join(", ")}`))
+    if (VERBOSE && legacyMatches.length > 0) {
+      const shown = legacyMatches.slice(0, CONSOLE_ROW_CAP).join(", ")
+      const more = legacyMatches.length > CONSOLE_ROW_CAP ? ` ... and ${legacyMatches.length - CONSOLE_ROW_CAP} more` : ""
+      console.log(dim(`    sub_ids: ${shown}${more}`))
+    }
     console.log(`  ${failed.length > 0 ? red("FAILED:") : "Failed:"}        ${failed.length > 0 ? red(String(failed.length)) : "0"} ${failed.length > 0 ? red("← MANUAL REVIEW REQUIRED") : ""}`)
+    console.log()
+
+    // Every result, in full, where the console cap cannot truncate it.
+    mkdirSync(OUT_DIR, { recursive: true })
+    const fullPath = join(OUT_DIR, `reconcile-${process.env.DB_NAME}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`)
+    writeFileSync(
+      fullPath,
+      JSON.stringify({ database: process.env.DB_NAME, host: process.env.DB_HOST, server: identity[0]?.server, commit: COMMIT, legacyMatches, results }, null, 2)
+    )
+    console.log(dim(`Full results: ${fullPath}`))
     console.log()
 
     // Verbose: show every result
@@ -324,24 +364,24 @@ async function main() {
     // Always show reassigned details
     if (reassigned.length > 0) {
       console.log(bold("--- Reassigned ---"))
-      for (const r of reassigned) {
+      printCapped(reassigned, (r) => {
         console.log(yellow(
           `  sub_id=${r.subscription_id}  old_product=${r.old_product_id}  new_product=${r.new_product_id}  amount=${r.amount}`
         ))
         console.log(dim(`    ${r.reason}`))
-      }
+      }, fullPath)
       console.log()
     }
 
     // Always show failures
     if (failed.length > 0) {
       console.log(red(bold("--- FAILED (manual review required) ---")))
-      for (const r of failed) {
+      printCapped(failed, (r) => {
         console.log(red(
           `  sub_id=${r.subscription_id}  product_id=${r.old_product_id}  amount=${r.amount}`
         ))
         console.log(red(`    ${r.reason}`))
-      }
+      }, fullPath)
       console.log()
     }
 
