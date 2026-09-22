@@ -2,9 +2,23 @@ import axios from "axios"
 import { v4 as uuidv4 } from "uuid"
 import type { IConfig } from "@api/config/config.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
-import type { IUserApiClient, User, CreateUserRequest, UpdateUserRequest, CreateTeamRequest, Team } from "../user-api.interface"
+import type {
+  IUserApiClient,
+  User,
+  CreateUserRequest,
+  UpdateUserRequest,
+  CreateTeamRequest,
+  Team,
+} from "../user-api.interface"
 import { DEFAULT_HTTP_TIMEOUT_MS, withHttpRetry } from "../http-retry"
-import { bitsOf, deriveRoleV2FromLegacy, isPaidRoleV2, isRoleV2, legacyOf } from "@api/domain/services/role-v2"
+import {
+  bitsOf,
+  deriveRoleV2FromLegacy,
+  isPaidRoleV2,
+  isRoleV2,
+  legacyOf,
+  type RoleV2,
+} from "@api/domain/services/role-v2"
 
 /**
  * User API Client Implementation
@@ -201,6 +215,15 @@ export class UserApiClient implements IUserApiClient {
 
       this.logger.info("User role updated", { userId, roleV2, duration: Date.now() - startTime })
     } catch (error) {
+      // A 404 here is the main API not having the endpoint yet, not a missing user: it ships in the
+      // mono repo's Phase 7 (#1007), and this repo is meant to deploy without waiting for it. So
+      // the role goes the way it always went, as the legacy pair on the generic update, which that
+      // API still accepts from the master token. A missing user 404s there too and surfaces.
+      if ((error as any)?.response?.status === 404 && isRoleV2(roleV2)) {
+        await this.setUserRoleViaLegacyPair(userId, roleV2)
+        return
+      }
+
       const responseData = (error as any)?.response?.data
       this.logger.error("Failed to set user role", error, {
         userId,
@@ -214,6 +237,44 @@ export class UserApiClient implements IUserApiClient {
       }
       throw error
     }
+  }
+
+  /**
+   * The pre-Phase-7 transport for a role, used only while the role endpoint 404s.
+   *
+   * **Refuses a tier the pair cannot say**, rather than writing the nearest one. `(AGENT, 0)` reads
+   * back as `AGENT_FREE`, so an Express Offers Pro sent this way would be a paying customer quietly
+   * made free, and an Elite would land on plain Premium. No eXp tier is enrolled and the paid path is
+   * closed until the mono repo's Phase 7 ships, which is also when this fallback stops being reached,
+   * so a loud failure costs nothing real and a silent one would charge the wrong price.
+   */
+  private async setUserRoleViaLegacyPair(userId: number, roleV2: RoleV2): Promise<void> {
+    const role = legacyOf(roleV2)
+    const bits = bitsOf(roleV2)
+    const body: Record<string, unknown> = { role, ...(bits ?? {}) }
+
+    if (deriveRoleV2FromLegacy(role, bits?.is_premium) !== roleV2) {
+      this.logger.error("Role endpoint unavailable and the legacy pair cannot express this tier", undefined, {
+        userId,
+        roleV2,
+      })
+      throw new Error(
+        `Cannot set ${roleV2} on user ${userId}: PUT /users/:id/role is not available on the main API yet`
+      )
+    }
+
+    this.logger.warn("Role endpoint unavailable, writing the legacy pair", { userId, roleV2, body })
+    await this.withRetry(
+      () =>
+        axios.put(`${this.config.api.url}/users/${userId}`, body, {
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-token": this.config.api.masterToken,
+          },
+          timeout: DEFAULT_HTTP_TIMEOUT_MS,
+        }),
+      { operation: "setUserRoleViaLegacyPair", userId, roleV2 }
+    )
   }
 
   async sendPasswordReset(userId: number): Promise<void> {

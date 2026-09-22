@@ -201,3 +201,53 @@ describe("UserApiClient, role_v2 transport (plan CO-I271 §9.4)", () => {
     expect(user?.role_v2).toBe("AGENT_EXP_PRO")
   })
 })
+
+describe("UserApiClient, a main API without the role endpoint (deploy before mono Phase 7)", () => {
+  let client: UserApiClient
+
+  const notFound = () => Object.assign(new Error("Not Found"), { response: { status: 404, data: "Cannot PUT" } })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    client = new UserApiClient(makeConfig(), makeLogger())
+  })
+
+  it("writes the legacy pair on the generic update when the role endpoint 404s", async () => {
+    mockedAxios.put.mockRejectedValueOnce(notFound()).mockResolvedValue(userResponse({}))
+    mockedAxios.get.mockResolvedValue(userResponse({}))
+
+    await client.updateUser(26126, { role_v2: "AGENT_PREMIUM" })
+
+    expect(mockedAxios.put.mock.calls[1][0]).toBe("https://api.test/users/26126")
+    expect(mockedAxios.put.mock.calls[1][1]).toEqual({ role: "AGENT", is_premium: 1 })
+  })
+
+  it("carries SHELL the way the suspension path always sent it", async () => {
+    mockedAxios.put.mockRejectedValueOnce(notFound()).mockResolvedValue(userResponse({}))
+    mockedAxios.get.mockResolvedValue(userResponse({}))
+
+    await client.updateUser(26126, { role_v2: "SHELL" })
+
+    expect(mockedAxios.put.mock.calls[1][1]).toEqual({ role: "SHELL" })
+  })
+
+  it.each(["AGENT_EXP_PRO", "AGENT_EXP_ELITE", "AGENT_EXP_GUEST"])(
+    "refuses %s rather than writing the nearest tier the pair can say",
+    async (roleV2) => {
+      mockedAxios.put.mockRejectedValueOnce(notFound())
+      mockedAxios.get.mockResolvedValue(userResponse({}))
+
+      await expect(client.updateUser(26126, { role_v2: roleV2 })).rejects.toThrow(/not available/)
+      expect(mockedAxios.put).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it("does not fall back on any other failure", async () => {
+    mockedAxios.put.mockRejectedValue(
+      Object.assign(new Error("Forbidden"), { response: { status: 403, data: { error: "no" } } })
+    )
+
+    await expect(client.updateUser(26126, { role_v2: "AGENT_PREMIUM" })).rejects.toThrow(/403/)
+    expect(mockedAxios.put.mock.calls.every(([url]) => url === "https://api.test/users/26126/role")).toBe(true)
+  })
+})
