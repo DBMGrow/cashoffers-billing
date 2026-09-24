@@ -1,6 +1,7 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { TransactionRepository } from "@api/lib/repositories"
+import type { ProductRepository } from "@api/lib/repositories"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IResumeSubscriptionUseCase } from "./resume-subscription.use-case.interface"
 import { ResumeSubscriptionInput, ResumeSubscriptionOutput } from "../types/subscription.types"
@@ -13,6 +14,7 @@ interface Dependencies {
   subscriptionRepository: SubscriptionRepository
   transactionRepository: TransactionRepository
   eventBus?: IEventBus
+  productRepository?: ProductRepository
 }
 
 /**
@@ -99,13 +101,17 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         updatedAt: now,
       })
 
-      // Publish SubscriptionResumedEvent
+      // Publish SubscriptionResumedEvent, carrying the product's data the way pause does. The
+      // account handler restores the user's role from `productData.cashoffers.user_config` and
+      // does nothing without it: before this, a resumed subscriber stayed on the role the pause
+      // left them on (SHELL) until their next renewal, active and paying and locked out.
       if (eventBus && subscription.user_id) {
         await eventBus.publish(
           SubscriptionResumedEvent.create({
             subscriptionId: subscription.subscription_id,
             userId: subscription.user_id,
             newRenewalDate,
+            productData: await this.productDataFor(subscription.product_id),
           })
         )
       }
@@ -128,6 +134,19 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
       })
 
       return failure(errorMessage, "RESUME_SUBSCRIPTION_ERROR")
+    }
+  }
+
+  /** The product's `data`, parsed, or undefined. A failure here must not fail the resume itself. */
+  private async productDataFor(productId: number | null | undefined) {
+    if (!productId || !this.deps.productRepository) return undefined
+    try {
+      const product = await this.deps.productRepository.findById(productId)
+      const data = typeof product?.data === "string" ? JSON.parse(product.data) : product?.data
+      return data && typeof data === "object" ? data : undefined
+    } catch {
+      this.deps.logger.warn("Failed to load product data for the resumed event", { productId })
+      return undefined
     }
   }
 }

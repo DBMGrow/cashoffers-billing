@@ -372,10 +372,10 @@ describe('CashOffersAccountHandler', () => {
             { productData, suspensionStrategy: 'DEACTIVATE_USER' }
           )
         )
-        // `SHELL` alone, not `SHELL` + `is_premium: 0`. The main API derives the bit from the role
-        // in the same statement, so the pair cannot be observed disagreeing and the second field
-        // was only ever a second way of saying the first.
-        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL' })
+        // `SHELL` and `is_premium: 0`, as before role_v2. The main API does not derive the bit from
+        // SHELL (bitsOf is null for a non-agent role), so dropping it left lapsed users premium
+        // (found on staging, CO-I271 runbook B3).
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL', is_premium: 0 })
         expect(userApiClient.deactivateUser).not.toHaveBeenCalled()
       })
 
@@ -387,7 +387,7 @@ describe('CashOffersAccountHandler', () => {
             { productData, suspensionStrategy: 'DEACTIVATE_USER' }
           )
         )
-        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL' })
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL', is_premium: 0 })
       })
 
       it('shells the user on SubscriptionCancelled', async () => {
@@ -398,7 +398,7 @@ describe('CashOffersAccountHandler', () => {
             { productData, suspensionStrategy: 'DEACTIVATE_USER' }
           )
         )
-        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL' })
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL', is_premium: 0 })
       })
 
       it('does NOT suspend on SubscriptionCancelled when cancelOnRenewal is true (#1542)', async () => {

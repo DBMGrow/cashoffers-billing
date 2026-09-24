@@ -222,13 +222,26 @@ describe("UserApiClient, a main API without the role endpoint (deploy before mon
     expect(mockedAxios.put.mock.calls[1][1]).toEqual({ role: "AGENT", is_premium: 1 })
   })
 
-  it("carries SHELL the way the suspension path always sent it", async () => {
+  it("writes SHELL as the role alone, since bitsOf gives a non-agent role no bits", async () => {
     mockedAxios.put.mockRejectedValueOnce(notFound()).mockResolvedValue(userResponse({}))
     mockedAxios.get.mockResolvedValue(userResponse({}))
 
     await client.updateUser(26126, { role_v2: "SHELL" })
 
     expect(mockedAxios.put.mock.calls[1][1]).toEqual({ role: "SHELL" })
+  })
+
+  it("still clears the premium bit on a SHELL lapse, as a second write beside the role", async () => {
+    // The suspension path sends { role_v2: "SHELL", is_premium: 0 }. Before role_v2 that was one
+    // generic PUT; now the role goes its own way, and the bit must still land (runbook B3).
+    mockedAxios.put.mockRejectedValueOnce(notFound()).mockResolvedValue(userResponse({}))
+    mockedAxios.get.mockResolvedValue(userResponse({ integration_id: null }))
+
+    await client.updateUser(26126, { role_v2: "SHELL", is_premium: 0 })
+
+    const bodies = mockedAxios.put.mock.calls.filter(([url]) => url === "https://api.test/users/26126").map(([, body]) => body)
+    expect(bodies).toContainEqual({ role: "SHELL" })
+    expect(bodies).toContainEqual({ is_premium: 0 })
   })
 
   it.each(["AGENT_EXP_PRO", "AGENT_EXP_ELITE", "AGENT_EXP_GUEST"])(
