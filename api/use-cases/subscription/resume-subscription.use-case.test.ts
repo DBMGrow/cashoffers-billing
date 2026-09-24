@@ -241,6 +241,42 @@ describe("ResumeSubscriptionUseCase", () => {
       expect(resumedEvent?.payload.subscriptionId).toBe(1)
       expect(resumedEvent?.payload.userId).toBe(10)
     })
+
+    it("carries the product's data, which is what lets the account handler restore the role", async () => {
+      // Without it the handler returns early and a resumed subscriber stays SHELL until renewal
+      // (found on staging, CO-I271 runbook B3).
+      const productData = { cashoffers: { managed: true, user_config: { role: "AGENT", is_premium: 1 } } }
+      const withProducts = new ResumeSubscriptionUseCase({
+        logger: new ConsoleLogger(),
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        eventBus,
+        productRepository: { findById: async (id: number) => (id === 7 ? { product_id: 7, data: JSON.stringify(productData) } : null) } as any,
+      })
+      subscriptionRepo.addSubscription({ subscription_id: 2, user_id: 11, status: "paused", product_id: 7 })
+
+      await withProducts.execute({ subscriptionId: 2 })
+
+      const resumedEvent = eventBus.getPublishedEvents().find((e) => e.eventType === "SubscriptionResumed")
+      expect(resumedEvent?.payload.productData).toEqual(productData)
+    })
+
+    it("still resumes when the product cannot be loaded", async () => {
+      const failing = new ResumeSubscriptionUseCase({
+        logger: new ConsoleLogger(),
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        eventBus,
+        productRepository: { findById: async () => { throw new Error("db down") } } as any,
+      })
+      subscriptionRepo.addSubscription({ subscription_id: 3, user_id: 12, status: "paused", product_id: 7 })
+
+      const result = await failing.execute({ subscriptionId: 3 })
+
+      expect(result.success).toBe(true)
+      const resumedEvent = eventBus.getPublishedEvents().find((e) => e.eventType === "SubscriptionResumed")
+      expect(resumedEvent?.payload.productData).toBeUndefined()
+    })
   })
 
   describe("Renewal Date Calculation", () => {
