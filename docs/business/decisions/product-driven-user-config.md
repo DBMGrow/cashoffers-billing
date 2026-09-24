@@ -9,6 +9,7 @@ Products store a `user_config` JSON field that defines how a user should be conf
 ```json
 {
   "user_config": {
+    "role_v2": "AGENT_PREMIUM",
     "is_premium": 1,
     "role": "AGENT",
     "white_label_id": 1,
@@ -16,6 +17,11 @@ Products store a `user_config` JSON field that defines how a user should be conf
   }
 }
 ```
+
+`role_v2` is the tier the product sells, and it is authoritative. `role` and `is_premium` are the
+legacy pair, kept beside it as a fallback until the RBAC unification plan's Phase 9 removes them.
+They cannot express the difference between two eXp tiers that are both `AGENT` + `is_premium 1`,
+which is why [Products Name a Tier](role-v2) exists.
 
 ## Alternatives Considered
 - Hardcode role/premium logic by product ID: fragile, requires code deploys for product changes
@@ -32,4 +38,5 @@ Products store a `user_config` JSON field that defines how a user should be conf
 - All new products should define `user_config` when user configuration matters
 - Upgrade/downgrade logic must read new product's `user_config` and apply role mapping
 - `api/domain/services/role-mapper.ts` handles the team/single plan transition edge case
-- Schema validated in `api/routes/schemas/product.schemas.ts`
+- Schema validated in `api/routes/product/schemas.ts`, which requires a config to name at least one
+  of `role_v2` and `role`: a config naming neither provisions a user who can do nothing, silently

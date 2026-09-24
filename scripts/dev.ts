@@ -646,6 +646,7 @@ async function cmdSubsQuery(userIdArg: string | undefined, options: {
   productId?: string
   overdue?: boolean
   failuresGte?: string
+  pendingProvisioning?: boolean
   limit?: string
 }) {
   const params = new URLSearchParams()
@@ -654,6 +655,7 @@ async function cmdSubsQuery(userIdArg: string | undefined, options: {
   if (options.productId) params.set("product_id", options.productId)
   if (options.overdue) params.set("overdue", "true")
   if (options.failuresGte) params.set("failures_gte", options.failuresGte)
+  if (options.pendingProvisioning) params.set("pending_provisioning", "1")
   if (options.limit) params.set("limit", options.limit)
 
   const qs = params.toString()
@@ -689,6 +691,10 @@ async function cmdSubsQuery(userIdArg: string | undefined, options: {
       s.downgrade_on_renewal ? "downgrade_on_renewal" : null,
     ].filter(Boolean)
     if (flags.length) console.log(`       Flags:       ${red(flags.join(", "))}`)
+    // Loud on purpose: this row means a paying customer has no account.
+    if (s.provisioning_status === "pending_provisioning") {
+      console.log(`       ${red("PROVISIONING: pending — user was never created, customer cannot log in")}`)
+    }
     console.log(`       Environment: ${s.square_environment ?? "production"}`)
     console.log()
   }
@@ -877,6 +883,68 @@ async function cmdFindUser(email: string, options: { limit?: string }) {
   }
 }
 
+async function cmdProduct(productId: string) {
+  const data = await api("GET", `/query/product?product_id=${encodeURIComponent(productId)}`)
+  const p = data.product
+
+  header(`Product ${p.product_id} — ${p.product_name}`)
+
+  section("Product")
+  kv("product_id", p.product_id, 2)
+  kv("product_name", p.product_name, 2)
+  kv("product_category", p.product_category, 2)
+  kv("product_type", p.product_type, 2)
+  kv("price", `$${Number(p.price).toFixed(2)}`, 2)
+  kv("whitelabel_code", p.whitelabel_code, 2)
+
+  section("User config (what provisioning applies to the new user)")
+  if (!data.user_config) {
+    console.log(dim("  No user_config on this product"))
+  } else {
+    for (const [k, v] of Object.entries(data.user_config)) {
+      kv(k, typeof v === "object" ? JSON.stringify(v) : v, 2)
+    }
+  }
+
+  section("Full data blob (sensitive keys redacted)")
+  console.log("  " + JSON.stringify(p.data, null, 2).split("\n").join("\n  "))
+  console.log()
+}
+
+async function cmdWhitelabel(query: string) {
+  const data = await api("GET", `/query/whitelabel?q=${encodeURIComponent(query)}`)
+
+  header(`Whitelabel — "${query}" — ${data.count} match${data.count === 1 ? "" : "es"}`)
+
+  if (data.count === 0) {
+    console.log(dim("  No whitelabels match"))
+    console.log()
+    return
+  }
+
+  for (const w of data.whitelabels) {
+    console.log(`  [${w.whitelabel_id}] ${bold(w.name)}  ${dim(`code:${w.code}`)}`)
+    console.log(`       suspension_behavior: ${w.suspension_behavior}`)
+    console.log()
+  }
+}
+
+async function cmdSendReset(userId: string, options: { force?: boolean }) {
+  const qs = options.force ? "?force=1" : ""
+  header(`Send Password Reset — User ${userId}`)
+
+  try {
+    const data = await api("POST", `/send-reset/${encodeURIComponent(userId)}${qs}`)
+    console.log(`  ${green("✓")} Reset email requested for ${bold(data.email)}${data.name ? dim(` (${data.name})`) : ""}`)
+    console.log(`     sent by: ${data.api_url}`)
+    if (data.forced) console.log(`     ${yellow("forced past the environment-mismatch guard")}`)
+    console.log()
+  } catch {
+    // api() already printed the failure, including the guard message.
+    process.exitCode = 1
+  }
+}
+
 // ─── CLI Definition ───────────────────────────────────────────────────────────
 
 const program = new Command()
@@ -1052,6 +1120,7 @@ Examples:
   .option("--overdue", "Active subscriptions with renewal_date in the past")
   .option("--failures-gte <n>", "Subscriptions with payment_failure_count >= N")
   .option("--limit <n>", "Max rows (default 50, max 500)")
+  .option("--pending-provisioning", "Only subscriptions whose user was never created (paid, cannot log in)")
   .action(cmdSubsQuery)
 
 program
@@ -1110,6 +1179,22 @@ program
   .command("purchase-request <request_id>")
   .description("Show a single purchase request with full detail (accepts request_id or request_uuid)")
   .action(cmdPurchaseRequest)
+
+program
+  .command("send-reset <user_id>")
+  .description("Email the user a fresh password-reset link (for accounts repaired after a failed purchase)")
+  .option("--force", "Send even if API_URL and the tunnelled database are different environments")
+  .action(cmdSendReset)
+
+program
+  .command("product <product_id>")
+  .description("Show a product and the user_config provisioning applies to new users")
+  .action(cmdProduct)
+
+program
+  .command("whitelabel <query>")
+  .description("Look up a whitelabel by id, code, or name substring")
+  .action(cmdWhitelabel)
 
 program
   .command("find-user <email>")

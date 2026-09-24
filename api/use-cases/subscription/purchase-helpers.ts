@@ -15,6 +15,7 @@ import type {
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { SquareApiError } from "@api/infrastructure/payment/error/payment-error.types"
 import { CardCreatedEvent } from "@api/domain/events/card-created.event"
+import { resolveUserConfigRoleV2 } from "@api/domain/services/role-v2"
 import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
@@ -265,7 +266,12 @@ export async function validateAndParseProduct(
   const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
   // Prefer cashoffers.user_config; fall back to legacy root-level user_config
   const userConfig = productData.cashoffers?.user_config ?? productData.user_config
-  return { product, productData, userConfig }
+  // The role the product actually sells, in the unified vocabulary (plan CO-I271 §9.4). `role_v2`
+  // when the product carries one, the legacy pair derived when it does not, and the fallback stays
+  // until Phase 9 U91 removes it, so this repo and the dashboard never have to deploy together.
+  // `null` only when the config names no role at all, which the product schema refuses to store.
+  const roleV2 = resolveUserConfigRoleV2(userConfig)
+  return { product, productData, userConfig, roleV2 }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

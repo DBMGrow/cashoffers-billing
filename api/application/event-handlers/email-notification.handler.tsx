@@ -4,7 +4,12 @@ import type { IDomainEvent } from "@api/infrastructure/events/event-bus.interfac
 import type { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { whitelabelResolverService, userApiClient } from "@api/lib/services"
-import { whitelabelRepository } from "@api/lib/repositories"
+import { whitelabelRepository, productRepository } from "@api/lib/repositories"
+import {
+  parseProductData,
+  productHidesBilling,
+  shouldSuppressChargeEmails,
+} from "@api/domain/services/billing-visibility.service"
 import type { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
 import type { SubscriptionRenewedEvent } from "@api/domain/events/subscription-renewed.event"
 import type { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
@@ -113,6 +118,41 @@ export class EmailNotificationHandler extends BaseEventHandler {
     }
   }
 
+  /**
+   * Third-Party Billing Phase 0: whether charge-confirmation emails (purchase
+   * receipt, renewal receipt) should be suppressed because the subscription's
+   * product hides billing (`data.hides_billing`) — corporate pays for these
+   * users, the charged card isn't theirs, and the dashboard already hides
+   * their Billing tab under the same rule (dashboard-mono `computeHideBilling`).
+   * Grandfathered accounts (created before the cutoff) keep their emails.
+   *
+   * Product data comes from event metadata when the publisher embedded it,
+   * falling back to a Products lookup. On any failure we return false (don't
+   * suppress) — a possibly-redundant receipt is safer than a silently
+   * dropped one.
+   */
+  private async isChargeEmailSuppressed(
+    userId: number | null | undefined,
+    productId: number | null | undefined,
+    metadataProductData: unknown
+  ): Promise<boolean> {
+    try {
+      let productData = parseProductData(metadataProductData)
+      if (!productData && productId != null) {
+        const product = await productRepository.findById(productId)
+        productData = parseProductData(product?.data)
+      }
+      if (!productHidesBilling(productData)) return false
+      if (userId == null) return false
+
+      const user = await userApiClient.getUser(userId)
+      return shouldSuppressChargeEmails(productData, user?.created_at)
+    } catch {
+      this.logger.warn("Failed to check hides_billing for charge email suppression", { userId, productId })
+      return false
+    }
+  }
+
   async handle(event: IDomainEvent): Promise<void> {
     switch (event.eventType) {
       case "SubscriptionCreated":
@@ -167,6 +207,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
         const {
           email,
           userId,
+          productId,
           productName,
           amount,
           initialChargeAmount,
@@ -245,6 +286,18 @@ export class EmailNotificationHandler extends BaseEventHandler {
           return
         }
 
+        // Third-Party Billing: the paid receipt names an amount charged to a
+        // card that isn't this user's — suppress it for hides_billing products
+        // (trial-welcome above carries no charge and is unaffected).
+        if (await this.isChargeEmailSuppressed(userId, productId, event.metadata?.productData)) {
+          this.logger.info("Skipping subscription created email — product hides billing (third-party billing)", {
+            userId,
+            productId,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
         const html = await render(
           <SubscriptionCreatedEmail
             subscription={productName}
@@ -273,12 +326,25 @@ export class EmailNotificationHandler extends BaseEventHandler {
   private async handleSubscriptionRenewed(event: SubscriptionRenewedEvent): Promise<void> {
     await this.safeExecute(
       async () => {
-        const { email, userId, productName, amount, environment, lineItems, externalTransactionId } = event.payload
+        const { email, userId, productId, productName, amount, environment, lineItems, externalTransactionId } =
+          event.payload
 
         // Skip renewal email for $0 subscriptions — user isn't being charged
         if (amount === 0) {
           this.logger.info("Skipping renewal email for $0 subscription", {
             email,
+            subscriptionId: event.payload.subscriptionId,
+          })
+          return
+        }
+
+        // Third-Party Billing: corporate pays for hides_billing products, so the
+        // "your subscription has been renewed/charged" receipt would name a
+        // charge that didn't hit this user's card — suppress it.
+        if (await this.isChargeEmailSuppressed(userId, productId, event.metadata?.productData)) {
+          this.logger.info("Skipping renewal email — product hides billing (third-party billing)", {
+            userId,
+            productId,
             subscriptionId: event.payload.subscriptionId,
           })
           return

@@ -5,6 +5,7 @@ import {
   ProductIdParamSchema,
   AmountSchema,
 } from "../helpers/common.schemas"
+import { ASSIGNABLE_ROLE_V2 } from "@api/domain/services/role-v2"
 
 /**
  * Product route schemas
@@ -21,13 +22,30 @@ export const ProductTypeSchema = z.enum(["none", "one-time", "subscription"])
  */
 export const ProductUserConfigSchema = z
   .object({
-    is_premium: z.union([z.literal(0), z.literal(1)]),
-    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER", "SHELL", "HOMEUPTICK"]),
+    /**
+     * RBAC unification plan CO-I271 §9.4. Authoritative when present.
+     *
+     * The schema is `.strict()`, so before this key existed a product form sending `role_v2` got a
+     * 400 and the value never reached the database: the dashboard product form (plan §9.1 site 7)
+     * cannot ship until this does. Constrained to the assignable roles, so a product can never be
+     * pointed at `AGENT`, legal for a legacy write, never a thing to deliberately sell.
+     */
+    role_v2: z.enum(ASSIGNABLE_ROLE_V2 as [string, ...string[]]).optional(),
+    is_premium: z.union([z.literal(0), z.literal(1)]).optional(),
+    role: z.enum(["AGENT", "INVESTOR", "ADMIN", "TEAMOWNER", "SHELL", "HOMEUPTICK"]).optional(),
     white_label_id: z.number().nullable(),
     is_team_plan: z.boolean().optional(),
     team_members: z.number().optional(),
   })
   .strict()
+  // `role` and `is_premium` became optional so a form that has moved to `role_v2` is not forced to
+  // keep writing a legacy pair it no longer asks the admin for. Optional is not "absent is fine",
+  // though: a config naming neither provisions a user with no role, and that failure is silent,
+  // the account exists and can do nothing. One of the two must be there.
+  .refine((config) => config.role_v2 !== undefined || config.role !== undefined, {
+    message: "user_config must name a role: role_v2 (preferred) or the legacy role",
+    path: ["role_v2"],
+  })
 
 /**
  * CashOffers module configuration schema

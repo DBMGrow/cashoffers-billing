@@ -28,12 +28,36 @@ export function makeUserApiClient(): IUserApiClient {
     getUserByEmail: vi.fn(),
     createUser: vi.fn(),
     updateUser: vi.fn(),
+    setUserRole: vi.fn(),
+    sendPasswordReset: vi.fn(),
     activateUserPremium: vi.fn(),
     deactivateUserPremium: vi.fn(),
     deactivateUser: vi.fn(),
+    shellUser: vi.fn(),
     activateUser: vi.fn(),
     abandonUser: vi.fn(),
+    // Stubbed, not omitted: a handler that creates a team on a plan upgrade throws on an absent
+    // method, and the assertion that then fails is the one after it, which reads as if the role
+    // mapping were wrong. The cast to IUserApiClient hides the omission from the compiler.
+    createTeam: vi.fn().mockResolvedValue({ id: 99, name: 'Test team', owner_id: 42 }),
   } as unknown as IUserApiClient
+}
+
+/**
+ * The two repositories `CashOffersAccountHandler` resolves a user's white label through.
+ *
+ * Without them `resolveWhitelabelId` returns undefined, so every assertion on a resolved
+ * `whitelabel_id` fails however correct the handler is.
+ */
+export function makeWhitelabelResolution(whitelabelId = 7, code = 'EXP') {
+  return {
+    productRepository: { findById: vi.fn().mockResolvedValue({ product_id: 10, whitelabel_code: code }) },
+    whitelabelRepository: {
+      findByCode: vi.fn().mockResolvedValue({ whitelabel_id: whitelabelId, code }),
+      // Undefined, so the suspension strategy keeps coming from the event metadata the tests set.
+      getSuspensionBehavior: vi.fn().mockResolvedValue(undefined),
+    },
+  }
 }
 
 /**
@@ -72,6 +96,8 @@ export function makeProductData(overrides?: {
   cashofffersManaged?: boolean
   huEnabled?: boolean
   role?: string
+  /** The tier the product sells, plan CO-I271 §9.4. Omitted by default so the legacy pair is exercised. */
+  role_v2?: string
   is_premium?: 0 | 1
   is_team_plan?: boolean
   team_members?: number
@@ -85,6 +111,7 @@ export function makeProductData(overrides?: {
     cashofffersManaged = true,
     huEnabled = false,
     role = 'AGENT',
+    role_v2,
     is_premium = 1,
     is_team_plan = false,
     team_members,
@@ -104,6 +131,7 @@ export function makeProductData(overrides?: {
       user_config: {
         is_premium,
         role,
+        ...(role_v2 !== undefined && { role_v2 }),
         is_team_plan,
         ...(team_members !== undefined && { team_members }),
         ...(whitelabel_id !== undefined && { whitelabel_id }),

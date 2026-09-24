@@ -15,7 +15,7 @@ import { SubscriptionRenewedEvent } from '@api/domain/events/subscription-renewe
 import { SubscriptionPausedEvent } from '@api/domain/events/subscription-paused.event'
 import { SubscriptionDeactivatedEvent } from '@api/domain/events/subscription-deactivated.event'
 import { SubscriptionCancelledEvent } from '@api/domain/events/subscription-cancelled.event'
-import { makeLogger, makeUserApiClient, makeProductData } from './helpers/test-doubles'
+import { makeLogger, makeUserApiClient, makeProductData, makeWhitelabelResolution } from './helpers/test-doubles'
 
 // This import will FAIL until the handler is created — that is expected and correct.
 import { CashOffersAccountHandler } from '@api/application/service-handlers/cashoffers/cashoffers-account.handler'
@@ -90,7 +90,13 @@ describe('CashOffersAccountHandler', () => {
     ;(userApiClient.createUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: userId })
     ;(userApiClient.updateUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: userId })
     eventBus = new InMemoryEventBus(logger)
-    handler = new CashOffersAccountHandler(userApiClient, logger)
+    const { productRepository, whitelabelRepository } = makeWhitelabelResolution(7)
+    handler = new CashOffersAccountHandler(
+      userApiClient,
+      logger,
+      productRepository as never,
+      whitelabelRepository as never
+    )
     eventBus.subscribe('SubscriptionCreated', handler)
     eventBus.subscribe('SubscriptionRenewed', handler)
     eventBus.subscribe('SubscriptionPaused', handler)
@@ -126,7 +132,7 @@ describe('CashOffersAccountHandler', () => {
   // ─── SubscriptionCreated — new user ─────────────────────────────────────
 
   describe('SubscriptionCreated with userWasCreated: true', () => {
-    it('calls createUser with role, is_premium, and whitelabel_id from product config', async () => {
+    it('calls createUser with role_v2 and whitelabel_id from product config', async () => {
       const productData = makeProductData({
         role: 'AGENT',
         is_premium: 1,
@@ -146,10 +152,13 @@ describe('CashOffersAccountHandler', () => {
           { productData }
         )
       )
+      // `role_v2` replaces the `role` + `is_premium` pair here (plan CO-I271 §9.4). The pair is
+      // derived back from it inside the API client, so the wire body is unchanged for a product
+      // that could be expressed either way, the difference only shows for the eXp tiers, which
+      // the pair cannot express at all.
       expect(userApiClient.createUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          role: 'AGENT',
-          is_premium: 1,
+          role_v2: 'AGENT_PREMIUM',
           whitelabel_id: 7,
         })
       )
@@ -186,7 +195,7 @@ describe('CashOffersAccountHandler', () => {
       )
       expect(userApiClient.updateUser).toHaveBeenCalledWith(
         userId,
-        expect.objectContaining({ is_premium: 1, whitelabel_id: 7 })
+        expect.objectContaining({ role_v2: 'AGENT_PREMIUM', whitelabel_id: 7 })
       )
     })
 
@@ -222,7 +231,7 @@ describe('CashOffersAccountHandler', () => {
   // ─── SubscriptionRenewed ─────────────────────────────────────────────────
 
   describe('SubscriptionRenewed', () => {
-    it('calls updateUser to ensure correct role and is_premium', async () => {
+    it('calls updateUser to ensure the product\'s role', async () => {
       const productData = makeProductData({ role: 'AGENT', is_premium: 1 })
       ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
         id: userId,
@@ -246,25 +255,107 @@ describe('CashOffersAccountHandler', () => {
           { productData }
         )
       )
-      expect(userApiClient.updateUser).toHaveBeenCalledWith(
-        userId,
-        expect.objectContaining({ role: 'AGENT', is_premium: 1 })
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, expect.objectContaining({ role_v2: 'AGENT_PREMIUM' }))
+    })
+
+    it('sees an Express Offers Pro moving to Elite, which the legacy pair could not', async () => {
+      // The reason the comparison moved. Both sides of the old check read `AGENT` + premium, so
+      // needsUpdate came out false and the subscriber stayed on the tier they had stopped paying
+      // for. Nothing reported it, because from the legacy columns nothing had happened.
+      const productData = makeProductData({ role: 'AGENT', is_premium: 1, role_v2: 'AGENT_EXP_ELITE' })
+      ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: userId,
+        email: 'pro@test.com',
+        is_premium: true,
+        role: 'AGENT',
+        role_v2: 'AGENT_EXP_PRO',
+        active: true,
+      })
+
+      await eventBus.publish(
+        SubscriptionRenewedEvent.create(
+          {
+            subscriptionId,
+            userId,
+            email: 'pro@test.com',
+            productId,
+            productName: 'Express Offers Elite',
+            amount: 29900,
+            nextRenewalDate: new Date('2026-05-17'),
+          },
+          { productData }
+        )
       )
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'AGENT_EXP_ELITE' })
+    })
+
+    it('leaves an Elite alone when the product already matches, rather than rewriting the role', async () => {
+      const productData = makeProductData({ role: 'AGENT', is_premium: 1, role_v2: 'AGENT_EXP_ELITE' })
+      ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: userId,
+        email: 'elite@test.com',
+        is_premium: true,
+        role: 'AGENT',
+        role_v2: 'AGENT_EXP_ELITE',
+        active: true,
+      })
+
+      await eventBus.publish(
+        SubscriptionRenewedEvent.create(
+          {
+            subscriptionId,
+            userId,
+            email: 'elite@test.com',
+            productId,
+            productName: 'Express Offers Elite',
+            amount: 29900,
+            nextRenewalDate: new Date('2026-05-17'),
+          },
+          { productData }
+        )
+      )
+      expect(userApiClient.updateUser).not.toHaveBeenCalled()
+    })
+
+    it('still renews a product that carries only the legacy pair', async () => {
+      // The fallback that lets the two repos deploy independently (plan §9.4 "Order"). Deleted by
+      // Phase 9 U91, until then a product that has not been backfilled must renew normally.
+      const productData = makeProductData({ role: 'AGENT', is_premium: 1 })
+      ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: userId,
+        email: 'legacy@test.com',
+        is_premium: false,
+        role: 'SHELL',
+        active: true,
+      })
+
+      await eventBus.publish(
+        SubscriptionRenewedEvent.create(
+          {
+            subscriptionId,
+            userId,
+            email: 'legacy@test.com',
+            productId,
+            productName: 'Premium Monthly',
+            amount: 25000,
+            nextRenewalDate: new Date('2026-05-17'),
+          },
+          { productData }
+        )
+      )
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'AGENT_PREMIUM' })
     })
   })
 
   // ─── SubscriptionResumed ─────────────────────────────────────────────────
 
   describe('SubscriptionResumed', () => {
-    it('restores product-configured role and is_premium', async () => {
+    it('restores the product-configured role', async () => {
       const productData = makeProductData({ role: 'AGENT', is_premium: 1 })
       await eventBus.publish(
         makeResumedEvent({ subscriptionId, userId, productData }) as any
       )
-      expect(userApiClient.updateUser).toHaveBeenCalledWith(
-        userId,
-        expect.objectContaining({ role: 'AGENT', is_premium: 1 })
-      )
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, expect.objectContaining({ role_v2: 'AGENT_PREMIUM' }))
     })
   })
 
@@ -272,7 +363,7 @@ describe('CashOffersAccountHandler', () => {
 
   describe('suspension behavior based on whitelabel config', () => {
     describe('DEACTIVATE_USER suspension strategy', () => {
-      it('calls updateUser with role SHELL and is_premium 0 on SubscriptionPaused', async () => {
+      it('shells the user on SubscriptionPaused', async () => {
         const productData = makeProductData({ whitelabel_id: 5 })
         // DEACTIVATE_USER is the expected strategy when whitelabel_id is set and configured accordingly
         await eventBus.publish(
@@ -281,14 +372,14 @@ describe('CashOffersAccountHandler', () => {
             { productData, suspensionStrategy: 'DEACTIVATE_USER' }
           )
         )
-        expect(userApiClient.updateUser).toHaveBeenCalledWith(
-          userId,
-          expect.objectContaining({ role: 'SHELL', is_premium: 0 })
-        )
+        // `SHELL` alone, not `SHELL` + `is_premium: 0`. The main API derives the bit from the role
+        // in the same statement, so the pair cannot be observed disagreeing and the second field
+        // was only ever a second way of saying the first.
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL' })
         expect(userApiClient.deactivateUser).not.toHaveBeenCalled()
       })
 
-      it('calls updateUser with role SHELL and is_premium 0 on SubscriptionDeactivated', async () => {
+      it('shells the user on SubscriptionDeactivated', async () => {
         const productData = makeProductData({ whitelabel_id: 5 })
         await eventBus.publish(
           SubscriptionDeactivatedEvent.create(
@@ -296,13 +387,10 @@ describe('CashOffersAccountHandler', () => {
             { productData, suspensionStrategy: 'DEACTIVATE_USER' }
           )
         )
-        expect(userApiClient.updateUser).toHaveBeenCalledWith(
-          userId,
-          expect.objectContaining({ role: 'SHELL', is_premium: 0 })
-        )
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL' })
       })
 
-      it('calls updateUser with role SHELL and is_premium 0 on SubscriptionCancelled', async () => {
+      it('shells the user on SubscriptionCancelled', async () => {
         const productData = makeProductData({ whitelabel_id: 5 })
         await eventBus.publish(
           SubscriptionCancelledEvent.create(
@@ -310,10 +398,7 @@ describe('CashOffersAccountHandler', () => {
             { productData, suspensionStrategy: 'DEACTIVATE_USER' }
           )
         )
-        expect(userApiClient.updateUser).toHaveBeenCalledWith(
-          userId,
-          expect.objectContaining({ role: 'SHELL', is_premium: 0 })
-        )
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL' })
       })
 
       it('does NOT suspend on SubscriptionCancelled when cancelOnRenewal is true (#1542)', async () => {
@@ -349,6 +434,42 @@ describe('CashOffersAccountHandler', () => {
         // Should NOT set role to SHELL
         const callArgs = (userApiClient.updateUser as ReturnType<typeof vi.fn>).mock.calls[0]
         expect(callArgs[1]).not.toHaveProperty('role', 'SHELL')
+        expect(callArgs[1]).not.toHaveProperty('role_v2', 'SHELL')
+      })
+
+      it('names AGENT_FREE for an agent, so the tier is the thing that changes', async () => {
+        ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+          id: userId,
+          email: 'agent@test.com',
+          is_premium: true,
+          role: 'AGENT',
+          role_v2: 'AGENT_PREMIUM',
+          active: true,
+        })
+        const productData = makeProductData({ whitelabel_id: undefined })
+        await eventBus.publish(
+          SubscriptionPausedEvent.create({ subscriptionId, userId }, { productData, suspensionStrategy: 'DOWNGRADE_TO_FREE' })
+        )
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'AGENT_FREE' })
+      })
+
+      it('leaves a lapsing investor an investor, and only clears the bit', async () => {
+        // DOWNGRADE_TO_FREE has never meant "make them a free agent". Reading it that way would
+        // move every lapsing investor, lender and team owner into the agent family, a change
+        // nobody asked for, arriving silently, on the one path nobody watches succeed.
+        ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+          id: userId,
+          email: 'investor@test.com',
+          is_premium: true,
+          role: 'INVESTOR',
+          role_v2: 'INVESTOR',
+          active: true,
+        })
+        const productData = makeProductData({ whitelabel_id: undefined })
+        await eventBus.publish(
+          SubscriptionPausedEvent.create({ subscriptionId, userId }, { productData, suspensionStrategy: 'DOWNGRADE_TO_FREE' })
+        )
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { is_premium: 0 })
       })
     })
   })
@@ -363,23 +484,30 @@ describe('CashOffersAccountHandler', () => {
       await eventBus.publish(
         makeUpgradedEvent({ subscriptionId, userId, fromProductData, toProductData }) as any
       )
-      expect(userApiClient.updateUser).toHaveBeenCalledWith(
-        userId,
-        expect.objectContaining({ role: 'TEAMOWNER' })
-      )
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, expect.objectContaining({ role_v2: 'TEAMOWNER' }))
     })
 
-    it('updates user role to AGENT for team → single downgrade', async () => {
+    it('lands a team → single downgrade on the new product\'s tier, not on bare AGENT', async () => {
+      // The legacy mapper returned the literal `AGENT` here and let `is_premium` carry the tier.
+      // `AGENT` is a legal role but not an assignable one, it is what a user is before anyone has
+      // said which tier they are on, so the answer is the tier the product they moved onto sells.
       const fromProductData = makeProductData({ is_team_plan: true, role: 'TEAMOWNER' })
-      const toProductData = makeProductData({ is_team_plan: false, role: 'AGENT' })
+      const toProductData = makeProductData({ is_team_plan: false, role: 'AGENT', is_premium: 1 })
 
       await eventBus.publish(
         makeUpgradedEvent({ subscriptionId, userId, fromProductData, toProductData }) as any
       )
-      expect(userApiClient.updateUser).toHaveBeenCalledWith(
-        userId,
-        expect.objectContaining({ role: 'AGENT' })
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, expect.objectContaining({ role_v2: 'AGENT_PREMIUM' }))
+    })
+
+    it('carries a Pro to Elite plan change, which is where a customer actually triggers one', async () => {
+      const fromProductData = makeProductData({ is_team_plan: false, role: 'AGENT', is_premium: 1, role_v2: 'AGENT_EXP_PRO' })
+      const toProductData = makeProductData({ is_team_plan: false, role: 'AGENT', is_premium: 1, role_v2: 'AGENT_EXP_ELITE' })
+
+      await eventBus.publish(
+        makeUpgradedEvent({ subscriptionId, userId, fromProductData, toProductData }) as any
       )
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'AGENT_EXP_ELITE' })
     })
 
     it('uses product base role when plan type does not change', async () => {
@@ -389,10 +517,7 @@ describe('CashOffersAccountHandler', () => {
       await eventBus.publish(
         makeUpgradedEvent({ subscriptionId, userId, fromProductData, toProductData }) as any
       )
-      expect(userApiClient.updateUser).toHaveBeenCalledWith(
-        userId,
-        expect.objectContaining({ role: 'INVESTOR', is_premium: 1 })
-      )
+      expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, expect.objectContaining({ role_v2: 'INVESTOR' }))
     })
   })
 })

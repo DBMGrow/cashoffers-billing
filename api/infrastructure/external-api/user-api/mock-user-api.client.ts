@@ -7,6 +7,7 @@ import type {
   CreateTeamRequest,
   Team,
 } from '../user-api.interface'
+import { bitsOf, isPaidRoleV2, isRoleV2, legacyOf } from '@api/domain/services/role-v2'
 
 /**
  * Mock User API Client
@@ -14,6 +15,10 @@ import type {
  */
 export class MockUserApiClient implements IUserApiClient {
   private users: Map<number, User> = new Map()
+  /** user_ids a password reset was requested for, for assertions in tests. */
+  passwordResetsSent: number[] = []
+  /** every role_v2 write, in order, for assertions in tests. */
+  rolesSet: { userId: number; roleV2: string }[] = []
   private emailIndex: Map<string, number> = new Map()
   private teams: Map<number, Team> = new Map()
   private nextId = 1
@@ -57,15 +62,44 @@ export class MockUserApiClient implements IUserApiClient {
       last_name: userData.last_name,
       phone: userData.phone,
       active: true,
-      is_premium: false,
+      is_premium: isRoleV2(userData.role_v2)
+        ? bitsOf(userData.role_v2)?.is_premium === 1
+        : userData.is_premium === 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      role: isRoleV2(userData.role_v2) ? legacyOf(userData.role_v2) : userData.role,
+      role_v2: isRoleV2(userData.role_v2) ? userData.role_v2 : null,
+      whitelabel_id: userData.whitelabel_id,
     }
 
     this.users.set(userId, user)
     this.emailIndex.set(userData.email.toLowerCase(), userId)
 
     return user
+  }
+
+  async setUserRole(userId: number, roleV2: string): Promise<void> {
+    if (this.shouldFail) {
+      throw new Error(this.failureReason)
+    }
+
+    if (!this.users.has(userId)) {
+      throw new Error('User not found')
+    }
+
+    await this.updateUser(userId, { role_v2: roleV2 })
+  }
+
+  async sendPasswordReset(userId: number): Promise<void> {
+    if (this.shouldFail) {
+      throw new Error(this.failureReason)
+    }
+
+    if (!this.users.has(userId)) {
+      throw new Error('User not found')
+    }
+
+    this.passwordResetsSent.push(userId)
   }
 
   async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
@@ -81,7 +115,10 @@ export class MockUserApiClient implements IUserApiClient {
     // Mirror the real client: never strip premium from integration-managed
     // users (premium is governed by an external integration, e.g. KW
     // Community/Chargify). #1473, #1494.
-    const wantsPremiumOff = userData.is_premium === 0 || userData.is_premium === false
+    const wantsPremiumOff =
+      userData.is_premium === 0 ||
+      userData.is_premium === false ||
+      (isRoleV2(userData.role_v2) && !isPaidRoleV2(userData.role_v2))
     if (wantsPremiumOff && user.integration_id != null) {
       return user
     }
@@ -93,6 +130,16 @@ export class MockUserApiClient implements IUserApiClient {
     }
     if (typeof userData.active === 'number') {
       normalized.active = userData.active === 1
+    }
+    // The main API derives `role` and the tier bits from `role_v2` in the same statement, so the
+    // pair is never observable disagreeing. A mock that only stored `role_v2` would let a test pass
+    // while the legacy columns drifted, which is the one failure this migration has to not have.
+    if (isRoleV2(userData.role_v2)) {
+      this.rolesSet.push({ userId, roleV2: userData.role_v2 })
+      normalized.role_v2 = userData.role_v2
+      normalized.role = legacyOf(userData.role_v2)
+      const bits = bitsOf(userData.role_v2)
+      if (bits) normalized.is_premium = bits.is_premium === 1
     }
 
     const updatedUser: User = {

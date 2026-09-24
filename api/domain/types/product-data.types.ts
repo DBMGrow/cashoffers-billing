@@ -1,3 +1,5 @@
+import type { RoleV2 } from "@api/domain/services/role-v2"
+
 /**
  * Product Data Types
  *
@@ -6,13 +8,29 @@
  */
 
 /**
- * User configuration that products provide to CashOffers users
+ * User configuration that products provide to CashOffers users.
+ *
+ * Invariant, enforced by `ProductUserConfigSchema` in `api/routes/product/schemas.ts`: a config
+ * names at least one of `role_v2` and `role`. A config that names neither would provision a user
+ * with no role at all, which fails silently, the account is created and simply cannot do anything.
  */
 export interface ProductUserConfig {
-  /** Premium status: 0 = not premium, 1 = premium */
-  is_premium: 0 | 1
-  /** User role in the CashOffers system */
-  role: "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER" | "SHELL" | "HOMEUPTICK"
+  /**
+   * The CashOffers role this product puts its subscriber on, RBAC unification plan CO-I271 §9.4.
+   *
+   * Authoritative when present. It exists because `(role, is_premium)` below cannot express the
+   * difference between a $49 Express Offers Pro and a $299 Elite: both are `AGENT` + `is_premium 1`,
+   * so on the legacy pair the two products are the same product and reconcile to one another.
+   *
+   * Optional, and `role` is kept beside it, because the two repos must not have to deploy together
+   * (plan §9.4 "Order"). A product written before the backfill carries only `role`; the dashboard
+   * product form writes both; Phase 9 (U91) removes `role` and `is_premium` and makes this required.
+   */
+  role_v2?: RoleV2
+  /** Premium status: 0 = not premium, 1 = premium. Legacy half of the pair; `role_v2` wins. */
+  is_premium?: 0 | 1
+  /** User role in the CashOffers system. Legacy half of the pair; `role_v2` wins. */
+  role?: "AGENT" | "INVESTOR" | "ADMIN" | "TEAMOWNER" | "SHELL" | "HOMEUPTICK"
   /** Indicates if this is a team subscription product */
   is_team_plan?: boolean
   /** Maximum number of team members for team plans */
@@ -64,6 +82,15 @@ export interface ProductData {
    * Independent of `hidden`: a product is shown only if neither rule hides it.
    */
   hidden_whitelabels?: string[]
+  /**
+   * Third-Party Billing Phase 0: corporate pays for this product's subscribers,
+   * so they get no self-service billing surface. The dashboard hides the Billing
+   * tab for these users (dashboard-mono `computeHideBilling`), and this service
+   * suppresses charge-confirmation emails for them — the charged card isn't
+   * theirs. Toggled per product from the product admin screen, never hardcoded.
+   * Absent/false = normal billing visibility (default).
+   */
+  hides_billing?: boolean
   /** One-time signup fee in cents */
   signup_fee?: number
   /** Recurring renewal cost in cents */
