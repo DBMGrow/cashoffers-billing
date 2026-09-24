@@ -5,7 +5,8 @@ import type { ProductRepository, WhitelabelRepository, SubscriptionRepository } 
 import type { ProductData } from "@api/domain/types/product-data.types"
 import type { Kysely } from "kysely"
 import type { DB } from "@api/lib/db.d"
-import { mapRoleForTransition } from "@api/domain/services/role-mapper"
+import { mapRoleV2ForTransition } from "@api/domain/services/role-mapper"
+import { downgradeRoleV2For, resolveUserConfigRoleV2, resolveUserRoleV2 } from "@api/domain/services/role-v2"
 
 /**
  * CashOffersAccountHandler
@@ -103,11 +104,20 @@ export class CashOffersAccountHandler implements IEventHandler {
     const userWasCreated = payload.userWasCreated
     const whitelabelId = await this.resolveWhitelabelId(payload.productId)
 
+    const roleV2 = resolveUserConfigRoleV2(userConfig)
+    if (!roleV2) {
+      this.logger.error('Product user_config names no role that can be resolved', undefined, {
+        userId,
+        productId: payload.productId,
+        userConfig,
+      })
+      throw new Error('Product user_config names no resolvable role')
+    }
+
     if (userWasCreated) {
       await this.userApiClient.createUser({
         email,
-        is_premium: userConfig.is_premium,
-        role: userConfig.role,
+        role_v2: roleV2,
         whitelabel_id: whitelabelId,
       })
     } else {
@@ -115,15 +125,15 @@ export class CashOffersAccountHandler implements IEventHandler {
       const user = await this.userApiClient.getUser(userId)
       if (!user) return
 
-      const needsUpdate =
-        (user as any).is_premium !== (userConfig.is_premium === 1) ||
-        (user as any).role !== userConfig.role ||
-        (user as any).whitelabel_id !== whitelabelId
+      // The comparison is on `role_v2`, and that is the change, not a tidier way to spell the old
+      // one. On `(role, is_premium)` this could not see an Express Offers Pro moving to Elite:
+      // both sides read `AGENT` + premium, needsUpdate came out false, and the subscriber kept
+      // paying $299 for the $49 tier with nothing anywhere reporting it.
+      const needsUpdate = resolveUserRoleV2(user) !== roleV2 || user.whitelabel_id !== whitelabelId
 
       if (needsUpdate) {
         await this.userApiClient.updateUser(userId, {
-          is_premium: userConfig.is_premium,
-          role: userConfig.role,
+          role_v2: roleV2,
           whitelabel_id: whitelabelId,
         })
       }
@@ -143,14 +153,15 @@ export class CashOffersAccountHandler implements IEventHandler {
     const user = await this.userApiClient.getUser(userId)
     if (!user) return
 
-    const needsUpdate =
-      (user as any).is_premium !== (userConfig.is_premium === 1) ||
-      (user as any).role !== userConfig.role
+    // Up is the product's call: a subscription starting or renewing sets the role from what was
+    // bought (plan §9.5). Down is the white label's, which is why the suspension path below does
+    // not read this.
+    const roleV2 = resolveUserConfigRoleV2(userConfig)
+    const needsUpdate = roleV2 !== null && resolveUserRoleV2(user) !== roleV2
 
     if (needsUpdate) {
       await this.userApiClient.updateUser(userId, {
-        role: userConfig.role,
-        is_premium: userConfig.is_premium,
+        role_v2: roleV2,
       })
     }
 
@@ -199,20 +210,45 @@ export class CashOffersAccountHandler implements IEventHandler {
 
     this.logger.info('Applying suspension strategy', { userId, strategy: strategy ?? 'DOWNGRADE_TO_FREE (default)' })
 
-    if (strategy === 'DEACTIVATE_USER') {
-      await this.userApiClient.updateUser(userId, {
-        role: 'SHELL',
-        is_premium: 0,
-      })
-    } else {
-      // DOWNGRADE_TO_FREE or unresolved default
-      await this.userApiClient.updateUser(userId, {
-        is_premium: 0,
-      })
-    }
+    await this.applyDowngrade(userId, strategy)
 
     // If this is a team plan, also suspend all team members
     await this.suspendTeamMembers(event, userId, strategy)
+  }
+
+  /**
+   * Put one user where a lapse should leave them.
+   *
+   * `DEACTIVATE_USER` is `SHELL` **and** `is_premium = 0`, exactly what the branch it replaces sent.
+   * The bit is not implied by the role: `bitsOf("SHELL")` is null on both sides (a non-agent role
+   * leaves the bits alone, which the KW Lite sunset relies on to reverse a SHELL conversion), so
+   * neither `PUT /users/:id/role` nor the legacy-pair fallback clears it. Found on staging
+   * 2026-09-24 (runbook B3): a lapse left `role = SHELL, is_premium = 1`. Every production SHELL
+   * carries 0, and check 7 cannot see a SHELL, so a lapsed user keeping the bit would go unnoticed.
+   *
+   * `DOWNGRADE_TO_FREE` is the careful one. It has never meant "make them a free agent": it clears
+   * the premium bit and leaves the role alone, so a lapsing INVESTOR stays an investor. Translating
+   * it as an unconditional `AGENT_FREE` would move every non-agent into the agent family on lapse.
+   * So the role is named only for the AGENT family, and everyone else still just loses the bit.
+   *
+   * Plan §9.5 replaces the strategy enum with the white label's `downgrade_role_v2`, which is what
+   * lets a lapsed eXp Pro land on `AGENT_EXP_GUEST` rather than a CashOffers account they never
+   * signed up for. That column does not exist yet; this is its default when it does.
+   */
+  private async applyDowngrade(userId: number, strategy?: string): Promise<void> {
+    if (strategy === 'DEACTIVATE_USER') {
+      await this.userApiClient.updateUser(userId, { role_v2: 'SHELL', is_premium: 0 })
+      return
+    }
+
+    const user = await this.userApiClient.getUser(userId)
+    const downgradeTo = downgradeRoleV2For(resolveUserRoleV2(user))
+
+    if (downgradeTo) {
+      await this.userApiClient.updateUser(userId, { role_v2: downgradeTo })
+    } else {
+      await this.userApiClient.updateUser(userId, { is_premium: 0 })
+    }
   }
 
   /**
@@ -251,16 +287,7 @@ export class CashOffersAccountHandler implements IEventHandler {
 
     for (const member of teamMembers) {
       try {
-        if (strategy === 'DEACTIVATE_USER') {
-          await this.userApiClient.updateUser(member.user_id, {
-            role: 'SHELL',
-            is_premium: 0,
-          })
-        } else {
-          await this.userApiClient.updateUser(member.user_id, {
-            is_premium: 0,
-          })
-        }
+        await this.applyDowngrade(member.user_id, strategy)
       } catch (err) {
         this.logger.error('Failed to suspend team member', {
           userId: member.user_id,
@@ -275,6 +302,13 @@ export class CashOffersAccountHandler implements IEventHandler {
    * When a team plan subscription is reactivated (resumed or renewed),
    * restore all team members. Owner role comes from product config (e.g. TEAMOWNER);
    * team members are set to AGENT with is_premium restored.
+   *
+   * **Deliberately still a legacy write, and the only one left in this file.** A member's own tier
+   * is not what the team plan bought: the plan bought their seat. The main API's derivation guard
+   * makes `role = AGENT` a no-op for a member who is separately an Express Offers Elite; naming
+   * `role_v2` here would bypass that guard and flatten them to `AGENT_PREMIUM` on every renewal,
+   * which is plan failure F2 with a new cause. Converting this needs the member's own role read
+   * first, which is plan §9.5's `downgrade_role_v2` work, not this phase's.
    */
   private async reactivateTeamMembers(
     event: IDomainEvent,
@@ -334,10 +368,10 @@ export class CashOffersAccountHandler implements IEventHandler {
     const payload = event.payload as any
     const userId = payload.userId
 
-    await this.userApiClient.updateUser(userId, {
-      role: userConfig.role,
-      is_premium: userConfig.is_premium,
-    })
+    const roleV2 = resolveUserConfigRoleV2(userConfig)
+    if (roleV2) {
+      await this.userApiClient.updateUser(userId, { role_v2: roleV2 })
+    }
 
     // If team plan, reactivate all team members
     await this.reactivateTeamMembers(event, userId, userConfig)
@@ -357,10 +391,24 @@ export class CashOffersAccountHandler implements IEventHandler {
     const fromIsTeamPlan = fromProductData?.cashoffers?.user_config?.is_team_plan ?? false
     const toIsTeamPlan = toUserConfig.is_team_plan ?? false
 
-    const role = mapRoleForTransition({
+    // Converted with the three paths the plan names, though it is not one of them, because this is
+    // the path a Pro becomes an Elite on. A change of plan between two products that are both
+    // `AGENT` + `is_premium 1` is exactly the change the legacy pair cannot carry, and leaving it
+    // here would have closed Q9 everywhere except the one place a customer actually triggers it.
+    const baseRoleV2 = resolveUserConfigRoleV2(toUserConfig)
+    if (!baseRoleV2) {
+      this.logger.error('Upgrade target product names no resolvable role', undefined, {
+        userId,
+        newProductId: payload.newProductId,
+        toUserConfig,
+      })
+      throw new Error('Upgrade target product names no resolvable role')
+    }
+
+    const roleV2 = mapRoleV2ForTransition({
       fromIsTeamPlan,
       toIsTeamPlan,
-      baseRole: toUserConfig.role,
+      baseRoleV2,
     })
 
     // Individual → Team: create a team and assign the user as owner
@@ -378,8 +426,7 @@ export class CashOffersAccountHandler implements IEventHandler {
 
       await this.userApiClient.updateUser(userId, {
         team_id: team.id,
-        role,
-        is_premium: toUserConfig.is_premium,
+        role_v2: roleV2,
       })
 
       // Store team_id in subscription data so checkplan can find it
@@ -406,8 +453,7 @@ export class CashOffersAccountHandler implements IEventHandler {
       })
     } else {
       await this.userApiClient.updateUser(userId, {
-        role,
-        is_premium: toUserConfig.is_premium,
+        role_v2: roleV2,
       })
     }
   }
