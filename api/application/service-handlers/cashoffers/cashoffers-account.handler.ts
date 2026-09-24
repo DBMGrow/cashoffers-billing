@@ -219,9 +219,12 @@ export class CashOffersAccountHandler implements IEventHandler {
   /**
    * Put one user where a lapse should leave them.
    *
-   * `DEACTIVATE_USER` is `SHELL`, which is what the branch it replaces already did, whatever its
-   * name claims. `SHELL` derives `is_premium = 0` on the main API's side, so the bit this used to
-   * clear by hand falls out of naming the role.
+   * `DEACTIVATE_USER` is `SHELL` **and** `is_premium = 0`, exactly what the branch it replaces sent.
+   * The bit is not implied by the role: `bitsOf("SHELL")` is null on both sides (a non-agent role
+   * leaves the bits alone, which the KW Lite sunset relies on to reverse a SHELL conversion), so
+   * neither `PUT /users/:id/role` nor the legacy-pair fallback clears it. Found on staging
+   * 2026-09-24 (runbook B3): a lapse left `role = SHELL, is_premium = 1`. Every production SHELL
+   * carries 0, and check 7 cannot see a SHELL, so a lapsed user keeping the bit would go unnoticed.
    *
    * `DOWNGRADE_TO_FREE` is the careful one. It has never meant "make them a free agent": it clears
    * the premium bit and leaves the role alone, so a lapsing INVESTOR stays an investor. Translating
@@ -234,7 +237,7 @@ export class CashOffersAccountHandler implements IEventHandler {
    */
   private async applyDowngrade(userId: number, strategy?: string): Promise<void> {
     if (strategy === 'DEACTIVATE_USER') {
-      await this.userApiClient.updateUser(userId, { role_v2: 'SHELL' })
+      await this.userApiClient.updateUser(userId, { role_v2: 'SHELL', is_premium: 0 })
       return
     }
 
