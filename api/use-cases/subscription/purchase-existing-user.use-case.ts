@@ -180,6 +180,9 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userCard: payment ? userCard : null,
         userWasCreated: false,
         startTime,
+        // Lets CashOffersAccountHandler write the role this product sells (e.g. an Express Offers
+        // Guest buying Express Offers Pro moves to AGENT_EXP_PRO).
+        productData,
       })
 
       logger.info("Existing user purchase completed successfully", {

@@ -478,6 +478,14 @@ export async function publishPurchaseEvents(
     userCard: { last_4: string | null } | null
     userWasCreated: boolean
     startTime: Date
+    /**
+     * The purchased product's data, attached to SubscriptionCreated as `metadata.productData`.
+     * CashOffersAccountHandler and HomeUptickAccountHandler read the product config only from
+     * there, so without it an existing user's purchase never writes the role the product sells.
+     * Only the existing-user flow passes it: the new-user flow provisions the account itself, and
+     * with productData attached the handler would try to create the same user a second time.
+     */
+    productData?: ProductData
   }
 ) {
   await deps.eventBus.publish(
@@ -502,7 +510,7 @@ export async function publishPurchaseEvents(
           ? [{ description: params.product.product_name, amount: params.pricing.renewalCost }]
           : []),
       ],
-    })
+    }, params.productData ? { productData: params.productData } : undefined)
   )
 
   // Skip PaymentProcessedEvent for free purchases (no payment was made)
