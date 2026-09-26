@@ -67,3 +67,18 @@ describe("linkedProductRejectionStatus", () => {
     expect(linkedProductRejectionStatus("NOT_SUBSCRIPTION")).toBe(403)
   })
 })
+
+describe("checkLinkedProduct for a role that may not buy HomeUptick-only", () => {
+  const hu = { whitelabel_code: "EXP", product_type: "subscription", product_category: "homeuptick_only" }
+  it("refuses a homeuptick_only product only when told to", () => {
+    expect(checkLinkedProduct(hu, "EXP", { homeUptickOnlyAllowed: false })).toEqual({
+      available: false,
+      reason: "NOT_OFFERED_TO_ROLE",
+    })
+    expect(checkLinkedProduct(hu, "EXP")).toEqual({ available: true })
+    expect(
+      checkLinkedProduct({ ...hu, product_category: "premium_cashoffers" }, "EXP", { homeUptickOnlyAllowed: false })
+    ).toEqual({ available: true })
+    expect(linkedProductRejectionStatus("NOT_OFFERED_TO_ROLE")).toBe(403)
+  })
+})

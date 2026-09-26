@@ -1,6 +1,7 @@
 import { db } from "@api/lib/database"
 import {
   PRODUCT_NOT_AVAILABLE,
+  type LinkedProductOptions,
   checkLinkedProduct,
   isOtherWhitelabelsProduct,
   linkedProductRejectionMessage,
@@ -45,11 +46,16 @@ function notAvailable(reason: Parameters<typeof linkedProductRejectionStatus>[0]
 /**
  * Loads the product named in a link and applies the strict rule: it exists,
  * its white label is exactly the user's, and it is a subscription product.
- * Hidden products are allowed.
+ * Hidden products are allowed. `options.homeUptickOnlyAllowed: false` also refuses a
+ * `homeuptick_only` product (an Express Offers Guest).
  */
-export async function resolveLinkedProduct(productId: number, userWhitelabelCode: string | null) {
+export async function resolveLinkedProduct(
+  productId: number,
+  userWhitelabelCode: string | null,
+  options: LinkedProductOptions = {}
+) {
   const product = await db.selectFrom("Products").selectAll().where("product_id", "=", productId).executeTakeFirst()
-  const check = checkLinkedProduct(product, userWhitelabelCode)
+  const check = checkLinkedProduct(product, userWhitelabelCode, options)
   if (!check.available) return notAvailable(check.reason)
   return { ok: true as const, product: product! }
 }

@@ -14,6 +14,14 @@ import { config } from "@api/config/config.service"
 import { SubscriptionUpgradedEvent } from "@api/domain/events/subscription-upgraded.event"
 import { eventBus } from "@api/lib/services"
 import { guardPurchaseWhitelabel, resolveLinkedProduct, resolveWhitelabelCode } from "./linked-product"
+import { resolveSignedInRoleV2 } from "./signed-in-role"
+import {
+  intentForCategory,
+  mayBeOfferedHomeUptickOnly,
+  selectUpgradeProduct,
+  upgradeTargetFor,
+  type EnrollmentCategory,
+} from "@api/domain/services/enrollment-intent.service"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -206,12 +214,24 @@ app.openapi(GetProductsRoute, async (c) => {
       userWhitelabelCode = whitelabel?.code ?? null
     }
 
+    // An Express Offers Guest is never offered a homeuptick_only product. When the role cannot be
+    // read, the list fails closed on that one category rather than failing the whole plan list.
+    const homeUptickOnlyAllowed = await resolveSignedInRoleV2(user, null)
+      .then(mayBeOfferedHomeUptickOnly)
+      .catch((error) => {
+        console.warn("manage/products: could not read the user's role_v2, withholding homeuptick_only products", {
+          userId: user.user_id,
+          error: error?.message,
+        })
+        return false
+      })
+
     // ?product=<id> is a direct product link (the change-plan half of the dashboard's upgrade
     // link). It returns exactly that product, hidden or not, when the strict link rule allows it,
     // and PRODUCT_NOT_AVAILABLE otherwise, never the filtered list.
     const { product: linkedProductId } = c.req.valid("query")
     if (linkedProductId !== undefined) {
-      const linked = await resolveLinkedProduct(linkedProductId, userWhitelabelCode)
+      const linked = await resolveLinkedProduct(linkedProductId, userWhitelabelCode, { homeUptickOnlyAllowed })
       if (!linked.ok) return c.json(linked.body, linked.status)
       return c.json({ success: "success" as const, data: [linked.product as any] }, 200)
     }
@@ -243,6 +263,8 @@ app.openapi(GetProductsRoute, async (c) => {
       if (isProductHidden(product.data) || isHiddenForWhitelabel(product.data, userWhitelabelCode)) {
         return false
       }
+
+      if (!homeUptickOnlyAllowed && product.product_category === "homeuptick_only") return false
 
       const productRole = product.data?.cashoffers?.user_config?.role ?? product.data?.user_config?.role
 
@@ -343,24 +365,25 @@ app.openapi(GetSubscriptionRoute, async (c) => {
 
 /**
  * GET /manage/enrollment
- * Checks enrollment eligibility for users without a billing subscription.
- * Determines whether to show external_cashoffers or homeuptick_only products.
+ * Checks enrollment eligibility for users without a billing subscription, and says what the
+ * enrollment is for in one server-decided `intent` (see enrollment-intent.service.ts).
  *
- * Logic:
- * - If user already has an active subscription → 409 (not eligible)
- * - If user has is_premium = 1 and no subscription → external_cashoffers
- *   (they're paying for CO elsewhere, just need HU)
- * - Otherwise → homeuptick_only (SHELL CO access + HU base fee)
+ * Logic, in order:
+ * - If user already has an active subscription: 409 (not eligible)
+ * - ?product=<id>: direct product link. Returns exactly that product (even when `data.hidden`)
+ *   when it exists, is a subscription product, and its whitelabel_code equals the user's white
+ *   label code exactly (NULL matches only NULL). Otherwise 404/403 PRODUCT_NOT_AVAILABLE. Takes
+ *   precedence over ?category=. See product-link.service.ts. intent: buy_product.
+ * - ?category=<category>: admin-directed enrollment (for example an admin-created premium user who
+ *   needs a real product, not just HU overages). A Guest's `homeuptick_only` override is ignored.
+ * - A role with an upgrade (an Express Offers Guest): the one upgrade product in their white label
+ *   (intent buy_product), or eligible: false with no products when there is not exactly one, so
+ *   the account site lands on the dashboard. Never HomeUptick-only.
+ * - is_premium = 1: external_cashoffers (paying for CO elsewhere, just need HU). intent: activate_homeuptick
+ * - Otherwise: homeuptick_only (SHELL CO access + HU base fee). intent: homeuptick_only
  *
- * Query params:
- * - ?category=premium_cashoffers — Override to show premium products.
- *   Used when an admin-created premium user needs to subscribe to a real product
- *   (not just HU overages). This is a custom link sent by admin to the user.
- * - ?product=<id>: Direct product link. Returns exactly that product (even when
- *   `data.hidden`) when it exists, is a subscription product, and its
- *   whitelabel_code equals the user's white label code exactly (NULL matches
- *   only NULL). Otherwise 404/403 PRODUCT_NOT_AVAILABLE. Takes precedence over
- *   ?category=. See product-link.service.ts.
+ * A Guest (`role_v2 = AGENT_EXP_GUEST`) is never offered a homeuptick_only product on any of
+ * these paths.
  */
 app.use("/enrollment", authMiddleware(null))
 app.openapi(GetEnrollmentRoute, async (c) => {
@@ -394,12 +417,16 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       .where("user_id", "=", user.user_id)
       .executeTakeFirst()
 
+    const userWhitelabelCode = await resolveWhitelabelCode(fullUser?.whitelabel_id)
+    const roleV2 = await resolveSignedInRoleV2(user, fullUser?.is_premium)
+    const homeUptickOnlyAllowed = mayBeOfferedHomeUptickOnly(roleV2)
+
     // ?product=<id> is a direct product link (the dashboard's upgrade link). It returns exactly
     // that product, skipping the category logic, or PRODUCT_NOT_AVAILABLE. It never falls back to
     // the category list: a link that names a product the user may not buy must say so.
     const { product: linkedProductId } = c.req.valid("query")
     if (linkedProductId !== undefined) {
-      const linked = await resolveLinkedProduct(linkedProductId, await resolveWhitelabelCode(fullUser?.whitelabel_id))
+      const linked = await resolveLinkedProduct(linkedProductId, userWhitelabelCode, { homeUptickOnlyAllowed })
       if (!linked.ok) return c.json(linked.body, linked.status)
 
       return c.json(
@@ -409,6 +436,7 @@ app.openapi(GetEnrollmentRoute, async (c) => {
             eligible: true,
             product_category: linked.product.product_category,
             reason: `Direct product link: product ${linked.product.product_id}`,
+            intent: "buy_product" as const,
             products: [linked.product],
           },
         },
@@ -416,40 +444,97 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       )
     }
 
-    // Determine product category — supports ?category= override for admin-directed enrollment
-    const categoryOverride = c.req.query("category") as
-      | "premium_cashoffers"
-      | "external_cashoffers"
-      | "homeuptick_only"
-      | undefined
-    const validCategories = ["premium_cashoffers", "external_cashoffers", "homeuptick_only"]
+    // Determine product category: supports ?category= override for admin-directed enrollment
+    const categoryOverride = c.req.query("category") as EnrollmentCategory | undefined
+    const validCategories: EnrollmentCategory[] = ["premium_cashoffers", "external_cashoffers", "homeuptick_only"]
+    const overrideApplies =
+      categoryOverride !== undefined &&
+      validCategories.includes(categoryOverride) &&
+      (homeUptickOnlyAllowed || categoryOverride !== "homeuptick_only")
 
-    let productCategory: "premium_cashoffers" | "external_cashoffers" | "homeuptick_only"
+    // A role with an upgrade (an Express Offers Guest) has nothing else to act on here: send them
+    // to buying it, or, when there is not exactly one such product, to the dashboard.
+    const upgradeTarget = overrideApplies ? null : upgradeTargetFor(roleV2)
+    if (upgradeTarget) {
+      let candidates = db.selectFrom("Products").selectAll().where("product_type", "=", "subscription")
+      candidates = userWhitelabelCode
+        ? candidates.where("whitelabel_code", "=", userWhitelabelCode)
+        : candidates.where("whitelabel_code", "is", null)
+      const pick = selectUpgradeProduct(await candidates.execute(), upgradeTarget, userWhitelabelCode)
+
+      if ("product" in pick) {
+        console.log("Enrollment resolved to the upgrade product", {
+          userId: user.user_id,
+          roleV2,
+          target: upgradeTarget,
+          productId: pick.product.product_id,
+        })
+        return c.json(
+          {
+            success: "success" as const,
+            data: {
+              eligible: true,
+              product_category: pick.product.product_category,
+              reason: `Upgrade from ${roleV2} to ${upgradeTarget}: product ${pick.product.product_id}`,
+              intent: "buy_product" as const,
+              products: [pick.product],
+            },
+          },
+          200
+        )
+      }
+
+      console.warn("Enrollment found no single upgrade product, sending the user to the dashboard", {
+        userId: user.user_id,
+        roleV2,
+        target: upgradeTarget,
+        reason: pick.reason,
+      })
+      return c.json(
+        {
+          success: "success" as const,
+          data: {
+            eligible: false,
+            product_category: null,
+            reason: `No single upgrade product for ${roleV2}: ${pick.reason}`,
+            intent: null,
+            products: [],
+          },
+        },
+        200
+      )
+    }
+
+    let productCategory: EnrollmentCategory
     let reason: string
 
-    if (categoryOverride && validCategories.includes(categoryOverride)) {
-      productCategory = categoryOverride as typeof productCategory
+    if (overrideApplies) {
+      productCategory = categoryOverride!
       reason = `Admin-directed enrollment: category override to ${categoryOverride}`
     } else {
       const isPremium = fullUser?.is_premium === 1
       productCategory = isPremium ? "external_cashoffers" : "homeuptick_only"
       reason = isPremium
         ? "User has active premium CashOffers account but no billing subscription"
-        : "User has no premium CashOffers account — eligible for HomeUptick standalone"
+        : "User has no premium CashOffers account, eligible for HomeUptick standalone"
     }
 
-    // Resolve whitelabel code for product filtering
-    let userWhitelabelCode: string | null = null
-    if (fullUser?.whitelabel_id) {
-      const whitelabel = await db
-        .selectFrom("Whitelabels")
-        .select("code")
-        .where("whitelabel_id", "=", fullUser.whitelabel_id)
-        .executeTakeFirst()
-      userWhitelabelCode = whitelabel?.code ?? null
+    // Belt and braces for a role that may not be offered HomeUptick-only but has no upgrade entry.
+    if (productCategory === "homeuptick_only" && !homeUptickOnlyAllowed) {
+      return c.json(
+        {
+          success: "success" as const,
+          data: {
+            eligible: false,
+            product_category: null,
+            reason: `HomeUptick-only plans are not offered to ${roleV2}`,
+            intent: null,
+            products: [],
+          },
+        },
+        200
+      )
     }
-
-    console.log(`this user's whitelabel code is ${userWhitelabelCode}`)
 
     // Fetch products matching the determined category and whitelabel
     let query = db.selectFrom("Products").selectAll().where("product_category", "=", productCategory)
@@ -467,8 +552,9 @@ app.openapi(GetEnrollmentRoute, async (c) => {
         success: "success" as const,
         data: {
           eligible: true,
-          product_category: productCategory as "premium_cashoffers" | "external_cashoffers" | "homeuptick_only",
+          product_category: productCategory,
           reason,
+          intent: intentForCategory(productCategory),
           products,
         },
       },

@@ -34,9 +34,19 @@
 export interface LinkableProduct {
   whitelabel_code: string | null
   product_type: string
+  product_category?: string | null
 }
 
-export type LinkedProductRejection = "NOT_FOUND" | "WHITELABEL_MISMATCH" | "NOT_SUBSCRIPTION"
+export type LinkedProductRejection = "NOT_FOUND" | "WHITELABEL_MISMATCH" | "NOT_SUBSCRIPTION" | "NOT_OFFERED_TO_ROLE"
+
+export interface LinkedProductOptions {
+  /**
+   * False for a role that may never be offered a `homeuptick_only` product (an Express Offers
+   * Guest; see `mayBeOfferedHomeUptickOnly`). A link naming one is refused like any other product
+   * the user may not buy. Defaults to true.
+   */
+  homeUptickOnlyAllowed?: boolean
+}
 
 export type LinkedProductCheck = { available: true } | { available: false; reason: LinkedProductRejection }
 
@@ -50,13 +60,17 @@ export const PRODUCT_NOT_AVAILABLE = "PRODUCT_NOT_AVAILABLE"
  */
 export function checkLinkedProduct(
   product: LinkableProduct | null | undefined,
-  userWhitelabelCode: string | null
+  userWhitelabelCode: string | null,
+  options: LinkedProductOptions = {}
 ): LinkedProductCheck {
   if (!product) return { available: false, reason: "NOT_FOUND" }
   if ((product.whitelabel_code ?? null) !== (userWhitelabelCode ?? null)) {
     return { available: false, reason: "WHITELABEL_MISMATCH" }
   }
   if (product.product_type !== "subscription") return { available: false, reason: "NOT_SUBSCRIPTION" }
+  if (options.homeUptickOnlyAllowed === false && product.product_category === "homeuptick_only") {
+    return { available: false, reason: "NOT_OFFERED_TO_ROLE" }
+  }
   return { available: true }
 }
 
@@ -86,5 +100,7 @@ export function linkedProductRejectionMessage(reason: LinkedProductRejection): s
       return "The requested product is not available for your account"
     case "NOT_SUBSCRIPTION":
       return "The requested product is not a subscription plan"
+    case "NOT_OFFERED_TO_ROLE":
+      return "The requested product is not available for your account"
   }
 }

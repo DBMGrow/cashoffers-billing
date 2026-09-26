@@ -93,6 +93,7 @@ vi.mock("@api/use-cases/payment", () => ({ createPaymentUseCase: { execute: vi.f
 import { manageRoutes } from "./routes"
 import { purchaseRoutes } from "../purchase/routes"
 import { purchaseExistingUserUseCase } from "@api/use-cases/subscription"
+import { userApiClient } from "@api/lib/services"
 
 const EXP_WL = 7
 const KW_WL = 3
@@ -118,6 +119,11 @@ const sharedHu = {
   data: {},
 }
 const oneTimeExp = { ...expPro, product_id: 71, product_type: "one-time" }
+
+/** The main API's answer for the signed-in user's role_v2 (the enrollment decision reads it). */
+function withRoleV2(roleV2: string) {
+  vi.mocked(userApiClient.getUser).mockResolvedValue({ id: 42, role: "AGENT", role_v2: roleV2 } as any)
+}
 
 function signInAs(whitelabelId: number | null, isPremium = 0) {
   fixtures.user = { user_id: 42, email: "guest@exp.test", role: "AGENT", whitelabel_id: whitelabelId }
@@ -204,7 +210,7 @@ describe("GET /manage/enrollment?product=<id>", () => {
   })
 })
 
-describe("GET /manage/enrollment without product (unchanged)", () => {
+describe("GET /manage/enrollment without product", () => {
   it("picks homeuptick_only for a non-premium user and filters by the user's white label", async () => {
     const res = await manageRoutes.request("/enrollment")
     expect(res.status).toBe(200)
@@ -213,7 +219,8 @@ describe("GET /manage/enrollment without product (unchanged)", () => {
       data: {
         eligible: true,
         product_category: "homeuptick_only",
-        reason: "User has no premium CashOffers account — eligible for HomeUptick standalone",
+        reason: "User has no premium CashOffers account, eligible for HomeUptick standalone",
+        intent: "homeuptick_only",
         products: [sharedHu],
       },
     })
@@ -300,5 +307,111 @@ describe("POST /manage/purchase white-label guard", () => {
     })
     expect(res.status).toBe(403)
     expect(((await res.json()) as any).code).toBe("PRODUCT_NOT_AVAILABLE")
+  })
+})
+
+describe("GET /manage/enrollment intent", () => {
+  it("is buy_product for a followed product link", async () => {
+    const body: any = await (await manageRoutes.request("/enrollment?product=70")).json()
+    expect(body.data.intent).toBe("buy_product")
+  })
+
+  it("is homeuptick_only for a non-premium, non-Guest user", async () => {
+    withRoleV2("AGENT_FREE")
+    const body: any = await (await manageRoutes.request("/enrollment")).json()
+    expect(body.data).toMatchObject({ eligible: true, product_category: "homeuptick_only", intent: "homeuptick_only" })
+  })
+
+  it("is activate_homeuptick for a premium user (external_cashoffers)", async () => {
+    signInAs(EXP_WL, 1)
+    withRoleV2("AGENT_PREMIUM")
+    const body: any = await (await manageRoutes.request("/enrollment")).json()
+    expect(body.data).toMatchObject({ product_category: "external_cashoffers", intent: "activate_homeuptick" })
+  })
+
+  it("follows ?category=: premium_cashoffers is buy_product", async () => {
+    const body: any = await (await manageRoutes.request("/enrollment?category=premium_cashoffers")).json()
+    expect(body.data.intent).toBe("buy_product")
+  })
+
+  it("falls back to the legacy pair when the main API has no such user", async () => {
+    vi.mocked(userApiClient.getUser).mockResolvedValue(null)
+    const body: any = await (await manageRoutes.request("/enrollment")).json()
+    expect(body.data.intent).toBe("homeuptick_only")
+  })
+
+  it("answers an error, not HomeUptick-only, when the role cannot be read", async () => {
+    vi.mocked(userApiClient.getUser).mockRejectedValue(new Error("main API down"))
+    const res = await manageRoutes.request("/enrollment")
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as any).success).toBe("error")
+  })
+})
+
+describe("GET /manage/enrollment for an Express Offers Guest", () => {
+  const expHu = { ...sharedHu, product_id: 6, product_name: "eXp HomeUptick", whitelabel_code: "EXP" }
+
+  beforeEach(() => {
+    withRoleV2("AGENT_EXP_GUEST")
+    fixtures.products = [expPro, kwPlan, sharedHu, expHu, oneTimeExp]
+  })
+
+  it("lands a Guest on plain /manage on enrollment for their Pro upgrade product", async () => {
+    const res = await manageRoutes.request("/enrollment")
+    expect(res.status).toBe(200)
+    const body: any = await res.json()
+    expect(body.data).toMatchObject({ eligible: true, intent: "buy_product", product_category: "premium_cashoffers" })
+    expect(body.data.products.map((p: any) => p.product_id)).toEqual([70])
+    // The candidate query is the api-v2 resolver's: subscription products in the exact white label.
+    const productQuery = fixtures.queries.find((q) => q.table === "Products")!
+    expect(eqValue(productQuery.calls, "product_type")).toBe("subscription")
+    expect(eqValue(productQuery.calls, "whitelabel_code")).toBe("EXP")
+  })
+
+  it("falls back to the dashboard (not eligible, no products) when there is no upgrade product", async () => {
+    fixtures.products = [kwPlan, sharedHu, expHu]
+    const body: any = await (await manageRoutes.request("/enrollment")).json()
+    expect(body.data).toMatchObject({ eligible: false, intent: null, product_category: null, products: [] })
+  })
+
+  it("falls back to the dashboard when there are several upgrade products", async () => {
+    fixtures.products = [expPro, { ...expPro, product_id: 72 }, sharedHu, expHu]
+    const body: any = await (await manageRoutes.request("/enrollment")).json()
+    expect(body.data).toMatchObject({ eligible: false, intent: null, products: [] })
+  })
+
+  it("does not take another white label's Pro product as the upgrade", async () => {
+    fixtures.products = [
+      { ...expPro, whitelabel_code: "KW" },
+      { ...expPro, product_id: 73, whitelabel_code: null },
+      sharedHu,
+    ]
+    const body: any = await (await manageRoutes.request("/enrollment")).json()
+    expect(body.data).toMatchObject({ eligible: false, products: [] })
+  })
+
+  it("ignores ?category=homeuptick_only and still offers the upgrade", async () => {
+    const body: any = await (await manageRoutes.request("/enrollment?category=homeuptick_only")).json()
+    expect(body.data.intent).toBe("buy_product")
+    expect(body.data.products.map((p: any) => p.product_id)).toEqual([70])
+  })
+
+  it("refuses a product link to a homeuptick_only product", async () => {
+    const res = await manageRoutes.request("/enrollment?product=6")
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as any).code).toBe("PRODUCT_NOT_AVAILABLE")
+  })
+
+  it("never lists a homeuptick_only product on /manage/products, nor resolves a link to one", async () => {
+    const list: any = await (await manageRoutes.request("/products")).json()
+    expect(list.data.map((p: any) => p.product_category)).not.toContain("homeuptick_only")
+    const linked = await manageRoutes.request("/products?product=6")
+    expect(linked.status).toBe(403)
+  })
+
+  it("still lists homeuptick_only products for a non-Guest", async () => {
+    withRoleV2("AGENT_FREE")
+    const list: any = await (await manageRoutes.request("/products")).json()
+    expect(list.data.map((p: any) => p.product_id)).toContain(5)
   })
 })

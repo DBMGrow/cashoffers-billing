@@ -187,6 +187,35 @@ and `POST /manage/purchase` refuse only a product that belongs to **another** wh
 (403 `PRODUCT_NOT_AVAILABLE`). Shared NULL products stay purchasable by everyone, because the
 plan lists have always offered them. The guard stops a hand-edited `product_id`.
 
+### Enrollment Intent and Express Offers Guests
+
+`GET /manage/enrollment` decides once what the enrollment is for and returns it as `intent`
+beside the products (`api/domain/services/enrollment-intent.service.ts`):
+
+| Scenario                                               | `product_category`         | `intent`              |
+| ------------------------------------------------------ | -------------------------- | --------------------- |
+| `?product=<id>` (direct product link)                  | the product's              | `buy_product`         |
+| Express Offers Guest, one upgrade product found        | the product's              | `buy_product`         |
+| Express Offers Guest, zero or several upgrade products | `null` (`eligible: false`) | `null`                |
+| `?category=premium_cashoffers`                         | `premium_cashoffers`       | `buy_product`         |
+| `is_premium = 1` (or `?category=external_cashoffers`)  | `external_cashoffers`      | `activate_homeuptick` |
+| Otherwise (or `?category=homeuptick_only`)             | `homeuptick_only`          | `homeuptick_only`     |
+
+The decision reads the user's `role_v2` from the main API (`GET /users/:id`; the auth context
+carries only the legacy `role`). A failed lookup is an error response, never a guess, because
+the legacy fallback reads a Guest as a free agent.
+
+**The Guest rule.** An Express Offers Guest (`role_v2 = AGENT_EXP_GUEST`) has no HomeUptick
+access, so plain `/manage` sends them to their upgrade: the one `subscription` product in their
+white label (exact `whitelabel_code`, NULL only for NULL) whose
+`data.cashoffers.user_config.role_v2` is `AGENT_EXP_PRO`. This mirrors the api-v2 upgrade link's
+resolver. The Guest-to-Pro mapping is `UPGRADE_TARGET_ROLE_V2`, the one place billing states it.
+Zero or several matches answer `eligible: false` with no products, and the account site lands on
+the dashboard. A Guest is never offered a `homeuptick_only` product on any path: their
+`?category=homeuptick_only` is ignored, a product link to one is 403 `PRODUCT_NOT_AVAILABLE`, and
+`GET /manage/products` leaves them out of the list (and leaves them out for everyone when the role
+cannot be read, rather than failing the whole list).
+
 **Role write.** The existing-user flow attaches `productData` to `SubscriptionCreated` as
 `metadata.productData`. `CashOffersAccountHandler.handleCreated` reads the product config only
 from there. With `cashoffers.managed = true` and `userWasCreated = false`, it compares the user's

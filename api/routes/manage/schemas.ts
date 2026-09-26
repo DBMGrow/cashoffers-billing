@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { ErrorResponseSchema } from "../helpers/common.schemas"
+import { ENROLLMENT_INTENTS } from "@api/domain/services/enrollment-intent.service"
 
 /**
  * Manage route schemas
@@ -381,6 +382,13 @@ export const EnrollmentResponseSchema = z.object({
     eligible: z.boolean(),
     product_category: z.enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"]).nullable(),
     reason: z.string(),
+    /**
+     * What this enrollment is for, decided once on the server (enrollment-intent.service.ts):
+     * `buy_product` (a product link, a Guest's upgrade, or a premium_cashoffers override),
+     * `homeuptick_only` (HomeUptick standalone), `activate_homeuptick` (external_cashoffers: a card
+     * turns HomeUptick on). `null` when not eligible.
+     */
+    intent: z.enum(ENROLLMENT_INTENTS).nullable(),
     products: z.array(z.any()),
   }),
 })
@@ -436,7 +444,7 @@ export const GetEnrollmentRoute = {
   tags: ["Manage"],
   summary: "Check enrollment eligibility",
   description:
-    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category and available products. Supports ?category= override for admin-directed enrollment (e.g., when an admin-created premium user needs to subscribe to premium_cashoffers instead of the default external_cashoffers). Supports ?product=<id> for a direct product link: returns exactly that product as the eligible list, skipping the category logic (and ?category=), or PRODUCT_NOT_AVAILABLE. The 409 ALREADY_SUBSCRIBED check still runs first.",
+    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category and available products. Supports ?category= override for admin-directed enrollment (e.g., when an admin-created premium user needs to subscribe to premium_cashoffers instead of the default external_cashoffers). Supports ?product=<id> for a direct product link: returns exactly that product as the eligible list, skipping the category logic (and ?category=), or PRODUCT_NOT_AVAILABLE. The 409 ALREADY_SUBSCRIBED check still runs first. A role with an upgrade (an Express Offers Guest, role_v2 AGENT_EXP_GUEST) gets its one upgrade product (the subscription product in its white label whose user_config.role_v2 is AGENT_EXP_PRO), or eligible: false with no products when there is not exactly one; a Guest is never offered a homeuptick_only product, and a Guest's ?category=homeuptick_only is ignored. Every eligible answer carries intent: buy_product, homeuptick_only or activate_homeuptick.",
 }
 
 /**
