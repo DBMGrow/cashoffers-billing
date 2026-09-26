@@ -12,6 +12,12 @@ import type { Product } from "@/providers/ProductProvider"
 
 interface EnrollmentStepProps {
   user: User
+  /**
+   * Product named by a direct link (`/manage?goto=enrollment&product=<id>`). When set, the
+   * enrollment check returns exactly that product (or PRODUCT_NOT_AVAILABLE), and the
+   * single-product auto-select below takes the user straight to payment.
+   */
+  productId?: number | null
   onSuccess: () => void
   onBack: () => void
   onError: (message: string, title?: string, description?: string) => void
@@ -26,7 +32,7 @@ interface EnrollmentData {
 
 type Phase = "products" | "card" | "processing" | "success"
 
-export default function EnrollmentStep({ user, onSuccess, onBack, onError }: EnrollmentStepProps) {
+export default function EnrollmentStep({ user, productId = null, onSuccess, onBack, onError }: EnrollmentStepProps) {
   const [phase, setPhase] = useState<Phase>("products")
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -36,9 +42,12 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["enrollment", user.user_id],
+    queryKey: ["enrollment", user.user_id, productId],
+    // A refused product link is a definite answer, not a transient failure.
+    ...(productId ? { retry: false } : {}),
     queryFn: async () => {
-      const { data: json } = await axios.get<ApiResponse<EnrollmentData>>("/api/manage/enrollment")
+      const url = productId ? `/api/manage/enrollment?product=${productId}` : "/api/manage/enrollment"
+      const { data: json } = await axios.get<ApiResponse<EnrollmentData>>(url)
       if (json.success !== "success" || !json.data) {
         throw new Error((json as any).error || "Failed to check enrollment eligibility")
       }
@@ -59,9 +68,14 @@ export default function EnrollmentStep({ user, onSuccess, onBack, onError }: Enr
   if (isLoading) return <Spinner />
 
   if (error) {
+    const productNotAvailable = (error as any)?.response?.data?.code === "PRODUCT_NOT_AVAILABLE"
     return (
       <div className="w-full flex flex-col gap-4">
-        <P>Unable to determine your enrollment eligibility. Please try again.</P>
+        <P>
+          {productNotAvailable
+            ? "The plan in this link isn't available for your account. Please contact support."
+            : "Unable to determine your enrollment eligibility. Please try again."}
+        </P>
         <div className="w-[200px]">
           <ThemeButton color="primary" onPress={onBack}>
             Back

@@ -35,6 +35,11 @@ can manage billing without re-authenticating.
   - `{ api_token }` — internal dev links (`auth-link`), api_token embedded directly.
 - **Result**: verify resolves the user, sets the `_api_token` session cookie, and the
   `/manage` flow picks up the session.
+- **Direct product link**: `/manage?t=<jwt>&goto=<enrollment|changePlan>&product=<product_id>`
+  lands the user on the purchase of one product (the dashboard's upgrade link). `goto=enrollment`
+  is for a user with no active, trial or paused subscription; `goto=changePlan` is for one who
+  has one. See [Purchase flow: Direct Product Links](../data-flows/purchase-flow#direct-product-links-for-existing-users-manage-flow)
+  for the eligibility rule and the `PRODUCT_NOT_AVAILABLE` responses.
 - **Requirement**: `JWT_SECRET` in this service MUST match the main system's signing
   secret, or `jwt.verify` fails with `invalid signature` and the link won't log in.
 

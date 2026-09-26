@@ -152,6 +152,50 @@ on product data — not magic strings. When a product is free:
 
 > **Note:** `external_cashoffers` products are purchased exclusively through this flow (`POST /api/purchase/existing`), not through the new user signup flow. The main signup page (`GET /signup/products`) excludes `external_cashoffers` products entirely. These products are for users who already have an externally-managed CO account and need to enroll in HU via the manage billing section.
 
+### Direct Product Links for Existing Users (Manage Flow)
+
+`/{whitelabel_code}/subscribe/{product_id}` only creates accounts, so an existing user is sent
+to one product through the manage flow instead. The CashOffers dashboard's upgrade link
+(`/api/v2/signup/upgrade/redirect` in the main app) builds:
+
+```
+{SIGNUP_URL}/manage?t=<jwt>&goto=<enrollment|changePlan>&product=<product_id>
+```
+
+- `goto=enrollment` when the user has no `active`, `trial` or `paused` subscription;
+  `goto=changePlan` when they have one.
+- `product` survives the `t` token strip (only `t`/`token` are removed from the URL) and the
+  email/password login steps, and `ManageFlow` passes it to `EnrollmentStep` and `UpdatePlanStep`.
+- **Enrollment** calls `GET /manage/enrollment?product=<id>`. The response lists exactly that
+  product and the single-product auto-select goes straight to payment, which is
+  `POST /purchase/existing`.
+- **Change plan** calls `GET /manage/products?product=<id>`, then preselects it (the
+  `checkplan` review), and the change goes through `POST /manage/purchase`.
+
+**The link rule** (`api/domain/services/product-link.service.ts`). A named product is
+returned only when it exists, is a `subscription` product, and its `whitelabel_code` equals
+the user's white label code **exactly**. `data.hidden` and `data.hidden_whitelabels` are not
+consulted, because an explicit link is how a hidden plan is sold. NULL matches only NULL: a
+NULL-white-label product is the platform's own plan, so it resolves only for a user whose white
+label has no code (or who has no white label). An upgrade link for an eXp agent must never land
+on a CashOffers tier. Otherwise the answer is `PRODUCT_NOT_AVAILABLE`, 404 for a missing
+product and 403 for the rest, and it never falls back to the category list. Without
+`product`, both endpoints behave exactly as before.
+
+**The purchase guard** is looser on purpose. `POST /purchase/existing`, `POST /manage/checkplan`
+and `POST /manage/purchase` refuse only a product that belongs to **another** white label
+(403 `PRODUCT_NOT_AVAILABLE`). Shared NULL products stay purchasable by everyone, because the
+plan lists have always offered them. The guard stops a hand-edited `product_id`.
+
+**Role write.** The existing-user flow attaches `productData` to `SubscriptionCreated` as
+`metadata.productData`. `CashOffersAccountHandler.handleCreated` reads the product config only
+from there. With `cashoffers.managed = true` and `userWasCreated = false`, it compares the user's
+`role_v2` with the product's and calls `updateUser({ role_v2, whitelabel_id })`, which goes to
+`PUT /users/:id/role`. So an Express Offers Guest who buys Express Offers Pro becomes
+`AGENT_EXP_PRO`. Before this, the event carried no product data, and an existing user's
+purchase wrote no role at all. A plan change publishes `SubscriptionUpgraded` with
+`toProductData`, and `handleUpgraded` writes the role the same way.
+
 ### Existing User Purchase Flow
 
 ```mermaid
@@ -173,6 +217,7 @@ sequenceDiagram
   API->>Square: CreatePayment (charge + prorate)
   Square-->>API: payment success
   API->>DB: CreateSubscription
+  API->>API: Emit SubscriptionCreated (metadata.productData)
   API-->>FE: { subscriptionId }
 ```
 

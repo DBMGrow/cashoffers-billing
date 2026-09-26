@@ -61,6 +61,13 @@ const BASE_STEP_CONFIG: Record<ManageStep, { title: string; description: string 
   error: { title: "Oops!", description: "Something went wrong." },
 }
 
+/** A positive integer product id from the `product` query param, or null when absent or malformed. */
+export function parseLinkedProductId(raw: string | null): number | null {
+  if (!raw || !/^\d+$/.test(raw)) return null
+  const id = Number(raw)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
 export default function ManageFlow() {
   const queryClient = useQueryClient()
   const { user, setUser } = useUser()
@@ -114,6 +121,11 @@ export default function ManageFlow() {
       password: "",
     },
   })
+
+  // `?product=<id>` names the one product a direct link (the dashboard's upgrade link) sells.
+  // It rides in the URL, so it survives the token strip below (which deletes only t/token) and
+  // the email/password login steps (which never navigate), and reaches enrollment or changePlan.
+  const linkedProductId = parseLinkedProductId(searchParams.get("product"))
 
   // Resolve where to navigate after a successful login
   const resolvePostLoginStep = (): ManageStep => {
@@ -259,6 +271,7 @@ export default function ManageFlow() {
         return (
           <EnrollmentStep
             user={user!}
+            productId={linkedProductId}
             onSuccess={() => goToStep("dashboard")}
             onBack={() => goToStep("dashboard")}
             onError={(message, title, description) => goToError(message, "enrollment", title, description)}
@@ -268,6 +281,7 @@ export default function ManageFlow() {
         return (
           <UpdatePlanStep
             user={user!}
+            productId={linkedProductId}
             onBack={() => goToStep("subscription")}
             onSuccess={() => goToStep("subscription")}
             onError={(message, title, description) => goToError(message, "changePlan", title, description)}
