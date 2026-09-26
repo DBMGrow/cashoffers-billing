@@ -202,3 +202,52 @@ export const resolveUserRoleV2 = (
     user.is_premium === true ? 1 : user.is_premium === false ? 0 : user.is_premium
   )
 }
+
+/**
+ * Why a product `user_config`'s two role fields disagree, or `null` when they agree.
+ *
+ * Every product carries `role_v2` beside the legacy `role` until Phase 9 (U91) drops `role`, and
+ * the two must say the same thing: `role` must be the legacy role `role_v2` resolves to (every
+ * `AGENT_*` tier is `AGENT`; `TEAMOWNER`, `INVESTOR`, `HOMEUPTICK` and the rest are themselves).
+ * A disagreeing pair is refused rather than resolved, because each half has live readers: the role
+ * write reads `role_v2`, while the plan list and the AGENT/INVESTOR switch guard on the manage
+ * routes still read `role`, so a product saying `role_v2: AGENT_EXP_PRO, role: INVESTOR` would be
+ * listed to investors and sell an agent tier.
+ *
+ * A config naming only one of the two agrees by construction; `alignUserConfigRoles` fills the
+ * other half in when the one named is `role_v2`.
+ */
+export const userConfigRoleMismatch = (
+  config: { role_v2?: string | null; role?: string | null } | null | undefined
+): string | null => {
+  if (!config || !isRoleV2(config.role_v2) || config.role == null) return null
+  const expected = legacyOf(config.role_v2)
+  if (config.role === expected) return null
+  return `user_config.role "${config.role}" does not match role_v2 "${config.role_v2}", which implies role "${expected}"`
+}
+
+/**
+ * A copy of a product `user_config` with the legacy `role` derived from `role_v2` when only
+ * `role_v2` was given, so every stored product carries both halves (the plan list and the role
+ * switch guard still read `role`). Anything else is returned unchanged; a mismatch is the
+ * schema's to refuse (`userConfigRoleMismatch`), not this function's to repair.
+ */
+export const alignUserConfigRoles = <T extends { role_v2?: string | null; role?: string | null }>(config: T): T => {
+  if (!isRoleV2(config.role_v2) || config.role != null) return config
+  return { ...config, role: legacyOf(config.role_v2) }
+}
+
+/**
+ * `alignUserConfigRoles` over both places a product's data keeps a `user_config` (the root one
+ * predates migration 011; `cashoffers.user_config` is current). Returns a copy; `undefined` in,
+ * `undefined` out.
+ */
+export const alignProductDataRoles = <T extends Record<string, any> | undefined>(data: T): T => {
+  if (!data) return data
+  const next: Record<string, any> = { ...data }
+  if (next.user_config) next.user_config = alignUserConfigRoles(next.user_config)
+  if (next.cashoffers?.user_config) {
+    next.cashoffers = { ...next.cashoffers, user_config: alignUserConfigRoles(next.cashoffers.user_config) }
+  }
+  return next as T
+}

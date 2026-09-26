@@ -10,6 +10,9 @@ import {
   bitsOf,
   deriveRoleV2FromLegacy,
   downgradeRoleV2For,
+  userConfigRoleMismatch,
+  alignUserConfigRoles,
+  alignProductDataRoles,
 } from "./role-v2"
 
 /**
@@ -132,5 +135,40 @@ describe("downgradeRoleV2For", () => {
   it("leaves an unknown current role alone rather than guessing", () => {
     expect(downgradeRoleV2For(null)).toBeNull()
     expect(downgradeRoleV2For(undefined)).toBeNull()
+  })
+})
+
+describe("product user_config role agreement", () => {
+  it("agrees when role is the legacy role of role_v2, or when only one half is named", () => {
+    expect(userConfigRoleMismatch({ role_v2: "AGENT_EXP_PRO", role: "AGENT" })).toBeNull()
+    expect(userConfigRoleMismatch({ role_v2: "TEAMOWNER", role: "TEAMOWNER" })).toBeNull()
+    expect(userConfigRoleMismatch({ role_v2: "AGENT_EXP_PRO" })).toBeNull()
+    expect(userConfigRoleMismatch({ role: "AGENT" })).toBeNull()
+    expect(userConfigRoleMismatch(null)).toBeNull()
+  })
+
+  it("names the mismatch", () => {
+    expect(userConfigRoleMismatch({ role_v2: "AGENT_EXP_PRO", role: "INVESTOR" })).toBe(
+      'user_config.role "INVESTOR" does not match role_v2 "AGENT_EXP_PRO", which implies role "AGENT"'
+    )
+  })
+
+  it("derives role from role_v2 when role is absent, and leaves everything else alone", () => {
+    expect(alignUserConfigRoles({ role_v2: "AGENT_EXP_PRO" })).toEqual({ role_v2: "AGENT_EXP_PRO", role: "AGENT" })
+    expect(alignUserConfigRoles({ role_v2: "TEAMOWNER" })).toEqual({ role_v2: "TEAMOWNER", role: "TEAMOWNER" })
+    const legacyOnly = { role: "AGENT" }
+    expect(alignUserConfigRoles(legacyOnly)).toBe(legacyOnly)
+  })
+
+  it("aligns both user_config sites of a product's data without mutating it", () => {
+    const data = {
+      user_config: { role_v2: "INVESTOR" },
+      cashoffers: { managed: true, user_config: { role_v2: "AGENT_EXP_PRO" } },
+    }
+    const aligned = alignProductDataRoles(data)
+    expect(aligned.user_config).toEqual({ role_v2: "INVESTOR", role: "INVESTOR" })
+    expect(aligned.cashoffers.user_config).toEqual({ role_v2: "AGENT_EXP_PRO", role: "AGENT" })
+    expect(data.cashoffers.user_config).toEqual({ role_v2: "AGENT_EXP_PRO" })
+    expect(alignProductDataRoles(undefined)).toBeUndefined()
   })
 })

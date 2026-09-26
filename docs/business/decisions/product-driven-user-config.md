@@ -40,3 +40,11 @@ which is why [Products Name a Tier](role-v2) exists.
 - `api/domain/services/role-mapper.ts` handles the team/single plan transition edge case
 - Schema validated in `api/routes/product/schemas.ts`, which requires a config to name at least one
   of `role_v2` and `role`: a config naming neither provisions a user who can do nothing, silently
+- The same schema refuses a config whose two halves disagree: `role` must be the legacy role
+  `role_v2` resolves to (every `AGENT_*` tier is `AGENT`; `TEAMOWNER`, `INVESTOR`, `HOMEUPTICK` and
+  the rest are themselves). The table is `ROLES_V2` in `api/domain/services/role-v2.ts`, a mirror of
+  the mono repo's `packages/schemas/src/roles/registry.ts`. `POST /product` fills in `role` when only
+  `role_v2` is sent, so every stored product carries both halves.
+- Every managed purchase writes the product's role: the account handler resolves `role_v2` from
+  the config (derived from the legacy pair when the product has no `role_v2`) and sends it to the
+  main API's role endpoint, which derives `role` and the tier bits in the same statement.

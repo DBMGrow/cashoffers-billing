@@ -5,7 +5,7 @@ import {
   ProductIdParamSchema,
   AmountSchema,
 } from "../helpers/common.schemas"
-import { ASSIGNABLE_ROLE_V2 } from "@api/domain/services/role-v2"
+import { ASSIGNABLE_ROLE_V2, userConfigRoleMismatch } from "@api/domain/services/role-v2"
 
 /**
  * Product route schemas
@@ -45,6 +45,13 @@ export const ProductUserConfigSchema = z
   .refine((config) => config.role_v2 !== undefined || config.role !== undefined, {
     message: "user_config must name a role: role_v2 (preferred) or the legacy role",
     path: ["role_v2"],
+  })
+  // Both halves present must agree: `role` is the legacy role `role_v2` resolves to. The mirror of
+  // the registry's `ROLES[role].legacy` is `api/domain/services/role-v2.ts`. A config naming only
+  // `role_v2` is completed with its legacy role by the create route (`alignUserConfigRoles`).
+  .superRefine((config, ctx) => {
+    const mismatch = userConfigRoleMismatch(config)
+    if (mismatch) ctx.addIssue({ code: "custom", message: mismatch, path: ["role"] })
   })
 
 /**
