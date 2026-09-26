@@ -13,6 +13,7 @@ import { isProductHidden, isHiddenForWhitelabel } from "@api/domain/services/pro
 import { config } from "@api/config/config.service"
 import { SubscriptionUpgradedEvent } from "@api/domain/events/subscription-upgraded.event"
 import { eventBus } from "@api/lib/services"
+import { guardPurchaseWhitelabel, resolveLinkedProduct, resolveWhitelabelCode } from "./linked-product"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -69,6 +70,10 @@ app.openapi(CheckPlanRoute, async (c) => {
       throw new Error("Error fetching product")
     }
     responseBody.product = product
+
+    // A hand-edited productID must not quote another white label's product.
+    const whitelabelBlock = await guardPurchaseWhitelabel(productID, user.whitelabel_id)
+    if (whitelabelBlock) return c.json(whitelabelBlock.body, whitelabelBlock.status)
 
     // Role validation: check if user can switch to this product
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
@@ -199,6 +204,16 @@ app.openapi(GetProductsRoute, async (c) => {
         .where("whitelabel_id", "=", user.whitelabel_id)
         .executeTakeFirst()
       userWhitelabelCode = whitelabel?.code ?? null
+    }
+
+    // ?product=<id> is a direct product link (the change-plan half of the dashboard's upgrade
+    // link). It returns exactly that product, hidden or not, when the strict link rule allows it,
+    // and PRODUCT_NOT_AVAILABLE otherwise, never the filtered list.
+    const { product: linkedProductId } = c.req.valid("query")
+    if (linkedProductId !== undefined) {
+      const linked = await resolveLinkedProduct(linkedProductId, userWhitelabelCode)
+      if (!linked.ok) return c.json(linked.body, linked.status)
+      return c.json({ success: "success" as const, data: [linked.product as any] }, 200)
     }
 
     // Optional product_category filter from query string
@@ -341,6 +356,11 @@ app.openapi(GetSubscriptionRoute, async (c) => {
  * - ?category=premium_cashoffers — Override to show premium products.
  *   Used when an admin-created premium user needs to subscribe to a real product
  *   (not just HU overages). This is a custom link sent by admin to the user.
+ * - ?product=<id>: Direct product link. Returns exactly that product (even when
+ *   `data.hidden`) when it exists, is a subscription product, and its
+ *   whitelabel_code equals the user's white label code exactly (NULL matches
+ *   only NULL). Otherwise 404/403 PRODUCT_NOT_AVAILABLE. Takes precedence over
+ *   ?category=. See product-link.service.ts.
  */
 app.use("/enrollment", authMiddleware(null))
 app.openapi(GetEnrollmentRoute, async (c) => {
@@ -373,6 +393,28 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       .select(["is_premium", "whitelabel_id"])
       .where("user_id", "=", user.user_id)
       .executeTakeFirst()
+
+    // ?product=<id> is a direct product link (the dashboard's upgrade link). It returns exactly
+    // that product, skipping the category logic, or PRODUCT_NOT_AVAILABLE. It never falls back to
+    // the category list: a link that names a product the user may not buy must say so.
+    const { product: linkedProductId } = c.req.valid("query")
+    if (linkedProductId !== undefined) {
+      const linked = await resolveLinkedProduct(linkedProductId, await resolveWhitelabelCode(fullUser?.whitelabel_id))
+      if (!linked.ok) return c.json(linked.body, linked.status)
+
+      return c.json(
+        {
+          success: "success" as const,
+          data: {
+            eligible: true,
+            product_category: linked.product.product_category,
+            reason: `Direct product link: product ${linked.product.product_id}`,
+            products: [linked.product],
+          },
+        },
+        200
+      )
+    }
 
     // Determine product category — supports ?category= override for admin-directed enrollment
     const categoryOverride = c.req.query("category") as
@@ -497,6 +539,11 @@ app.openapi(ManagePurchaseRoute, async (c) => {
         404
       )
     }
+
+    // 1b. Refuse another white label's product. The plan list never offers one, so this only
+    // stops a hand-edited product_id (for example one taken from a direct product link).
+    const whitelabelBlock = await guardPurchaseWhitelabel(product_id, user.whitelabel_id)
+    if (whitelabelBlock) return c.json(whitelabelBlock.body, whitelabelBlock.status)
 
     // 2. Validate role compatibility
     const userIsAgentType = ["AGENT", "TEAMOWNER"].includes(user.role)
