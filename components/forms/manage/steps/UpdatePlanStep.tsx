@@ -23,20 +23,38 @@ interface UpdatePlanStepProps {
    * link uses, so a hidden product resolves and another white label's does not.
    */
   productId?: number | null
+  /**
+   * The user has no subscription to change. There is no plan change to make, so the flow sends
+   * them to enrollment instead (on the linked product when there is one, since `product` stays in
+   * the URL). Without this the step waited for a subscription that never came.
+   */
+  onNoSubscription?: () => void
   onBack: () => void
   onSuccess: () => void
   onError: (message: string, title?: string, description?: string) => void
 }
 
-export default function UpdatePlanStep({ user, productId = null, onBack, onSuccess, onError }: UpdatePlanStepProps) {
+export default function UpdatePlanStep({
+  user,
+  productId = null,
+  onNoSubscription,
+  onBack,
+  onSuccess,
+  onError,
+}: UpdatePlanStepProps) {
   const { products, loading: productsLoading } = useProducts({ mode: "manage" })
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [proratedInfo, setProratedInfo] = useState<any>(null)
   const [checkingPlan, setCheckingPlan] = useState(false)
   const [changeResult, setChangeResult] = useState<any>(null)
 
-  // Fetch current subscription
-  const { data: currentSubscription, isLoading: subscriptionLoading } = useQuery({
+  // Fetch current subscription. `null` means the user has none (not an error), the same shape
+  // ManageSubscriptionStep caches under this key.
+  const {
+    data: currentSubscription,
+    isLoading: subscriptionLoading,
+    error: subscriptionError,
+  } = useQuery({
     queryKey: ["subscription", user.api_token],
     queryFn: async () => {
       const { data: json } = await axios.get<ApiResponse<{ subscriptions: Subscription[] }>>("/api/subscription/single", {
@@ -44,12 +62,18 @@ export default function UpdatePlanStep({ user, productId = null, onBack, onSucce
           "x-api-token": user.api_token,
         },
       })
-      if (json.success !== "success" || !json.data?.subscriptions?.[0]) {
+      if (json.success !== "success") {
         throw new Error("Failed to load subscription")
       }
-      return json.data.subscriptions[0]
+      return json.data?.subscriptions?.[0] ?? null
     },
   })
+
+  const hasNoSubscription = !subscriptionLoading && !subscriptionError && currentSubscription === null
+  useEffect(() => {
+    if (hasNoSubscription) onNoSubscription?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasNoSubscription])
 
   // The linked product, validated server-side (exists, the user's own white label, a subscription).
   const {
@@ -160,6 +184,8 @@ export default function UpdatePlanStep({ user, productId = null, onBack, onSucce
     handleCheckPlan(Number(linkedProduct.product_id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, linkedProduct, linkedProductError, currentSubscription])
+
+  if (subscriptionError) return <P>There was an error loading your subscription.</P>
 
   if (subscriptionLoading || !currentSubscription) {
     return <Spinner />

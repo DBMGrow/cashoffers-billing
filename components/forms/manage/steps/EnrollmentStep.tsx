@@ -9,6 +9,7 @@ import { ThemeButton } from "@/components/Theme/ThemeButton"
 import P from "@/components/Theme/P"
 import type { User, ApiResponse } from "@/types/api"
 import type { Product } from "@/providers/ProductProvider"
+import { homeUptickLines, type EnrollmentIntent } from "../enrollment"
 
 interface EnrollmentStepProps {
   user: User
@@ -18,6 +19,11 @@ interface EnrollmentStepProps {
    * single-product auto-select below takes the user straight to payment.
    */
   productId?: number | null
+  /**
+   * Reports the server's intent and the plan being bought (the selected one, or the only one on
+   * offer) so the flow can word its heading. Called whenever either changes.
+   */
+  onIntent?: (intent: EnrollmentIntent | null, productName: string | null) => void
   onSuccess: () => void
   onBack: () => void
   onError: (message: string, title?: string, description?: string) => void
@@ -25,14 +31,23 @@ interface EnrollmentStepProps {
 
 interface EnrollmentData {
   eligible: boolean
-  product_category: string
+  product_category: string | null
   reason: string
+  /** What this enrollment is for, decided by the server. `null` when not eligible. */
+  intent: EnrollmentIntent | null
   products: Product[]
 }
 
 type Phase = "products" | "card" | "processing" | "success"
 
-export default function EnrollmentStep({ user, productId = null, onSuccess, onBack, onError }: EnrollmentStepProps) {
+export default function EnrollmentStep({
+  user,
+  productId = null,
+  onIntent,
+  onSuccess,
+  onBack,
+  onError,
+}: EnrollmentStepProps) {
   const [phase, setPhase] = useState<Phase>("products")
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -64,6 +79,14 @@ export default function EnrollmentStep({ user, productId = null, onSuccess, onBa
       setPhase("card")
     }
   }, [activeProducts.length])
+
+  const intent = enrollment?.intent ?? null
+  const offeredName =
+    selectedProduct?.product_name ?? (activeProducts.length === 1 ? activeProducts[0].product_name : null)
+  useEffect(() => {
+    onIntent?.(intent, offeredName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent, offeredName])
 
   if (isLoading) return <Spinner />
 
@@ -179,9 +202,8 @@ export default function EnrollmentStep({ user, productId = null, onSuccess, onBa
       },
     }
 
-    const baseContacts = selectedProduct.data?.homeuptick?.base_contacts ?? 500
-    const pricePerTier = (selectedProduct.data?.homeuptick?.price_per_tier ?? 7500) / 100
-    const contactsPerTier = selectedProduct.data?.homeuptick?.contacts_per_tier ?? 1000
+    // No lines when the plan does not turn HomeUptick on; "billed at" when every contact is billed.
+    const contactLines = homeUptickLines(selectedProduct.data?.homeuptick, period)
 
     return (
       <div className="w-full flex flex-col gap-4">
@@ -190,16 +212,15 @@ export default function EnrollmentStep({ user, productId = null, onSuccess, onBa
           <p className="text-sm text-gray-600">
             {productIsFree ? "Free" : `$${price.toFixed(2)} / ${period}`}
           </p>
-          <div className="text-sm text-gray-600 border-t border-primary/30 pt-2 mt-2 space-y-1">
-            <p>
-              <span className="font-medium text-sm text-gray-700">Included:</span> {baseContacts.toLocaleString()}{" "}
-              contacts
-            </p>
-            <p>
-              <span className="font-medium text-sm text-gray-700">Overage:</span> ${pricePerTier} / {period} per
-              additional {contactsPerTier.toLocaleString()} contacts
-            </p>
-          </div>
+          {contactLines.length > 0 && (
+            <div className="text-sm text-gray-600 border-t border-primary/30 pt-2 mt-2 space-y-1">
+              {contactLines.map((line) => (
+                <p key={line.label}>
+                  <span className="font-medium text-sm text-gray-700">{line.label}:</span> {line.value}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         <PaymentForm

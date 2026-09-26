@@ -22,6 +22,7 @@ import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-reque
 import type { PaymentContext } from "@api/config/config.interface"
 import { ProductData, ProductUserConfig, CashOffersConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
 import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
+import { HOMEUPTICK_DEFAULTS } from "@api/domain/services/homeuptick-allowance"
 import { v4 as uuidv4 } from "uuid"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -662,9 +663,8 @@ export async function createCardHelper(
  */
 const DEFAULT_HOMEUPTICK_CONFIG: HomeUptickConfig = {
   enabled: true,
-  base_contacts: 500,
-  contacts_per_tier: 500,
-  price_per_tier: 7500,
+  // The values live in homeuptick-allowance.ts so the account site shows the same defaults.
+  ...HOMEUPTICK_DEFAULTS,
 }
 
 /**

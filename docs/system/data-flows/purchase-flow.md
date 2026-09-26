@@ -216,6 +216,23 @@ the dashboard. A Guest is never offered a `homeuptick_only` product on any path:
 `GET /manage/products` leaves them out of the list (and leaves them out for everyone when the role
 cannot be read, rather than failing the whole list).
 
+**On the account site** (`components/forms/manage/enrollment.ts`), `intent` drives:
+
+- The enrollment heading: `buy_product` reads "Add your card to start {product_name}."; the
+  HomeUptick copy ("Add your card on file to activate HomeUptick.") is used only for the two
+  HomeUptick intents; before the intent is known the copy is neutral.
+- Whether plain `/manage` (no `goto`) opens on enrollment: only when the answer is eligible, names
+  an intent, and offers at least one product (`shouldAutoEnroll`). A Guest with no single
+  upgrade product lands on the dashboard.
+- The contact lines under the plan price (`homeUptickLines`): none when the product does not set
+  `homeuptick.enabled`; "HomeUptick contacts: billed at $75 / month per 500 contacts" when it
+  includes 0; otherwise "Included" and "Overage".
+
+A user with no subscription who reaches **Change plan** (`goto=changePlan`) is sent to
+enrollment, on the linked product when the URL names one, instead of waiting for a subscription.
+**Manage subscription** with no subscription goes to enrollment too, where the server's rule sends
+a Guest to their upgrade.
+
 **Role write.** The existing-user flow attaches `productData` to `SubscriptionCreated` as
 `metadata.productData`. `CashOffersAccountHandler.handleCreated` reads the product config only
 from there. With `cashoffers.managed = true` and `userWasCreated = false`, it compares the user's
@@ -254,7 +271,7 @@ sequenceDiagram
 
 ## HomeUptick Subscription Seeding
 
-Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $0/tier):
+Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $75/tier). The defaults are `HOMEUPTICK_DEFAULTS` in `api/domain/services/homeuptick-allowance.ts`, which the account site's enrollment step reads too, so the plan it shows and the row that gets seeded agree. A product that sells no included contacts (Express Offers Pro) sets `homeuptick: { enabled: true, base_contacts: 0 }`; without `enabled: true` the defaults, 500 included, are seeded:
 
 | Product template field | → | Homeuptick_Subscriptions column |
 |---|---|---|
