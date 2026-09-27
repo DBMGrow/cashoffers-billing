@@ -3,6 +3,7 @@ import type { HonoVariables } from "@api/types/hono"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { productRepository } from "@api/lib/repositories"
 import { calculateProratedUseCase } from "@api/use-cases/subscription"
+import { alignProductDataRoles } from "@api/domain/services/role-v2"
 import { GetProductRoute, GetAllProductsRoute, CreateProductRoute, CheckProratedRoute } from "./schemas"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
@@ -33,7 +34,9 @@ app.openapi(GetAllProductsRoute, async (c) => {
 // Create new product
 app.openapi(CreateProductRoute, async (c) => {
   const body = c.req.valid("json")
-  const { product_name, product_description, product_type, product_category, price, data } = body
+  const { product_name, product_description, product_type, product_category, price } = body
+  // A form that sends only role_v2 still stores both halves (the schema refused a disagreeing pair).
+  const data = alignProductDataRoles(body.data)
 
   const now = new Date()
   const product = await productRepository.create({

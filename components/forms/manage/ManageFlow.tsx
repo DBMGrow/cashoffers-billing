@@ -24,6 +24,7 @@ import UpdateCardStep from "./steps/UpdateCardStep"
 import UpdatePlanStep from "./steps/UpdatePlanStep"
 import EnrollmentStep from "./steps/EnrollmentStep"
 import ErrorStep from "./steps/ErrorStep"
+import { ENROLLMENT_DEFAULT_DESCRIPTION, ENROLLMENT_TITLE, enrollmentCopy, shouldAutoEnroll } from "./enrollment"
 
 type ManageStep = "loading" | "email" | "password" | "dashboard" | "enrollment" | "subscription" | "card" | "changePlan" | "error"
 
@@ -57,8 +58,16 @@ const BASE_STEP_CONFIG: Record<ManageStep, { title: string; description: string 
   subscription: { title: "Manage Subscription", description: "View and update your subscription." },
   card: { title: "Update Card", description: "Update your billing information." },
   changePlan: { title: "Change Plan", description: "Select a new plan for your subscription." },
-  enrollment: { title: "Get Started", description: "Add your card on file to activate HomeUptick." },
+  // Replaced by the server's intent once the enrollment step has it (enrollmentCopy).
+  enrollment: { title: ENROLLMENT_TITLE, description: ENROLLMENT_DEFAULT_DESCRIPTION },
   error: { title: "Oops!", description: "Something went wrong." },
+}
+
+/** A positive integer product id from the `product` query param, or null when absent or malformed. */
+export function parseLinkedProductId(raw: string | null): number | null {
+  if (!raw || !/^\d+$/.test(raw)) return null
+  const id = Number(raw)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
 }
 
 export default function ManageFlow() {
@@ -70,16 +79,18 @@ export default function ManageFlow() {
 
   const [errorTitle, setErrorTitle] = useState<string | undefined>(undefined)
   const [errorDescription, setErrorDescription] = useState<string | undefined>(undefined)
+  const [enrollmentStepCopy, setEnrollmentStepCopy] = useState(BASE_STEP_CONFIG.enrollment)
 
   const stepConfig = useMemo(
     () => ({
       ...BASE_STEP_CONFIG,
+      enrollment: enrollmentStepCopy,
       error: {
         title: errorTitle ?? BASE_STEP_CONFIG.error.title,
         description: errorDescription ?? BASE_STEP_CONFIG.error.description,
       },
     }),
-    [errorTitle, errorDescription]
+    [errorTitle, errorDescription, enrollmentStepCopy]
   )
 
   const { displayStep, transitionToStep, titleText, descriptionText, containerRef } = useFlowAnimation<ManageStep>(
@@ -114,6 +125,11 @@ export default function ManageFlow() {
       password: "",
     },
   })
+
+  // `?product=<id>` names the one product a direct link (the dashboard's upgrade link) sells.
+  // It rides in the URL, so it survives the token strip below (which deletes only t/token) and
+  // the email/password login steps (which never navigate), and reaches enrollment or changePlan.
+  const linkedProductId = parseLinkedProductId(searchParams.get("product"))
 
   // Resolve where to navigate after a successful login
   const resolvePostLoginStep = (): ManageStep => {
@@ -151,13 +167,13 @@ export default function ManageFlow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Check enrollment eligibility — returns true if user needs to enroll
+  // Check enrollment eligibility: true when plain /manage should open on enrollment. The server's
+  // intent decides it (a Guest lands on their upgrade, or on the dashboard when there is none).
   const checkEnrollment = async (): Promise<boolean> => {
     try {
       const res = await fetch("/api/manage/enrollment")
       if (res.status === 409) return false // already subscribed
-      const data = await res.json()
-      return data.success === "success" && data.data?.eligible && data.data.products.length > 0
+      return shouldAutoEnroll(await res.json())
     } catch {
       return false
     }
@@ -259,6 +275,13 @@ export default function ManageFlow() {
         return (
           <EnrollmentStep
             user={user!}
+            productId={linkedProductId}
+            onIntent={(intent, productName) => {
+              const next = enrollmentCopy(intent, productName)
+              setEnrollmentStepCopy((prev) =>
+                prev.title === next.title && prev.description === next.description ? prev : next
+              )
+            }}
             onSuccess={() => goToStep("dashboard")}
             onBack={() => goToStep("dashboard")}
             onError={(message, title, description) => goToError(message, "enrollment", title, description)}
@@ -268,6 +291,8 @@ export default function ManageFlow() {
         return (
           <UpdatePlanStep
             user={user!}
+            productId={linkedProductId}
+            onNoSubscription={() => goToStep("enrollment")}
             onBack={() => goToStep("subscription")}
             onSuccess={() => goToStep("subscription")}
             onError={(message, title, description) => goToError(message, "changePlan", title, description)}

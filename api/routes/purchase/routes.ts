@@ -9,6 +9,7 @@ import { purchaseNewUserUseCase, purchaseExistingUserUseCase } from "@api/use-ca
 import { productRepository, userCardRepository } from "@api/lib/repositories"
 import { userApiClient } from "@api/lib/services"
 import { isUserFacingError } from "@api/use-cases/subscription/purchase-helpers"
+import { guardPurchaseWhitelabel } from "../manage/linked-product"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -130,6 +131,12 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
   const effectiveContext = body.mock_purchase ? { ...paymentContext, testMode: true } : paymentContext
 
   try {
+    // Refuse another white label's product before anything is charged. The enrollment list and
+    // a direct product link only ever offer the user's own or shared products, so this stops a
+    // hand-edited product_id.
+    const whitelabelBlock = await guardPurchaseWhitelabel(body.product_id, sessionUser.whitelabel_id)
+    if (whitelabelBlock) return c.json(whitelabelBlock.body, whitelabelBlock.status)
+
     const useCaseResult = await purchaseExistingUserUseCase.execute({
       userId: sessionUser.user_id,
       productId: body.product_id,

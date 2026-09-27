@@ -152,6 +152,96 @@ on product data — not magic strings. When a product is free:
 
 > **Note:** `external_cashoffers` products are purchased exclusively through this flow (`POST /api/purchase/existing`), not through the new user signup flow. The main signup page (`GET /signup/products`) excludes `external_cashoffers` products entirely. These products are for users who already have an externally-managed CO account and need to enroll in HU via the manage billing section.
 
+### Direct Product Links for Existing Users (Manage Flow)
+
+`/{whitelabel_code}/subscribe/{product_id}` only creates accounts, so an existing user is sent
+to one product through the manage flow instead. The CashOffers dashboard's upgrade link
+(`/api/v2/signup/upgrade/redirect` in the main app) builds:
+
+```
+{SIGNUP_URL}/manage?t=<jwt>&goto=<enrollment|changePlan>&product=<product_id>
+```
+
+- `goto=enrollment` when the user has no `active`, `trial` or `paused` subscription;
+  `goto=changePlan` when they have one.
+- `product` survives the `t` token strip (only `t`/`token` are removed from the URL) and the
+  email/password login steps, and `ManageFlow` passes it to `EnrollmentStep` and `UpdatePlanStep`.
+- **Enrollment** calls `GET /manage/enrollment?product=<id>`. The response lists exactly that
+  product and the single-product auto-select goes straight to payment, which is
+  `POST /purchase/existing`.
+- **Change plan** calls `GET /manage/products?product=<id>`, then preselects it (the
+  `checkplan` review), and the change goes through `POST /manage/purchase`.
+
+**The link rule** (`api/domain/services/product-link.service.ts`). A named product is
+returned only when it exists, is a `subscription` product, and its `whitelabel_code` equals
+the user's white label code **exactly**. `data.hidden` and `data.hidden_whitelabels` are not
+consulted, because an explicit link is how a hidden plan is sold. NULL matches only NULL: a
+NULL-white-label product is the platform's own plan, so it resolves only for a user whose white
+label has no code (or who has no white label). An upgrade link for an eXp agent must never land
+on a CashOffers tier. Otherwise the answer is `PRODUCT_NOT_AVAILABLE`, 404 for a missing
+product and 403 for the rest, and it never falls back to the category list. Without
+`product`, both endpoints behave exactly as before.
+
+**The purchase guard** is looser on purpose. `POST /purchase/existing`, `POST /manage/checkplan`
+and `POST /manage/purchase` refuse only a product that belongs to **another** white label
+(403 `PRODUCT_NOT_AVAILABLE`). Shared NULL products stay purchasable by everyone, because the
+plan lists have always offered them. The guard stops a hand-edited `product_id`.
+
+### Enrollment Intent and Express Offers Guests
+
+`GET /manage/enrollment` decides once what the enrollment is for and returns it as `intent`
+beside the products (`api/domain/services/enrollment-intent.service.ts`):
+
+| Scenario                                               | `product_category`         | `intent`              |
+| ------------------------------------------------------ | -------------------------- | --------------------- |
+| `?product=<id>` (direct product link)                  | the product's              | `buy_product`         |
+| Express Offers Guest, one upgrade product found        | the product's              | `buy_product`         |
+| Express Offers Guest, zero or several upgrade products | `null` (`eligible: false`) | `null`                |
+| `?category=premium_cashoffers`                         | `premium_cashoffers`       | `buy_product`         |
+| `is_premium = 1` (or `?category=external_cashoffers`)  | `external_cashoffers`      | `activate_homeuptick` |
+| Otherwise (or `?category=homeuptick_only`)             | `homeuptick_only`          | `homeuptick_only`     |
+
+The decision reads the user's `role_v2` from the main API (`GET /users/:id`; the auth context
+carries only the legacy `role`). A failed lookup is an error response, never a guess, because
+the legacy fallback reads a Guest as a free agent.
+
+**The Guest rule.** An Express Offers Guest (`role_v2 = AGENT_EXP_GUEST`) has no HomeUptick
+access, so plain `/manage` sends them to their upgrade: the one `subscription` product in their
+white label (exact `whitelabel_code`, NULL only for NULL) whose
+`data.cashoffers.user_config.role_v2` is `AGENT_EXP_PRO`. This mirrors the api-v2 upgrade link's
+resolver. The Guest-to-Pro mapping is `UPGRADE_TARGET_ROLE_V2`, the one place billing states it.
+Zero or several matches answer `eligible: false` with no products, and the account site lands on
+the dashboard. A Guest is never offered a `homeuptick_only` product on any path: their
+`?category=homeuptick_only` is ignored, a product link to one is 403 `PRODUCT_NOT_AVAILABLE`, and
+`GET /manage/products` leaves them out of the list (and leaves them out for everyone when the role
+cannot be read, rather than failing the whole list).
+
+**On the account site** (`components/forms/manage/enrollment.ts`), `intent` drives:
+
+- The enrollment heading: `buy_product` reads "Add your card to start {product_name}."; the
+  HomeUptick copy ("Add your card on file to activate HomeUptick.") is used only for the two
+  HomeUptick intents; before the intent is known the copy is neutral.
+- Whether plain `/manage` (no `goto`) opens on enrollment: only when the answer is eligible, names
+  an intent, and offers at least one product (`shouldAutoEnroll`). A Guest with no single
+  upgrade product lands on the dashboard.
+- The contact lines under the plan price (`homeUptickLines`): none when the product does not set
+  `homeuptick.enabled`; "HomeUptick contacts: billed at $75 / month per 500 contacts" when it
+  includes 0; otherwise "Included" and "Overage".
+
+A user with no subscription who reaches **Change plan** (`goto=changePlan`) is sent to
+enrollment, on the linked product when the URL names one, instead of waiting for a subscription.
+**Manage subscription** with no subscription goes to enrollment too, where the server's rule sends
+a Guest to their upgrade.
+
+**Role write.** The existing-user flow attaches `productData` to `SubscriptionCreated` as
+`metadata.productData`. `CashOffersAccountHandler.handleCreated` reads the product config only
+from there. With `cashoffers.managed = true` and `userWasCreated = false`, it compares the user's
+`role_v2` with the product's and calls `updateUser({ role_v2, whitelabel_id })`, which goes to
+`PUT /users/:id/role`. So an Express Offers Guest who buys Express Offers Pro becomes
+`AGENT_EXP_PRO`. Before this, the event carried no product data, and an existing user's
+purchase wrote no role at all. A plan change publishes `SubscriptionUpgraded` with
+`toProductData`, and `handleUpgraded` writes the role the same way.
+
 ### Existing User Purchase Flow
 
 ```mermaid
@@ -173,6 +263,7 @@ sequenceDiagram
   API->>Square: CreatePayment (charge + prorate)
   Square-->>API: payment success
   API->>DB: CreateSubscription
+  API->>API: Emit SubscriptionCreated (metadata.productData)
   API-->>FE: { subscriptionId }
 ```
 
@@ -180,7 +271,7 @@ sequenceDiagram
 
 ## HomeUptick Subscription Seeding
 
-Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $0/tier):
+Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $75/tier). The defaults are `HOMEUPTICK_DEFAULTS` in `api/domain/services/homeuptick-allowance.ts`, which the account site's enrollment step reads too, so the plan it shows and the row that gets seeded agree. A product that sells no included contacts (Express Offers Pro) sets `homeuptick: { enabled: true, base_contacts: 0 }`; without `enabled: true` the defaults, 500 included, are seeded:
 
 | Product template field | → | Homeuptick_Subscriptions column |
 |---|---|---|

@@ -190,6 +190,7 @@ yarn test --config vitest.config.api.ts api/tests/integration/homeuptick-default
 | User already has P-CO                | Should not be offered `external_cashoffers` (already has HU via CO premium) | —          |
 | CO deactivated later                 | Webhook pauses subscription; HU access frozen                               | PZ2        |
 | User is not premium (`is_premium=0`) | `GET /manage/enrollment` returns `homeuptick_only` products instead         | —          |
+| Express Offers Guest (`role_v2=AGENT_EXP_GUEST`) | `GET /manage/enrollment` returns their one Pro upgrade product (`intent: buy_product`), never `homeuptick_only` | n/a |
 
 ### How to Test
 

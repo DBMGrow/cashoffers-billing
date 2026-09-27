@@ -22,6 +22,7 @@ import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-reque
 import type { PaymentContext } from "@api/config/config.interface"
 import { ProductData, ProductUserConfig, CashOffersConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
 import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
+import { HOMEUPTICK_DEFAULTS } from "@api/domain/services/homeuptick-allowance"
 import { v4 as uuidv4 } from "uuid"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -478,6 +479,14 @@ export async function publishPurchaseEvents(
     userCard: { last_4: string | null } | null
     userWasCreated: boolean
     startTime: Date
+    /**
+     * The purchased product's data, attached to SubscriptionCreated as `metadata.productData`.
+     * CashOffersAccountHandler and HomeUptickAccountHandler read the product config only from
+     * there, so without it an existing user's purchase never writes the role the product sells.
+     * Only the existing-user flow passes it: the new-user flow provisions the account itself, and
+     * with productData attached the handler would try to create the same user a second time.
+     */
+    productData?: ProductData
   }
 ) {
   await deps.eventBus.publish(
@@ -502,7 +511,7 @@ export async function publishPurchaseEvents(
           ? [{ description: params.product.product_name, amount: params.pricing.renewalCost }]
           : []),
       ],
-    })
+    }, params.productData ? { productData: params.productData } : undefined)
   )
 
   // Skip PaymentProcessedEvent for free purchases (no payment was made)
@@ -654,9 +663,8 @@ export async function createCardHelper(
  */
 const DEFAULT_HOMEUPTICK_CONFIG: HomeUptickConfig = {
   enabled: true,
-  base_contacts: 500,
-  contacts_per_tier: 500,
-  price_per_tier: 7500,
+  // The values live in homeuptick-allowance.ts so the account site shows the same defaults.
+  ...HOMEUPTICK_DEFAULTS,
 }
 
 /**
