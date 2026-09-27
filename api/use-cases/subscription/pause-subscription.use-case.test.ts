@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { PauseSubscriptionUseCase } from "./pause-subscription.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
+import { makeRecordingLogger } from "@api/tests/helpers/recording-logger"
 import { IEventBus, IDomainEvent } from "@api/infrastructure/events/event-bus.interface"
 
 class MockSubscriptionRepository {
@@ -225,6 +226,39 @@ describe("PauseSubscriptionUseCase", () => {
       expect(txs[0].user_id).toBe(10)
       expect(txs[0].memo).toBe("Subscription paused")
       expect(txs[0].status).toBe("completed")
+    })
+
+    it("writes the subscription's own square_environment on the transaction (CO-I271)", async () => {
+      subscriptionRepo.addSubscription({ subscription_id: 245, user_id: 999749, status: "active", square_environment: "sandbox" })
+
+      await useCase.execute({ subscriptionId: 245 })
+
+      const tx = transactionRepo.getAll().find((t) => t.memo === "Subscription paused")
+      expect(tx?.square_environment).toBe("sandbox")
+    })
+
+    it("writes a null square_environment, not 'production', when the subscription has none", async () => {
+      await useCase.execute({ subscriptionId: 1 })
+
+      const tx = transactionRepo.getAll()[0]
+      expect(tx).toHaveProperty("square_environment", null)
+    })
+
+    it("files the log lines after the lookup under the subscription's user", async () => {
+      const { logger, lines } = makeRecordingLogger()
+      const recorded = new PauseSubscriptionUseCase({
+        logger,
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        emailService: new MockEmailService() as any,
+        userApiClient: userApiClient as any,
+        eventBus,
+      })
+
+      await recorded.execute({ subscriptionId: 1 })
+
+      expect(lines.find((l) => l.message === "Pausing subscription")?.subjectUserId).toBeUndefined()
+      expect(lines.find((l) => l.message === "Subscription paused successfully")?.subjectUserId).toBe(10)
     })
 
     it("should publish SubscriptionPausedEvent", async () => {

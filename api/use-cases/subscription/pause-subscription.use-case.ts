@@ -69,7 +69,9 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
   }
 
   async execute(input: PauseSubscriptionInput): Promise<UseCaseResult<PauseSubscriptionOutput>> {
-    const { logger, subscriptionRepository, transactionRepository, userApiClient, eventBus } = this.deps
+    const { subscriptionRepository, transactionRepository, userApiClient, eventBus } = this.deps
+    // Lines after the lookup are filed under the subscription's user (the caller stays in metadata)
+    let logger: ILogger = this.deps.logger
     const startTime = Date.now()
 
     try {
@@ -90,6 +92,7 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
         logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
       }
+      if (subscription.user_id) logger = logger.child({ subjectUserId: subscription.user_id })
 
       // Check if subscription can be paused
       if (subscription.status !== "active") {
@@ -115,6 +118,9 @@ export class PauseSubscriptionUseCase implements IPauseSubscriptionUseCase {
         type: "subscription",
         memo: "Subscription paused",
         status: "completed",
+        // The subscription's own environment. Omitting it let the column default write 'production'
+        // for sandbox subscriptions.
+        square_environment: subscription.square_environment ?? null,
         data: JSON.stringify({ subscriptionId: validatedInput.subscriptionId }),
         createdAt: now,
         updatedAt: now,

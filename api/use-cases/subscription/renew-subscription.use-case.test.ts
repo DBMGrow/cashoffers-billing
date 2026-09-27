@@ -707,6 +707,25 @@ describe("RenewSubscriptionUseCase", () => {
       expect(subscription?.next_renewal_attempt.getTime()).toBeGreaterThan(Date.now())
     })
 
+    it("writes a null square_environment on the failed row when the subscription has none (CO-I271)", async () => {
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({ subscriptionId: 1, email: "user@test.com" })
+
+      const failedTx = transactionRepo.getAll().find((t) => t.status === "failed")
+      expect(failedTx).toHaveProperty("square_environment", null)
+    })
+
+    it("writes the subscription's square_environment on the failed row", async () => {
+      await subscriptionRepo.update(1, { square_environment: "sandbox" })
+      paymentProvider.setNextPaymentStatus("FAILED")
+
+      await useCase.execute({ subscriptionId: 1, email: "user@test.com" })
+
+      const failedTx = transactionRepo.getAll().find((t) => t.status === "failed")
+      expect(failedTx?.square_environment).toBe("sandbox")
+    })
+
     it("should log failed transaction", async () => {
       paymentProvider.setNextPaymentStatus("FAILED")
 
@@ -850,6 +869,26 @@ describe("RenewSubscriptionUseCase", () => {
   })
 
   describe("Zero Amount Subscriptions", () => {
+    it("writes the subscription's own square_environment on a $0 renewal, not 'production' (CO-I271)", async () => {
+      subscriptionRepo.addSubscription({
+        subscription_id: 6,
+        user_id: 1,
+        subscription_name: "Free Sandbox",
+        product_id: 1,
+        amount: 0,
+        duration: "monthly",
+        renewal_date: new Date("2024-01-01"),
+        status: "active",
+        square_environment: "sandbox",
+      })
+
+      const result = await useCase.execute({ subscriptionId: 6, email: "user@test.com" })
+
+      expect(result.success).toBe(true)
+      const renewalTx = transactionRepo.getAll().find((t) => t.type === "subscription")
+      expect(renewalTx?.square_environment).toBe("sandbox")
+    })
+
     it("should handle free subscriptions", async () => {
       subscriptionRepo.addSubscription({
         subscription_id: 5,

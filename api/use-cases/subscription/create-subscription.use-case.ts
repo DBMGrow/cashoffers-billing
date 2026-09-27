@@ -113,6 +113,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
       let paymentId: string | undefined
       let cardId: string | undefined
       let transactionId: number | undefined
+      let paymentEnvironment: "production" | "sandbox" | null = null
 
       if (totalAmount > 0) {
         const paymentResult = await this.processInitialPayment(
@@ -125,6 +126,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
         paymentId = paymentResult.paymentId
         cardId = paymentResult.cardId
         transactionId = paymentResult.transactionId
+        paymentEnvironment = paymentResult.environment
       }
 
       // Log subscription creation transaction
@@ -133,6 +135,8 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
         type: "subscription",
         memo: "Subscription created",
         status: "completed",
+        // The environment the initial charge ran in; null for a $0 start, never the column default
+        square_environment: paymentEnvironment,
         data: this.serializeProduct(product),
         createdAt: now,
         updatedAt: now,
@@ -239,7 +243,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
     totalAmount: number,
     subscriptionName: string,
     signupFee: number
-  ): Promise<{ paymentId: string; cardId: string; transactionId: number }> {
+  ): Promise<{ paymentId: string; cardId: string; transactionId: number; environment: "production" | "sandbox" }> {
     const { logger, paymentProvider, userCardRepository, transactionRepository } = this.deps
 
     // Get user's card
@@ -278,6 +282,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
       memo: `Initial charge: ${subscriptionName}${signupFee > 0 ? " + Signup Fee" : ""}`,
       status: "completed",
       square_transaction_id: payment.id,
+      square_environment: payment.environment,
       data: this.serializePayment(payment),
       createdAt: now,
       updatedAt: now,
@@ -293,6 +298,7 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
       paymentId: payment.id,
       cardId: userCard.card_id,
       transactionId: transaction.transaction_id,
+      environment: payment.environment,
     }
   }
 

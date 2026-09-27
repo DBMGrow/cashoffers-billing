@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { ResumeSubscriptionUseCase } from "./resume-subscription.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
+import { makeRecordingLogger } from "@api/tests/helpers/recording-logger"
 import { IEventBus, IDomainEvent } from "@api/infrastructure/events/event-bus.interface"
 
 class MockSubscriptionRepository {
@@ -224,6 +225,39 @@ describe("ResumeSubscriptionUseCase", () => {
       expect(txs[0].user_id).toBe(10)
       expect(txs[0].memo).toBe("Subscription resumed")
       expect(txs[0].status).toBe("completed")
+    })
+
+    it("writes the subscription's own square_environment on the transaction (CO-I271)", async () => {
+      subscriptionRepo.addSubscription({ subscription_id: 245, user_id: 999749, status: "paused", square_environment: "sandbox" })
+
+      await useCase.execute({ subscriptionId: 245 })
+
+      const tx = transactionRepo.getAll().find((t) => t.memo === "Subscription resumed")
+      expect(tx?.square_environment).toBe("sandbox")
+    })
+
+    it("writes a null square_environment, not 'production', when the subscription has none", async () => {
+      subscriptionRepo.addSubscription({ subscription_id: 1, user_id: 10, status: "paused" })
+
+      await useCase.execute({ subscriptionId: 1 })
+
+      expect(transactionRepo.getAll()[0]).toHaveProperty("square_environment", null)
+    })
+
+    it("files the log lines after the lookup under the subscription's user", async () => {
+      const { logger, lines } = makeRecordingLogger()
+      const recorded = new ResumeSubscriptionUseCase({
+        logger,
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        eventBus,
+      })
+      subscriptionRepo.addSubscription({ subscription_id: 1, user_id: 10, status: "paused" })
+
+      await recorded.execute({ subscriptionId: 1 })
+
+      expect(lines.find((l) => l.message === "Resuming subscription")?.subjectUserId).toBeUndefined()
+      expect(lines.find((l) => l.message === "Subscription resumed successfully")?.subjectUserId).toBe(10)
     })
 
     it("should publish SubscriptionResumedEvent", async () => {

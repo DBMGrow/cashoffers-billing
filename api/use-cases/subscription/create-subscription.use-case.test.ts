@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import { CreateSubscriptionUseCase } from "./create-subscription.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
 import { MockPaymentProvider } from "@api/infrastructure/payment/mock/mock-payment.provider"
@@ -543,6 +543,17 @@ describe("CreateSubscriptionUseCase", () => {
       expect(paymentTx).toBeDefined()
       expect(paymentTx?.user_id).toBe(1)
       expect(paymentTx?.status).toBe("completed")
+    })
+
+    it("writes the environment the initial charge ran in on both transactions (CO-I271)", async () => {
+      const charge = paymentProvider.createPayment.bind(paymentProvider)
+      vi.spyOn(paymentProvider, "createPayment").mockImplementation(async (req) => ({ ...(await charge(req)), environment: "sandbox" }))
+
+      await useCase.execute({ userId: 1, productId: "prod_1", email: "user@test.com", userAlreadyExists: false })
+
+      const transactions = transactionRepo.getAll()
+      expect(transactions.find((t) => t.type === "payment")?.square_environment).toBe("sandbox")
+      expect(transactions.find((t) => t.memo === "Subscription created")?.square_environment).toBe("sandbox")
     })
   })
 

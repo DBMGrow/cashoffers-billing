@@ -32,7 +32,9 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: ResumeSubscriptionInput): Promise<UseCaseResult<ResumeSubscriptionOutput>> {
-    const { logger, subscriptionRepository, transactionRepository, eventBus } = this.deps
+    const { subscriptionRepository, transactionRepository, eventBus } = this.deps
+    // Lines after the lookup are filed under the subscription's user (the caller stays in metadata)
+    let logger: ILogger = this.deps.logger
     const startTime = Date.now()
 
     try {
@@ -53,6 +55,7 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
       }
+      if (subscription.user_id) logger = logger.child({ subjectUserId: subscription.user_id })
 
       // Check if subscription can be resumed
       if (subscription.status !== "paused" && subscription.status !== "suspended") {
@@ -96,6 +99,9 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         type: "subscription",
         memo: "Subscription resumed",
         status: "completed",
+        // The subscription's own environment. Omitting it let the column default write 'production'
+        // for sandbox subscriptions.
+        square_environment: subscription.square_environment ?? null,
         data: JSON.stringify({ subscriptionId: validatedInput.subscriptionId }),
         createdAt: now,
         updatedAt: now,

@@ -321,7 +321,9 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
       // Process payment if amount > 0
       let paymentId: string | null = null
       let cardId: string | null = null
-      let paymentEnvironment: "production" | "sandbox" = "production"
+      // A $0 renewal charges nothing, so its row carries the subscription's own environment rather
+      // than a hardcoded 'production' (which mislabelled sandbox subscriptions)
+      let paymentEnvironment: "production" | "sandbox" | null = subscription.square_environment ?? null
       if (totalAmount > 0) {
         const paymentResult = await this.processRenewalPayment(
           subscription.user_id!,
@@ -415,7 +417,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
             externalTransactionId: paymentId || undefined,
             cardId: cardId || undefined,
             nextRenewalDate: newRenewalDate,
-            environment: paymentEnvironment,
+            environment: paymentEnvironment ?? undefined,
             lineItems: lineItems.map((item) => ({ description: item.item, amount: item.price })),
           },
           renewMetadata
@@ -437,7 +439,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
             subscriptionId: validatedInput.subscriptionId,
             productId: subscription.product_id,
             paymentType: "renewal",
-            environment: paymentEnvironment, // Include environment in event
+            environment: paymentEnvironment ?? undefined, // Include environment in event
             lineItems: lineItems.map((item) => ({
               description: item.item,
               amount: item.price,
@@ -682,7 +684,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
           type: "subscription",
           memo: `${subscription.subscription_name || "Subscription"} (new card declined)`,
           status: "failed",
-          square_environment: subscription.square_environment || "production",
+          square_environment: subscription.square_environment ?? null,
           data: JSON.stringify({ error, triggeredBy }),
           createdAt: now,
           updatedAt: now,
@@ -785,7 +787,7 @@ export class RenewSubscriptionUseCase implements IRenewSubscriptionUseCase {
         type: "subscription",
         memo: `${subscription.subscription_name || "Subscription"} (failed)`,
         status: "failed",
-        square_environment: subscription.square_environment || "production",
+        square_environment: subscription.square_environment ?? null,
         data: JSON.stringify({ error }),
         createdAt: now,
         updatedAt: now,

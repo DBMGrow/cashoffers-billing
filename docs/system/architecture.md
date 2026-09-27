@@ -53,6 +53,8 @@ graph TD
 - **Domain events** for cross-cutting concerns (6 handlers wired via in-memory event bus)
 - **Repository pattern** for database access
 - **Structured logging** with AsyncLocalStorage for request-scoped context
+  - A `BillingLogs` row is filed under the request's caller by default. A line about another user names them with `subjectUserId` (in the meta, or `logger.child({ subjectUserId })`); the row's `user_id` is then that user and the caller is kept in `metadata.callerUserId`. The subscription pause, resume, cancel and deactivate use cases do this.
+- **Every Transactions row carries a real `square_environment`**. Non-payment rows (pause, resume, field updates, $0 renewals, failed renewals) copy the subscription's own value, or null when it has none; payment rows use the environment the charge ran in. Omitting the field lets the column default write `production`.
 
 ## Directory Map
 
