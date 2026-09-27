@@ -242,6 +242,16 @@ from there. With `cashoffers.managed = true` and `userWasCreated = false`, it co
 purchase wrote no role at all. A plan change publishes `SubscriptionUpgraded` with
 `toProductData`, and `handleUpgraded` writes the role the same way.
 
+### Existing User Pricing
+
+A new signup pays `signup_fee + renewal_cost` today, where the signup fee is `data.signup_fee` or,
+when that is unset, `Products.price` (KW Individual: price 25000, renewal_cost 25000, $500 today).
+An existing user enrolling through the manage flow has already signed up, so their signup fee is
+`data.signup_fee` alone and `price` is never added on top: Express Offers Pro (price 4900,
+renewal_cost 4900) charges 4900, which is what the enrollment screen quotes. `calculatePricing`
+takes `{ existingUser: true }` for this; only `PurchaseExistingUserUseCase` passes it. (CO-I271
+F-S4-e: before this, staging transaction 3788 charged 9800 for the $49 plan.)
+
 ### Existing User Purchase Flow
 
 ```mermaid

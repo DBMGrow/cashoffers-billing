@@ -216,8 +216,26 @@ export interface PurchasePricing {
   initialAmount: number
 }
 
-export function calculatePricing(product: { price: number }, productData: ProductData): PurchasePricing {
-  const signupFee = productData.signup_fee ?? product.price ?? 0
+/**
+ * What a purchase charges today: the signup fee plus the first period.
+ *
+ * `Products.price` is the product's **signup fee** in this repo (KW Individual: price 25000,
+ * renewal_cost 25000, so a new signup pays $500 today and $250 a month), and a new-account
+ * signup falls back to it when `data.signup_fee` is not set. The signup page shows that fee as its
+ * own line, so the customer sees the total before paying.
+ *
+ * An existing account holder enrolling through the manage flow (`existingUser`) has already signed
+ * up, and the manage enrollment screen quotes only the renewal cost and an explicit
+ * `data.signup_fee`. So for them the signup fee is `data.signup_fee` alone, never `price`. Without
+ * this an Express Offers Pro product (price 4900, renewal_cost 4900) quoted "$49.00 / month" and
+ * charged 9800 (CO-I271 F-S4-e, staging transaction 3788).
+ */
+export function calculatePricing(
+  product: { price: number },
+  productData: ProductData,
+  options: { existingUser?: boolean } = {}
+): PurchasePricing {
+  const signupFee = options.existingUser ? (productData.signup_fee ?? 0) : (productData.signup_fee ?? product.price ?? 0)
   const renewalCost = productData.renewal_cost || product.price
   const productDuration = productData.duration || "monthly"
   return { signupFee, renewalCost, productDuration, initialAmount: signupFee + renewalCost }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { isUserFacingError, publishPurchaseEvents } from "./purchase-helpers"
+import { calculatePricing, isUserFacingError, publishPurchaseEvents } from "./purchase-helpers"
 import { CashOffersAccountHandler } from "@api/application/service-handlers/cashoffers/cashoffers-account.handler"
 
 describe("isUserFacingError", () => {
@@ -20,6 +20,48 @@ describe("isUserFacingError", () => {
     expect(isUserFacingError("UNAUTHORIZED")).toBe(false)
     expect(isUserFacingError("PURCHASE_ERROR")).toBe(false)
     expect(isUserFacingError(undefined)).toBe(false)
+  })
+})
+
+describe("calculatePricing", () => {
+  // Staging rows, as they are: KW Individual (product 1) and Express Offers Pro (product 70).
+  const kwIndividual = { product: { price: 25000 }, data: { duration: "monthly" as const, renewal_cost: 25000 } }
+  const expPro = { product: { price: 4900 }, data: { duration: "monthly" as const, renewal_cost: 4900, hidden: true } }
+
+  it("charges a new signup price as the signup fee plus the first period (KW, unchanged)", () => {
+    expect(calculatePricing(kwIndividual.product, kwIndividual.data)).toEqual({
+      signupFee: 25000,
+      renewalCost: 25000,
+      productDuration: "monthly",
+      initialAmount: 50000,
+    })
+  })
+
+  // CO-I271 F-S4-e (AC21): an existing Guest enrolling in product 70 through
+  // /manage?goto=enrollment&product=70 was quoted "$49.00 / month" and charged 9800.
+  it("charges an existing user the first period once, not price on top of it", () => {
+    expect(calculatePricing(expPro.product, expPro.data, { existingUser: true })).toEqual({
+      signupFee: 0,
+      renewalCost: 4900,
+      productDuration: "monthly",
+      initialAmount: 4900,
+    })
+  })
+
+  it("still charges an existing user an explicit data.signup_fee", () => {
+    expect(
+      calculatePricing({ price: 4900 }, { renewal_cost: 4900, signup_fee: 1000 }, { existingUser: true }).initialAmount
+    ).toBe(5900)
+  })
+
+  it("falls back to price as the period cost for an existing user when renewal_cost is unset", () => {
+    expect(calculatePricing({ price: 4900 }, {}, { existingUser: true }).initialAmount).toBe(4900)
+  })
+
+  it("keeps a free product free for an existing user", () => {
+    expect(
+      calculatePricing({ price: 0 }, { renewal_cost: 0, signup_fee: 0 }, { existingUser: true }).initialAmount
+    ).toBe(0)
   })
 })
 
