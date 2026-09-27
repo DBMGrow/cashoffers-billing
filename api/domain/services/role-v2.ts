@@ -147,22 +147,41 @@ export const deriveRoleV2FromLegacy = (
 }
 
 /**
+ * A white label's `downgrade_role_v2`, if it is one a lapse may put an agent on, else `null`.
+ *
+ * The main API validates the column on write (assignable, never `paid`) and health check 8 counts
+ * any row that predates the check, so this is the third guard, not the first. It is stricter than
+ * the other two on purpose: the role must also be in the AGENT family or be `SHELL`. A lapse moves
+ * someone down, and `SHELL` and the unpaid agent tiers are the only places down goes; a white label
+ * naming `ADMIN` or `WLADMIN` here would otherwise turn every lapse into a promotion.
+ */
+export const validDowngradeRoleV2 = (value: unknown): RoleV2 | null => {
+  if (!isRoleV2(value)) return null
+  const entry = ROLES_V2[value]
+  if (!entry.assignable || entry.paid) return null
+  if (entry.legacy !== "AGENT" && value !== "SHELL") return null
+  return value
+}
+
+/**
  * The role a lapse should leave a user on, or `null` when the role must not be touched.
  *
- * This is the faithful translation of what `DOWNGRADE_TO_FREE` does **today**: it clears
- * `is_premium` and leaves `role` alone. Turning that into "set `AGENT_FREE`" unconditionally would
- * be a behavior change for every non-agent, a lapsing INVESTOR or LENDER would be walked into the
- * agent family, which no code does today and nobody asked for. So the answer is `AGENT_FREE` for
- * the AGENT family and `null`, meaning "clear the bit and leave the role", for everyone else.
+ * For the AGENT family it is the white label's `downgrade_role_v2` (plan §9.5), which is what lets
+ * eXp land a lapsed Pro on `AGENT_EXP_GUEST` instead of a CashOffers free account they never signed
+ * up for. When the white label names none, or names one `validDowngradeRoleV2` refuses, it is
+ * `AGENT_FREE`, which is what `DOWNGRADE_TO_FREE` did before the column existed (and what the
+ * column is backfilled to for every `DOWNGRADE_TO_FREE` white label, KW included).
  *
- * Plan §9.5 replaces this with the white label's `downgrade_role_v2`, which is what lets eXp land a
- * lapsed Pro on `AGENT_EXP_GUEST` instead of a CashOffers free account they never signed up for.
- * That column does not exist yet; when it does, it takes precedence over this function and this
- * function becomes its default.
+ * Everyone outside the AGENT family gets `null`, meaning "clear the bit and leave the role": a
+ * lapsing INVESTOR or LENDER walked into the agent family is a change nobody asked for, and a
+ * white label's downgrade role is an agent tier, so it says nothing about them.
  */
-export const downgradeRoleV2For = (current: RoleV2 | null | undefined): RoleV2 | null => {
+export const downgradeRoleV2For = (
+  current: RoleV2 | null | undefined,
+  whitelabelDowngradeRole?: string | null
+): RoleV2 | null => {
   if (!current || legacyOf(current) !== "AGENT") return null
-  return "AGENT_FREE"
+  return validDowngradeRoleV2(whitelabelDowngradeRole) ?? "AGENT_FREE"
 }
 
 /**

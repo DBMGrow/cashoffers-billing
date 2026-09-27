@@ -36,25 +36,33 @@ This asymmetry is why re-subscribing restores the right tier without anyone stor
 
 ## Lapse Behavior
 
-`suspension_behavior` on the white label is already a role mapping in disguise:
+The role a lapse sets comes from the user's white label: `suspension_behavior` picks the branch,
+and `Whitelabels.downgrade_role_v2` (RBAC plan §9.5, written and validated by the main API) names
+the agent tier.
 
-| `suspension_behavior` | Resulting `role_v2`                                             |
-| --------------------- | --------------------------------------------------------------- |
-| `DEACTIVATE_USER`     | `SHELL`                                                         |
-| `DOWNGRADE_TO_FREE`   | `AGENT_FREE` for the AGENT family; **no role change** otherwise |
+| `suspension_behavior` | Resulting `role_v2`                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `DEACTIVATE_USER`     | `SHELL` (and `is_premium = 0`)                                                                              |
+| `DOWNGRADE_TO_FREE`   | The white label's `downgrade_role_v2` for the AGENT family, else `AGENT_FREE`; **no role change** otherwise |
+
+`downgrade_role_v2` is used only when it is an unpaid, assignable AGENT-family tier or `SHELL`
+(`validDowngradeRoleV2` in `api/domain/services/role-v2.ts`). Anything else (unset, unknown, a paid
+tier, a non-agent role such as `ADMIN`) falls back to `AGENT_FREE`, so a lapse can never keep
+someone paid or promote them. Today that makes eXp (`AGENT_EXP_GUEST`) land a lapsed Pro on the
+portal view they still qualify for, while KW and every other `DOWNGRADE_TO_FREE` white label
+(backfilled to `AGENT_FREE`) behave exactly as before. A `SHELL` downgrade role clears the premium
+bit alongside it, for the same reason the `DEACTIVATE_USER` branch does.
 
 `DOWNGRADE_TO_FREE` has never meant "make them a free agent": it cleared the premium bit and left
-the role alone. So a lapsing investor, lender or team owner keeps their role and only loses the bit.
-Reading it as an unconditional `AGENT_FREE` would move every non-agent into the agent family on
-lapse, silently, on the one path nobody watches succeed.
+the role alone. So a lapsing investor, lender or team owner keeps their role and only loses the bit,
+whatever the white label's downgrade role says. Reading it as an unconditional agent tier would move
+every non-agent into the agent family on lapse, silently, on the one path nobody watches succeed.
 
 The main API derives `role` and `is_premium` from `role_v2` in the same statement, so the
-`is_premium: 0` both branches used to write by hand now falls out of naming the role.
+`is_premium: 0` both branches used to write by hand falls out of naming an agent tier.
 
-**Planned:** RBAC plan §9.5 replaces the enum with a `Whitelabels.downgrade_role_v2` column, so eXp
-can land a lapsed Pro on `AGENT_EXP_GUEST` (the portal view they still qualify for) rather than on
-a CashOffers free account they never signed up for. The column does not exist yet; the table above
-is its default when it does.
+Billing reads the column with `selectAll`, so a database the main API migration has not reached
+answers "unset" (and the lapse falls back to `AGENT_FREE`) rather than failing.
 
 ## Why It Exists
 

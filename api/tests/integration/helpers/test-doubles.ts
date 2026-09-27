@@ -56,6 +56,8 @@ export function makeWhitelabelResolution(whitelabelId = 7, code = 'EXP') {
       findByCode: vi.fn().mockResolvedValue({ whitelabel_id: whitelabelId, code }),
       // Undefined, so the suspension strategy keeps coming from the event metadata the tests set.
       getSuspensionBehavior: vi.fn().mockResolvedValue(undefined),
+      // Null, so a lapse falls back to AGENT_FREE unless a test names a white label downgrade role.
+      getDowngradeRoleV2: vi.fn().mockResolvedValue(null),
     },
   }
 }

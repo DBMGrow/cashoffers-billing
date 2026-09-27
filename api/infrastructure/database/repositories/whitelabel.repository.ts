@@ -103,6 +103,23 @@ export class WhitelabelRepository {
     return result?.suspension_behavior || null
   }
 
+  /**
+   * The white label's `downgrade_role_v2`, or null when it is unset.
+   *
+   * Read through `selectAll` rather than naming the column, so a database the main API's
+   * migration has not reached yet answers null instead of failing the lapse.
+   */
+  async getDowngradeRoleV2(whitelabelId: number): Promise<string | null> {
+    const result = await this.db
+      .selectFrom('Whitelabels')
+      .where('whitelabel_id', '=', whitelabelId)
+      .selectAll()
+      .executeTakeFirst()
+
+    const value = (result as { downgrade_role_v2?: unknown } | undefined)?.downgrade_role_v2
+    return typeof value === 'string' && value !== '' ? value : null
+  }
+
   async findByCode(code: string): Promise<Selectable<Whitelabels> | null> {
     const result = await this.db
       .selectFrom('Whitelabels')

@@ -472,6 +472,70 @@ describe('CashOffersAccountHandler', () => {
         expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { is_premium: 0 })
       })
     })
+
+    // CO-I271 F-S4-d (AC25): on staging, pausing subscription 245 (EXP, AGENT_EXP_PRO) set
+    // AGENT_FREE. The white label's downgrade_role_v2 (EXP: AGENT_EXP_GUEST) is the answer.
+    describe('white label downgrade_role_v2', () => {
+      function handlerWithWhitelabel(downgradeRole: string | null | Error, behavior: string = 'DOWNGRADE_TO_FREE') {
+        const { productRepository, whitelabelRepository } = makeWhitelabelResolution(68, 'EXP')
+        whitelabelRepository.getSuspensionBehavior.mockResolvedValue(behavior)
+        if (downgradeRole instanceof Error) whitelabelRepository.getDowngradeRoleV2.mockRejectedValue(downgradeRole)
+        else whitelabelRepository.getDowngradeRoleV2.mockResolvedValue(downgradeRole)
+        ;(userApiClient.getUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+          id: userId,
+          email: 'pro@exp.test',
+          is_premium: false,
+          role: 'AGENT',
+          role_v2: 'AGENT_EXP_PRO',
+          whitelabel_id: 68,
+          active: true,
+        })
+        const bus = new InMemoryEventBus(logger)
+        bus.subscribe(
+          'SubscriptionPaused',
+          new CashOffersAccountHandler(userApiClient, logger, productRepository as never, whitelabelRepository as never)
+        )
+        return { bus, whitelabelRepository }
+      }
+
+      const pause = (bus: InMemoryEventBus) =>
+        bus.publish(SubscriptionPausedEvent.create({ subscriptionId, userId }, { productData: makeProductData({}) }))
+
+      it('lands a lapsed Express Offers Pro on AGENT_EXP_GUEST', async () => {
+        const { bus, whitelabelRepository } = handlerWithWhitelabel('AGENT_EXP_GUEST')
+        await pause(bus)
+        expect(whitelabelRepository.getDowngradeRoleV2).toHaveBeenCalledWith(68)
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'AGENT_EXP_GUEST' })
+      })
+
+      it('falls back to AGENT_FREE when the white label names a paid role', async () => {
+        const { bus } = handlerWithWhitelabel('AGENT_EXP_PRO')
+        await pause(bus)
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'AGENT_FREE' })
+      })
+
+      it('falls back to AGENT_FREE when the downgrade role is unset or cannot be read', async () => {
+        const unset = handlerWithWhitelabel(null)
+        await pause(unset.bus)
+        expect(userApiClient.updateUser).toHaveBeenLastCalledWith(userId, { role_v2: 'AGENT_FREE' })
+
+        const failing = handlerWithWhitelabel(new Error('Unknown column'))
+        await pause(failing.bus)
+        expect(userApiClient.updateUser).toHaveBeenLastCalledWith(userId, { role_v2: 'AGENT_FREE' })
+      })
+
+      it('clears the premium bit when the downgrade role is SHELL', async () => {
+        const { bus } = handlerWithWhitelabel('SHELL')
+        await pause(bus)
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL', is_premium: 0 })
+      })
+
+      it('leaves DEACTIVATE_USER shelling whatever the downgrade role says', async () => {
+        const { bus } = handlerWithWhitelabel('AGENT_EXP_GUEST', 'DEACTIVATE_USER')
+        await pause(bus)
+        expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, { role_v2: 'SHELL', is_premium: 0 })
+      })
+    })
   })
 
   // ─── SubscriptionUpgraded ────────────────────────────────────────────────

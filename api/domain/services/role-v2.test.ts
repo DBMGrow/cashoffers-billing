@@ -10,6 +10,7 @@ import {
   bitsOf,
   deriveRoleV2FromLegacy,
   downgradeRoleV2For,
+  validDowngradeRoleV2,
   userConfigRoleMismatch,
   alignUserConfigRoles,
   alignProductDataRoles,
@@ -135,6 +136,51 @@ describe("downgradeRoleV2For", () => {
   it("leaves an unknown current role alone rather than guessing", () => {
     expect(downgradeRoleV2For(null)).toBeNull()
     expect(downgradeRoleV2For(undefined)).toBeNull()
+  })
+
+  // CO-I271 F-S4-d (AC25): a lapsed Express Offers Pro landed on AGENT_FREE because the white
+  // label's downgrade_role_v2 was never read.
+  it("lands an agent on the white label's downgrade role when it names one", () => {
+    expect(downgradeRoleV2For("AGENT_EXP_PRO", "AGENT_EXP_GUEST")).toBe("AGENT_EXP_GUEST")
+    expect(downgradeRoleV2For("AGENT_EXP_ELITE", "AGENT_EXP_GUEST")).toBe("AGENT_EXP_GUEST")
+    expect(downgradeRoleV2For("AGENT_PREMIUM", "SHELL")).toBe("SHELL")
+  })
+
+  it("keeps KW (downgrade_role_v2 AGENT_FREE) exactly where it was", () => {
+    expect(downgradeRoleV2For("AGENT_PREMIUM", "AGENT_FREE")).toBe("AGENT_FREE")
+  })
+
+  it("falls back to AGENT_FREE when the white label's role is unset, unknown, unassignable, paid or a promotion", () => {
+    for (const bad of [
+      null,
+      undefined,
+      "",
+      "NOT_A_ROLE",
+      "AGENT",
+      "AGENT_EXP_PRO",
+      "AGENT_PREMIUM",
+      "ADMIN",
+      "WLADMIN",
+      "INVESTOR",
+    ]) {
+      expect(downgradeRoleV2For("AGENT_EXP_PRO", bad)).toBe("AGENT_FREE")
+    }
+  })
+
+  it("still leaves a non-agent alone whatever the white label names", () => {
+    expect(downgradeRoleV2For("INVESTOR", "AGENT_EXP_GUEST")).toBeNull()
+    expect(downgradeRoleV2For("TEAMOWNER", "SHELL")).toBeNull()
+  })
+})
+
+describe("validDowngradeRoleV2", () => {
+  it("accepts exactly the unpaid assignable agent tiers and SHELL", () => {
+    const accepted = ROLE_V2_VALUES.filter((role) => validDowngradeRoleV2(role) !== null)
+    expect(accepted.sort()).toEqual(["AGENT_EXP_GUEST", "AGENT_FREE", "SHELL"])
+  })
+
+  it("never accepts a paid role", () => {
+    expect(ROLE_V2_VALUES.filter((role) => ROLES_V2[role].paid && validDowngradeRoleV2(role) !== null)).toEqual([])
   })
 })
 

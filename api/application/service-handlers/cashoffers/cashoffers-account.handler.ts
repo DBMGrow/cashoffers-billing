@@ -6,7 +6,7 @@ import type { ProductData } from "@api/domain/types/product-data.types"
 import type { Kysely } from "kysely"
 import type { DB } from "@api/lib/db.d"
 import { mapRoleV2ForTransition } from "@api/domain/services/role-mapper"
-import { downgradeRoleV2For, resolveUserConfigRoleV2, resolveUserRoleV2 } from "@api/domain/services/role-v2"
+import { bitsOf, downgradeRoleV2For, resolveUserConfigRoleV2, resolveUserRoleV2 } from "@api/domain/services/role-v2"
 
 /**
  * CashOffersAccountHandler
@@ -188,18 +188,31 @@ export class CashOffersAccountHandler implements IEventHandler {
 
     const userId = payload.userId
 
-    // Resolve suspension strategy from user's whitelabel_id (source of truth)
+    // Resolve suspension strategy and downgrade role from user's whitelabel_id (source of truth)
     let strategy: string | undefined
+    let whitelabelDowngradeRole: string | null = null
 
     if (this.whitelabelRepository) {
+      let whitelabelId: number | undefined
       try {
         const user = await this.userApiClient.getUser(userId)
-        if (user?.whitelabel_id) {
-          const behavior = await this.whitelabelRepository.getSuspensionBehavior(user.whitelabel_id)
+        whitelabelId = user?.whitelabel_id ?? undefined
+        if (whitelabelId) {
+          const behavior = await this.whitelabelRepository.getSuspensionBehavior(whitelabelId)
           if (behavior) strategy = behavior
         }
       } catch {
         this.logger.warn('Failed to resolve suspension strategy from user whitelabel', { userId })
+      }
+
+      // Its own try: a failed read of the downgrade role falls back to AGENT_FREE, it must not also
+      // throw away a strategy that resolved.
+      if (whitelabelId) {
+        try {
+          whitelabelDowngradeRole = await this.whitelabelRepository.getDowngradeRoleV2(whitelabelId)
+        } catch {
+          this.logger.warn('Failed to resolve downgrade_role_v2 from user whitelabel', { userId, whitelabelId })
+        }
       }
     }
 
@@ -208,12 +221,16 @@ export class CashOffersAccountHandler implements IEventHandler {
       strategy = event.metadata?.suspensionStrategy as string | undefined
     }
 
-    this.logger.info('Applying suspension strategy', { userId, strategy: strategy ?? 'DOWNGRADE_TO_FREE (default)' })
+    this.logger.info('Applying suspension strategy', {
+      userId,
+      strategy: strategy ?? 'DOWNGRADE_TO_FREE (default)',
+      whitelabelDowngradeRole,
+    })
 
-    await this.applyDowngrade(userId, strategy)
+    await this.applyDowngrade(userId, strategy, whitelabelDowngradeRole)
 
     // If this is a team plan, also suspend all team members
-    await this.suspendTeamMembers(event, userId, strategy)
+    await this.suspendTeamMembers(event, userId, strategy, whitelabelDowngradeRole)
   }
 
   /**
@@ -231,21 +248,26 @@ export class CashOffersAccountHandler implements IEventHandler {
    * it as an unconditional `AGENT_FREE` would move every non-agent into the agent family on lapse.
    * So the role is named only for the AGENT family, and everyone else still just loses the bit.
    *
-   * Plan §9.5 replaces the strategy enum with the white label's `downgrade_role_v2`, which is what
-   * lets a lapsed eXp Pro land on `AGENT_EXP_GUEST` rather than a CashOffers account they never
-   * signed up for. That column does not exist yet; this is its default when it does.
+   * For the AGENT family the role named is the white label's `downgrade_role_v2` (plan §9.5), which
+   * is what lands a lapsed eXp Pro on `AGENT_EXP_GUEST` rather than a CashOffers free account they
+   * never signed up for. Unset, or naming a role a lapse may not set, it is `AGENT_FREE` as before
+   * (see `downgradeRoleV2For`). A downgrade role outside the AGENT family (`SHELL`) carries no tier
+   * bits, so the bit is cleared alongside it for the same reason as the `DEACTIVATE_USER` branch.
    */
-  private async applyDowngrade(userId: number, strategy?: string): Promise<void> {
+  private async applyDowngrade(userId: number, strategy?: string, whitelabelDowngradeRole?: string | null): Promise<void> {
     if (strategy === 'DEACTIVATE_USER') {
       await this.userApiClient.updateUser(userId, { role_v2: 'SHELL', is_premium: 0 })
       return
     }
 
     const user = await this.userApiClient.getUser(userId)
-    const downgradeTo = downgradeRoleV2For(resolveUserRoleV2(user))
+    const downgradeTo = downgradeRoleV2For(resolveUserRoleV2(user), whitelabelDowngradeRole)
 
     if (downgradeTo) {
-      await this.userApiClient.updateUser(userId, { role_v2: downgradeTo })
+      await this.userApiClient.updateUser(
+        userId,
+        bitsOf(downgradeTo) ? { role_v2: downgradeTo } : { role_v2: downgradeTo, is_premium: 0 }
+      )
     } else {
       await this.userApiClient.updateUser(userId, { is_premium: 0 })
     }
@@ -255,7 +277,12 @@ export class CashOffersAccountHandler implements IEventHandler {
    * When a team plan subscription is suspended, deactivate all team members
    * (excluding the owner, who was already handled above).
    */
-  private async suspendTeamMembers(event: IDomainEvent, ownerId: number, strategy?: string): Promise<void> {
+  private async suspendTeamMembers(
+    event: IDomainEvent,
+    ownerId: number,
+    strategy?: string,
+    whitelabelDowngradeRole?: string | null,
+  ): Promise<void> {
     if (!this.db || !this.subscriptionRepository) return
 
     const payload = event.payload as any
@@ -287,7 +314,7 @@ export class CashOffersAccountHandler implements IEventHandler {
 
     for (const member of teamMembers) {
       try {
-        await this.applyDowngrade(member.user_id, strategy)
+        await this.applyDowngrade(member.user_id, strategy, whitelabelDowngradeRole)
       } catch (err) {
         this.logger.error('Failed to suspend team member', {
           userId: member.user_id,
