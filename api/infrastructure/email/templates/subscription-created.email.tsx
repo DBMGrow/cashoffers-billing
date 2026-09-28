@@ -36,7 +36,16 @@ export default function SubscriptionCreatedEmail({
       <EmailHeading>Subscription Created</EmailHeading>
       <EmailDivider />
       <EmailText>
-        Your new subscription has been created, and your card has been charged <strong>{amount}</strong>.
+        {amount === "$0.00" ? (
+          <>
+            Your new subscription has been created. Nothing was charged today; your card on file will be charged
+            at your next renewal.
+          </>
+        ) : (
+          <>
+            Your new subscription has been created, and your card has been charged <strong>{amount}</strong>.
+          </>
+        )}
       </EmailText>
 
       <SummaryTable>

@@ -10,6 +10,8 @@ import P from "@/components/Theme/P"
 import type { User, ApiResponse } from "@/types/api"
 import type { Product } from "@/providers/ProductProvider"
 import { homeUptickLines, type EnrollmentIntent } from "../enrollment"
+import { useValidatePromo } from "@/hooks/api/useValidatePromo"
+import PromoCodeField from "@/components/forms/promo/PromoCodeField"
 
 interface EnrollmentStepProps {
   user: User
@@ -19,6 +21,8 @@ interface EnrollmentStepProps {
    * single-product auto-select below takes the user straight to payment.
    */
   productId?: number | null
+  /** Promo code from a direct link (`&coupon=EXPCON`). Re-validated by the server at purchase. */
+  coupon?: string | null
   /**
    * Reports the server's intent and the plan being bought (the selected one, or the only one on
    * offer) so the flow can word its heading. Called whenever either changes.
@@ -43,6 +47,7 @@ type Phase = "products" | "card" | "processing" | "success"
 export default function EnrollmentStep({
   user,
   productId = null,
+  coupon: initialCoupon = null,
   onIntent,
   onSuccess,
   onBack,
@@ -51,6 +56,10 @@ export default function EnrollmentStep({
   const [phase, setPhase] = useState<Phase>("products")
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [coupon, setCoupon] = useState<string | null>(initialCoupon)
+  const [promoError, setPromoError] = useState<string | null>(null)
+  const promo = useValidatePromo(coupon, selectedProduct ? Number(selectedProduct.product_id) : null, "manage")
+  const promoQuote = coupon ? (promo.data?.quote ?? null) : null
 
   const {
     data: enrollment,
@@ -139,10 +148,16 @@ export default function EnrollmentStep({
         exp_month: token.details.card.expMonth,
         exp_year: token.details.card.expYear,
         cardholder_name: user.name || "Cardholder",
+        coupon,
       })
 
       if (result.success === "success") {
         setPhase("success")
+      } else if ((result as any).code === "PROMO_CODE_INVALID") {
+        // Refused before anything was charged: drop the code, say why, let them continue at full price
+        setPromoError((result as any).error || "That promo code could not be applied.")
+        setCoupon(null)
+        setPhase("card")
       } else {
         onError(
           (result as any).error || "Purchase failed. Please try again.",
@@ -151,6 +166,12 @@ export default function EnrollmentStep({
         )
       }
     } catch (err: any) {
+      if (err.response?.data?.code === "PROMO_CODE_INVALID") {
+        setPromoError(err.response.data.error || "That promo code could not be applied.")
+        setCoupon(null)
+        setPhase("card")
+        return
+      }
       const message = err.response?.data?.error || "Purchase failed. Please try again."
       onError(message, "Purchase Failed", "There was an issue processing your payment.")
     } finally {
@@ -212,6 +233,27 @@ export default function EnrollmentStep({
           <p className="text-sm text-gray-600">
             {productIsFree ? "Free" : `$${price.toFixed(2)} / ${period}`}
           </p>
+          {!productIsFree && (
+            <PromoCodeField
+              code={coupon}
+              validation={promo.data}
+              isValidating={promo.isFetching}
+              onChange={(next) => {
+                setPromoError(null)
+                setCoupon(next)
+              }}
+            />
+          )}
+          {promoError && (
+            <p className="text-sm text-danger font-medium" role="alert">
+              {promoError}
+            </p>
+          )}
+          {promoQuote && (
+            <p className="text-sm text-gray-600">
+              Today: ${(promoQuote.charged_amount / 100).toFixed(2)}. Your card is saved for renewals.
+            </p>
+          )}
           {contactLines.length > 0 && (
             <div className="text-sm text-gray-600 border-t border-primary/30 pt-2 mt-2 space-y-1">
               {contactLines.map((line) => (

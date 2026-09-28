@@ -31,12 +31,23 @@ import {
   sendCustomerPurchaseErrorEmail,
   seedHomeUptickSubscription,
 } from "./purchase-helpers"
+import type { PurchasePricing } from "./purchase-helpers"
+import type { PromoCodeRepository } from "@api/lib/repositories"
+import { resolveUserConfigRoleV2 } from "@api/domain/services/role-v2"
+import {
+  applyPromoToPurchase,
+  attachPromoRedemption,
+  isNewCustomerForPromo,
+  releasePromoReservation,
+} from "./promo-helpers"
 
 interface Dependencies {
   logger: ILogger
   paymentProvider: IPaymentProvider
   emailService: IEmailService
   productRepository: ProductRepository
+  /** Read and written only when the purchase carries a `coupon` */
+  promoCodeRepository: PromoCodeRepository
   subscriptionRepository: SubscriptionRepository
   userCardRepository: UserCardRepository
   transactionRepository: TransactionRepository
@@ -67,6 +78,8 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
     let capturedProductId: string | number | null = null
     let capturedUserId: number | null = null
     let capturedPaymentId: string | null = null
+    let promoPricing: PurchasePricing | null = null
+    let subscriptionCreated = false
 
     try {
       // Validate input (before tracking — early return, no markAsFailed needed)
@@ -102,6 +115,21 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         purchaseRequestId
       )
 
+      // Promo code: validated and reserved before the card and the charge (throws PROMO_CODE_INVALID).
+      // The card is still resolved below, so a promo'd $0 enrollment keeps a card for renewals.
+      if (v.coupon) {
+        promoPricing = await applyPromoToPurchase(this.deps, {
+          coupon: v.coupon,
+          email: v.email,
+          userId: v.userId,
+          purchaseRequestId,
+          product,
+          roleV2: resolveUserConfigRoleV2(userConfig),
+          pricing: calculatePricing(product, productData, { existingUser: true }),
+          isNewCustomer: await isNewCustomerForPromo(this.deps, v.userId),
+        })
+      }
+
       // Resolve card (new token or card on file)
       const cardIdString = await this.resolveCard(v, input.context)
 
@@ -114,7 +142,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       // Process payment (skip for free $0 purchases)
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
       // No fallback to `price` as a signup fee: this account already signed up (see calculatePricing).
-      const pricing = calculatePricing(product, productData, { existingUser: true })
+      const pricing = promoPricing ?? calculatePricing(product, productData, { existingUser: true })
       let payment: { id: string; status: string; environment: "production" | "sandbox" } | null = null
       if (pricing.initialAmount > 0) {
         payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
@@ -141,6 +169,8 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userConfig,
         cashoffers: productData.cashoffers,
       })
+      subscriptionCreated = true
+      await attachPromoRedemption(this.deps, pricing, subscription.subscription_id, v.userId)
 
       // Log transaction
       const transaction = await createTransactionRecord(this.deps, {
@@ -204,6 +234,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userProvisioned: true,
       })
     } catch (error) {
+      await releasePromoReservation(this.deps, promoPricing, { paymentTaken: !!capturedPaymentId, subscriptionCreated })
       return this.handleError(error, purchaseRequestId, startTime, {
         email: capturedEmail,
         productId: capturedProductId,

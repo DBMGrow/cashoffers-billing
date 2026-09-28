@@ -1,4 +1,5 @@
 import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient, criticalAlertService, paymentErrorTranslator } from '@api/lib/services'
+import { promoCodeRepository } from '@api/lib/repositories'
 import { config } from '@api/config/config.service'
 import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository, whitelabelRepository, homeUptickSubscriptionRepository } from '@api/lib/repositories'
 import { CreateSubscriptionUseCase } from './create-subscription.use-case'
@@ -101,6 +102,7 @@ export const purchaseNewUserUseCase = new PurchaseNewUserUseCase({
   emailService,
   userApiClient,
   productRepository,
+  promoCodeRepository,
   subscriptionRepository,
   userCardRepository,
   transactionRepository,
@@ -118,6 +120,7 @@ export const purchaseExistingUserUseCase = new PurchaseExistingUserUseCase({
   paymentProvider,
   emailService,
   productRepository,
+  promoCodeRepository,
   subscriptionRepository,
   userCardRepository,
   transactionRepository,

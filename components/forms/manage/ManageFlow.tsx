@@ -130,6 +130,8 @@ export default function ManageFlow() {
   // It rides in the URL, so it survives the token strip below (which deletes only t/token) and
   // the email/password login steps (which never navigate), and reaches enrollment or changePlan.
   const linkedProductId = parseLinkedProductId(searchParams.get("product"))
+  // `?coupon=<code>` (an eXpCon QR, or the upgrade link with a code) rides the URL the same way.
+  const linkedCoupon = searchParams.get("coupon")
 
   // Resolve where to navigate after a successful login
   const resolvePostLoginStep = (): ManageStep => {
@@ -276,6 +278,7 @@ export default function ManageFlow() {
           <EnrollmentStep
             user={user!}
             productId={linkedProductId}
+            coupon={linkedCoupon}
             onIntent={(intent, productName) => {
               const next = enrollmentCopy(intent, productName)
               setEnrollmentStepCopy((prev) =>
