@@ -82,6 +82,14 @@ app.openapi(VerifyJwtRoute, async (c) => {
     return c.json({ success: "error" as const, error: "Invalid or expired token" }, 401)
   }
 
+  // A main-system magic link is signed with the same secret but is single use: the main API spends it
+  // by bumping `magic_link_sign_in_count`, which this route cannot see. Accepting it here would turn a
+  // one-time sign-in (the ExpressOffers upgrade link, the emailed sign-in link) into a reusable 7-day
+  // billing login. Those links reach billing through /signup/upgrade/redirect, which mints an SSO token.
+  if (payload?.magic_link_sign_in_count !== undefined) {
+    return c.json({ success: "error" as const, error: "Invalid token payload" }, 401)
+  }
+
   // The main system signs SSO links with an email payload ({ email, iat, exp }),
   // while internal dev links embed an api_token directly. Support both.
   let apiToken: string | undefined = payload?.api_token
