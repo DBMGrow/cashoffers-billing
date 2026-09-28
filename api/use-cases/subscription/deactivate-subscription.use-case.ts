@@ -62,7 +62,9 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
   }
 
   async execute(input: DeactivateSubscriptionInput): Promise<UseCaseResult<DeactivateSubscriptionOutput>> {
-    const { logger, subscriptionRepository, userApiClient, eventBus } = this.deps
+    const { subscriptionRepository, userApiClient, eventBus } = this.deps
+    // Lines after validation are filed under the subscription's user (the caller stays in metadata)
+    let logger: ILogger = this.deps.logger
     const startTime = Date.now()
 
     try {
@@ -76,6 +78,7 @@ export class DeactivateSubscriptionUseCase implements IDeactivateSubscriptionUse
 
       const validatedInput = validationResult.data
       const { userId } = validatedInput
+      logger = logger.child({ subjectUserId: userId })
 
       logger.info("Deactivating subscription", { userId })
 

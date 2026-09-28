@@ -157,3 +157,5 @@ playwright-report/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+# Full reconcile results (the console report is capped)
+scripts/out/

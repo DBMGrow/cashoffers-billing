@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { DeactivateSubscriptionUseCase } from "./deactivate-subscription.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
+import { makeRecordingLogger } from "@api/tests/helpers/recording-logger"
 import { IEventBus, IDomainEvent } from "@api/infrastructure/events/event-bus.interface"
 
 class MockSubscriptionRepository {
@@ -125,6 +126,21 @@ describe("DeactivateSubscriptionUseCase", () => {
         subscription_name: "Test Plan",
       })
       userApiClient.addUser(10, { email: "user@test.com" })
+    })
+
+    it("files its log lines under the deactivated user", async () => {
+      const { logger, lines } = makeRecordingLogger()
+      const recorded = new DeactivateSubscriptionUseCase({
+        logger,
+        subscriptionRepository: subscriptionRepo as any,
+        userApiClient: userApiClient as any,
+        eventBus,
+      })
+
+      await recorded.execute({ userId: 10 })
+
+      expect(lines.find((l) => l.message === "Deactivating subscription")?.subjectUserId).toBe(10)
+      expect(lines.find((l) => l.message === "Subscription deactivated successfully")?.subjectUserId).toBe(10)
     })
 
     it("should return success with inactive status", async () => {

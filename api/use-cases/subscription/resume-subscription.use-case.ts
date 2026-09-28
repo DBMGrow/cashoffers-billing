@@ -1,6 +1,7 @@
 import { ILogger } from "@api/infrastructure/logging/logger.interface"
 import type { SubscriptionRepository } from "@api/lib/repositories"
 import type { TransactionRepository } from "@api/lib/repositories"
+import type { ProductRepository } from "@api/lib/repositories"
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { IResumeSubscriptionUseCase } from "./resume-subscription.use-case.interface"
 import { ResumeSubscriptionInput, ResumeSubscriptionOutput } from "../types/subscription.types"
@@ -13,6 +14,7 @@ interface Dependencies {
   subscriptionRepository: SubscriptionRepository
   transactionRepository: TransactionRepository
   eventBus?: IEventBus
+  productRepository?: ProductRepository
 }
 
 /**
@@ -30,7 +32,9 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
   constructor(private readonly deps: Dependencies) {}
 
   async execute(input: ResumeSubscriptionInput): Promise<UseCaseResult<ResumeSubscriptionOutput>> {
-    const { logger, subscriptionRepository, transactionRepository, eventBus } = this.deps
+    const { subscriptionRepository, transactionRepository, eventBus } = this.deps
+    // Lines after the lookup are filed under the subscription's user (the caller stays in metadata)
+    let logger: ILogger = this.deps.logger
     const startTime = Date.now()
 
     try {
@@ -51,6 +55,7 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
       }
+      if (subscription.user_id) logger = logger.child({ subjectUserId: subscription.user_id })
 
       // Check if subscription can be resumed
       if (subscription.status !== "paused" && subscription.status !== "suspended") {
@@ -94,18 +99,25 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
         type: "subscription",
         memo: "Subscription resumed",
         status: "completed",
+        // The subscription's own environment. Omitting it let the column default write 'production'
+        // for sandbox subscriptions.
+        square_environment: subscription.square_environment ?? null,
         data: JSON.stringify({ subscriptionId: validatedInput.subscriptionId }),
         createdAt: now,
         updatedAt: now,
       })
 
-      // Publish SubscriptionResumedEvent
+      // Publish SubscriptionResumedEvent, carrying the product's data the way pause does. The
+      // account handler restores the user's role from `productData.cashoffers.user_config` and
+      // does nothing without it: before this, a resumed subscriber stayed on the role the pause
+      // left them on (SHELL) until their next renewal, active and paying and locked out.
       if (eventBus && subscription.user_id) {
         await eventBus.publish(
           SubscriptionResumedEvent.create({
             subscriptionId: subscription.subscription_id,
             userId: subscription.user_id,
             newRenewalDate,
+            productData: await this.productDataFor(subscription.product_id),
           })
         )
       }
@@ -128,6 +140,19 @@ export class ResumeSubscriptionUseCase implements IResumeSubscriptionUseCase {
       })
 
       return failure(errorMessage, "RESUME_SUBSCRIPTION_ERROR")
+    }
+  }
+
+  /** The product's `data`, parsed, or undefined. A failure here must not fail the resume itself. */
+  private async productDataFor(productId: number | null | undefined) {
+    if (!productId || !this.deps.productRepository) return undefined
+    try {
+      const product = await this.deps.productRepository.findById(productId)
+      const data = typeof product?.data === "string" ? JSON.parse(product.data) : product?.data
+      return data && typeof data === "object" ? data : undefined
+    } catch {
+      this.deps.logger.warn("Failed to load product data for the resumed event", { productId })
+      return undefined
     }
   }
 }

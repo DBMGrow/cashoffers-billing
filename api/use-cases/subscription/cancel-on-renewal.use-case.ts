@@ -64,7 +64,9 @@ export class CancelOnRenewalUseCase implements ICancelOnRenewalUseCase {
   }
 
   async execute(input: CancelOnRenewalInput): Promise<UseCaseResult<CancelOnRenewalOutput>> {
-    const { logger, subscriptionRepository, userApiClient, eventBus } = this.deps
+    const { subscriptionRepository, userApiClient, eventBus } = this.deps
+    // Lines after the lookup are filed under the subscription's user (the caller stays in metadata)
+    let logger: ILogger = this.deps.logger
     const startTime = Date.now()
 
     try {
@@ -88,6 +90,7 @@ export class CancelOnRenewalUseCase implements ICancelOnRenewalUseCase {
         logger.warn("Subscription not found", { subscriptionId: validatedInput.subscriptionId })
         return failure("Subscription not found", "SUBSCRIPTION_NOT_FOUND")
       }
+      if (subscription.user_id) logger = logger.child({ subjectUserId: subscription.user_id })
 
       // Uncancelling a subscription the renewal cron has ALREADY cancelled is a no-op.
       //

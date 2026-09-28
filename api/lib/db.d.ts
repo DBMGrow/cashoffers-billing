@@ -1914,6 +1914,11 @@ export interface WebsitesDash {
 export interface Whitelabels {
   code: string;
   data: Json | null;
+  /**
+   * The role_v2 a lapse leaves an agent on (CO-I271 plan section 9.5). Written and validated by the
+   * main API (assignable, never paid); read by billing's suspension path.
+   */
+  downgrade_role_v2: string | null;
   name: string;
   suspension_behavior: Generated<"DEACTIVATE_USER" | "DOWNGRADE_TO_FREE">;
   whitelabel_id: Generated<number>;

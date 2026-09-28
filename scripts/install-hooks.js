@@ -19,6 +19,14 @@ if (!fs.existsSync(path.join(ROOT, ".git"))) {
   process.exit(0)
 }
 
+// In a git worktree `.git` is a file pointing at the main checkout, and hooks come from the main
+// checkout's shared hooks directory, which that checkout's own install already linked. Linking them
+// here would point the shared hooks at this worktree, which is deleted when the worktree is.
+if (!fs.statSync(path.join(ROOT, ".git")).isDirectory()) {
+  console.log("  [install-hooks] Git worktree: hooks are shared from the main checkout, skipping.")
+  process.exit(0)
+}
+
 if (!fs.existsSync(HOOKS_DEST)) {
   fs.mkdirSync(HOOKS_DEST, { recursive: true })
 }

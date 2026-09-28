@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { CancelOnRenewalUseCase } from "./cancel-on-renewal.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
+import { makeRecordingLogger } from "@api/tests/helpers/recording-logger"
 import { IEventBus, IDomainEvent } from "@api/infrastructure/events/event-bus.interface"
 
 class MockSubscriptionRepository {
@@ -137,6 +138,21 @@ describe("CancelOnRenewalUseCase", () => {
         renewal_date: new Date("2026-04-01"),
       })
       userApiClient.addUser(10, { email: "user@test.com" })
+    })
+
+    it("files the log lines after the lookup under the subscription's user", async () => {
+      const { logger, lines } = makeRecordingLogger()
+      const recorded = new CancelOnRenewalUseCase({
+        logger,
+        subscriptionRepository: subscriptionRepo as any,
+        emailService: new MockEmailService() as any,
+        userApiClient: userApiClient as any,
+        eventBus,
+      })
+
+      await recorded.execute({ subscriptionId: 1, cancel: true })
+
+      expect(lines.find((l) => l.message === "Cancel on renewal flag updated successfully")?.subjectUserId).toBe(10)
     })
 
     it("should return success with cancelOnRenewal=true", async () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { ResumeSubscriptionUseCase } from "./resume-subscription.use-case"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
+import { makeRecordingLogger } from "@api/tests/helpers/recording-logger"
 import { IEventBus, IDomainEvent } from "@api/infrastructure/events/event-bus.interface"
 
 class MockSubscriptionRepository {
@@ -226,6 +227,39 @@ describe("ResumeSubscriptionUseCase", () => {
       expect(txs[0].status).toBe("completed")
     })
 
+    it("writes the subscription's own square_environment on the transaction (CO-I271)", async () => {
+      subscriptionRepo.addSubscription({ subscription_id: 245, user_id: 999749, status: "paused", square_environment: "sandbox" })
+
+      await useCase.execute({ subscriptionId: 245 })
+
+      const tx = transactionRepo.getAll().find((t) => t.memo === "Subscription resumed")
+      expect(tx?.square_environment).toBe("sandbox")
+    })
+
+    it("writes a null square_environment, not 'production', when the subscription has none", async () => {
+      subscriptionRepo.addSubscription({ subscription_id: 1, user_id: 10, status: "paused" })
+
+      await useCase.execute({ subscriptionId: 1 })
+
+      expect(transactionRepo.getAll()[0]).toHaveProperty("square_environment", null)
+    })
+
+    it("files the log lines after the lookup under the subscription's user", async () => {
+      const { logger, lines } = makeRecordingLogger()
+      const recorded = new ResumeSubscriptionUseCase({
+        logger,
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        eventBus,
+      })
+      subscriptionRepo.addSubscription({ subscription_id: 1, user_id: 10, status: "paused" })
+
+      await recorded.execute({ subscriptionId: 1 })
+
+      expect(lines.find((l) => l.message === "Resuming subscription")?.subjectUserId).toBeUndefined()
+      expect(lines.find((l) => l.message === "Subscription resumed successfully")?.subjectUserId).toBe(10)
+    })
+
     it("should publish SubscriptionResumedEvent", async () => {
       subscriptionRepo.addSubscription({
         subscription_id: 1,
@@ -240,6 +274,42 @@ describe("ResumeSubscriptionUseCase", () => {
       expect(resumedEvent).toBeDefined()
       expect(resumedEvent?.payload.subscriptionId).toBe(1)
       expect(resumedEvent?.payload.userId).toBe(10)
+    })
+
+    it("carries the product's data, which is what lets the account handler restore the role", async () => {
+      // Without it the handler returns early and a resumed subscriber stays SHELL until renewal
+      // (found on staging, CO-I271 runbook B3).
+      const productData = { cashoffers: { managed: true, user_config: { role: "AGENT", is_premium: 1 } } }
+      const withProducts = new ResumeSubscriptionUseCase({
+        logger: new ConsoleLogger(),
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        eventBus,
+        productRepository: { findById: async (id: number) => (id === 7 ? { product_id: 7, data: JSON.stringify(productData) } : null) } as any,
+      })
+      subscriptionRepo.addSubscription({ subscription_id: 2, user_id: 11, status: "paused", product_id: 7 })
+
+      await withProducts.execute({ subscriptionId: 2 })
+
+      const resumedEvent = eventBus.getPublishedEvents().find((e) => e.eventType === "SubscriptionResumed")
+      expect(resumedEvent?.payload.productData).toEqual(productData)
+    })
+
+    it("still resumes when the product cannot be loaded", async () => {
+      const failing = new ResumeSubscriptionUseCase({
+        logger: new ConsoleLogger(),
+        subscriptionRepository: subscriptionRepo as any,
+        transactionRepository: transactionRepo as any,
+        eventBus,
+        productRepository: { findById: async () => { throw new Error("db down") } } as any,
+      })
+      subscriptionRepo.addSubscription({ subscription_id: 3, user_id: 12, status: "paused", product_id: 7 })
+
+      const result = await failing.execute({ subscriptionId: 3 })
+
+      expect(result.success).toBe(true)
+      const resumedEvent = eventBus.getPublishedEvents().find((e) => e.eventType === "SubscriptionResumed")
+      expect(resumedEvent?.payload.productData).toBeUndefined()
     })
   })
 

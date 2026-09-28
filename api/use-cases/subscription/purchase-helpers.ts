@@ -15,12 +15,14 @@ import type {
 import { IEventBus } from "@api/infrastructure/events/event-bus.interface"
 import { SquareApiError } from "@api/infrastructure/payment/error/payment-error.types"
 import { CardCreatedEvent } from "@api/domain/events/card-created.event"
+import { resolveUserConfigRoleV2 } from "@api/domain/services/role-v2"
 import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
 import type { PaymentContext } from "@api/config/config.interface"
 import { ProductData, ProductUserConfig, CashOffersConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
 import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
+import { HOMEUPTICK_DEFAULTS } from "@api/domain/services/homeuptick-allowance"
 import { v4 as uuidv4 } from "uuid"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,8 +216,26 @@ export interface PurchasePricing {
   initialAmount: number
 }
 
-export function calculatePricing(product: { price: number }, productData: ProductData): PurchasePricing {
-  const signupFee = productData.signup_fee ?? product.price ?? 0
+/**
+ * What a purchase charges today: the signup fee plus the first period.
+ *
+ * `Products.price` is the product's **signup fee** in this repo (KW Individual: price 25000,
+ * renewal_cost 25000, so a new signup pays $500 today and $250 a month), and a new-account
+ * signup falls back to it when `data.signup_fee` is not set. The signup page shows that fee as its
+ * own line, so the customer sees the total before paying.
+ *
+ * An existing account holder enrolling through the manage flow (`existingUser`) has already signed
+ * up, and the manage enrollment screen quotes only the renewal cost and an explicit
+ * `data.signup_fee`. So for them the signup fee is `data.signup_fee` alone, never `price`. Without
+ * this an Express Offers Pro product (price 4900, renewal_cost 4900) quoted "$49.00 / month" and
+ * charged 9800 (CO-I271 F-S4-e, staging transaction 3788).
+ */
+export function calculatePricing(
+  product: { price: number },
+  productData: ProductData,
+  options: { existingUser?: boolean } = {}
+): PurchasePricing {
+  const signupFee = options.existingUser ? (productData.signup_fee ?? 0) : (productData.signup_fee ?? product.price ?? 0)
   const renewalCost = productData.renewal_cost || product.price
   const productDuration = productData.duration || "monthly"
   return { signupFee, renewalCost, productDuration, initialAmount: signupFee + renewalCost }
@@ -265,7 +285,12 @@ export async function validateAndParseProduct(
   const productData = typeof product.data === "object" && product.data !== null ? (product.data as ProductData) : {}
   // Prefer cashoffers.user_config; fall back to legacy root-level user_config
   const userConfig = productData.cashoffers?.user_config ?? productData.user_config
-  return { product, productData, userConfig }
+  // The role the product actually sells, in the unified vocabulary (plan CO-I271 §9.4). `role_v2`
+  // when the product carries one, the legacy pair derived when it does not, and the fallback stays
+  // until Phase 9 U91 removes it, so this repo and the dashboard never have to deploy together.
+  // `null` only when the config names no role at all, which the product schema refuses to store.
+  const roleV2 = resolveUserConfigRoleV2(userConfig)
+  return { product, productData, userConfig, roleV2 }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -472,6 +497,14 @@ export async function publishPurchaseEvents(
     userCard: { last_4: string | null } | null
     userWasCreated: boolean
     startTime: Date
+    /**
+     * The purchased product's data, attached to SubscriptionCreated as `metadata.productData`.
+     * CashOffersAccountHandler and HomeUptickAccountHandler read the product config only from
+     * there, so without it an existing user's purchase never writes the role the product sells.
+     * Only the existing-user flow passes it: the new-user flow provisions the account itself, and
+     * with productData attached the handler would try to create the same user a second time.
+     */
+    productData?: ProductData
   }
 ) {
   await deps.eventBus.publish(
@@ -496,7 +529,7 @@ export async function publishPurchaseEvents(
           ? [{ description: params.product.product_name, amount: params.pricing.renewalCost }]
           : []),
       ],
-    })
+    }, params.productData ? { productData: params.productData } : undefined)
   )
 
   // Skip PaymentProcessedEvent for free purchases (no payment was made)
@@ -648,9 +681,8 @@ export async function createCardHelper(
  */
 const DEFAULT_HOMEUPTICK_CONFIG: HomeUptickConfig = {
   enabled: true,
-  base_contacts: 500,
-  contacts_per_tier: 500,
-  price_per_tier: 7500,
+  // The values live in homeuptick-allowance.ts so the account site shows the same defaults.
+  ...HOMEUPTICK_DEFAULTS,
 }
 
 /**

@@ -113,7 +113,8 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
 
       // Process payment (skip for free $0 purchases)
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
-      const pricing = calculatePricing(product, productData)
+      // No fallback to `price` as a signup fee: this account already signed up (see calculatePricing).
+      const pricing = calculatePricing(product, productData, { existingUser: true })
       let payment: { id: string; status: string; environment: "production" | "sandbox" } | null = null
       if (pricing.initialAmount > 0) {
         payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
@@ -180,6 +181,9 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userCard: payment ? userCard : null,
         userWasCreated: false,
         startTime,
+        // Lets CashOffersAccountHandler write the role this product sells (e.g. an Express Offers
+        // Guest buying Express Offers Pro moves to AGENT_EXP_PRO).
+        productData,
       })
 
       logger.info("Existing user purchase completed successfully", {

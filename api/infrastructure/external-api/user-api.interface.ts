@@ -24,6 +24,19 @@ export interface IUserApiClient {
   updateUser(userId: number, userData: UpdateUserRequest): Promise<User>
 
   /**
+   * Put a user on a role, in the unified vocabulary, `PUT /users/:id/role` (plan CO-I271 §9.2).
+   *
+   * Its own operation with its own capability, not a field on a user update, because a role is not
+   * profile data: as a body field it rides on whatever auth the surrounding save happens to have.
+   * The main API derives `role`, `is_premium` and `is_lite` from this in the same statement, so
+   * every unconverted reader of the legacy columns stays correct.
+   *
+   * Callers normally reach this through `updateUser({ role_v2 })`, which splits the request; it is
+   * on the interface because a role change with nothing else to say is a first-class thing to do.
+   */
+  setUserRole(userId: number, roleV2: string): Promise<void>
+
+  /**
    * Ask the main API to mint a fresh password-reset token and email it to the user.
    *
    * The purchase flow suppresses the welcome email when provisioning fails
@@ -91,6 +104,12 @@ export interface User {
   updated_at: string
   reset_token?: string
   role?: string
+  /**
+   * The user's role in the unified vocabulary, RBAC unification plan CO-I271, Phase 4 shipped the
+   * column. Optional because the main API may not surface it on every read shape; when it is
+   * absent, `resolveUserRoleV2` derives it from `role` and `is_premium`.
+   */
+  role_v2?: string | null
   team_id?: number
   whitelabel_id?: number
   /**
@@ -120,6 +139,15 @@ export interface CreateUserRequest {
   // New fields from product configuration
   is_premium?: 0 | 1
   role?: string
+  /**
+   * The role to create the user on, in the unified vocabulary (plan CO-I271 §9.4).
+   *
+   * Sent alongside `role` and `is_premium`, not instead of them, because `POST /users` is not the
+   * endpoint plan §9.2 converts: `setUserRole` is. The client derives the legacy pair from this and
+   * follows the create with a role write when, and only when, the pair cannot express the tier,
+   * which is every eXp tier, by construction. See `UserApiClient.createUser`.
+   */
+  role_v2?: string
   whitelabel_id?: number
   // Team fields
   team_id?: number
@@ -142,6 +170,21 @@ export interface UpdateUserRequest {
   active?: boolean | 0 | 1
   is_premium?: boolean | 0 | 1
   role?: string
+  /**
+   * The role to move the user to, in the unified vocabulary (plan CO-I271 §9.4).
+   *
+   * **Not a field on the generic user update, even though it appears as one here.** The main API
+   * strips `role_v2` from `PUT /users/:id` unconditionally, by design: a role is not profile data
+   * and it is derived from `role` and the tier bits on that path (plan Decision 23). So the client
+   * splits a request carrying this key, the role goes to `PUT /users/:id/role`, the rest goes to
+   * the generic update. Call sites state what they mean and the transport is decided in one place.
+   *
+   * Sending this **instead of** `role` + `is_premium` is the point of §9.4. The legacy pair cannot
+   * express a move from `AGENT_EXP_PRO` to `AGENT_EXP_ELITE`, both are `AGENT` + `is_premium 1`,
+   * and the main API's derivation guard, which exists to stop unrelated legacy writes demoting a
+   * paying agent, correctly refuses to act on a pair that says nothing new.
+   */
+  role_v2?: string
   team_id?: number
   whitelabel_id?: number
   reset_token?: string

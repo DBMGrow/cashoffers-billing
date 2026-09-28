@@ -76,6 +76,8 @@ export class UpdateSubscriptionFieldsUseCase implements IUpdateSubscriptionField
         type: "subscription",
         memo: "Subscription updated",
         status: "completed",
+        // The subscription's own environment, not the column default ('production')
+        square_environment: subscription.square_environment ?? null,
         data: JSON.stringify(updateData),
         createdAt: now,
         updatedAt: now,

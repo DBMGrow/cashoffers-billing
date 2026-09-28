@@ -62,6 +62,7 @@ export const resumeSubscriptionUseCase = new ResumeSubscriptionUseCase({
   subscriptionRepository,
   transactionRepository,
   eventBus,
+  productRepository,
 })
 
 export const cancelOnRenewalUseCase = new CancelOnRenewalUseCase({

@@ -198,6 +198,10 @@ export const ExistingUserPurchaseRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Unauthorized — missing or invalid session token",
     },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: the product belongs to another white label",
+    },
     500: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Internal server error",
@@ -206,5 +210,5 @@ export const ExistingUserPurchaseRoute = {
   tags: ["Purchase"],
   summary: "Purchase subscription (existing user)",
   description:
-    "Create a new subscription for an authenticated existing user. Requires a valid session token via x-api-token header or _api_token cookie. Optionally provide new card details to update the card on file.",
+    "Create a new subscription for an authenticated existing user. Requires a valid session token via x-api-token header or _api_token cookie. Optionally provide new card details to update the card on file. Refuses a product that belongs to a white label other than the user's with 403 PRODUCT_NOT_AVAILABLE (a product with no white label is shared and allowed).",
 }

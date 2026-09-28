@@ -60,3 +60,25 @@ Active implementation gaps tracked here. Link to discrepancy if one exists.
 - **File**: `api/application/event-handlers/email-notification.handler.tsx`
 - **What**: Charge-confirmation emails (paid created receipt, renewal receipt) are suppressed for third-party-billed users (`Products.data.hides_billing`), but `payment-error` ("update your payment method" → billing URL they can't reach) and `subscription-plan-updated` (can include a prorated charge) still go to them. When the corporate card fails, the notification should arguably go to whoever owns the card, not the subscriber — needs a business decision on the recipient before changing behavior.
 - **See**: [email-notifications](../../business/capabilities/email-notifications#edge-cases)
+
+### TODO-011: `yarn lint` does not run
+
+- **File**: `package.json` (`"lint": "next lint"`)
+- **What**: Next 16 removed `next lint`, so the script fails with "Invalid project directory provided,
+  no such directory: .../lint". There is no `eslint.config.*` in the repo either, so ESLint cannot be
+  invoked directly as a substitute. With no CI, this is the only lint anyone would run, and it has
+  been silently doing nothing since the Next 16 upgrade.
+- **Fix**: add a flat `eslint.config.mjs` extending `eslint-config-next` and point the script at
+  `eslint .`. Expect a backlog of pre-existing violations on the first run, which is why this is its
+  own change rather than a line in an unrelated PR.
+
+### TODO-012: Six red tests on `main`, unrelated to any open work
+
+- **Files**: `api/application/webhook-handlers/reactivation-renewal-date.test.ts` (3),
+  `api/tests/integration/webhook-cashoffers.test.ts` (1),
+  `api/use-cases/subscription/create-subscription.use-case.test.ts` (2)
+- **What**: `addOneMonth` does not clamp to the last day of a shorter target month (31 Jan + 1 month
+  returns 3 March, not 28 February), and the create-subscription use case no longer activates the
+  user the way its tests assert. Both are real disagreements between code and test, not stale mocks.
+- **Why it matters**: with no CI, a red baseline is how a genuinely new failure gets waved through.
+  Each needs a decision about which side is right, which is why they are listed rather than fixed.

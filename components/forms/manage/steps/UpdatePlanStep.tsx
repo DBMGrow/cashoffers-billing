@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import axios from "axios"
 import { Spinner } from "@/components/Theme/Spinner"
@@ -16,20 +16,45 @@ import formatDate from "@/components/utils/formatDate"
 
 interface UpdatePlanStepProps {
   user: User
+  /**
+   * Product named by a direct link (`/manage?goto=changePlan&product=<id>`). When set and available
+   * to this user, it is preselected: the step goes straight to the plan-change review. It is
+   * fetched through `GET /manage/products?product=<id>`, the same validated path the enrollment
+   * link uses, so a hidden product resolves and another white label's does not.
+   */
+  productId?: number | null
+  /**
+   * The user has no subscription to change. There is no plan change to make, so the flow sends
+   * them to enrollment instead (on the linked product when there is one, since `product` stays in
+   * the URL). Without this the step waited for a subscription that never came.
+   */
+  onNoSubscription?: () => void
   onBack: () => void
   onSuccess: () => void
   onError: (message: string, title?: string, description?: string) => void
 }
 
-export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: UpdatePlanStepProps) {
+export default function UpdatePlanStep({
+  user,
+  productId = null,
+  onNoSubscription,
+  onBack,
+  onSuccess,
+  onError,
+}: UpdatePlanStepProps) {
   const { products, loading: productsLoading } = useProducts({ mode: "manage" })
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [proratedInfo, setProratedInfo] = useState<any>(null)
   const [checkingPlan, setCheckingPlan] = useState(false)
   const [changeResult, setChangeResult] = useState<any>(null)
 
-  // Fetch current subscription
-  const { data: currentSubscription, isLoading: subscriptionLoading } = useQuery({
+  // Fetch current subscription. `null` means the user has none (not an error), the same shape
+  // ManageSubscriptionStep caches under this key.
+  const {
+    data: currentSubscription,
+    isLoading: subscriptionLoading,
+    error: subscriptionError,
+  } = useQuery({
     queryKey: ["subscription", user.api_token],
     queryFn: async () => {
       const { data: json } = await axios.get<ApiResponse<{ subscriptions: Subscription[] }>>("/api/subscription/single", {
@@ -37,16 +62,35 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
           "x-api-token": user.api_token,
         },
       })
-      if (json.success !== "success" || !json.data?.subscriptions?.[0]) {
+      if (json.success !== "success") {
         throw new Error("Failed to load subscription")
       }
-      return json.data.subscriptions[0]
+      return json.data?.subscriptions?.[0] ?? null
     },
   })
 
-  if (subscriptionLoading || !currentSubscription) {
-    return <Spinner />
-  }
+  const hasNoSubscription = !subscriptionLoading && !subscriptionError && currentSubscription === null
+  useEffect(() => {
+    if (hasNoSubscription) onNoSubscription?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasNoSubscription])
+
+  // The linked product, validated server-side (exists, the user's own white label, a subscription).
+  const {
+    data: linkedProduct,
+    error: linkedProductError,
+  } = useQuery({
+    queryKey: ["products", "manage", "linked", productId],
+    enabled: productId != null,
+    retry: false,
+    queryFn: async () => {
+      const { data: json } = await axios.get<ApiResponse<Product[]>>(`/api/manage/products?product=${productId}`)
+      if (json.success !== "success" || !json.data?.[0]) {
+        throw new Error((json as any).error || "This plan is not available for your account")
+      }
+      return json.data[0]
+    },
+  })
 
   const changePlanMutation = useMutation({
     mutationFn: async (productId: number) => {
@@ -54,7 +98,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
         "/api/manage/purchase",
         {
           product_id: productId,
-          subscription_id: currentSubscription.subscriptionId,
+          subscription_id: currentSubscription?.subscriptionId,
         },
         {
           headers: {
@@ -73,6 +117,7 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
   })
 
   const handleCheckPlan = async (productId: number) => {
+    if (!currentSubscription) return
     setCheckingPlan(true)
     setSelectedProductId(productId)
 
@@ -117,7 +162,41 @@ export default function UpdatePlanStep({ user, onBack, onSuccess, onError }: Upd
     }
   }
 
+  // Preselect the linked product once, as soon as both it and the current plan are known.
+  const linkedHandled = useRef(false)
+  useEffect(() => {
+    if (productId == null || linkedHandled.current || !currentSubscription) return
+    if (linkedProductError) {
+      linkedHandled.current = true
+      onError(
+        (linkedProductError as any)?.response?.data?.error || "This plan is not available for your account.",
+        "Plan Not Available",
+        "The plan in this link can't be purchased from your account."
+      )
+      return
+    }
+    if (!linkedProduct) return
+    linkedHandled.current = true
+    if (Number(linkedProduct.product_id) === Number(currentSubscription.productId)) {
+      onError("You're already on this plan.", "Already Subscribed", "The plan in this link is your current plan.")
+      return
+    }
+    handleCheckPlan(Number(linkedProduct.product_id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, linkedProduct, linkedProductError, currentSubscription])
+
+  if (subscriptionError) return <P>There was an error loading your subscription.</P>
+
+  if (subscriptionLoading || !currentSubscription) {
+    return <Spinner />
+  }
+
   if (productsLoading) return <Spinner />
+
+  // Hold the list back while a linked product is resolving or its plan check is in flight, so the
+  // user does not see (or click) the generic list before the preselection lands.
+  if (productId != null && !linkedHandled.current && !linkedProductError) return <Spinner />
+  if (productId != null && checkingPlan && !proratedInfo) return <Spinner />
 
   // Show success screen after plan change
   if (changeResult) {

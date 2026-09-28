@@ -181,6 +181,20 @@ describe("UpdateSubscriptionFieldsUseCase", () => {
       expect(txs[0].status).toBe("completed")
     })
 
+    it("writes the subscription's own square_environment on the transaction (CO-I271)", async () => {
+      subscriptionRepo.addSubscription({
+        subscription_id: 245,
+        user_id: 999749,
+        status: "active",
+        square_environment: "sandbox",
+      })
+
+      await useCase.execute({ subscriptionId: 245, subscriptionName: "Updated" })
+
+      const tx = transactionRepo.getAll().find((t) => t.user_id === 999749)
+      expect(tx?.square_environment).toBe("sandbox")
+    })
+
     it("should succeed with no fields to update (just subscriptionId)", async () => {
       const result = await useCase.execute({ subscriptionId: 1 })
       // Still valid — updatedAt gets set

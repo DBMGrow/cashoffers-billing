@@ -47,16 +47,27 @@ export class DatabaseLogger implements ILogger {
         contextType = meta.contextType as LogContextType
       }
 
+      // The row's user_id is the user the line is about. A call names that user with
+      // `subjectUserId` (in the meta, or on a child logger's context); without one it falls back to
+      // the request's caller. When a subject is named, the caller is kept in metadata.callerUserId, so a
+      // per-user log query finds an admin's pause of user X under X and still says who did it.
+      const callerUserId = loggingContext?.userId ?? null
+      const subjectUserId = this.subjectUserIdFrom(meta)
+      let metadata = meta ? this.sanitizeMetadata(meta) : null
+      if (subjectUserId !== null) {
+        metadata = { ...(metadata ?? {}), callerUserId }
+      }
+
       // Build log entry
       const logEntry: LogQueueEntry = {
         level,
         message,
         component,
         context_type: contextType,
-        metadata: meta ? this.sanitizeMetadata(meta) : null,
+        metadata,
         error_stack: errorStack || null,
         request_id: loggingContext?.requestId || null,
-        user_id: loggingContext?.userId || null,
+        user_id: subjectUserId ?? (callerUserId || null),
         service: this.serviceName,
       }
 
@@ -78,6 +89,14 @@ export class DatabaseLogger implements ILogger {
     }
   }
 
+  /** A positive integer `subjectUserId` from the call's meta, else from the base context, else null. */
+  private subjectUserIdFrom(meta?: Record<string, unknown>): number | null {
+    for (const candidate of [meta?.subjectUserId, this.baseContext.subjectUserId]) {
+      if (typeof candidate === "number" && Number.isInteger(candidate) && candidate > 0) return candidate
+    }
+    return null
+  }
+
   /**
    * Sanitize metadata for JSON storage
    * Remove circular references and non-serializable values
@@ -87,7 +106,7 @@ export class DatabaseLogger implements ILogger {
 
     for (const [key, value] of Object.entries(meta)) {
       // Skip internal context fields
-      if (key === "contextType" || key === "component") {
+      if (key === "contextType" || key === "component" || key === "subjectUserId") {
         continue
       }
 

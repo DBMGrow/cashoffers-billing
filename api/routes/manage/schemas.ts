@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { ErrorResponseSchema } from "../helpers/common.schemas"
+import { ENROLLMENT_INTENTS } from "@api/domain/services/enrollment-intent.service"
 
 /**
  * Manage route schemas
@@ -115,6 +116,10 @@ export const CheckPlanRoute = {
     400: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request",
+    },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: the product belongs to another white label",
     },
     500: {
       content: { "application/json": { schema: ErrorResponseSchema } },
@@ -234,6 +239,18 @@ export const ManagePurchaseResponseSchema = z.object({
 export const GetProductsRoute = {
   method: "get" as const,
   path: "/products",
+  request: {
+    query: z.object({
+      product: z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          "Direct product link. Returns exactly this product (even when data.hidden) when it exists, is a subscription product, and its whitelabel_code equals the user's white label code exactly (NULL matches only a user whose white label has no code). Otherwise 404 or 403 with code PRODUCT_NOT_AVAILABLE; never falls back to the list."
+        ),
+    }),
+  },
   responses: {
     200: {
       content: {
@@ -247,11 +264,19 @@ export const GetProductsRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request",
     },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: ?product names another white label's product, or a non-subscription product",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: ?product names a product that does not exist",
+    },
   },
   tags: ["Manage"],
   summary: "Get products",
   description:
-    "Fetches all active products filtered by user's role and whitelabel. Used in manage flow to show available plan changes.",
+    "Fetches all active products filtered by user's role and whitelabel. Used in manage flow to show available plan changes. With ?product=<id>, returns only that product (hidden or not) when the direct-link rule allows it, else PRODUCT_NOT_AVAILABLE.",
 }
 
 /**
@@ -357,6 +382,13 @@ export const EnrollmentResponseSchema = z.object({
     eligible: z.boolean(),
     product_category: z.enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"]).nullable(),
     reason: z.string(),
+    /**
+     * What this enrollment is for, decided once on the server (enrollment-intent.service.ts):
+     * `buy_product` (a product link, a Guest's upgrade, or a premium_cashoffers override),
+     * `homeuptick_only` (HomeUptick standalone), `activate_homeuptick` (external_cashoffers: a card
+     * turns HomeUptick on). `null` when not eligible.
+     */
+    intent: z.enum(ENROLLMENT_INTENTS).nullable(),
     products: z.array(z.any()),
   }),
 })
@@ -373,6 +405,14 @@ export const GetEnrollmentRoute = {
         .enum(["premium_cashoffers", "external_cashoffers", "homeuptick_only"])
         .optional()
         .describe("Override product category. Used by admin-directed enrollment links when a premium user needs to subscribe to a real product instead of external_cashoffers."),
+      product: z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          "Direct product link. Returns exactly this product (even when data.hidden) when it exists, is a subscription product, and its whitelabel_code equals the user's white label code exactly (NULL matches only a user whose white label has no code). Otherwise 404 or 403 with code PRODUCT_NOT_AVAILABLE; never falls back to the list."
+        ),
     }),
   },
   responses: {
@@ -388,6 +428,14 @@ export const GetEnrollmentRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request",
     },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: ?product names another white label's product, or a non-subscription product",
+    },
+    404: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: ?product names a product that does not exist",
+    },
     409: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "User already has an active subscription",
@@ -396,7 +444,7 @@ export const GetEnrollmentRoute = {
   tags: ["Manage"],
   summary: "Check enrollment eligibility",
   description:
-    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category and available products. Supports ?category= override for admin-directed enrollment (e.g., when an admin-created premium user needs to subscribe to premium_cashoffers instead of the default external_cashoffers).",
+    "Determines whether a user without a billing subscription is eligible to enroll. Returns the appropriate product category and available products. Supports ?category= override for admin-directed enrollment (e.g., when an admin-created premium user needs to subscribe to premium_cashoffers instead of the default external_cashoffers). Supports ?product=<id> for a direct product link: returns exactly that product as the eligible list, skipping the category logic (and ?category=), or PRODUCT_NOT_AVAILABLE. The 409 ALREADY_SUBSCRIBED check still runs first. A role with an upgrade (an Express Offers Guest, role_v2 AGENT_EXP_GUEST) gets its one upgrade product (the subscription product in its white label whose user_config.role_v2 is AGENT_EXP_PRO), or eligible: false with no products when there is not exactly one; a Guest is never offered a homeuptick_only product, and a Guest's ?category=homeuptick_only is ignored. Every eligible answer carries intent: buy_product, homeuptick_only or activate_homeuptick.",
 }
 
 /**
@@ -431,6 +479,10 @@ export const ManagePurchaseRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request or plan change failed",
     },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PRODUCT_NOT_AVAILABLE: the product belongs to another white label",
+    },
     404: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Product or subscription not found",
@@ -438,5 +490,5 @@ export const ManagePurchaseRoute = {
   },
   tags: ["Manage"],
   summary: "Change subscription plan",
-  description: "Changes the user's subscription to a different plan. Handles prorated charges and role validation.",
+  description: "Changes the user's subscription to a different plan. Handles prorated charges and role validation. Refuses a product that belongs to a white label other than the user's with 403 PRODUCT_NOT_AVAILABLE.",
 }
