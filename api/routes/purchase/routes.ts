@@ -1,15 +1,17 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
-import { NewUserPurchaseRoute, ExistingUserPurchaseRoute } from "./schemas"
+import { NewUserPurchaseRoute, ExistingUserPurchaseRoute, ValidatePromoRoute } from "./schemas"
 import { setCookie } from "hono/cookie"
 import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
 import { config } from "@api/config/config.service"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { purchaseNewUserUseCase, purchaseExistingUserUseCase } from "@api/use-cases/subscription"
-import { productRepository, userCardRepository } from "@api/lib/repositories"
+import { productRepository, userCardRepository, promoCodeRepository } from "@api/lib/repositories"
 import { userApiClient } from "@api/lib/services"
 import { isUserFacingError } from "@api/use-cases/subscription/purchase-helpers"
 import { guardPurchaseWhitelabel } from "../manage/linked-product"
+import { quotePromo, PROMO_ERROR_CODE } from "@api/use-cases/subscription/promo-helpers"
+import { rateLimitMiddleware } from "@api/lib/middleware/rateLimitMiddleware"
 
 const app = new OpenAPIHono<{ Variables: HonoVariables }>()
 
@@ -198,6 +200,40 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
       },
       500
     )
+  }
+})
+
+// GET /purchase/promo/validate: public quote for the checkout screens (no auth, rate limited)
+app.use("/promo/validate", rateLimitMiddleware({ limit: 30, windowMs: 60_000, keyPrefix: "promo-validate" }))
+
+app.openapi(ValidatePromoRoute, async (c) => {
+  const query = c.req.valid("query")
+  try {
+    const result = await quotePromo(
+      { productRepository, promoCodeRepository },
+      { code: query.code, productId: query.product_id, flow: query.flow ?? "signup" }
+    )
+    if (!result.ok) {
+      return c.json({ success: "error" as const, error: result.message, code: PROMO_ERROR_CODE }, 400)
+    }
+    return c.json(
+      {
+        success: "success" as const,
+        data: {
+          valid: true as const,
+          code: result.code,
+          display: result.display,
+          summary: result.summary,
+          original_amount: result.originalAmount,
+          discount_amount: result.discountAmount,
+          charged_amount: result.chargedAmount,
+          then_amount: result.thenAmount,
+        },
+      },
+      200
+    )
+  } catch (error: any) {
+    return c.json({ success: "error" as const, error: error.message || "An unexpected error occurred" }, 500)
   }
 })
 

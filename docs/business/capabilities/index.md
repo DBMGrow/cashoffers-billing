@@ -7,6 +7,7 @@ What the system does from a user perspective.
 | [Subscription Lifecycle](subscription-lifecycle) | Create, renew, pause, resume, cancel, downgrade subscriptions |
 | [Payment Processing](payment-processing) | Charge cards, retry on failure, refund payments |
 | [Free Trials](free-trials) | Start trials, expire them, convert to paid |
+| [Promo Codes](promo-codes) | Discount a first charge with a campaign code, report on redemptions |
 | [User Configuration](user-configuration) | Apply roles, premium status, and whitelabel from product config |
 | [HomeUptick Integration](homeuptick-integration) | Addon subscriptions linked to HomeUptick tiers |
 | [Whitelabel Support](whitelabel-support) | Brand-specific checkout and user assignment |

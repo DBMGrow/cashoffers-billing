@@ -12,6 +12,8 @@ import InvestorConsent from "@/components/UI/SignupForm/InvestorConsent"
 import GeneralConsent from "@/components/UI/SignupForm/GeneralConsent"
 import CommunicationConsent from "@/components/UI/SignupForm/CommunicationConsent"
 import { useRouter } from "next/navigation"
+import { useValidatePromo } from "@/hooks/api/useValidatePromo"
+import PromoCodeField from "@/components/forms/promo/PromoCodeField"
 
 interface ReviewStepProps {
   form: UseFormReturn<SubscribeFormData>
@@ -54,6 +56,7 @@ export default function ReviewStep({
   const [isCommunicationChecked, setIsCommunicationChecked] = useState(false)
 
   const purchaseMutation = usePurchase()
+  const [promoError, setPromoError] = useState<string | null>(null)
   const isFree = isProductFree(productData)
 
   const planName = productData?.product_name || "Unknown Plan"
@@ -63,7 +66,12 @@ export default function ReviewStep({
   const signupFeeAmount = (productData?.data?.signup_fee ?? productData?.price ?? 0) / 100
 
   const productPrice = monthlyPrice
-  const priceToday = productPrice + signupFeeAmount
+
+  // Promo code (from `?coupon=` or typed below). Display only: the purchase re-validates server-side.
+  const coupon = formData.coupon ?? null
+  const promo = useValidatePromo(coupon, typeof product === "number" ? product : null, "signup")
+  const promoQuote = coupon ? (promo.data?.quote ?? null) : null
+  const priceToday = promoQuote ? promoQuote.charged_amount / 100 : productPrice + signupFeeAmount
 
   const CARD_ERROR_MESSAGES: Record<string, string> = {
     INSUFFICIENT_FUNDS:
@@ -140,6 +148,15 @@ export default function ReviewStep({
     console.log("Purchase result:", result)
 
     if (result.success !== "success") {
+      // Promo code refused at purchase (expired, used up, already used): nothing was charged.
+      // Drop the code and show why, so the customer can decide to continue at full price.
+      if (result.code === "PROMO_CODE_INVALID") {
+        setPromoError((result as any).error || "That promo code could not be applied.")
+        form.setValue("coupon", null)
+        setAllowReset(true)
+        return
+      }
+
       // Card error - send user back to card form to re-enter payment info
       if (isCardError(result.code)) {
         onCardError(getCardErrorMessage(result.code))
@@ -198,10 +215,32 @@ export default function ReviewStep({
                 <div className="text-xl font-bold">${signupFeeAmount}</div>
               </div>
             )}
+            {promoQuote && (
+              <div className="flex gap-2 justify-between items-start">
+                <strong>Promo {promoQuote.code}</strong>
+                <div className="text-xl font-bold">-${(promoQuote.discount_amount / 100).toFixed(2)}</div>
+              </div>
+            )}
             <div className="flex gap-2 justify-between items-start">
               <strong>Total Today</strong>
-              <div className="text-price">${priceToday}</div>
+              <div className="text-price">${promoQuote ? priceToday.toFixed(2) : priceToday}</div>
             </div>
+            {!isFree && (
+              <PromoCodeField
+                code={coupon}
+                validation={promo.data}
+                isValidating={promo.isFetching}
+                onChange={(next) => {
+                  setPromoError(null)
+                  form.setValue("coupon", next)
+                }}
+              />
+            )}
+            {promoError && (
+              <p className="text-sm text-danger font-medium" role="alert">
+                {promoError}
+              </p>
+            )}
           </>
         }
       >
