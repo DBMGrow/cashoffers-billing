@@ -51,6 +51,7 @@ export const USER_FACING_ERROR_CODES = new Set([
   "CARDHOLDER_INSUFFICIENT_PERMISSIONS",
   "INVALID_CARD_DATA",
   "PUR08",
+  "EMAIL_EXISTS",
 ])
 
 export function isUserFacingError(code: string | undefined): boolean {

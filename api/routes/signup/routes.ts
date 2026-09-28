@@ -6,6 +6,7 @@ import {
   CheckUserExistsRoute,
   CheckSlugExistsRoute,
   SendReactivationRoute,
+  SendUpgradeLinkRoute,
   GetProductsRoute,
   GetWhitelabelsRoute,
   GetUniqueSlugRoute,
@@ -187,6 +188,30 @@ app.openapi(SendReactivationRoute, async (c) => {
     const upstreamMessage = error?.response?.data?.error || error?.response?.data?.message
     const message = upstreamMessage || error?.message || "Failed to send reactivation email"
     console.error("Error proxying sendreactivation to main API:", message)
+    return c.json({ success: "error" as const, error: message }, 400)
+  }
+})
+
+/**
+ * POST /signup/sendupgradelink
+ * Thin proxy to the main API's upgrade-link endpoint, which decides whether this
+ * account's upgrade is this product and owns the link and the email.
+ */
+app.openapi(SendUpgradeLinkRoute, async (c) => {
+  try {
+    const { email, product_id } = c.req.valid("json")
+
+    const response = await axios.post(
+      `${config.api.urlV2}/signup/upgrade/sendlink`,
+      { email, product_id },
+      { headers: { "Content-Type": "application/json" } }
+    )
+
+    return c.json({ success: "success" as const, sent: response.data?.data?.sent === true }, 200)
+  } catch (error: any) {
+    const upstreamMessage = error?.response?.data?.error || error?.response?.data?.message
+    const message = upstreamMessage || error?.message || "Failed to send upgrade link"
+    console.error("Error proxying sendupgradelink to main API:", message)
     return c.json({ success: "error" as const, error: message }, 400)
   }
 })

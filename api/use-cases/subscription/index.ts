@@ -13,6 +13,7 @@ import { PurchaseNewUserUseCase } from './purchase-new-user.use-case'
 import { PurchaseExistingUserUseCase } from './purchase-existing-user.use-case'
 import { DeactivateSubscriptionUseCase } from './deactivate-subscription.use-case'
 import { CalculateProratedUseCase } from './calculate-prorated.use-case'
+import { db } from '@api/lib/database'
 
 export const createSubscriptionUseCase = new CreateSubscriptionUseCase({
   logger,
@@ -107,6 +108,9 @@ export const purchaseNewUserUseCase = new PurchaseNewUserUseCase({
   homeUptickSubscriptionRepository,
   eventBus,
   adminAlertEmail: config.adminEmail,
+  // The same Users lookup /signup/checkuserexists runs, so the server refuses exactly what the page does.
+  emailHasAccount: async (email: string) =>
+    !!(await db.selectFrom('Users').select('user_id').where('email', '=', email).executeTakeFirst()),
 })
 
 export const purchaseExistingUserUseCase = new PurchaseExistingUserUseCase({

@@ -26,6 +26,7 @@ import WelcomeStep from "./steps/WelcomeStep"
 import ErrorStep from "./steps/ErrorStep"
 import OfferDowngradeStep from "./steps/OfferDowngradeStep"
 import OfferDowngradeConfirmStep from "./steps/OfferDowngradeConfirmStep"
+import UpgradeLinkSentStep from "./steps/UpgradeLinkSentStep"
 
 const cardDataSchema = z.object({
   token: z.string(),
@@ -100,6 +101,10 @@ const BASE_STEP_CONFIG: Record<FormStep, { title: string; description: string }>
     title: "Check Your Email",
     description: "We've sent you a reactivation link.",
   },
+  upgradeLinkSent: {
+    title: "Check Your Email",
+    description: "We've sent you a link to upgrade your account.",
+  },
 }
 
 const SUBSCRIBE_STEPS: readonly FormStep[] = [
@@ -115,6 +120,7 @@ const SUBSCRIBE_STEPS: readonly FormStep[] = [
   "welcome",
   "offerDowngrade",
   "offerDowngradeConfirm",
+  "upgradeLinkSent",
   "error",
 ]
 
@@ -228,7 +234,9 @@ export default function SubscribeFlow({
           <EmailStep
             form={form}
             onNext={() => goToStep("name")}
+            productId={typeof initialProduct === "number" ? initialProduct : null}
             onOfferDowngrade={() => goToStep("offerDowngrade")}
+            onUpgradeLinkSent={() => goToStep("upgradeLinkSent")}
             onError={(message, title, description) => goToError(message, "email", title, description)}
             setAllowReset={setAllowReset}
           />
@@ -331,6 +339,8 @@ export default function SubscribeFlow({
         )
       case "offerDowngradeConfirm":
         return <OfferDowngradeConfirmStep form={form} />
+      case "upgradeLinkSent":
+        return <UpgradeLinkSentStep form={form} />
       default:
         return null
     }

@@ -58,6 +58,8 @@ interface Dependencies {
   eventBus: IEventBus
   /** Email address to notify when user provisioning fails after a successful payment */
   adminAlertEmail: string
+  /** Whether an account already exists for this email (checked before any card or charge) */
+  emailHasAccount: (email: string) => Promise<boolean>
 }
 
 interface RollbackContext {
@@ -131,6 +133,18 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
 
       logger.info("Processing new user purchase", { purchaseRequestId, productId: v.productId, email: v.email })
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "VALIDATING")
+
+      // Refuse an email that already has an account *before* any card or charge. The signup page
+      // checks this too, but only in the browser; without this, a caller that skips it is charged,
+      // provisioning then fails on the duplicate, and the payment sits in pending_provisioning for
+      // someone to untangle by hand. An existing Express Offers Guest upgrades through the emailed
+      // upgrade link instead (POST /signup/sendupgradelink).
+      if (await this.deps.emailHasAccount(v.email)) {
+        const message = "An account already exists for this email. Sign in to upgrade it instead."
+        logger.info("New user purchase refused: email already has an account", { purchaseRequestId, email: v.email })
+        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, message, "EMAIL_EXISTS")
+        return failure(message, "EMAIL_EXISTS")
+      }
 
       // Validate product
       const { product, productData, userConfig } = await validateAndParseProduct(

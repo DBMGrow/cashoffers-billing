@@ -107,6 +107,54 @@ export const SendReactivationResponseSchema = z.object({
 })
 
 /**
+ * Send upgrade link request body
+ */
+export const SendUpgradeLinkRequestSchema = z.object({
+  email: EmailSchema,
+  product_id: z.coerce.number().int().positive(),
+})
+
+/**
+ * Send upgrade link response. `sent: false` means this email has no upgrade to this product.
+ */
+export const SendUpgradeLinkResponseSchema = z.object({
+  success: z.literal("success"),
+  sent: z.boolean(),
+})
+
+/**
+ * POST /signup/sendupgradelink - Email an existing account its upgrade link
+ */
+export const SendUpgradeLinkRoute = {
+  method: "post" as const,
+  path: "/sendupgradelink",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: SendUpgradeLinkRequestSchema,
+          example: { email: "user@example.com", product_id: 70 },
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: SendUpgradeLinkResponseSchema } },
+      description: "Whether an upgrade link was emailed",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Bad request",
+    },
+  },
+  tags: ["Signup"],
+  summary: "Send upgrade link",
+  description:
+    "For an email that already has an account whose upgrade is this product (an Express Offers Guest on the Pro link), asks the main API to email the account its sign-in-and-upgrade link. Ownership of the inbox is the proof.",
+}
+
+/**
  * Products response schema
  */
 export const ProductsResponseSchema = z.object({
