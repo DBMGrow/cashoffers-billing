@@ -51,12 +51,7 @@ const subscription = (overrides: Partial<SubscriptionRow> = {}): SubscriptionRow
  */
 describe("ExpressOffers Pro and Elite resolve to different products (AC24)", () => {
   const pro = product(101, "ExpressOffers Pro", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_PRO" }, 4900)
-  const elite = product(
-    102,
-    "ExpressOffers Elite",
-    { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_ELITE" },
-    29900
-  )
+  const elite = product(102, "ExpressOffers Elite", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_ELITE" }, 29900)
   const index = buildProductIndex([pro, elite].map(parseProductData))
 
   it("gives the two tiers different index keys", () => {
