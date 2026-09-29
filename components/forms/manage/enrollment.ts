@@ -72,9 +72,9 @@ function dollars(cents: number): string {
 }
 
 /**
- * The contact lines under a plan's price: none when the plan does not turn HomeUptick on,
- * "billed at" when every contact is billed (0 included, ExpressOffers Pro), and the included plus
- * overage pair otherwise.
+ * The contact lines under a plan's price: none when the plan does not turn HomeUptick on, none
+ * when it includes no contacts (ExpressOffers Pro: a per-contact rate is noise at the moment of
+ * upgrading, David, 2026-09-29), and the included plus overage pair otherwise.
  */
 export function homeUptickLines(
   homeuptick: Partial<HomeUptickConfig> | null | undefined,
@@ -82,11 +82,9 @@ export function homeUptickLines(
 ): HomeUptickLine[] {
   const allowance = homeUptickAllowance(homeuptick)
   if (!allowance) return []
+  if (allowance.included === 0) return []
   const perTier = allowance.perTier.toLocaleString()
   const tierPrice = dollars(allowance.tierPrice)
-  if (allowance.included === 0) {
-    return [{ label: "HomeUptick contacts", value: `billed at ${tierPrice} / ${period} per ${perTier} contacts` }]
-  }
   return [
     { label: "Included", value: `${allowance.included.toLocaleString()} contacts` },
     { label: "Overage", value: `${tierPrice} / ${period} per additional ${perTier} contacts` },
