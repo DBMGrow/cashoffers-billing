@@ -187,7 +187,7 @@ and `POST /manage/purchase` refuse only a product that belongs to **another** wh
 (403 `PRODUCT_NOT_AVAILABLE`). Shared NULL products stay purchasable by everyone, because the
 plan lists have always offered them. The guard stops a hand-edited `product_id`.
 
-### Enrollment Intent and Express Offers Guests
+### Enrollment Intent and ExpressOffers Guests
 
 `GET /manage/enrollment` decides once what the enrollment is for and returns it as `intent`
 beside the products (`api/domain/services/enrollment-intent.service.ts`):
@@ -195,8 +195,8 @@ beside the products (`api/domain/services/enrollment-intent.service.ts`):
 | Scenario                                               | `product_category`         | `intent`              |
 | ------------------------------------------------------ | -------------------------- | --------------------- |
 | `?product=<id>` (direct product link)                  | the product's              | `buy_product`         |
-| Express Offers Guest, one upgrade product found        | the product's              | `buy_product`         |
-| Express Offers Guest, zero or several upgrade products | `null` (`eligible: false`) | `null`                |
+| ExpressOffers Guest, one upgrade product found        | the product's              | `buy_product`         |
+| ExpressOffers Guest, zero or several upgrade products | `null` (`eligible: false`) | `null`                |
 | `?category=premium_cashoffers`                         | `premium_cashoffers`       | `buy_product`         |
 | `is_premium = 1` (or `?category=external_cashoffers`)  | `external_cashoffers`      | `activate_homeuptick` |
 | Otherwise (or `?category=homeuptick_only`)             | `homeuptick_only`          | `homeuptick_only`     |
@@ -205,7 +205,7 @@ The decision reads the user's `role_v2` from the main API (`GET /users/:id`; the
 carries only the legacy `role`). A failed lookup is an error response, never a guess, because
 the legacy fallback reads a Guest as a free agent.
 
-**The Guest rule.** An Express Offers Guest (`role_v2 = AGENT_EXP_GUEST`) has no HomeUptick
+**The Guest rule.** An ExpressOffers Guest (`role_v2 = AGENT_EXP_GUEST`) has no HomeUptick
 access, so plain `/manage` sends them to their upgrade: the one `subscription` product in their
 white label (exact `whitelabel_code`, NULL only for NULL) whose
 `data.cashoffers.user_config.role_v2` is `AGENT_EXP_PRO`. This mirrors the api-v2 upgrade link's
@@ -237,7 +237,7 @@ a Guest to their upgrade.
 `metadata.productData`. `CashOffersAccountHandler.handleCreated` reads the product config only
 from there. With `cashoffers.managed = true` and `userWasCreated = false`, it compares the user's
 `role_v2` with the product's and calls `updateUser({ role_v2, whitelabel_id })`, which goes to
-`PUT /users/:id/role`. So an Express Offers Guest who buys Express Offers Pro becomes
+`PUT /users/:id/role`. So an ExpressOffers Guest who buys ExpressOffers Pro becomes
 `AGENT_EXP_PRO`. Before this, the event carried no product data, and an existing user's
 purchase wrote no role at all. A plan change publishes `SubscriptionUpgraded` with
 `toProductData`, and `handleUpgraded` writes the role the same way.
@@ -247,7 +247,7 @@ purchase wrote no role at all. A plan change publishes `SubscriptionUpgraded` wi
 A new signup pays `signup_fee + renewal_cost` today, where the signup fee is `data.signup_fee` or,
 when that is unset, `Products.price` (KW Individual: price 25000, renewal_cost 25000, $500 today).
 An existing user enrolling through the manage flow has already signed up, so their signup fee is
-`data.signup_fee` alone and `price` is never added on top: Express Offers Pro (price 4900,
+`data.signup_fee` alone and `price` is never added on top: ExpressOffers Pro (price 4900,
 renewal_cost 4900) charges 4900, which is what the enrollment screen quotes. `calculatePricing`
 takes `{ existingUser: true }` for this; only `PurchaseExistingUserUseCase` passes it. (CO-I271
 F-S4-e: before this, staging transaction 3788 charged 9800 for the $49 plan.)
@@ -294,7 +294,7 @@ See [Promo Codes](../../business/capabilities/promo-codes).
 
 ## HomeUptick Subscription Seeding
 
-Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $75/tier). The defaults are `HOMEUPTICK_DEFAULTS` in `api/domain/services/homeuptick-allowance.ts`, which the account site's enrollment step reads too, so the plan it shows and the row that gets seeded agree. A product that sells no included contacts (Express Offers Pro) sets `homeuptick: { enabled: true, base_contacts: 0 }`; without `enabled: true` the defaults, 500 included, are seeded:
+Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $75/tier). The defaults are `HOMEUPTICK_DEFAULTS` in `api/domain/services/homeuptick-allowance.ts`, which the account site's enrollment step reads too, so the plan it shows and the row that gets seeded agree. A product that sells no included contacts (ExpressOffers Pro) sets `homeuptick: { enabled: true, base_contacts: 0 }`; without `enabled: true` the defaults, 500 included, are seeded:
 
 | Product template field | → | Homeuptick_Subscriptions column |
 |---|---|---|

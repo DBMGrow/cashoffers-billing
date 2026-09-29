@@ -47,7 +47,7 @@ function notAvailable(reason: Parameters<typeof linkedProductRejectionStatus>[0]
  * Loads the product named in a link and applies the strict rule: it exists,
  * its white label is exactly the user's, and it is a subscription product.
  * Hidden products are allowed. `options.homeUptickOnlyAllowed: false` also refuses a
- * `homeuptick_only` product (an Express Offers Guest).
+ * `homeuptick_only` product (an ExpressOffers Guest).
  */
 export async function resolveLinkedProduct(
   productId: number,

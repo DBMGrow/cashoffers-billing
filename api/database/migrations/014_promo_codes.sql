@@ -1,6 +1,6 @@
 -- Migration: Promo codes and their redemptions
 -- Purpose: Let a white label run a discount campaign (first launch: eXp "EXPCON", first month of
---          Express Offers Pro free for agents who sign up at eXpCon 2026) and report on who used it.
+--          ExpressOffers Pro free for agents who sign up at eXpCon 2026) and report on who used it.
 --          Additive only. Nothing reads these tables until a purchase carries a `coupon`.
 --          See docs/business/capabilities/promo-codes.md.
 -- ROLLBACK: DROP TABLE IF EXISTS PromoRedemptions; DROP TABLE IF EXISTS PromoCodes;

@@ -147,7 +147,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       // Refuse an email that already has an account *before* any card or charge. The signup page
       // checks this too, but only in the browser; without this, a caller that skips it is charged,
       // provisioning then fails on the duplicate, and the payment sits in pending_provisioning for
-      // someone to untangle by hand. An existing Express Offers Guest upgrades through the emailed
+      // someone to untangle by hand. An existing ExpressOffers Guest upgrades through the emailed
       // upgrade link instead (POST /signup/sendupgradelink).
       if (await this.deps.emailHasAccount(v.email)) {
         const message = "An account already exists for this email. Sign in to upgrade it instead."

@@ -243,7 +243,7 @@ export class UserApiClient implements IUserApiClient {
    * The pre-Phase-7 transport for a role, used only while the role endpoint 404s.
    *
    * **Refuses a tier the pair cannot say**, rather than writing the nearest one. `(AGENT, 0)` reads
-   * back as `AGENT_FREE`, so an Express Offers Pro sent this way would be a paying customer quietly
+   * back as `AGENT_FREE`, so an ExpressOffers Pro sent this way would be a paying customer quietly
    * made free, and an Elite would land on plain Premium. No eXp tier is enrolled and the paid path is
    * closed until the mono repo's Phase 7 ships, which is also when this fallback stops being reached,
    * so a loud failure costs nothing real and a silent one would charge the wrong price.

@@ -50,7 +50,7 @@ describe("planProduct", () => {
     expect(configSites({})).toEqual([])
   })
 
-  it("never derives an Express Offers tier, however the pair is set", () => {
+  it("never derives an ExpressOffers tier, however the pair is set", () => {
     const pairs = [
       { role: "AGENT", is_premium: 0 },
       { role: "AGENT", is_premium: 1 },

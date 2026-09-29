@@ -6,7 +6,7 @@ Billing writes `{ role, is_premium, whitelabel_id }` into CashOffers, and matche
 products on `whitelabel_code | role | team_members`. That pair has one value for every paid agent:
 `role = AGENT`, `is_premium = 1`.
 
-Express Offers introduces three eXp tiers with different prices and different entitlements. Two of
+ExpressOffers introduces three eXp tiers with different prices and different entitlements. Two of
 them, Pro at $49 and Elite at $299, are both `AGENT` + `is_premium 1`. So on the columns this repo
 reads and writes:
 

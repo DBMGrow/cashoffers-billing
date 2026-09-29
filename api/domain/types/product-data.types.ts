@@ -19,7 +19,7 @@ export interface ProductUserConfig {
    * The CashOffers role this product puts its subscriber on, RBAC unification plan CO-I271 §9.4.
    *
    * Authoritative when present. It exists because `(role, is_premium)` below cannot express the
-   * difference between a $49 Express Offers Pro and a $299 Elite: both are `AGENT` + `is_premium 1`,
+   * difference between a $49 ExpressOffers Pro and a $299 Elite: both are `AGENT` + `is_premium 1`,
    * so on the legacy pair the two products are the same product and reconcile to one another.
    *
    * Optional, and `role` is kept beside it, because the two repos must not have to deploy together

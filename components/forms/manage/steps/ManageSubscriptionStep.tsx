@@ -42,7 +42,7 @@ export default function ManageSubscriptionStep({
   })
 
   // No subscription: enrollment. The server decides what that offers (GET /manage/enrollment
-  // `intent`), so an Express Offers Guest lands on their Pro upgrade, never on HomeUptick-only.
+  // `intent`), so an ExpressOffers Guest lands on their Pro upgrade, never on HomeUptick-only.
   useEffect(() => {
     if (!isLoading && !error && data === null) {
       onEnroll()

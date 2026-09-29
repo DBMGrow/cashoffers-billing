@@ -49,14 +49,9 @@ const subscription = (overrides: Partial<SubscriptionRow> = {}): SubscriptionRow
  * label, same legacy role, same premium bit, $250 a month apart. Everything else in this file is
  * about not breaking the products that already reconcile.
  */
-describe("Express Offers Pro and Elite resolve to different products (AC24)", () => {
-  const pro = product(101, "Express Offers Pro", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_PRO" }, 4900)
-  const elite = product(
-    102,
-    "Express Offers Elite",
-    { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_ELITE" },
-    29900
-  )
+describe("ExpressOffers Pro and Elite resolve to different products (AC24)", () => {
+  const pro = product(101, "ExpressOffers Pro", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_PRO" }, 4900)
+  const elite = product(102, "ExpressOffers Elite", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_ELITE" }, 29900)
   const index = buildProductIndex([pro, elite].map(parseProductData))
 
   it("gives the two tiers different index keys", () => {
@@ -292,7 +287,7 @@ describe("role resolution order", () => {
 describe("buildNewSubscriptionData", () => {
   it("writes role_v2 beside the legacy pair, so the next run reads it instead of deriving it", () => {
     const parsed = parseProductData(
-      product(101, "Express Offers Elite", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_ELITE" }, 29900)
+      product(101, "ExpressOffers Elite", { role: "AGENT", is_premium: 1, role_v2: "AGENT_EXP_ELITE" }, 29900)
     )
     const data = buildNewSubscriptionData(parsed, { team_id: null })
     const userConfig = data.user_config as Record<string, unknown>
