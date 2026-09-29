@@ -42,6 +42,21 @@ sequenceDiagram
   API->>DB: Create Homeuptick_Subscriptions row (from product template or defaults)
 ```
 
+### The Role a New Signup Is Created On
+
+`CreateUser` sends the product's `role_v2` (`resolveUserConfigRoleV2(user_config)`) beside the
+legacy `role` and `is_premium`. The pair alone cannot express an eXp tier: ExpressOffers Pro is
+`(AGENT, is_premium 0)`, which the main API reads as `AGENT_FREE`. When the pair does not read back
+as the named role, `UserApiClient.createUser` follows the create with `PUT /users/:id/role`.
+
+This is the only place a new signup's role is written. `SubscriptionCreated` carries no
+`productData` on this path (the account handler would create the user a second time), so a role
+missed here stays wrong until the first renewal rewrites it. Before this, a direct ExpressOffers Pro
+signup would have paid $49 and landed on `AGENT_FREE` for its first month.
+
+Team plans are the exception: they are created as `SHELL` with no `role_v2` and promoted to
+`TEAMOWNER` once the team exists.
+
 ### Hidden Plans (Direct Purchase Links)
 
 A plan flagged `data.hidden = true` (or hidden from a whitelabel via
