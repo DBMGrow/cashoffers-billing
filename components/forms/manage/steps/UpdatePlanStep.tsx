@@ -13,6 +13,8 @@ import { useProducts, isProductFree } from "@/providers/ProductProvider"
 import Table from "@/components/Theme/Table"
 import Row from "@/components/Theme/Row"
 import formatDate from "@/components/utils/formatDate"
+import { isTestAccountEmail } from "@/api/domain/services/test-account"
+import TestAccountNotice from "./TestAccountNotice"
 
 interface UpdatePlanStepProps {
   user: User
@@ -312,6 +314,8 @@ export default function UpdatePlanStep({
         <Table
           footer={
             <div className="flex flex-col gap-3">
+              {/* The server charges a test account's card on file in the sandbox (same email rule). */}
+              {isTestAccountEmail(user.email) && <TestAccountNotice />}
               {proratedAmount > 0 && (
                 <p className="text-sm text-default-500">
                   A prorated charge of <strong>${proratedAmount.toFixed(2)}</strong> will be applied
