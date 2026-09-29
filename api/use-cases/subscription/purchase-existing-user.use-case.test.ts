@@ -74,3 +74,101 @@ describe("PurchaseExistingUserUseCase charge amount", () => {
     expect((createPayment.mock.calls[0] as any)[0].amountMoney.amount).toBe(BigInt(5900))
   })
 })
+
+/**
+ * CO-I271: a test account (@test.cashoffers.com) upgrades from the account site with Square's
+ * sandbox nonce. With the test-mode context the route resolved, the card and the charge go to the
+ * sandbox, the subscription records it, and the role write is requested exactly as for a real
+ * purchase (SubscriptionCreated carries the product data CashOffersAccountHandler reads).
+ */
+describe("PurchaseExistingUserUseCase environment", () => {
+  const pro = {
+    product_id: 122,
+    product_name: "ExpressOffers Pro",
+    price: 4900,
+    data: {
+      duration: "monthly",
+      renewal_cost: 4900,
+      cashoffers: { managed: true, user_config: { role: "AGENT", role_v2: "AGENT_EXP_PRO", is_premium: 0 } },
+    },
+  }
+
+  function fakeSquare(environment: "production" | "sandbox") {
+    return {
+      createCard: vi.fn(async () => ({
+        id: `ccof:${environment}`,
+        customerId: "cust_1",
+        environment,
+        cardBrand: "VISA",
+        last4: "1111",
+      })),
+      createPayment: vi.fn(async () => ({ id: `pay_${environment}`, status: "COMPLETED", environment })),
+    }
+  }
+
+  async function purchase(testMode: boolean) {
+    const production = fakeSquare("production")
+    const sandbox = fakeSquare("sandbox")
+    const { deps } = makeDeps(pro)
+    const logger = deps.logger
+    const { DualEnvironmentPaymentProvider } = await import("@api/infrastructure/payment/dual-environment-provider")
+    const allDeps = {
+      ...deps,
+      paymentProvider: new DualEnvironmentPaymentProvider(production as never, sandbox as never, logger as never),
+      userCardRepository: {
+        ...deps.userCardRepository,
+        create: vi.fn(async (row: any) => row),
+        findOne: vi.fn(async ({ card_id }: any) => ({ card_id, square_customer_id: "cust_1", last_4: "1111" })),
+      },
+    }
+    const result = await new PurchaseExistingUserUseCase(allDeps as never).execute({
+      userId: 999749,
+      productId: 122,
+      email: testMode ? "demo@test.cashoffers.com" : "agent@example.com",
+      cardToken: "cnon:card-nonce-ok",
+      expMonth: 12,
+      expYear: 2027,
+      cardholderName: "Demo",
+      context: { testMode, source: "API", userId: 999749 },
+    } as never)
+    return { result, production, sandbox, deps: allDeps }
+  }
+
+  it("runs a test-mode purchase in the sandbox and records square_environment = sandbox", async () => {
+    const { result, production, sandbox, deps } = await purchase(true)
+    expect(result.success).toBe(true)
+    expect(sandbox.createCard).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceId: "cnon:card-nonce-ok" }),
+      expect.objectContaining({ testMode: true })
+    )
+    expect(sandbox.createPayment).toHaveBeenCalledTimes(1)
+    expect(production.createCard).not.toHaveBeenCalled()
+    expect(production.createPayment).not.toHaveBeenCalled()
+    expect(deps.userCardRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ square_environment: "sandbox" })
+    )
+    expect(deps.subscriptionRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ product_id: 122, square_environment: "sandbox" })
+    )
+
+    const created = (deps.eventBus.publish.mock.calls as any[])
+      .map(([e]) => e)
+      .find((e) => e.eventType === "SubscriptionCreated")
+    expect(created.payload.environment).toBe("sandbox")
+    expect(created.metadata.productData.cashoffers.user_config.role_v2).toBe("AGENT_EXP_PRO")
+  })
+
+  it("runs an ordinary purchase in production with the same role write", async () => {
+    const { result, production, sandbox, deps } = await purchase(false)
+    expect(result.success).toBe(true)
+    expect(production.createPayment).toHaveBeenCalledTimes(1)
+    expect(sandbox.createPayment).not.toHaveBeenCalled()
+    expect(deps.subscriptionRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ square_environment: "production" })
+    )
+    const created = (deps.eventBus.publish.mock.calls as any[])
+      .map(([e]) => e)
+      .find((e) => e.eventType === "SubscriptionCreated")
+    expect(created.metadata.productData.cashoffers.user_config.role_v2).toBe("AGENT_EXP_PRO")
+  })
+})
