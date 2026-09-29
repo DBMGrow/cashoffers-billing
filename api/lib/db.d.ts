@@ -471,6 +471,50 @@ export interface Products {
   whitelabel_code: string | null;
 }
 
+export interface PromoCodes {
+  active: Generated<number>;
+  applies_to: Generated<"first_charge" | "first_period">;
+  campaign: string | null;
+  code: string;
+  createdAt: Generated<Date>;
+  created_by: string | null;
+  description: string | null;
+  discount_type: "amount" | "free_periods" | "percent";
+  discount_value: number;
+  duration_periods: Generated<number>;
+  ends_at: Date | null;
+  external_coupon_id: string | null;
+  max_per_user: Generated<number>;
+  max_redemptions: number | null;
+  new_users_only: Generated<number>;
+  product_ids: Json | null;
+  product_roles: Json | null;
+  promo_id: Generated<number>;
+  starts_at: Date | null;
+  updatedAt: Generated<Date>;
+  whitelabel_code: string | null;
+}
+
+export interface PromoRedemptions {
+  charged_amount: number;
+  code: string;
+  createdAt: Generated<Date>;
+  discount_amount: number;
+  email: string;
+  original_amount: number;
+  periods_remaining: Generated<number>;
+  periods_total: Generated<number>;
+  product_id: number;
+  promo_id: number;
+  purchase_request_id: number;
+  redemption_id: Generated<number>;
+  status: Generated<"applied" | "exhausted" | "voided">;
+  subscription_id: number | null;
+  updatedAt: Generated<Date>;
+  user_id: number | null;
+  whitelabel_code: string | null;
+}
+
 export interface Properties {
   additional_details_notes: string | null;
   additional_details_yesno: number | null;
@@ -1959,6 +2003,8 @@ export interface DB {
   OfferAPIs: OfferAPIs;
   PageVideos: PageVideos;
   Products: Products;
+  PromoCodes: PromoCodes;
+  PromoRedemptions: PromoRedemptions;
   Properties: Properties;
   Properties_Dash: PropertiesDash;
   Properties_Dash_Ranking: PropertiesDashRanking;

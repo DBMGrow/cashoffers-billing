@@ -106,6 +106,23 @@ describe('PaymentErrorEmail', () => {
 // ─── Subscription Created ───────────────────────────────────────────────────
 
 describe('SubscriptionCreatedEmail', () => {
+  it('shows a promo discount as a negative line and says nothing was charged at $0', async () => {
+    const html = await renderTemplate(SubscriptionCreatedEmail, {
+      subscription: 'Express Offers Pro',
+      amount: '$0.00',
+      lineItems: [
+        { description: 'Express Offers Pro', amount: 4900 },
+        { description: 'Promo EXPCON: First month free', amount: -4900 },
+      ],
+      date: 'October 1, 2026',
+    })
+    expect(html).toContain('Promo EXPCON: First month free')
+    expect(html).toContain('-$49.00')
+    expect(html).not.toContain('$-49.00')
+    expect(html).toContain('Nothing was charged today')
+    expect(html).not.toContain('your card has been charged')
+  })
+
   it('renders subscription name, amount, and line items', async () => {
     const html = await renderTemplate(SubscriptionCreatedEmail, {
       subscription: 'Premium Plan',

@@ -43,6 +43,14 @@ import {
 import { whitelabelResolverService } from "@api/lib/services"
 import { generateResetToken } from "@api/utils/generate-reset-token"
 import { formatMySQLDatetime } from "@api/utils/format-mysql-datetime"
+import type { PromoCodeRepository } from "@api/lib/repositories"
+import { resolveUserConfigRoleV2 } from "@api/domain/services/role-v2"
+import {
+  applyPromoToPurchase,
+  attachPromoRedemption,
+  setPromoRedemptionUser,
+  releasePromoReservation,
+} from "./promo-helpers"
 
 interface Dependencies {
   logger: ILogger
@@ -50,6 +58,8 @@ interface Dependencies {
   emailService: IEmailService
   userApiClient: IUserApiClient
   productRepository: ProductRepository
+  /** Read and written only when the purchase carries a `coupon` */
+  promoCodeRepository: PromoCodeRepository
   subscriptionRepository: SubscriptionRepository
   userCardRepository: UserCardRepository
   transactionRepository: TransactionRepository
@@ -58,6 +68,8 @@ interface Dependencies {
   eventBus: IEventBus
   /** Email address to notify when user provisioning fails after a successful payment */
   adminAlertEmail: string
+  /** Whether an account already exists for this email (checked before any card or charge) */
+  emailHasAccount: (email: string) => Promise<boolean>
 }
 
 interface RollbackContext {
@@ -132,6 +144,18 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       logger.info("Processing new user purchase", { purchaseRequestId, productId: v.productId, email: v.email })
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "VALIDATING")
 
+      // Refuse an email that already has an account *before* any card or charge. The signup page
+      // checks this too, but only in the browser; without this, a caller that skips it is charged,
+      // provisioning then fails on the duplicate, and the payment sits in pending_provisioning for
+      // someone to untangle by hand. An existing Express Offers Guest upgrades through the emailed
+      // upgrade link instead (POST /signup/sendupgradelink).
+      if (await this.deps.emailHasAccount(v.email)) {
+        const message = "An account already exists for this email. Sign in to upgrade it instead."
+        logger.info("New user purchase refused: email already has an account", { purchaseRequestId, email: v.email })
+        await this.deps.purchaseRequestRepository.markAsFailed(purchaseRequestId, message, "EMAIL_EXISTS")
+        return failure(message, "EMAIL_EXISTS")
+      }
+
       // Validate product
       const { product, productData, userConfig } = await validateAndParseProduct(
         this.deps,
@@ -151,10 +175,24 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         }
       }
 
-      // Calculate pricing to determine if this is a free purchase
-      const pricing = calculatePricing(product, productData)
+      // Calculate pricing to determine if this is a free purchase. "Free" is decided on the list
+      // price, before any promo: a promo that takes today's charge to $0 still needs the card saved,
+      // or the first renewal has nothing to charge.
+      const listPricing = calculatePricing(product, productData)
+      const isFree = listPricing.initialAmount === 0
+
+      // Promo code: validated and reserved server-side before any charge (throws PROMO_CODE_INVALID)
+      const pricing = await applyPromoToPurchase(this.deps, {
+        coupon: v.coupon,
+        email: v.email,
+        userId: null,
+        purchaseRequestId,
+        product,
+        roleV2: resolveUserConfigRoleV2(userConfig),
+        pricing: listPricing,
+        isNewCustomer: true,
+      })
       rollback.pricing = pricing
-      const isFree = pricing.initialAmount === 0
 
       let cardIdString: string | null = null
       let userCard: { card_id: string | null; square_customer_id: string | null; last_4: string | null } | null = null
@@ -169,17 +207,25 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         cardIdString = await this.createCard(v, input.context)
         userCard = await resolveCardRecord(this.deps, cardIdString, purchaseRequestId)
 
-        await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
-        payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
-        rollback.paymentId = payment.id
+        if (pricing.initialAmount > 0) {
+          await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
+          payment = await processInitialPayment(this.deps, userCard, pricing, input.context, purchaseRequestId)
+          rollback.paymentId = payment.id
 
-        // Log payment transaction
-        paymentTransaction = await createPaymentTransactionRecord(this.deps, {
-          userId: null,
-          product,
-          pricing,
-          payment,
-        })
+          // Log payment transaction
+          paymentTransaction = await createPaymentTransactionRecord(this.deps, {
+            userId: null,
+            product,
+            pricing,
+            payment,
+          })
+        } else {
+          // A promo covers today's charge: the card is saved for renewals, nothing is charged now
+          logger.info("Promo covers the initial charge: card saved, payment skipped", {
+            purchaseRequestId,
+            promoCode: pricing.promo?.code,
+          })
+        }
       }
 
       // Create subscription before user exists — refund gate closes here
@@ -193,6 +239,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         cashoffers: productData.cashoffers,
       })
       rollback.subscriptionCreated = true
+      await attachPromoRedemption(this.deps, pricing, subscription.subscription_id, null)
 
       // Log transaction
       const transaction = await createTransactionRecord(this.deps, {
@@ -215,6 +262,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       })
 
       const userId = provisioning.success ? provisioning.userId : null
+      if (userId != null) await setPromoRedemptionUser(this.deps, pricing, userId)
 
       // Seed HomeUptick subscription from product template (requires userId)
       if (provisioning.success) {
@@ -582,6 +630,12 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         logger.error("Failed to update purchase request status", { updateError })
       }
     }
+
+    // Release a promo reservation when nothing was charged or created, so a retry can redeem it
+    await releasePromoReservation(this.deps, rollback.pricing, {
+      paymentTaken: !!rollback.paymentId,
+      subscriptionCreated: rollback.subscriptionCreated,
+    })
 
     // No automatic refund — payment is kept and admin manually provisions the
     // subscription/user. The purchase request and system error alert contain

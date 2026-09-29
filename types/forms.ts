@@ -44,5 +44,6 @@ export type FormStep =
   | "error"
   | "offerDowngrade"
   | "offerDowngradeConfirm"
+  | "upgradeLinkSent"
 
 export type WhitelabelType = "default" | "kw" | "yhs" | "uco" | "eco" | "mop" | "platinum"

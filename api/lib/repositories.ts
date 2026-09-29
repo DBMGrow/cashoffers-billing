@@ -7,6 +7,7 @@ import { createPurchaseRequestRepository } from '@api/infrastructure/database/re
 import { createWhitelabelRepository } from '@api/infrastructure/database/repositories/whitelabel.repository'
 import { createBillingLogRepository } from '@api/infrastructure/database/repositories/billing-log.repository'
 import { createHomeUptickSubscriptionRepository } from '@api/infrastructure/database/repositories/homeuptick-subscription.repository'
+import { createPromoCodeRepository } from '@api/infrastructure/database/repositories/promo-code.repository'
 
 export const transactionRepository = createTransactionRepository(db)
 export const subscriptionRepository = createSubscriptionRepository(db)
@@ -16,6 +17,7 @@ export const purchaseRequestRepository = createPurchaseRequestRepository(db)
 export const whitelabelRepository = createWhitelabelRepository(db)
 export const billingLogRepository = createBillingLogRepository(db)
 export const homeUptickSubscriptionRepository = createHomeUptickSubscriptionRepository(db)
+export const promoCodeRepository = createPromoCodeRepository(db)
 
 export type TransactionRepository = typeof transactionRepository
 export type SubscriptionRepository = typeof subscriptionRepository
@@ -25,3 +27,4 @@ export type PurchaseRequestRepository = typeof purchaseRequestRepository
 export type WhitelabelRepository = typeof whitelabelRepository
 export type BillingLogRepository = typeof billingLogRepository
 export type HomeUptickSubscriptionRepository = typeof homeUptickSubscriptionRepository
+export type PromoCodeRepository = typeof promoCodeRepository

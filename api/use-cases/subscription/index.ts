@@ -1,4 +1,5 @@
 import { logger, paymentProvider, emailService, eventBus, configService, transactionManager, userApiClient, homeUptickApiClient, criticalAlertService, paymentErrorTranslator } from '@api/lib/services'
+import { promoCodeRepository } from '@api/lib/repositories'
 import { config } from '@api/config/config.service'
 import { subscriptionRepository, transactionRepository, userCardRepository, productRepository, purchaseRequestRepository, whitelabelRepository, homeUptickSubscriptionRepository } from '@api/lib/repositories'
 import { CreateSubscriptionUseCase } from './create-subscription.use-case'
@@ -13,6 +14,7 @@ import { PurchaseNewUserUseCase } from './purchase-new-user.use-case'
 import { PurchaseExistingUserUseCase } from './purchase-existing-user.use-case'
 import { DeactivateSubscriptionUseCase } from './deactivate-subscription.use-case'
 import { CalculateProratedUseCase } from './calculate-prorated.use-case'
+import { db } from '@api/lib/database'
 
 export const createSubscriptionUseCase = new CreateSubscriptionUseCase({
   logger,
@@ -100,6 +102,7 @@ export const purchaseNewUserUseCase = new PurchaseNewUserUseCase({
   emailService,
   userApiClient,
   productRepository,
+  promoCodeRepository,
   subscriptionRepository,
   userCardRepository,
   transactionRepository,
@@ -107,6 +110,9 @@ export const purchaseNewUserUseCase = new PurchaseNewUserUseCase({
   homeUptickSubscriptionRepository,
   eventBus,
   adminAlertEmail: config.adminEmail,
+  // The same Users lookup /signup/checkuserexists runs, so the server refuses exactly what the page does.
+  emailHasAccount: async (email: string) =>
+    !!(await db.selectFrom('Users').select('user_id').where('email', '=', email).executeTakeFirst()),
 })
 
 export const purchaseExistingUserUseCase = new PurchaseExistingUserUseCase({
@@ -114,6 +120,7 @@ export const purchaseExistingUserUseCase = new PurchaseExistingUserUseCase({
   paymentProvider,
   emailService,
   productRepository,
+  promoCodeRepository,
   subscriptionRepository,
   userCardRepository,
   transactionRepository,

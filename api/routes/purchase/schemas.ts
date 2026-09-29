@@ -212,3 +212,66 @@ export const ExistingUserPurchaseRoute = {
   description:
     "Create a new subscription for an authenticated existing user. Requires a valid session token via x-api-token header or _api_token cookie. Optionally provide new card details to update the card on file. Refuses a product that belongs to a white label other than the user's with 403 PRODUCT_NOT_AVAILABLE (a product with no white label is shared and allowed).",
 }
+
+// ==================== Promo Codes ====================
+
+/**
+ * GET /purchase/promo/validate query.
+ * `flow` picks the pricing rule: "signup" (new account, signup fee falls back to `price`) or
+ * "manage" (existing account, only an explicit `data.signup_fee`). Defaults to "signup".
+ */
+export const ValidatePromoQuerySchema = z.object({
+  code: z.string().min(1).max(64),
+  product_id: z.coerce.number().int().positive(),
+  flow: z.enum(["signup", "manage"]).optional(),
+})
+
+export const PromoQuoteSchema = z.object({
+  valid: z.literal(true),
+  code: z.string(),
+  display: z.string().describe('Short label, e.g. "First month free"'),
+  summary: z.string().describe('e.g. "Promo EXPCON: First month free, $0.00 today, then $49.00/mo"'),
+  original_amount: z.number().describe("Initial charge before the discount, in cents"),
+  discount_amount: z.number().describe("Cents"),
+  charged_amount: z.number().describe("What is charged today, in cents"),
+  then_amount: z.number().describe("What each renewal charges, in cents"),
+})
+
+export const ValidatePromoResponseSchema = z.object({
+  success: z.literal("success"),
+  data: PromoQuoteSchema,
+})
+
+/**
+ * GET /purchase/promo/validate: quote a promo code for a product
+ * Public (the signup flow has no session). Rate limited per IP.
+ */
+export const ValidatePromoRoute = {
+  method: "get" as const,
+  path: "/promo/validate",
+  request: {
+    query: ValidatePromoQuerySchema,
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: ValidatePromoResponseSchema } },
+      description: "The code applies to this product; the quote is what the purchase will charge",
+    },
+    400: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "PROMO_CODE_INVALID: the code does not exist, is not active, has expired, or does not apply to this product",
+    },
+    429: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "RATE_LIMITED: too many attempts from this client",
+    },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Internal server error",
+    },
+  },
+  tags: ["Purchase"],
+  summary: "Validate a promo code",
+  description:
+    "Quotes what a promo code takes off a product's initial charge, for display at checkout. Checks the code's status, dates, white label, product scope and total redemption cap. Per-buyer limits and new-users-only are checked again when the purchase is made (POST /purchase/new or /purchase/existing with `coupon`), which re-validates server-side and never trusts this quote. The list renewal price is unchanged.",
+}

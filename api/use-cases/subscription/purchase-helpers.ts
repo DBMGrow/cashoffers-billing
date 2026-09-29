@@ -36,6 +36,7 @@ import { v4 as uuidv4 } from "uuid"
  */
 export const USER_FACING_ERROR_CODES = new Set([
   "PURCHASE_VALIDATION_ERROR",
+  "PROMO_CODE_INVALID",
   "CARD_CREATION_FAILED",
   "CARD_DECLINED",
   "CVV_FAILURE",
@@ -51,6 +52,7 @@ export const USER_FACING_ERROR_CODES = new Set([
   "CARDHOLDER_INSUFFICIENT_PERMISSIONS",
   "INVALID_CARD_DATA",
   "PUR08",
+  "EMAIL_EXISTS",
 ])
 
 export function isUserFacingError(code: string | undefined): boolean {
@@ -214,6 +216,45 @@ export interface PurchasePricing {
   renewalCost: number
   productDuration: string
   initialAmount: number
+  /**
+   * Set when a promo code discounted this purchase. `initialAmount` is then the discounted charge;
+   * `renewalCost` (and so `Subscriptions.amount`) stays the list price. See promo-helpers.ts.
+   */
+  promo?: PurchasePromo
+}
+
+export interface PurchasePromo {
+  code: string
+  redemptionId: number
+  /** e.g. "First month free" */
+  display: string
+  /** Initial charge before the discount, in cents */
+  originalAmount: number
+  discountAmount: number
+}
+
+/** The `data` JSON written on purchase transactions: the price parts, plus the promo when one applied. */
+function pricingTransactionData(pricing: PurchasePricing): string {
+  return JSON.stringify({
+    signupFee: pricing.signupFee,
+    renewalCost: pricing.renewalCost,
+    ...(pricing.promo
+      ? {
+          promo: {
+            code: pricing.promo.code,
+            redemptionId: pricing.promo.redemptionId,
+            originalAmount: pricing.promo.originalAmount,
+            discountAmount: pricing.promo.discountAmount,
+          },
+        }
+      : {}),
+  })
+}
+
+/** Receipt line for a promo discount (negative, in cents), or nothing. */
+function promoLineItems(pricing: PurchasePricing): Array<{ description: string; amount: number }> {
+  if (!pricing.promo || pricing.promo.discountAmount <= 0) return []
+  return [{ description: `Promo ${pricing.promo.code}: ${pricing.promo.display}`, amount: -pricing.promo.discountAmount }]
 }
 
 /**
@@ -387,7 +428,7 @@ export async function createPaymentTransactionRecord(
     square_transaction_id: params.payment.id,
     square_environment: params.payment.environment,
     product_id: params.product.product_id,
-    data: JSON.stringify({ signupFee: params.pricing.signupFee, renewalCost: params.pricing.renewalCost }),
+    data: pricingTransactionData(params.pricing),
     createdAt: now,
     updatedAt: now,
   })
@@ -464,7 +505,7 @@ export async function createTransactionRecord(
     square_transaction_id: params.payment?.id ?? null,
     square_environment: params.payment?.environment ?? null,
     product_id: params.product.product_id,
-    data: JSON.stringify({ signupFee: params.pricing.signupFee, renewalCost: params.pricing.renewalCost }),
+    data: pricingTransactionData(params.pricing),
     createdAt: now,
     updatedAt: now,
   })
@@ -528,6 +569,7 @@ export async function publishPurchaseEvents(
         ...(params.pricing.renewalCost > 0
           ? [{ description: params.product.product_name, amount: params.pricing.renewalCost }]
           : []),
+        ...promoLineItems(params.pricing),
       ],
     }, params.productData ? { productData: params.productData } : undefined)
   )
@@ -552,6 +594,7 @@ export async function publishPurchaseEvents(
         lineItems: [
           { description: "Signup fee", amount: params.pricing.signupFee },
           { description: "First period", amount: params.pricing.renewalCost },
+          ...promoLineItems(params.pricing),
         ],
       })
     )

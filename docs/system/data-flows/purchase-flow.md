@@ -279,6 +279,19 @@ sequenceDiagram
 
 ---
 
+## Promo Codes
+
+Both flows accept `coupon` in the purchase body (the signup page and `/manage` read it from
+`?coupon=`). When one is present, the use case validates and reserves it server-side after the
+product is known and before any card or charge (`applyPromoToPurchase` in
+`api/use-cases/subscription/promo-helpers.ts`). A code that does not apply fails the purchase with
+`PROMO_CODE_INVALID` (400, user-facing) before Square is called. A valid code lowers
+`initialAmount` only; `Subscriptions.amount` stays the list renewal cost. "Free" (no card) is decided
+on the list price, so a promo'd $0 purchase still creates and saves the card for the first renewal.
+See [Promo Codes](../../business/capabilities/promo-codes).
+
+---
+
 ## HomeUptick Subscription Seeding
 
 Every purchase seeds a `Homeuptick_Subscriptions` row. If the product has explicit HomeUptick config (`Products.data.homeuptick.enabled = true`), it uses the product template. Otherwise, default values are applied (500 base contacts, 500 contacts/tier, $75/tier). The defaults are `HOMEUPTICK_DEFAULTS` in `api/domain/services/homeuptick-allowance.ts`, which the account site's enrollment step reads too, so the plan it shows and the row that gets seeded agree. A product that sells no included contacts (Express Offers Pro) sets `homeuptick: { enabled: true, base_contacts: 0 }`; without `enabled: true` the defaults, 500 included, are seeded:
@@ -301,5 +314,6 @@ The `Homeuptick_Subscriptions` row is the live source of truth for HU config. Th
 - `api/use-cases/subscription/purchase-new-user.use-case.ts`
 - `api/use-cases/subscription/purchase-existing-user.use-case.ts`
 - `api/routes/purchase/routes.ts`
+- `api/use-cases/subscription/promo-helpers.ts`
 - `api/database/migrations/007_subscriptions_nullable_user_id.sql`
 - `api/domain/events/user-provisioning-failed.event.ts`

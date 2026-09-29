@@ -10,7 +10,9 @@ interface LineItemsTableProps {
 }
 
 function formatCurrency(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
+  // Discounts (promo codes) are negative line items: "-$49.00", not "$-49.00"
+  const sign = cents < 0 ? '-' : ''
+  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`
 }
 
 /**
