@@ -13,7 +13,7 @@ import { TEST_MODE_EMAIL_DOMAIN, isTestAccountEmail } from "@api/domain/services
  */
 
 /**
- * Buyers whose email ends with TEST_MODE_EMAIL_DOMAIN may purchase in test mode without any
+ * Buyers whose email ends with one of TEST_MODE_EMAIL_DOMAINS may purchase in test mode without any
  * capability. The domain lives in api/domain/services/test-account.ts so the account site can
  * share it (it skips the card form for these accounts); this file stays the only authority.
  */
@@ -54,7 +54,7 @@ export type TestModeDecision =
   | { allowed: true; context: PaymentContext }
   | { allowed: false; status: 403; body: TestModeRefusalBody; requestedBy: TestModeSource[] }
 
-/** True when the email belongs to the test-account domain (case-insensitive). */
+/** True when the email belongs to one of the test-account domains (case-insensitive). */
 export function isTestModeEmail(email: string | null | undefined): boolean {
   return isTestAccountEmail(email)
 }

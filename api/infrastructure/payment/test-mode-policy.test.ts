@@ -39,6 +39,14 @@ describe("isTestModeEmail", () => {
     expect(isTestModeEmail("demo@test.cashoffers.com.evil.com")).toBe(false)
     expect(isTestModeEmail("demo@nottest.cashoffers.com")).toBe(false)
     expect(isTestModeEmail(null)).toBe(false)
+  })
+
+  it("treats the team's own @dbmgrow.com addresses as test accounts", () => {
+    expect(isTestModeEmail("david@dbmgrow.com")).toBe(true)
+    expect(isTestModeEmail(" David@DBMGrow.com ")).toBe(true)
+    expect(isTestModeEmail("david@sub.dbmgrow.com")).toBe(false)
+    expect(isTestModeEmail("david@notdbmgrow.com")).toBe(false)
+    expect(isTestModeEmail("david@dbmgrow.com.evil.com")).toBe(false)
     expect(isTestModeEmail(undefined)).toBe(false)
   })
 })
