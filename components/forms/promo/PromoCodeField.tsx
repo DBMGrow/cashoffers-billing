@@ -12,6 +12,13 @@ interface PromoCodeFieldProps {
 }
 
 /**
+ * Whether checkout offers a "Have a promo code?" entry. Off (David, 2026-09-29): codes are not being
+ * shown to partners yet, so a code only appears when a link carries it (`?coupon=`), and the quote
+ * or refusal for that code still shows. Set to true to offer manual entry again.
+ */
+export const SHOW_PROMO_ENTRY = false
+
+/**
  * "Have a promo code?" on the checkout screens. Applying a code only asks the server for a quote;
  * the purchase itself re-validates the code and computes the charge.
  */
@@ -47,6 +54,8 @@ export default function PromoCodeField({ code, validation, isValidating, onChang
       </div>
     )
   }
+
+  if (!code && !SHOW_PROMO_ENTRY) return null
 
   const showInput = open || (!!code && !!validation?.error)
 
