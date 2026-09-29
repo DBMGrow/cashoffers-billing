@@ -59,10 +59,9 @@ describe("homeUptickLines", () => {
     expect(homeUptickLines({ enabled: false, base_contacts: 500 }, "month")).toEqual([])
   })
 
-  it("says every contact is billed when none are included", () => {
-    expect(homeUptickLines({ enabled: true, base_contacts: 0 }, "month")).toEqual([
-      { label: "HomeUptick contacts", value: "billed at $75 / month per 500 contacts" },
-    ])
+  it("shows nothing when the plan includes no contacts", () => {
+    expect(homeUptickLines({ enabled: true, base_contacts: 0 }, "month")).toEqual([])
+    expect(homeUptickLines({ enabled: true, base_contacts: 0, price_per_tier: 7550 }, "year")).toEqual([])
   })
 
   it("uses the backend defaults (500 included, $75 per 500) for missing fields", () => {
@@ -73,8 +72,8 @@ describe("homeUptickLines", () => {
   })
 
   it("formats a non-whole tier price with cents", () => {
-    expect(homeUptickLines({ enabled: true, base_contacts: 0, price_per_tier: 7550 }, "year")[0].value).toBe(
-      "billed at $75.50 / year per 500 contacts"
+    expect(homeUptickLines({ enabled: true, base_contacts: 500, price_per_tier: 7550 }, "year")[1].value).toBe(
+      "$75.50 / year per additional 500 contacts"
     )
   })
 })
