@@ -157,6 +157,12 @@ export default function ReviewStep({
         return
       }
 
+      // Test purchase refused (email outside the test domain): nothing was charged, say why
+      if (result.code === "TEST_MODE_NOT_ALLOWED") {
+        onError((result as any).error || "Test purchases are not allowed for this email. Nothing was charged.")
+        return
+      }
+
       // Card error - send user back to card form to re-enter payment info
       if (isCardError(result.code)) {
         onCardError(getCardErrorMessage(result.code))

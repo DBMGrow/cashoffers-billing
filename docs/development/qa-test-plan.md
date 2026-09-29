@@ -143,7 +143,7 @@ Before testing, understand these distinctions from the [Billing Scenario Matrix]
 1. Navigate to `http://localhost:3000` (or `http://localhost:3000/{whitelabel}`)
 2. Click "Sign Up" on a paid CO product
 3. Walk through each step
-4. Use `?mock_purchase=true` to skip real Square charges
+4. Use `?mock_purchase=true` to skip real Square charges (the email must end in `@test.cashoffers.com`, otherwise the purchase is refused with 403 `TEST_MODE_NOT_ALLOWED`)
 5. Verify welcome screen appears
 
 **Dev CLI:**
@@ -271,7 +271,7 @@ yarn dev:tools state <user_id>
 1. Navigate to `http://localhost:3000/{whitelabel}` with a `homeuptick_only` product that has no free trial
 2. Click "Sign Up" on the product
 3. Walk through each step — card required, no trial messaging shown
-4. Use `?mock_purchase=true` to skip real Square charges
+4. Use `?mock_purchase=true` to skip real Square charges (the email must end in `@test.cashoffers.com`, otherwise the purchase is refused with 403 `TEST_MODE_NOT_ALLOWED`)
 5. Verify welcome screen appears
 
 **Dev CLI:**
@@ -1506,6 +1506,7 @@ Use this as a go/no-go checklist. Mark each item as you verify it. Items marked 
 
 ### Sandbox/Test Mode
 
-- [ ] Mock purchase mode works
+- [ ] Mock purchase mode works with an `@test.cashoffers.com` email
+- [ ] Mock purchase with any other email is refused (403 `TEST_MODE_NOT_ALLOWED`, nothing charged)
 - [ ] Sandbox Square charges work
 - [ ] Test email routing to sandbox

@@ -154,6 +154,11 @@ export const NewUserPurchaseRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request or purchase failed",
     },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description:
+        "TEST_MODE_NOT_ALLOWED: test mode was requested for an account that may not use it. Nothing is charged.",
+    },
     500: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Internal server error",
@@ -200,7 +205,8 @@ export const ExistingUserPurchaseRoute = {
     },
     403: {
       content: { "application/json": { schema: ErrorResponseSchema } },
-      description: "PRODUCT_NOT_AVAILABLE: the product belongs to another white label",
+      description:
+        "PRODUCT_NOT_AVAILABLE: the product belongs to another white label. TEST_MODE_NOT_ALLOWED: test mode was requested for an account that may not use it. Nothing is charged.",
     },
     500: {
       content: { "application/json": { schema: ErrorResponseSchema } },
