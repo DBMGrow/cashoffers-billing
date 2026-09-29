@@ -4,8 +4,8 @@
  * Pure predicates for a product named explicitly in a link, as opposed to one
  * picked from a category list. The CashOffers dashboard sends an agent to
  * `/manage?goto=<enrollment|changePlan>&product=<id>` to buy the one product
- * that is their upgrade (for example an Express Offers Guest buying
- * "Express Offers Pro"), so the server has to decide whether the named product
+ * that is their upgrade (for example an ExpressOffers Guest buying
+ * "ExpressOffers Pro"), so the server has to decide whether the named product
  * may be sold to the signed-in user without consulting the category logic.
  *
  * Two rules live here, and they are deliberately different:
@@ -41,7 +41,7 @@ export type LinkedProductRejection = "NOT_FOUND" | "WHITELABEL_MISMATCH" | "NOT_
 
 export interface LinkedProductOptions {
   /**
-   * False for a role that may never be offered a `homeuptick_only` product (an Express Offers
+   * False for a role that may never be offered a `homeuptick_only` product (an ExpressOffers
    * Guest; see `mayBeOfferedHomeUptickOnly`). A link naming one is refused like any other product
    * the user may not buy. Defaults to true.
    */

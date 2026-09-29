@@ -73,7 +73,7 @@ tier their product sells when leaving a team plan.
 
 - "Agent Monthly" (single) → "Team Monthly" (team): `TEAMOWNER`
 - "Team Monthly" (team) → "Agent Monthly" (single): the single product's tier, e.g. `AGENT_PREMIUM`
-- "Express Offers Pro" → "Express Offers Elite" (both single): `AGENT_EXP_ELITE`. On the legacy pair
+- "ExpressOffers Pro" → "ExpressOffers Elite" (both single): `AGENT_EXP_ELITE`. On the legacy pair
   this transition was invisible, because both products are `AGENT` + `is_premium 1`.
 
 ## Where Enforced

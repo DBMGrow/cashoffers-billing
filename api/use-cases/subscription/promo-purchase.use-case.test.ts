@@ -30,10 +30,10 @@ const EXPCON: PromoDefinition = {
   campaign: "eXpCon 2026",
 }
 
-/** Express Offers Pro. `signup_fee: 0` so a new signup's first charge is exactly the first month. */
+/** ExpressOffers Pro. `signup_fee: 0` so a new signup's first charge is exactly the first month. */
 const PRO = {
   product_id: 70,
-  product_name: "Express Offers Pro",
+  product_name: "ExpressOffers Pro",
   price: 4900,
   whitelabel_code: "EXP",
   data: {
@@ -296,7 +296,7 @@ describe("PurchaseNewUserUseCase with a promo code", () => {
   })
 })
 
-describe("PurchaseExistingUserUseCase with a promo code (Express Offers Guest upgrading)", () => {
+describe("PurchaseExistingUserUseCase with a promo code (ExpressOffers Guest upgrading)", () => {
   const input = (coupon: string | null) => ({ userId: 999749, productId: 70, email: "guest@exp.test", coupon })
 
   it("first month free: uses the card on file, charges nothing, subscription at list price", async () => {

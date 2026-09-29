@@ -19,7 +19,7 @@ export const HOMEUPTICK_DEFAULTS = {
 } as const
 
 export interface HomeUptickAllowance {
-  /** Contacts included in the plan price. 0 means every contact is billed (Express Offers Pro). */
+  /** Contacts included in the plan price. 0 means every contact is billed (ExpressOffers Pro). */
   included: number
   /** Contacts in each billed tier beyond `included`. */
   perTier: number
