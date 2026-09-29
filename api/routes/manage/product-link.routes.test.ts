@@ -101,7 +101,7 @@ const PLATFORM_WL = 1 // a white label with no code of its own
 
 const expPro = {
   product_id: 70,
-  product_name: "Express Offers Pro",
+  product_name: "ExpressOffers Pro",
   product_type: "subscription",
   product_category: "premium_cashoffers",
   whitelabel_code: "EXP",
@@ -348,7 +348,7 @@ describe("GET /manage/enrollment intent", () => {
   })
 })
 
-describe("GET /manage/enrollment for an Express Offers Guest", () => {
+describe("GET /manage/enrollment for an ExpressOffers Guest", () => {
   const expHu = { ...sharedHu, product_id: 6, product_name: "eXp HomeUptick", whitelabel_code: "EXP" }
 
   beforeEach(() => {

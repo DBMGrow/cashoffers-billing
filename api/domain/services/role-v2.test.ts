@@ -138,7 +138,7 @@ describe("downgradeRoleV2For", () => {
     expect(downgradeRoleV2For(undefined)).toBeNull()
   })
 
-  // CO-I271 F-S4-d (AC25): a lapsed Express Offers Pro landed on AGENT_FREE because the white
+  // CO-I271 F-S4-d (AC25): a lapsed ExpressOffers Pro landed on AGENT_FREE because the white
   // label's downgrade_role_v2 was never read.
   it("lands an agent on the white label's downgrade role when it names one", () => {
     expect(downgradeRoleV2For("AGENT_EXP_PRO", "AGENT_EXP_GUEST")).toBe("AGENT_EXP_GUEST")

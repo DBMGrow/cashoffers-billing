@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 import { PurchaseExistingUserUseCase } from "./purchase-existing-user.use-case"
 
 /**
- * CO-I271 F-S4-e (AC21). An existing Express Offers Guest enrolled in product 70 (price 4900,
+ * CO-I271 F-S4-e (AC21). An existing ExpressOffers Guest enrolled in product 70 (price 4900,
  * data.renewal_cost 4900, monthly) through `/manage?goto=enrollment&product=70`, was quoted
  * "$49.00 / month" and charged 9800: `price` was read as a signup fee on top of the first period,
  * which is the new-signup rule. These tests pin the amount the existing-user flow sends to Square.
@@ -47,10 +47,10 @@ const run = async (product: Parameters<typeof makeDeps>[0]) => {
 }
 
 describe("PurchaseExistingUserUseCase charge amount", () => {
-  it("charges Express Offers Pro its monthly price once (4900, not 9800)", async () => {
+  it("charges ExpressOffers Pro its monthly price once (4900, not 9800)", async () => {
     const { result, createPayment } = await run({
       product_id: 70,
-      product_name: "Express Offers Pro",
+      product_name: "ExpressOffers Pro",
       price: 4900,
       data: {
         duration: "monthly",

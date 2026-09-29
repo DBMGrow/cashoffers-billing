@@ -214,7 +214,7 @@ app.openapi(GetProductsRoute, async (c) => {
       userWhitelabelCode = whitelabel?.code ?? null
     }
 
-    // An Express Offers Guest is never offered a homeuptick_only product. When the role cannot be
+    // An ExpressOffers Guest is never offered a homeuptick_only product. When the role cannot be
     // read, the list fails closed on that one category rather than failing the whole plan list.
     const homeUptickOnlyAllowed = await resolveSignedInRoleV2(user, null)
       .then(mayBeOfferedHomeUptickOnly)
@@ -376,7 +376,7 @@ app.openapi(GetSubscriptionRoute, async (c) => {
  *   precedence over ?category=. See product-link.service.ts. intent: buy_product.
  * - ?category=<category>: admin-directed enrollment (for example an admin-created premium user who
  *   needs a real product, not just HU overages). A Guest's `homeuptick_only` override is ignored.
- * - A role with an upgrade (an Express Offers Guest): the one upgrade product in their white label
+ * - A role with an upgrade (an ExpressOffers Guest): the one upgrade product in their white label
  *   (intent buy_product), or eligible: false with no products when there is not exactly one, so
  *   the account site lands on the dashboard. Never HomeUptick-only.
  * - is_premium = 1: external_cashoffers (paying for CO elsewhere, just need HU). intent: activate_homeuptick
@@ -452,7 +452,7 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       validCategories.includes(categoryOverride) &&
       (homeUptickOnlyAllowed || categoryOverride !== "homeuptick_only")
 
-    // A role with an upgrade (an Express Offers Guest) has nothing else to act on here: send them
+    // A role with an upgrade (an ExpressOffers Guest) has nothing else to act on here: send them
     // to buying it, or, when there is not exactly one such product, to the dashboard.
     const upgradeTarget = overrideApplies ? null : upgradeTargetFor(roleV2)
     if (upgradeTarget) {

@@ -47,7 +47,7 @@ describe("ProductUserConfigSchema role agreement", () => {
 
   it("applies inside a create request, under cashoffers.user_config", () => {
     const body = {
-      product_name: "Express Offers Pro",
+      product_name: "ExpressOffers Pro",
       product_type: "subscription",
       product_category: "premium_cashoffers",
       price: 4900,

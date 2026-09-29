@@ -64,7 +64,7 @@ const SUB_FLAG = args.indexOf("--sub")
 const SINGLE_SUB_ID = SUB_FLAG !== -1 ? parseInt(args[SUB_FLAG + 1], 10) : null
 // `--resolve <whitelabel>:<role_v2>:<amount>`, repeatable. Asks the matcher, against the real product
 // index, where a subscription with these traits would land, without one having to exist. It is how
-// P3 / AC24 is shown before any Express Offers subscriber does: two tiers, two products.
+// P3 / AC24 is shown before any ExpressOffers subscriber does: two tiers, two products.
 const RESOLVE_PROBES = args.flatMap((a, i) => (a === "--resolve" && args[i + 1] ? [args[i + 1]] : []))
 
 // The console report is pasted into PRs, so every per-row list in it stops at this many rows. The
@@ -237,7 +237,7 @@ async function main() {
     const results: ReconcileResult[] = []
     // Subscriptions that only matched on the old, coarser key. Not a failure: it is how this
     // script has always matched them, but it is the set that cannot be told apart by tier, so it
-    // is the set an Express Offers Pro or Elite could still be mispriced in. Worth reading.
+    // is the set an ExpressOffers Pro or Elite could still be mispriced in. Worth reading.
     const legacyMatches: number[] = []
     const activeStatuses = new Set(["active", "suspended", "paused", "trial"])
 

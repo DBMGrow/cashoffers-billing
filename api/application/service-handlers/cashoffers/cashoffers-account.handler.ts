@@ -126,7 +126,7 @@ export class CashOffersAccountHandler implements IEventHandler {
       if (!user) return
 
       // The comparison is on `role_v2`, and that is the change, not a tidier way to spell the old
-      // one. On `(role, is_premium)` this could not see an Express Offers Pro moving to Elite:
+      // one. On `(role, is_premium)` this could not see an ExpressOffers Pro moving to Elite:
       // both sides read `AGENT` + premium, needsUpdate came out false, and the subscriber kept
       // paying $299 for the $49 tier with nothing anywhere reporting it.
       const needsUpdate = resolveUserRoleV2(user) !== roleV2 || user.whitelabel_id !== whitelabelId
@@ -332,7 +332,7 @@ export class CashOffersAccountHandler implements IEventHandler {
    *
    * **Deliberately still a legacy write, and the only one left in this file.** A member's own tier
    * is not what the team plan bought: the plan bought their seat. The main API's derivation guard
-   * makes `role = AGENT` a no-op for a member who is separately an Express Offers Elite; naming
+   * makes `role = AGENT` a no-op for a member who is separately an ExpressOffers Elite; naming
    * `role_v2` here would bypass that guard and flatten them to `AGENT_PREMIUM` on every renewal,
    * which is plan failure F2 with a new cause. Converting this needs the member's own role read
    * first, which is plan §9.5's `downgrade_role_v2` work, not this phase's.

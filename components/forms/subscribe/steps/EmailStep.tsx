@@ -46,7 +46,7 @@ export default function EmailStep({
     )
 
   /**
-   * An existing account whose upgrade is this plan (an Express Offers Guest on the Pro link) is
+   * An existing account whose upgrade is this plan (an ExpressOffers Guest on the Pro link) is
    * upgraded in place, never duplicated: the main API emails it the sign-in-and-upgrade link. Any
    * other existing account, or any failure asking, keeps today's "Email Already In Use".
    */

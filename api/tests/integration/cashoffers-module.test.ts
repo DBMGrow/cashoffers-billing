@@ -258,7 +258,7 @@ describe('CashOffersAccountHandler', () => {
       expect(userApiClient.updateUser).toHaveBeenCalledWith(userId, expect.objectContaining({ role_v2: 'AGENT_PREMIUM' }))
     })
 
-    it('sees an Express Offers Pro moving to Elite, which the legacy pair could not', async () => {
+    it('sees an ExpressOffers Pro moving to Elite, which the legacy pair could not', async () => {
       // The reason the comparison moved. Both sides of the old check read `AGENT` + premium, so
       // needsUpdate came out false and the subscriber stayed on the tier they had stopped paying
       // for. Nothing reported it, because from the legacy columns nothing had happened.
@@ -279,7 +279,7 @@ describe('CashOffersAccountHandler', () => {
             userId,
             email: 'pro@test.com',
             productId,
-            productName: 'Express Offers Elite',
+            productName: 'ExpressOffers Elite',
             amount: 29900,
             nextRenewalDate: new Date('2026-05-17'),
           },
@@ -307,7 +307,7 @@ describe('CashOffersAccountHandler', () => {
             userId,
             email: 'elite@test.com',
             productId,
-            productName: 'Express Offers Elite',
+            productName: 'ExpressOffers Elite',
             amount: 29900,
             nextRenewalDate: new Date('2026-05-17'),
           },
@@ -501,7 +501,7 @@ describe('CashOffersAccountHandler', () => {
       const pause = (bus: InMemoryEventBus) =>
         bus.publish(SubscriptionPausedEvent.create({ subscriptionId, userId }, { productData: makeProductData({}) }))
 
-      it('lands a lapsed Express Offers Pro on AGENT_EXP_GUEST', async () => {
+      it('lands a lapsed ExpressOffers Pro on AGENT_EXP_GUEST', async () => {
         const { bus, whitelabelRepository } = handlerWithWhitelabel('AGENT_EXP_GUEST')
         await pause(bus)
         expect(whitelabelRepository.getDowngradeRoleV2).toHaveBeenCalledWith(68)

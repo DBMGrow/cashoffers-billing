@@ -11,7 +11,7 @@
  * **What it cannot do, by construction.** The derivation is `(role, is_premium) -> role_v2`, and
  * that mapping has no eXp tier in its range: `(AGENT, 1)` is ambiguous between `AGENT_PREMIUM` and
  * `AGENT_EXP_ELITE`, which is the ambiguity Q9 names, so it answers with the platform-wide tier
- * every existing product actually sells. No product becomes an Express Offers tier by backfill.
+ * every existing product actually sells. No product becomes an ExpressOffers tier by backfill.
  * They are named by hand, on purpose, one product at a time, once Phase 7.4 settles eXp pricing.
  *
  * Usage:
