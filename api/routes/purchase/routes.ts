@@ -2,7 +2,7 @@ import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import { NewUserPurchaseRoute, ExistingUserPurchaseRoute, ValidatePromoRoute } from "./schemas"
 import { setCookie } from "hono/cookie"
-import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
+import { resolvePaymentContext } from "@api/infrastructure/payment/test-mode-policy"
 import { config } from "@api/config/config.service"
 import { authMiddleware } from "@api/lib/middleware/authMiddleware"
 import { purchaseNewUserUseCase, purchaseExistingUserUseCase } from "@api/use-cases/subscription"
@@ -26,14 +26,15 @@ app.use("/existing", authMiddleware(null))
 app.openapi(NewUserPurchaseRoute, async (c) => {
   const body = c.req.valid("json")
 
-  const testModeDetector = new TestModeDetector()
-  const paymentContext = testModeDetector.detectTestMode(c, {
-    email: body.email,
-    user_id: undefined,
+  // No session on this route, so no capability: test mode (query, header or mock_purchase) is
+  // allowed only for a buyer on the test email domain. Refuse before any card or charge work.
+  const testMode = resolvePaymentContext(c, {
+    buyerEmail: body.email,
     capabilities: [],
+    mockPurchase: body.mock_purchase,
   })
-
-  const effectiveContext = body.mock_purchase ? { ...paymentContext, testMode: true } : paymentContext
+  if (!testMode.allowed) return c.json(testMode.body, testMode.status)
+  const effectiveContext = testMode.context
 
   try {
     const useCaseResult = await purchaseNewUserUseCase.execute({
@@ -107,7 +108,7 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
           userProvisioned: data.userProvisioned,
           proratedCharge: data.proratedCharge,
         },
-        environment: (paymentContext?.testMode ? "sandbox" : "production") as "sandbox" | "production",
+        environment: (effectiveContext?.testMode ? "sandbox" : "production") as "sandbox" | "production",
       },
       200
     )
@@ -129,8 +130,21 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
 
   // User identity comes from the session token resolved by authMiddleware
   const sessionUser = c.get("user")
-  const paymentContext = c.get("paymentContext")
-  const effectiveContext = body.mock_purchase ? { ...paymentContext, testMode: true } : paymentContext
+
+  // authMiddleware already authorized the query, header and email signals, but it cannot see
+  // `mock_purchase` in the body, so run the same rule again with it. Refuse before any card or
+  // charge work.
+  let effectiveContext = c.get("paymentContext")
+  if (body.mock_purchase) {
+    const testMode = resolvePaymentContext(c, {
+      buyerEmail: sessionUser.email,
+      capabilities: c.get("token_owner")?.capabilities ?? [],
+      userId: sessionUser.user_id,
+      mockPurchase: true,
+    })
+    if (!testMode.allowed) return c.json(testMode.body, testMode.status)
+    effectiveContext = testMode.context
+  }
 
   try {
     // Refuse another white label's product before anything is charged. The enrollment list and
@@ -187,7 +201,7 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
           userCreated: data.userCreated,
           proratedCharge: data.proratedCharge,
         },
-        environment: (paymentContext?.testMode ? "sandbox" : "production") as "sandbox" | "production",
+        environment: (effectiveContext?.testMode ? "sandbox" : "production") as "sandbox" | "production",
       },
       200
     )

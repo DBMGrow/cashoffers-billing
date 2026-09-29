@@ -154,6 +154,11 @@ export const NewUserPurchaseRoute = {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Bad request or purchase failed",
     },
+    403: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description:
+        "TEST_MODE_NOT_ALLOWED: test mode (test_mode=true, X-Test-Mode: true or mock_purchase) was requested for an email outside @test.cashoffers.com. Nothing is charged.",
+    },
     500: {
       content: { "application/json": { schema: ErrorResponseSchema } },
       description: "Internal server error",
@@ -200,7 +205,8 @@ export const ExistingUserPurchaseRoute = {
     },
     403: {
       content: { "application/json": { schema: ErrorResponseSchema } },
-      description: "PRODUCT_NOT_AVAILABLE: the product belongs to another white label",
+      description:
+        "PRODUCT_NOT_AVAILABLE: the product belongs to another white label. TEST_MODE_NOT_ALLOWED: test mode (test_mode=true, X-Test-Mode: true or mock_purchase) was requested by a user whose email is outside @test.cashoffers.com and who lacks the payments_test_mode capability. Nothing is charged.",
     },
     500: {
       content: { "application/json": { schema: ErrorResponseSchema } },
