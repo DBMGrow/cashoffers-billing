@@ -27,6 +27,8 @@ The email-domain allowance exists so a purchase can be demoed in production with
 
 Enforced in one function, `resolvePaymentContext` in `api/infrastructure/payment/test-mode-policy.ts`, called by `authMiddleware` (every authenticated payment route: `/purchase/existing`, `/manage/purchase`, `/card`, `/payment`, `/property`) and by `POST /purchase/new` (no auth). `POST /purchase/existing` calls it a second time with `mock_purchase`, since the middleware cannot see the body.
 
+The domain constant and `isTestAccountEmail` live in `api/domain/services/test-account.ts` (no server imports) so the account site can share them. On the manage enrollment checkout, a signed-in user on the test domain gets no card form: the page shows a "Test account" sandbox notice and sends Square's sandbox nonce (`cnon:card-nonce-ok`) with `mock_purchase: true` to `POST /purchase/existing`, the same as the signup's `?mock_purchase=true`. The plan-change review shows the same notice (it charges the card on file, so there is no card form to skip). This is a convenience only: the server rule above still decides, and refuses the purchase with `403 TEST_MODE_NOT_ALLOWED` if the page and the rule ever disagree. An ordinary user who sends the sandbox nonce is not in test mode and is charged against production, where the nonce fails.
+
 ## Permission Examples
 - `payments_create` — can create payments
 - `subscriptions_manage` — can manage subscriptions

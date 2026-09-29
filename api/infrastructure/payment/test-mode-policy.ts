@@ -1,5 +1,6 @@
 import type { Context as HonoContext } from "hono"
 import type { PaymentContext } from "@api/config/config.interface"
+import { TEST_MODE_EMAIL_DOMAIN, isTestAccountEmail } from "@api/domain/services/test-account"
 
 /**
  * Test mode policy: the one rule that decides whether a request may run its payment in the
@@ -12,14 +13,11 @@ import type { PaymentContext } from "@api/config/config.interface"
  */
 
 /**
- * Buyers whose email ends with this domain may purchase in test mode without any capability.
- *
- * Why: it is how we demo the purchase flow in production with a sandbox card (for example a
- * partner walkthrough), and it was already the test-account convention in the old TestModeDetector.
- * Anyone can type an address on this domain, so the rule does not prove who the buyer is: it only
- * keeps sandbox purchases confined to accounts that are recognisably test accounts.
+ * Buyers whose email ends with TEST_MODE_EMAIL_DOMAIN may purchase in test mode without any
+ * capability. The domain lives in api/domain/services/test-account.ts so the account site can
+ * share it (it skips the card form for these accounts); this file stays the only authority.
  */
-export const TEST_MODE_EMAIL_DOMAIN = "@test.cashoffers.com"
+export { TEST_MODE_EMAIL_DOMAIN }
 
 /** Capability that lets an authenticated user run any purchase in test mode. */
 export const TEST_MODE_CAPABILITY = "payments_test_mode"
@@ -58,7 +56,7 @@ export type TestModeDecision =
 
 /** True when the email belongs to the test-account domain (case-insensitive). */
 export function isTestModeEmail(email: string | null | undefined): boolean {
-  return typeof email === "string" && email.trim().toLowerCase().endsWith(TEST_MODE_EMAIL_DOMAIN)
+  return isTestAccountEmail(email)
 }
 
 /**

@@ -179,6 +179,40 @@ describe("POST /purchase/existing", () => {
     )
   })
 
+  // CO-I271: the account site's upgrade for a test account skips the card form and sends Square's
+  // sandbox nonce. The server, not the page, decides the environment.
+  const sandboxCard = { card_token: "cnon:card-nonce-ok", exp_month: 12, exp_year: 2027, cardholder_name: "Demo" }
+
+  it("runs a test-domain user's upgrade with the sandbox nonce in the sandbox, flag or no flag", async () => {
+    for (const body of [sandboxCard, { ...sandboxCard, mock_purchase: true }]) {
+      existingUseCase.mockClear()
+      const res = await postExisting("tester", { ...body, coupon: "EXPCON" })
+      expect(res.status).toBe(200)
+      expect(((await res.json()) as any).environment).toBe("sandbox")
+      expect(existingUseCase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "demo@test.cashoffers.com",
+          cardToken: "cnon:card-nonce-ok",
+          coupon: "EXPCON",
+          context: expect.objectContaining({ testMode: true }),
+        })
+      )
+    }
+  })
+
+  it("does not treat an ordinary user's sandbox nonce as test mode", async () => {
+    const res = await postExisting("regular", sandboxCard)
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as any).environment).toBe("production")
+    expect(existingUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cardToken: "cnon:card-nonce-ok",
+        context: expect.objectContaining({ testMode: false }),
+      })
+    )
+    expect(console.log).not.toHaveBeenCalledWith("[TEST MODE ACTIVATED]", expect.anything())
+  })
+
   it("charges production for an ordinary user who asks for nothing", async () => {
     const res = await postExisting("regular", {})
     expect(res.status).toBe(200)
