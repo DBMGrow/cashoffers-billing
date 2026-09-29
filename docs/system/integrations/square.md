@@ -31,3 +31,4 @@ Square errors are translated to domain errors via `square-error-translator.ts`. 
 ## Notes
 - Amounts must be in cents (Square also uses cents)
 - Sandbox vs production is controlled by `SQUARE_ENVIRONMENT`
+- Per request, a payment can run in the Square sandbox (test mode). Who may do that is in [Authorization Rules](../../business/rules/authorization-rules.md#test-mode-square-sandbox): only `@test.cashoffers.com` buyers or callers with `payments_test_mode`.
