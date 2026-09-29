@@ -27,9 +27,11 @@ export const TEST_MODE_CAPABILITY = "payments_test_mode"
 /** Stable error code returned when test mode is requested but not allowed. */
 export const TEST_MODE_NOT_ALLOWED = "TEST_MODE_NOT_ALLOWED"
 
-export const TEST_MODE_NOT_ALLOWED_MESSAGE =
-  `Test mode is not allowed for this account. Test purchases need an email ending in ${TEST_MODE_EMAIL_DOMAIN} ` +
-  `or the ${TEST_MODE_CAPABILITY} capability. Nothing was charged.`
+/**
+ * Deliberately generic: naming the allowed domain or capability here would tell anyone who
+ * triggers the refusal exactly how to get a sandbox-paid account.
+ */
+export const TEST_MODE_NOT_ALLOWED_MESSAGE = "Test purchases aren't available for this account. Nothing was charged."
 
 export type TestModeSource = "query_parameter" | "header" | "mock_purchase" | "user_email"
 
