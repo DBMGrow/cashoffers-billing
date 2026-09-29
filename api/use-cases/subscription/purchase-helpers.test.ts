@@ -24,7 +24,7 @@ describe("isUserFacingError", () => {
 })
 
 describe("calculatePricing", () => {
-  // Staging rows, as they are: KW Individual (product 1) and Express Offers Pro (product 70).
+  // Staging rows, as they are: KW Individual (product 1) and ExpressOffers Pro (product 70).
   const kwIndividual = { product: { price: 25000 }, data: { duration: "monthly" as const, renewal_cost: 25000 } }
   const expPro = { product: { price: 4900 }, data: { duration: "monthly" as const, renewal_cost: 4900, hidden: true } }
 
@@ -71,7 +71,7 @@ describe("publishPurchaseEvents productData", () => {
     purchaseRequestUuid: "uuid",
     userId: 42,
     email: "guest@exp.test",
-    product: { product_id: 70, product_name: "Express Offers Pro" },
+    product: { product_id: 70, product_name: "ExpressOffers Pro" },
     subscription: { subscription_id: 9, renewal_date: null },
     transaction: { transaction_id: 3 },
     pricing: { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900 },
@@ -110,7 +110,7 @@ describe("publishPurchaseEvents productData", () => {
     expect(created.metadata).toBeUndefined()
   })
 
-  // The account half of the dashboard's upgrade link: an Express Offers Guest who buys Express
+  // The account half of the dashboard's upgrade link: an ExpressOffers Guest who buys Express
   // Offers Pro through the manage flow must end up on AGENT_EXP_PRO. Before productData rode on
   // the event the handler returned at `!productData?.cashoffers?.managed` and wrote nothing.
   it("lets CashOffersAccountHandler move an existing Guest to the product's role_v2", async () => {

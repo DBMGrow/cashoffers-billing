@@ -30,7 +30,7 @@ function promo(overrides: Partial<PromoDefinition> = {}): PromoDefinition {
   }
 }
 
-// Express Offers Pro through the manage flow: no signup fee, $49 a month
+// ExpressOffers Pro through the manage flow: no signup fee, $49 a month
 const manageProPricing = { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900 }
 
 function ctx(overrides: Partial<PromoEvaluationContext> = {}): PromoEvaluationContext {

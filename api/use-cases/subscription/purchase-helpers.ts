@@ -268,7 +268,7 @@ function promoLineItems(pricing: PurchasePricing): Array<{ description: string; 
  * An existing account holder enrolling through the manage flow (`existingUser`) has already signed
  * up, and the manage enrollment screen quotes only the renewal cost and an explicit
  * `data.signup_fee`. So for them the signup fee is `data.signup_fee` alone, never `price`. Without
- * this an Express Offers Pro product (price 4900, renewal_cost 4900) quoted "$49.00 / month" and
+ * this an ExpressOffers Pro product (price 4900, renewal_cost 4900) quoted "$49.00 / month" and
  * charged 9800 (CO-I271 F-S4-e, staging transaction 3788).
  */
 export function calculatePricing(

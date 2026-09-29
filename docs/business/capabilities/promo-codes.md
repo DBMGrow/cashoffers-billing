@@ -4,7 +4,7 @@
 
 A white label can run a campaign code that discounts a new subscription's first charge, and see
 afterwards who used it, what it cost, and whether those subscribers went on to pay. First use:
-eXp's `EXPCON`, the first month of Express Offers Pro free for agents who sign up at eXpCon 2026.
+eXp's `EXPCON`, the first month of ExpressOffers Pro free for agents who sign up at eXpCon 2026.
 
 ## Actors
 
@@ -51,7 +51,7 @@ eXp's `EXPCON`, the first month of Express Offers Pro free for agents who sign u
   `data.cashoffers.user_config.role_v2` is in `product_roles` (NULL = any).
 - `max_redemptions` counts every non-voided redemption; `max_per_user` counts the buyer's, matched on
   email or user id; `new_users_only` refuses a buyer who has or had a subscription with `amount > 0`
-  (an Express Offers Guest's $0 subscription does not count).
+  (an ExpressOffers Guest's $0 subscription does not count).
 - Discount types, applied to the part of the first charge named by `applies_to`:
   - `free_periods`: the whole part is free.
   - `percent`: `discount_value` percent off (capped at 100).
@@ -130,6 +130,6 @@ buyer and are checked at purchase.
 
 ## Unknowns
 
-- The production Express Offers Pro `product_id` is not confirmed; `EXPCON` is scoped by white label and
+- The production ExpressOffers Pro `product_id` is not confirmed; `EXPCON` is scoped by white label and
   role instead (see the seed's placeholders).
 - Whether renewals should honour `periods_remaining` (a multi-month promo) is not built.

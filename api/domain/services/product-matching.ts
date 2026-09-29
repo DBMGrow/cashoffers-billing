@@ -7,7 +7,7 @@
  * change below, because AC24 asks for a test and a test needs something importable.
  *
  * **The change: the product key is keyed on `role_v2`** (RBAC unification plan CO-I271 §9.4, Q9).
- * The key was `whitelabel_code | role | team_members`, and on that key an Express Offers Pro product
+ * The key was `whitelabel_code | role | team_members`, and on that key an ExpressOffers Pro product
  * and an Elite product are the same key, `EXP|AGENT|0`, because both configs are `AGENT` with
  * `is_premium 1`. Two products $250 a month apart landed in one bucket and were told apart only by
  * an exact price match, so a price edit on either one silently reconciled subscribers onto the

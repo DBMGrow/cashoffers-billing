@@ -108,10 +108,10 @@ describe('PaymentErrorEmail', () => {
 describe('SubscriptionCreatedEmail', () => {
   it('shows a promo discount as a negative line and says nothing was charged at $0', async () => {
     const html = await renderTemplate(SubscriptionCreatedEmail, {
-      subscription: 'Express Offers Pro',
+      subscription: 'ExpressOffers Pro',
       amount: '$0.00',
       lineItems: [
-        { description: 'Express Offers Pro', amount: 4900 },
+        { description: 'ExpressOffers Pro', amount: 4900 },
         { description: 'Promo EXPCON: First month free', amount: -4900 },
       ],
       date: 'October 1, 2026',

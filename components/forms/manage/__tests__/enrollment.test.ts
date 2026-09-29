@@ -3,8 +3,8 @@ import { ENROLLMENT_DEFAULT_DESCRIPTION, enrollmentCopy, homeUptickLines, should
 
 describe("enrollmentCopy", () => {
   it("names the plan for buy_product", () => {
-    expect(enrollmentCopy("buy_product", "Express Offers Pro").description).toBe(
-      "Add your card to start Express Offers Pro."
+    expect(enrollmentCopy("buy_product", "ExpressOffers Pro").description).toBe(
+      "Add your card to start ExpressOffers Pro."
     )
     expect(enrollmentCopy("buy_product", null).description).not.toMatch(/HomeUptick/)
   })
@@ -20,7 +20,7 @@ describe("enrollmentCopy", () => {
 })
 
 describe("shouldAutoEnroll (plain /manage)", () => {
-  const pro = { product_id: 70, product_name: "Express Offers Pro" }
+  const pro = { product_id: 70, product_name: "ExpressOffers Pro" }
 
   it("opens a Guest's plain /manage on enrollment for their Pro upgrade", () => {
     expect(

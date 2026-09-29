@@ -151,7 +151,7 @@ export const SendUpgradeLinkRoute = {
   tags: ["Signup"],
   summary: "Send upgrade link",
   description:
-    "For an email that already has an account whose upgrade is this product (an Express Offers Guest on the Pro link), asks the main API to email the account its sign-in-and-upgrade link. Ownership of the inbox is the proof.",
+    "For an email that already has an account whose upgrade is this product (an ExpressOffers Guest on the Pro link), asks the main API to email the account its sign-in-and-upgrade link. Ownership of the inbox is the proof.",
 }
 
 /**

@@ -73,7 +73,7 @@ function dollars(cents: number): string {
 
 /**
  * The contact lines under a plan's price: none when the plan does not turn HomeUptick on,
- * "billed at" when every contact is billed (0 included, Express Offers Pro), and the included plus
+ * "billed at" when every contact is billed (0 included, ExpressOffers Pro), and the included plus
  * overage pair otherwise.
  */
 export function homeUptickLines(

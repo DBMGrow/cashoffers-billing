@@ -211,8 +211,8 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         userCard: payment ? userCard : null,
         userWasCreated: false,
         startTime,
-        // Lets CashOffersAccountHandler write the role this product sells (e.g. an Express Offers
-        // Guest buying Express Offers Pro moves to AGENT_EXP_PRO).
+        // Lets CashOffersAccountHandler write the role this product sells (e.g. an ExpressOffers
+        // Guest buying ExpressOffers Pro moves to AGENT_EXP_PRO).
         productData,
       })
 

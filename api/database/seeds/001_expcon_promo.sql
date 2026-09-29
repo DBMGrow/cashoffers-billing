@@ -1,4 +1,4 @@
--- Seed: EXPCON, first month of Express Offers Pro free for agents who sign up at eXpCon 2026.
+-- Seed: EXPCON, first month of ExpressOffers Pro free for agents who sign up at eXpCon 2026.
 -- Requires migration 014_promo_codes.sql. Hand-run, like the migrations. Safe to re-run: the
 -- unique key on `code` makes a second run update the row instead of inserting another.
 -- ROLLBACK: UPDATE PromoCodes SET active = 0 WHERE code = 'EXPCON';  (deactivate; deleting would orphan redemptions)
@@ -27,7 +27,7 @@ INSERT INTO PromoCodes (
   campaign, external_coupon_id, created_by
 ) VALUES (
   'EXPCON',
-  'eXpCon 2026: first month of Express Offers Pro free',
+  'eXpCon 2026: first month of ExpressOffers Pro free',
   'EXP',
   NULL,                              -- PLACEHOLDER: JSON_ARRAY(<production Pro product_id>) to pin it
   JSON_ARRAY('AGENT_EXP_PRO'),

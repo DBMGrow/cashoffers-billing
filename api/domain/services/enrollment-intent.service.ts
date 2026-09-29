@@ -6,14 +6,14 @@
  * one value instead of re-deriving it:
  *
  * - `buy_product`: the user is buying one named plan. A direct product link was followed, the user
- *   is an Express Offers Guest being sent to their upgrade, or an admin link chose
+ *   is an ExpressOffers Guest being sent to their upgrade, or an admin link chose
  *   `premium_cashoffers`.
  * - `homeuptick_only`: HomeUptick standalone (SHELL CashOffers access plus the HomeUptick fee).
  * - `activate_homeuptick`: the user pays for CashOffers elsewhere (`is_premium = 1`) and adding a
  *   card turns HomeUptick on (`external_cashoffers`).
  *
  * The old flow assumed "no subscription plus a card means activating HomeUptick" for everyone. That
- * is wrong for the Express Offers roles: a Guest (`AGENT_EXP_GUEST`) has no HomeUptick access at
+ * is wrong for the ExpressOffers roles: a Guest (`AGENT_EXP_GUEST`) has no HomeUptick access at
  * all, and the only thing they can act on is the upgrade to Pro.
  */
 
@@ -43,7 +43,7 @@ export function upgradeTargetFor(role: RoleV2 | null | undefined): RoleV2 | null
 }
 
 /**
- * Roles that must never be offered a `homeuptick_only` product, on any path. An Express Offers
+ * Roles that must never be offered a `homeuptick_only` product, on any path. An ExpressOffers
  * Guest has no HomeUptick access, so a HomeUptick standalone plan is not something they can buy.
  */
 const HOMEUPTICK_ONLY_BLOCKED: ReadonlySet<RoleV2> = new Set<RoleV2>(["AGENT_EXP_GUEST"])
