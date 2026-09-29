@@ -12,6 +12,8 @@ import type { Product } from "@/providers/ProductProvider"
 import { homeUptickLines, type EnrollmentIntent } from "../enrollment"
 import { useValidatePromo } from "@/hooks/api/useValidatePromo"
 import PromoCodeField from "@/components/forms/promo/PromoCodeField"
+import { isTestAccountEmail, SANDBOX_TEST_CARD_NONCE } from "@/api/domain/services/test-account"
+import TestAccountNotice from "./TestAccountNotice"
 
 interface EnrollmentStepProps {
   user: User
@@ -60,6 +62,10 @@ export default function EnrollmentStep({
   const [promoError, setPromoError] = useState<string | null>(null)
   const promo = useValidatePromo(coupon, selectedProduct ? Number(selectedProduct.product_id) : null, "manage")
   const promoQuote = coupon ? (promo.data?.quote ?? null) : null
+  // A test account buys in the Square sandbox (the server decides that from the same email rule and
+  // refuses anyone it does not allow), so the production card form cannot tokenize for it: skip the
+  // card entry and send Square's sandbox test nonce, as the signup's mock purchase does.
+  const isTestAccount = isTestAccountEmail(user.email)
 
   const {
     data: enrollment,
@@ -149,6 +155,8 @@ export default function EnrollmentStep({
         exp_year: token.details.card.expYear,
         cardholder_name: user.name || "Cardholder",
         coupon,
+        // Asks the server to run the sandbox; it re-checks the rule and returns 403 if not allowed.
+        ...(isTestAccount ? { mock_purchase: true } : {}),
       })
 
       if (result.success === "success") {
@@ -215,7 +223,7 @@ export default function EnrollmentStep({
     const period = durationRaw.replace(/ly$/, "")
     const productIsFree = price === 0 && !selectedProduct.data?.signup_fee
 
-      const buttonProps = {
+    const buttonProps = {
       style: {
         backgroundColor: "var(--color-primary)",
         borderRadius: "0.5rem",
@@ -230,9 +238,7 @@ export default function EnrollmentStep({
       <div className="w-full flex flex-col gap-4">
         <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg space-y-2">
           <h4 className="font-semibold text-lg">{selectedProduct.product_name}</h4>
-          <p className="text-sm text-gray-600">
-            {productIsFree ? "Free" : `$${price.toFixed(2)} / ${period}`}
-          </p>
+          <p className="text-sm text-gray-600">{productIsFree ? "Free" : `$${price.toFixed(2)} / ${period}`}</p>
           {!productIsFree && (
             <PromoCodeField
               code={coupon}
@@ -265,19 +271,37 @@ export default function EnrollmentStep({
           )}
         </div>
 
-        <PaymentForm
-          applicationId={process.env.NEXT_PUBLIC_SQUARE_APP_ID!}
-          locationId={process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID!}
-          cardTokenizeResponseReceived={handleCardTokenized}
-        >
-          <CreditCard
-            render={(Button: any) => (
-              <Button {...buttonProps}>
-                {isSubmitting ? "Processing..." : productIsFree ? "Activate" : "Subscribe"}
-              </Button>
-            )}
-          />
-        </PaymentForm>
+        {isTestAccount ? (
+          <>
+            <TestAccountNotice />
+            <ThemeButton
+              color="primary"
+              isDisabled={isSubmitting}
+              onPress={() =>
+                handleCardTokenized({
+                  token: SANDBOX_TEST_CARD_NONCE,
+                  details: { card: { expMonth: 12, expYear: new Date().getFullYear() + 1 } },
+                })
+              }
+            >
+              {isSubmitting ? "Processing..." : productIsFree ? "Activate" : "Subscribe"}
+            </ThemeButton>
+          </>
+        ) : (
+          <PaymentForm
+            applicationId={process.env.NEXT_PUBLIC_SQUARE_APP_ID!}
+            locationId={process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID!}
+            cardTokenizeResponseReceived={handleCardTokenized}
+          >
+            <CreditCard
+              render={(Button: any) => (
+                <Button {...buttonProps}>
+                  {isSubmitting ? "Processing..." : productIsFree ? "Activate" : "Subscribe"}
+                </Button>
+              )}
+            />
+          </PaymentForm>
+        )}
 
         <div className="w-[200px]">
           <ThemeButton
@@ -315,7 +339,9 @@ export default function EnrollmentStep({
                 ${price.toFixed(2)} / {duration}
               </p>
               {product.data?.cashoffers?.user_config?.team_members && (
-                <p className="text-gray-500 text-xs mt-1">Up to {product.data.cashoffers.user_config.team_members} team members</p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Up to {product.data.cashoffers.user_config.team_members} team members
+                </p>
               )}
             </div>
           )
