@@ -1,13 +1,8 @@
 import type { MiddlewareHandler } from "hono"
 import { getCookie } from "hono/cookie"
 import { getUserFromToken, getUserById } from "@api/utils/getUserFromToken"
-import { TestModeDetector } from "@api/infrastructure/payment/test-mode-detector"
-import { TestModeAuthorizer } from "@api/infrastructure/payment/test-mode-authorizer"
+import { resolvePaymentContext } from "@api/infrastructure/payment/test-mode-policy"
 import { getLoggingContext } from "@api/infrastructure/logging/logging-context-store"
-
-// Initialize test mode services (singleton instances)
-const testModeDetector = new TestModeDetector()
-const testModeAuthorizer = new TestModeAuthorizer()
 
 /**
  * Hono auth middleware factory
@@ -169,38 +164,18 @@ export function authMiddleware(
       loggingContext.userId = tokenOwner.user_id
     }
 
-    // Detect and authorize test mode (for payment operations)
-    try {
-      const paymentContext = testModeDetector.detectTestMode(c, {
-        user_id: tokenOwner.user_id,
-        email: tokenOwner.email,
-        capabilities: tokenOwner.capabilities,
-      })
-
-      // Authorize test mode if requested
-      testModeAuthorizer.authorize({
-        capabilities: tokenOwner.capabilities,
-      }, paymentContext.testMode)
-
-      // Attach payment context to Hono context for use in routes
-      c.set("paymentContext", paymentContext)
-
-      // Log test mode activation for audit trail
-      if (paymentContext.testMode) {
-        console.log('[TEST MODE ACTIVATED]', {
-          userId: tokenOwner.user_id,
-          email: tokenOwner.email,
-          detectedFrom: paymentContext.metadata?.detectedFrom,
-          timestamp: paymentContext.metadata?.timestamp,
-        })
-      }
-    } catch (error) {
-      // Test mode authorization failed
-      return c.json({
-        success: "error",
-        error: error instanceof Error ? error.message : "Test mode authorization failed"
-      }, 403)
+    // Detect and authorize test mode (for payment operations). The buyer is the target user; the
+    // capability comes from the caller. Routes that also read `mock_purchase` from the body must
+    // run it through resolvePaymentContext again, since the middleware cannot see the body flag.
+    const testMode = resolvePaymentContext(c, {
+      buyerEmail: user.email,
+      capabilities: tokenOwner.capabilities,
+      userId: tokenOwner.user_id,
+    })
+    if (!testMode.allowed) {
+      return c.json(testMode.body, testMode.status)
     }
+    c.set("paymentContext", testMode.context)
 
     await next()
   }
