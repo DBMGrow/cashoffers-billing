@@ -19,7 +19,7 @@ Every API request is authenticated against the main CashOffers API. Access to re
 A payment in test mode runs against the Square sandbox, and production has sandbox credentials configured, so a test-mode purchase gives a real paid account without real money. The rule:
 
 1. Test mode is requested by any of: `?test_mode=true`, the `X-Test-Mode: true` header, `mock_purchase: true` in a purchase body, or a buyer email ending in `@test.cashoffers.com`.
-2. It is **allowed only** when the buyer's email ends in `@test.cashoffers.com` (`TEST_MODE_EMAIL_DOMAIN`), or the authenticated caller has the `payments_test_mode` capability.
+2. It is **allowed only** when the buyer's email ends in `@test.cashoffers.com` or `@dbmgrow.com` (`TEST_MODE_EMAIL_DOMAINS`), or the authenticated caller has the `payments_test_mode` capability.
 3. Otherwise the request is refused with `403` and code `TEST_MODE_NOT_ALLOWED` before any card or charge work. There is no silent fallback to a production charge (a mock purchase has skipped the card step and sent a sandbox nonce).
 4. Every refusal logs `[TEST MODE REFUSED]`; every allowed test-mode request logs `[TEST MODE ACTIVATED]`.
 
