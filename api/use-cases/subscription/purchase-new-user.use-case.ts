@@ -398,6 +398,11 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         state: v.state ?? undefined,
         is_premium: userConfig?.is_premium,
         role: isTeamPlan ? "SHELL" : userConfig?.role,
+        // The legacy pair cannot express an eXp tier: ExpressOffers Pro's `(AGENT, is_premium 0)`
+        // reads back as AGENT_FREE, and SubscriptionCreated carries no productData on this path, so
+        // nothing corrects it until the first renewal. Naming the tier lets the client follow the
+        // create with a role write. Not for team plans: they start as SHELL and are promoted below.
+        role_v2: isTeamPlan ? undefined : (resolveUserConfigRoleV2(userConfig) ?? undefined),
         whitelabel_id: resolvedWhitelabelId ?? 4,
         reset_token: resetToken,
         reset_created: formatMySQLDatetime(),
