@@ -16,7 +16,7 @@ import { useWhitelabel } from "@/providers/WhitelabelProvider"
 import EmailStep from "./steps/EmailStep"
 import NameStep from "./steps/NameStep"
 import SlugStep from "./steps/SlugStep"
-import BrokerStep from "./steps/BrokerStep"
+import BrokerStep, { defaultBrokerFor } from "./steps/BrokerStep"
 import TeamStep from "./steps/TeamStep"
 import LocationStep from "./steps/LocationStep"
 import PhoneStep from "./steps/PhoneStep"
@@ -152,10 +152,7 @@ export default function SubscribeFlow({
 
   const selectedProduct = getProductById(initialProduct)
 
-  let name_broker: string | null = null
-  if (whitelabel === "kw") {
-    name_broker = "Keller Williams"
-  }
+  const name_broker = defaultBrokerFor(whitelabel)
 
   const form = useForm<SubscribeFormData>({
     resolver: zodResolver(subscribeSchema),
