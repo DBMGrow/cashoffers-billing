@@ -537,6 +537,8 @@ export async function publishPurchaseEvents(
     /** null for free ($0) purchases */
     userCard: { last_4: string | null } | null
     userWasCreated: boolean
+    /** The new-user flow charged but could not create the account. Suppresses the receipt. */
+    provisioningFailed?: boolean
     startTime: Date
     /**
      * The purchased product's data, attached to SubscriptionCreated as `metadata.productData`.
@@ -561,6 +563,7 @@ export async function publishPurchaseEvents(
       externalTransactionId: params.payment?.id ?? undefined,
       cardId: params.cardIdString ?? undefined,
       userWasCreated: params.userWasCreated,
+      provisioningFailed: params.provisioningFailed ?? false,
       nextRenewalDate: params.subscription.renewal_date ?? undefined,
       environment: params.payment?.environment,
       source: "API",

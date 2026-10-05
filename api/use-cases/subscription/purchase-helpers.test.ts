@@ -178,3 +178,45 @@ describe("publishPurchaseEvents productData", () => {
     expect(userApiClient.updateUser).toHaveBeenCalledWith(42, { role_v2: expected, whitelabel_id: 7 })
   })
 })
+
+// desk-1727: the receipt handler skipped on `userWasCreated === false`, which every existing-user
+// purchase sends because it creates no user. 26 ExpressOffers Pro buyers got no receipt. The skip
+// now reads `provisioningFailed`, which only the new-user flow sets, and only when it failed.
+describe("publishPurchaseEvents provisioningFailed", () => {
+  const baseParams = {
+    purchaseRequestId: 1,
+    purchaseRequestUuid: "uuid",
+    userId: 42,
+    email: "guest@exp.test",
+    product: { product_id: 70, product_name: "ExpressOffers Pro" },
+    subscription: { subscription_id: 9, renewal_date: null },
+    transaction: { transaction_id: 3 },
+    pricing: { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900 },
+    payment: null,
+    cardIdString: null,
+    userCard: null,
+    userWasCreated: false,
+    startTime: new Date(),
+  }
+
+  async function createdPayload(params: Parameters<typeof publishPurchaseEvents>[1]) {
+    const published: any[] = []
+    const deps = {
+      eventBus: { publish: vi.fn(async (e: any) => void published.push(e)) } as any,
+      purchaseRequestRepository: { markAsCompleted: vi.fn() } as any,
+    }
+    await publishPurchaseEvents(deps, params)
+    return published.find((e) => e.eventType === "SubscriptionCreated").payload
+  }
+
+  it("does not mark an existing user's completed purchase as a provisioning failure", async () => {
+    const payload = await createdPayload(baseParams)
+    expect(payload.userWasCreated).toBe(false)
+    expect(payload.provisioningFailed).toBe(false)
+  })
+
+  it("marks a new-user purchase whose account could not be created", async () => {
+    const payload = await createdPayload({ ...baseParams, provisioningFailed: true })
+    expect(payload.provisioningFailed).toBe(true)
+  })
+})
