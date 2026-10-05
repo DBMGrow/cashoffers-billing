@@ -2200,7 +2200,7 @@ function registerDevRoutes(router: Hono<{ Variables: HonoVariables }>) {
   //
   // Closes the last gap in a manual provisioning repair. When user creation fails
   // after payment, the purchase flow suppresses the welcome email on purpose
-  // (email-notification.handler: `userWasCreated === false`), so the repaired user
+  // (email-notification.handler: `provisioningFailed === true`), so the repaired user
   // is left with `password = 'NONE'` and no link. This asks the main API to mint a
   // token and send it — nothing here writes `reset_token` or invents a token.
   //

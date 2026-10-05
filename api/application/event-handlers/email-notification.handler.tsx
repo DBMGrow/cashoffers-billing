@@ -89,8 +89,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
     return `$${(amountInCents / 100).toFixed(2)}`
   }
 
-  private formatDate(): string {
-    return new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+  private formatDate(date: Date = new Date()): string {
+    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
   }
 
   private isSandbox(environment?: "production" | "sandbox"): boolean {
@@ -215,13 +215,15 @@ export class EmailNotificationHandler extends BaseEventHandler {
           lineItems,
           externalTransactionId,
           nextRenewalDate,
-          userWasCreated,
+          provisioningFailed,
         } = event.payload
         const chargedAmount = initialChargeAmount ?? amount
 
         // Don't send a welcome email if user provisioning failed — the use case
         // already sends a customer error email via sendCustomerPurchaseErrorEmail.
-        if (userWasCreated === false) {
+        // Not `userWasCreated === false`: an existing user's purchase creates no user
+        // and succeeds, and reading it as a failure skipped every receipt (desk-1727).
+        if (provisioningFailed === true) {
           this.logger.info("Skipping subscription created email — user provisioning failed", {
             email,
             subscriptionId: event.payload.subscriptionId,
@@ -303,7 +305,7 @@ export class EmailNotificationHandler extends BaseEventHandler {
             subscription={productName}
             amount={this.formatCurrency(chargedAmount)}
             lineItems={(lineItems ?? []).map((item) => ({ description: item.description, amount: item.amount }))}
-            date={this.formatDate()}
+            date={this.formatDate(event.occurredAt)}
             transactionID={externalTransactionId}
             isSandbox={this.isSandbox(environment)}
             whitelabel={this.toBrandingProps(whitelabelInfo)}
