@@ -22,6 +22,11 @@ export interface SubscriptionCreatedPayload {
   cardId?: string
   /** Whether a new user was created as part of this subscription */
   userWasCreated?: boolean
+  /**
+   * True only when the new-user flow charged the card but could not create the account. Not the
+   * same as `userWasCreated === false`: an existing user's purchase creates no user and succeeds.
+   */
+  provisioningFailed?: boolean
   /** Whether a new card was created */
   cardWasCreated?: boolean
   /** Next renewal date */

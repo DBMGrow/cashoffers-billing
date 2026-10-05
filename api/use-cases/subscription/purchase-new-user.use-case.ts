@@ -296,6 +296,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         cardIdString,
         userCard,
         userWasCreated: provisioning.success,
+        provisioningFailed: !provisioning.success,
         startTime,
       })
 

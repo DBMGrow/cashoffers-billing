@@ -1,7 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi"
 import type { HonoVariables } from "@api/types/hono"
 import subscriptionsCron from "@api/cron/subscriptionsCron"
-import { RunCronRoute, SendHealthReportRoute } from "./schemas"
+import { RunCronRoute, SendHealthReportRoute, ResendReceiptsRoute } from "./schemas"
+import { resendSkippedReceipts } from "@api/use-cases/subscription/resend-skipped-receipts"
 import { config } from "@api/config/config.service"
 import { healthReportService } from "@api/lib/services"
 import { resolveHealthReportRecipients } from "@api/domain/services/health-report-recipients"
@@ -53,6 +54,19 @@ app.openapi(SendHealthReportRoute, async (c) => {
     reportDate: reportDate.toISOString(),
     recipientCount: recipients.length,
   }, 200)
+})
+
+// Resend receipts skipped as "provisioning failed" (desk-1727). Dry run unless apply is true.
+app.openapi(ResendReceiptsRoute, async (c) => {
+  const { secret, apply } = c.req.valid("json")
+
+  if (secret !== config.cronSecret) {
+    throw new Error("Unauthorized")
+  }
+
+  const result = await resendSkippedReceipts({ apply: apply === true })
+
+  return c.json({ success: "success" as const, ...result }, 200)
 })
 
 export const cronRoutes = app
