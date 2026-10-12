@@ -319,6 +319,12 @@ existing account enrolling through `/manage` never gets the trial and pays list 
 need no special case: the team step's read-modify-write of `Subscriptions.data` keeps `trial`.
 This is unrelated to `status = 'trial'`, which is HomeUptick's no-card trial and cancels at expiry.
 
+The signup page states the terms before the agent presses Sign Up, using the same rule
+(`productTrialDays` in `providers/ProductProvider.tsx`): the pricing card reads "N-day free trial",
+the card step adds "You won't be charged until your N-day trial ends.", and the review step reads
+"Due today $0" then "$<renewal_cost>/mo starting <date>", with no signup fee line and no promo
+field. The card step is still required (a trial product is not free).
+
 ---
 
 ## HomeUptick Subscription Seeding
