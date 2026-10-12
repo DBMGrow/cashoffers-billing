@@ -1,4 +1,4 @@
-import { Kysely, Selectable, Insertable, Updateable } from 'kysely'
+import { Kysely, Selectable, Insertable, Updateable, sql } from 'kysely'
 import type { DB, Subscriptions } from '@api/lib/db'
 import { TransactionContext } from '../transaction/transaction-manager.interface'
 
@@ -247,6 +247,48 @@ export class SubscriptionRepository {
       .where('renewal_date', '<=', futureDate)
       .selectAll()
       .execute()
+  }
+
+  /**
+   * Card-on-file free trials (Desk #1350, `data.trial`) whose first charge lands within `days` of
+   * `now` and whose trial-ending reminder has not gone out. A cancelled or cancel-on-renewal trial
+   * gets no reminder: it will not be charged. `ends_at` is always written by `toISOString()`, so the
+   * string comparison is a time comparison.
+   */
+  async findTrialsEndingWithin(days: number, now: Date = new Date(), trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    const until = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+    const endsAt = sql<string>`JSON_UNQUOTE(JSON_EXTRACT(data, '$.trial.ends_at'))`
+
+    return await db
+      .selectFrom('Subscriptions')
+      .where('status', '=', 'active')
+      .where('user_id', 'is not', null)
+      .where((eb) => eb.or([eb('cancel_on_renewal', 'is', null), eb('cancel_on_renewal', '=', 0)]))
+      .where(endsAt, '>', now.toISOString())
+      .where(endsAt, '<=', until.toISOString())
+      .where(sql`JSON_EXTRACT(data, '$.trial.reminder_sent_at')`, 'is', null)
+      .selectAll()
+      .execute()
+  }
+
+  /**
+   * Stamp `data.trial.reminder_sent_at`, the trial-ending reminder's idempotency key. JSON_SET in one
+   * statement leaves the rest of `data` untouched, and the `IS NULL` guard makes a second stamp a
+   * no-op. Returns whether this call wrote the stamp.
+   */
+  async stampTrialReminderSent(id: number, sentAt: Date, trx?: TransactionContext): Promise<boolean> {
+    const db = trx ?? this.db
+    const result = await db
+      .updateTable('Subscriptions')
+      .set({
+        data: sql`JSON_SET(data, '$.trial.reminder_sent_at', ${sentAt.toISOString()})`,
+        updatedAt: sentAt,
+      })
+      .where('subscription_id', '=', id)
+      .where(sql`JSON_EXTRACT(data, '$.trial.reminder_sent_at')`, 'is', null)
+      .executeTakeFirst()
+    return Number(result.numUpdatedRows) > 0
   }
 
   async findByEnvironment(

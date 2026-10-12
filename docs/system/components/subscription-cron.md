@@ -22,6 +22,8 @@ Runs on a schedule to process subscription renewals, trial expirations, and paym
    f. Otherwise: run `RenewSubscriptionUseCase`
 3. After main subscription: check for HomeUptick addon, process if present
 4. On payment failure: call `updateNextRenewalAttempt` to schedule retry
+5. HomeUptick `status = trial` blocks: expire ended trials, warn 10 days out
+6. Card-on-file trials (Desk #1350): `findTrialsEndingWithin(7)` finds active subscriptions whose `data.trial.ends_at` is within 7 days, not cancel-on-renewal, with no `data.trial.reminder_sent_at`; each gets one `trial-ending` email, then `stampTrialReminderSent` writes the stamp with `JSON_SET` (a failed send logs `warn` and is retried next run)
 
 ## Inputs
 - Database: subscriptions due for renewal

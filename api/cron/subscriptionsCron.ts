@@ -1,13 +1,18 @@
 import { createElement } from "react"
 import { render } from "@react-email/render"
 import { config } from "@api/config/config.service"
-import { logger, emailService, eventBus } from "@api/lib/services"
+import { logger, emailService, eventBus, whitelabelResolverService } from "@api/lib/services"
 import { db } from "@api/lib/database"
-import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
+import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
+import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import TrialExpiringEmail from "@api/infrastructure/email/templates/trial-expiring.email"
 import TrialExpiredEmail from "@api/infrastructure/email/templates/trial-expired.email"
+import TrialEndingEmail from "@api/infrastructure/email/templates/trial-ending.email"
+
+/** Days before a card-on-file trial's first charge that the trial-ending reminder goes out. */
+const TRIAL_REMINDER_DAYS = 7
 
 export default async function subscriptionsCron() {
   // Create child logger with cron context
@@ -201,6 +206,63 @@ export default async function subscriptionsCron() {
       }
     } catch (err: any) {
       cronLogger.error('Error processing trial warnings', err)
+    }
+
+    // Card-on-file free trials (Desk #1350): one "your card will be charged" reminder 7 days
+    // before the first charge. `data.trial.reminder_sent_at` is the idempotency key, stamped only
+    // after the send succeeds, so a failed send is retried on the next run and a sent one never is.
+    try {
+      const endingTrials = await subscriptionRepository.findTrialsEndingWithin(TRIAL_REMINDER_DAYS)
+      cronLogger.info('Card trials ending soon', { count: endingTrials.length })
+
+      for (const subscription of endingTrials) {
+        const subscriptionId = subscription.subscription_id
+        try {
+          const trial = readSubscriptionTrial(subscription.data)
+          const trialUser = subscription.user_id ? await getUser(subscription.user_id) : null
+          if (!trial || !trialUser?.email) {
+            cronLogger.warn('Trial-ending reminder skipped: no trial marker or no email', { subscriptionId })
+            continue
+          }
+
+          const [card] = await userCardRepository.findByUserId(subscription.user_id!)
+          const whitelabelInfo = await whitelabelResolverService.resolveForUser(subscription.user_id!)
+          const billingBase = (whitelabelInfo.branding?.billing_url ?? 'https://account.cashoffers.pro').replace(/\/$/, '')
+          const isSandbox = subscription.square_environment === 'sandbox'
+          const chargeDate = new Date(trial.ends_at).toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric',
+          })
+
+          const html = await render(
+            createElement(TrialEndingEmail, {
+              subscription: subscription.subscription_name,
+              amount: `$${(subscription.amount / 100).toFixed(2)}`,
+              chargeDate,
+              cardLast4: card?.last_4 || undefined,
+              manageUrl: `${billingBase}/manage`,
+              isSandbox,
+              whitelabel: { ...whitelabelInfo.branding, name: whitelabelInfo.name },
+            })
+          )
+          await emailService.sendEmail({
+            to: trialUser.email,
+            subject: `${isSandbox ? '[SANDBOX] ' : ''}Your free trial ends on ${chargeDate}`,
+            html,
+            templateName: 'trial-ending',
+            fromName: whitelabelInfo.name,
+          })
+
+          await subscriptionRepository.stampTrialReminderSent(subscriptionId, new Date())
+          cronLogger.info('Sent trial-ending reminder', { subscriptionId, userId: subscription.user_id, endsAt: trial.ends_at })
+        } catch (err: any) {
+          cronLogger.warn('Trial-ending reminder failed and was not stamped, will retry next run', {
+            subscriptionId,
+            error: err?.message,
+          })
+        }
+      }
+    } catch (err: any) {
+      cronLogger.error('Error processing trial-ending reminders', err)
     }
   } catch (error: any) {
     cronLogger.error('Fatal error in subscriptions cron', error)
