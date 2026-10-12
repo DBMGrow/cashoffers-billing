@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { calculatePricing, isUserFacingError, publishPurchaseEvents } from "./purchase-helpers"
+import { calculatePricing, calculateRenewalDate, isUserFacingError, publishPurchaseEvents } from "./purchase-helpers"
 import { CashOffersAccountHandler } from "@api/application/service-handlers/cashoffers/cashoffers-account.handler"
 
 describe("isUserFacingError", () => {
@@ -34,6 +34,7 @@ describe("calculatePricing", () => {
       renewalCost: 25000,
       productDuration: "monthly",
       initialAmount: 50000,
+      trialDays: null,
     })
   })
 
@@ -45,6 +46,7 @@ describe("calculatePricing", () => {
       renewalCost: 4900,
       productDuration: "monthly",
       initialAmount: 4900,
+      trialDays: null,
     })
   })
 
@@ -65,6 +67,72 @@ describe("calculatePricing", () => {
   })
 })
 
+// Desk #1350: a product's free trial defers the first charge N days for a new signup.
+describe("calculatePricing with a free trial", () => {
+  // InstantOffers365 Individual (product 70): $250 a month, no separate signup fee.
+  const individual = { price: 25000, data: { duration: "monthly" as const, renewal_cost: 25000, signup_fee: 0 } }
+  const trial = { enabled: true, duration_days: 30, require_card: true as const }
+
+  // AC2
+  it("no trial block leaves pricing unchanged", () => {
+    expect(calculatePricing(individual, individual.data)).toEqual({
+      signupFee: 0,
+      renewalCost: 25000,
+      productDuration: "monthly",
+      initialAmount: 25000,
+      trialDays: null,
+    })
+  })
+
+  it("a disabled trial leaves pricing unchanged", () => {
+    const pricing = calculatePricing(individual, { ...individual.data, trial: { ...trial, enabled: false } })
+    expect(pricing.initialAmount).toBe(25000)
+    expect(pricing.trialDays).toBeNull()
+  })
+
+  it("an enabled trial charges nothing today and keeps the renewal cost", () => {
+    expect(calculatePricing(individual, { ...individual.data, trial })).toEqual({
+      signupFee: 0,
+      renewalCost: 25000,
+      productDuration: "monthly",
+      initialAmount: 0,
+      trialDays: 30,
+    })
+  })
+
+  // AC5 at the pricing level (Q5)
+  it("an existing user gets no trial", () => {
+    const pricing = calculatePricing(individual, { ...individual.data, trial }, { existingUser: true })
+    expect(pricing.initialAmount).toBe(25000)
+    expect(pricing.trialDays).toBeNull()
+  })
+
+  it("a malformed trial length is no trial", () => {
+    const pricing = calculatePricing(individual, { ...individual.data, trial: { ...trial, duration_days: 0 } })
+    expect(pricing.initialAmount).toBe(25000)
+    expect(pricing.trialDays).toBeNull()
+  })
+})
+
+describe("calculateRenewalDate", () => {
+  const DAY = 86_400_000
+
+  it("is one period out without a trial", () => {
+    const expected = new Date()
+    expected.setMonth(expected.getMonth() + 1)
+    expect(Math.abs(calculateRenewalDate("monthly").getTime() - expected.getTime())).toBeLessThan(1000)
+    expect(Math.abs(calculateRenewalDate("monthly", null).getTime() - expected.getTime())).toBeLessThan(1000)
+  })
+
+  it("is exactly trialDays out with a trial, whatever the duration", () => {
+    for (const duration of ["monthly", "yearly", "weekly"]) {
+      const days = (calculateRenewalDate(duration, 30).getTime() - Date.now()) / DAY
+      // Within an hour of 30 days: setDate keeps the local wall-clock time across a DST change
+      expect(Math.abs(days - 30)).toBeLessThan(1 / 24 + 0.001)
+    }
+  })
+})
+
 describe("publishPurchaseEvents productData", () => {
   const baseParams = {
     purchaseRequestId: 1,
@@ -74,7 +142,7 @@ describe("publishPurchaseEvents productData", () => {
     product: { product_id: 70, product_name: "ExpressOffers Pro" },
     subscription: { subscription_id: 9, renewal_date: null },
     transaction: { transaction_id: 3 },
-    pricing: { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900 },
+    pricing: { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900, trialDays: null },
     payment: null,
     cardIdString: null,
     userCard: null,
@@ -191,7 +259,7 @@ describe("publishPurchaseEvents provisioningFailed", () => {
     product: { product_id: 70, product_name: "ExpressOffers Pro" },
     subscription: { subscription_id: 9, renewal_date: null },
     transaction: { transaction_id: 3 },
-    pricing: { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900 },
+    pricing: { signupFee: 0, renewalCost: 4900, productDuration: "monthly", initialAmount: 4900, trialDays: null },
     payment: null,
     cardIdString: null,
     userCard: null,

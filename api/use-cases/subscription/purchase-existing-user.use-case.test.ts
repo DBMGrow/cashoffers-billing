@@ -73,6 +73,35 @@ describe("PurchaseExistingUserUseCase charge amount", () => {
     })
     expect((createPayment.mock.calls[0] as any)[0].amountMoney.amount).toBe(BigInt(5900))
   })
+
+  // Desk #1350 AC5 (plan Q5): the free trial is for new signups; an existing account pays list price.
+  it("existing users get no trial", async () => {
+    const product = {
+      product_id: 70,
+      product_name: "Individual",
+      price: 25000,
+      data: {
+        duration: "monthly",
+        renewal_cost: 25000,
+        signup_fee: 0,
+        trial: { enabled: true, duration_days: 30, require_card: true },
+      },
+    }
+    const { deps, createPayment } = makeDeps(product)
+    const result = await new PurchaseExistingUserUseCase(deps as never).execute({
+      userId: 999749,
+      productId: 70,
+      email: "agent@io365.test",
+    } as never)
+
+    expect(result.success).toBe(true)
+    expect(createPayment).toHaveBeenCalledTimes(1)
+    expect((createPayment.mock.calls[0] as any)[0].amountMoney.amount).toBe(BigInt(25000))
+    const created = (deps.subscriptionRepository.create.mock.calls[0] as any)[0]
+    expect(JSON.parse(created.data).trial).toBeUndefined()
+    const days = (created.renewal_date.getTime() - Date.now()) / 86_400_000
+    expect(days).toBeGreaterThanOrEqual(28)
+  })
 })
 
 /**

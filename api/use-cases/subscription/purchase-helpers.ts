@@ -20,7 +20,13 @@ import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-create
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
 import { PurchaseRequestCompletedEvent } from "@api/domain/events/purchase-request-completed.event"
 import type { PaymentContext } from "@api/config/config.interface"
-import { ProductData, ProductUserConfig, CashOffersConfig, HomeUptickConfig } from "@api/domain/types/product-data.types"
+import {
+  ProductData,
+  ProductUserConfig,
+  CashOffersConfig,
+  HomeUptickConfig,
+  SubscriptionTrial,
+} from "@api/domain/types/product-data.types"
 import type { HomeUptickSubscriptionRepository } from "@api/lib/repositories"
 import { HOMEUPTICK_DEFAULTS } from "@api/domain/services/homeuptick-allowance"
 import { v4 as uuidv4 } from "uuid"
@@ -217,6 +223,11 @@ export interface PurchasePricing {
   productDuration: string
   initialAmount: number
   /**
+   * Days until the first charge when the product's free trial applied (`initialAmount` is then 0,
+   * `renewalCost` stays the list price). `null` when no trial applies. See `calculatePricing`.
+   */
+  trialDays: number | null
+  /**
    * Set when a promo code discounted this purchase. `initialAmount` is then the discounted charge;
    * `renewalCost` (and so `Subscriptions.amount`) stays the list price. See promo-helpers.ts.
    */
@@ -270,6 +281,10 @@ function promoLineItems(pricing: PurchasePricing): Array<{ description: string; 
  * `data.signup_fee`. So for them the signup fee is `data.signup_fee` alone, never `price`. Without
  * this an ExpressOffers Pro product (price 4900, renewal_cost 4900) quoted "$49.00 / month" and
  * charged 9800 (CO-I271 F-S4-e, staging transaction 3788).
+ *
+ * A product with `data.trial.enabled` (Desk #1350) charges a new signup nothing today: the card is
+ * saved and the first charge, the renewal cost, lands `trial.duration_days` later through the
+ * ordinary renewal cron. An existing account never gets the trial (plan Q5): it pays list price.
  */
 export function calculatePricing(
   product: { price: number },
@@ -279,7 +294,17 @@ export function calculatePricing(
   const signupFee = options.existingUser ? (productData.signup_fee ?? 0) : (productData.signup_fee ?? product.price ?? 0)
   const renewalCost = productData.renewal_cost || product.price
   const productDuration = productData.duration || "monthly"
-  return { signupFee, renewalCost, productDuration, initialAmount: signupFee + renewalCost }
+  // A malformed length (the product schema refuses one, but a row can be written around it) is no
+  // trial at all, rather than a $0 signup with no deferred date to charge on.
+  const trial = productData.trial
+  const trialDays =
+    !options.existingUser && trial?.enabled && Number.isInteger(trial.duration_days) && trial.duration_days > 0
+      ? trial.duration_days
+      : null
+  if (trialDays !== null) {
+    return { signupFee, renewalCost, productDuration, initialAmount: 0, trialDays }
+  }
+  return { signupFee, renewalCost, productDuration, initialAmount: signupFee + renewalCost, trialDays: null }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -451,7 +476,7 @@ export async function createSubscriptionRecord(
     cashoffers: CashOffersConfig | undefined
   }
 ) {
-  const renewalDate = calculateRenewalDate(params.pricing.productDuration)
+  const renewalDate = calculateRenewalDate(params.pricing.productDuration, params.pricing.trialDays)
   const now = new Date()
 
   // Build subscription data: include product config and legacy fields for backwards compatibility.
@@ -462,6 +487,12 @@ export async function createSubscriptionRecord(
   }
   if (params.userConfig) subscriptionData.user_config = params.userConfig
   if (params.cashoffers) subscriptionData.cashoffers = params.cashoffers
+  // The trial marker: the status stays `active` at the full amount, so the renewal cron takes the
+  // first charge on `renewal_date`. Emails, the reminder and the health report read this key.
+  if (params.pricing.trialDays) {
+    const trial: SubscriptionTrial = { ends_at: renewalDate.toISOString(), duration_days: params.pricing.trialDays }
+    subscriptionData.trial = trial
+  }
 
   return deps.subscriptionRepository.create({
     user_id: params.userId,
@@ -785,12 +816,22 @@ export async function seedHomeUptickSubscription(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// calculateRenewalDate (unchanged)
+// calculateRenewalDate
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function calculateRenewalDate(duration: string): Date {
+/**
+ * The first renewal date: one billing period from now, or `trialDays` days from now when a free
+ * trial defers the first charge (exactly N days, not a calendar month: plan Q3). Later renewals
+ * advance one period from that date.
+ */
+export function calculateRenewalDate(duration: string, trialDays?: number | null): Date {
   const now = new Date()
   const renewalDate = new Date(now)
+
+  if (trialDays && trialDays > 0) {
+    renewalDate.setDate(renewalDate.getDate() + trialDays)
+    return renewalDate
+  }
 
   switch (duration) {
     case "daily":

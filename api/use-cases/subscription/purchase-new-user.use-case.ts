@@ -26,6 +26,7 @@ import {
   PurchasePricing,
   parseProductId,
   calculatePricing,
+  calculateRenewalDate,
   createPurchaseRequest,
   validateAndParseProduct,
   resolveCardRecord,
@@ -177,21 +178,30 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
 
       // Calculate pricing to determine if this is a free purchase. "Free" is decided on the list
       // price, before any promo: a promo that takes today's charge to $0 still needs the card saved,
-      // or the first renewal has nothing to charge.
+      // or the first renewal has nothing to charge. Nor a free trial: it charges $0 today but the
+      // card is what the first charge on day N is taken from, so "free" is the list price itself.
       const listPricing = calculatePricing(product, productData)
-      const isFree = listPricing.initialAmount === 0
+      const isFree = listPricing.signupFee + listPricing.renewalCost === 0
 
-      // Promo code: validated and reserved server-side before any charge (throws PROMO_CODE_INVALID)
-      const pricing = await applyPromoToPurchase(this.deps, {
-        coupon: v.coupon,
-        email: v.email,
-        userId: null,
-        purchaseRequestId,
-        product,
-        roleV2: resolveUserConfigRoleV2(userConfig),
-        pricing: listPricing,
-        isNewCustomer: true,
-      })
+      let pricing: PurchasePricing
+      if (listPricing.trialDays !== null) {
+        // A trial product takes no promo code (plan Q7): the signup page hides the field, and a code
+        // that arrives anyway (a shared link) is ignored rather than failing the signup.
+        if (v.coupon) logger.warn("Coupon ignored on a trial product", { purchaseRequestId, coupon: v.coupon })
+        pricing = listPricing
+      } else {
+        // Promo code: validated and reserved server-side before any charge (throws PROMO_CODE_INVALID)
+        pricing = await applyPromoToPurchase(this.deps, {
+          coupon: v.coupon,
+          email: v.email,
+          userId: null,
+          purchaseRequestId,
+          product,
+          roleV2: resolveUserConfigRoleV2(userConfig),
+          pricing: listPricing,
+          isNewCustomer: true,
+        })
+      }
       rollback.pricing = pricing
 
       let cardIdString: string | null = null
@@ -218,6 +228,23 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
             product,
             pricing,
             payment,
+          })
+        } else if (pricing.trialDays !== null) {
+          // A free trial: the card is saved for the first charge on day N, nothing is charged now.
+          // A trial with no usable card would reach day N with nothing to charge, so refuse it here,
+          // before the subscription exists.
+          if (!userCard.card_id) {
+            await this.deps.purchaseRequestRepository.markAsFailed(
+              purchaseRequestId,
+              "Trial requires a card",
+              "TRIAL_CARD_REQUIRED"
+            )
+            throw new PurchaseError("Trial requires a card on file", "TRIAL_CARD_REQUIRED")
+          }
+          logger.info("Trial purchase: card saved, first charge deferred", {
+            purchaseRequestId,
+            trialDays: pricing.trialDays,
+            firstChargeDue: calculateRenewalDate(pricing.productDuration, pricing.trialDays).toISOString(),
           })
         } else {
           // A promo covers today's charge: the card is saved for renewals, nothing is charged now

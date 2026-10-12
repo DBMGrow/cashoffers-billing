@@ -305,6 +305,20 @@ product is known and before any card or charge (`applyPromoToPurchase` in
 on the list price, so a promo'd $0 purchase still creates and saves the card for the first renewal.
 See [Promo Codes](../../business/capabilities/promo-codes).
 
+## Free Trials
+
+A product whose `data.trial` is `{ enabled: true, duration_days: N, require_card: true }` (Desk
+#1350) gives a **new signup** N days free with the card collected up front. `calculatePricing`
+returns `initialAmount: 0` and `trialDays: N`; the new-user flow saves the card, charges nothing
+(no payment transaction, no `PaymentProcessed`), and creates the subscription `active` at the full
+`renewal_cost` with `renewal_date = now + N days` and `data.trial = { ends_at, duration_days }`.
+The ordinary renewal cron takes the first charge on day N; nothing in the renewal path knows about
+trials. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
+subscription exists. A `coupon` on a trial product is ignored with a warn line, not refused. An
+existing account enrolling through `/manage` never gets the trial and pays list price. Team plans
+need no special case: the team step's read-modify-write of `Subscriptions.data` keeps `trial`.
+This is unrelated to `status = 'trial'`, which is HomeUptick's no-card trial and cancels at expiry.
+
 ---
 
 ## HomeUptick Subscription Seeding

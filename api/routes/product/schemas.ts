@@ -76,6 +76,18 @@ export const HomeUptickFreeTrialSchema = z
   .strict()
 
 /**
+ * Product free trial schema (Desk #1350). The same constraints as `productTrialSchema` in the
+ * monorepo's `@g8r/schemas`: 1 to 90 days, and a trial always saves a card.
+ */
+export const ProductTrialSchema = z
+  .object({
+    enabled: z.boolean(),
+    duration_days: z.number().int().min(1).max(90),
+    require_card: z.literal(true),
+  })
+  .strict()
+
+/**
  * HomeUptick module configuration schema
  */
 export const HomeUptickConfigSchema = z
@@ -100,6 +112,7 @@ export const ProductDataSchema = z
     user_config: ProductUserConfigSchema.optional(),
     cashoffers: CashOffersConfigSchema.optional(),
     homeuptick: HomeUptickConfigSchema.optional(),
+    trial: ProductTrialSchema.optional(),
   })
   .passthrough() // Allow additional fields for backward compatibility
 

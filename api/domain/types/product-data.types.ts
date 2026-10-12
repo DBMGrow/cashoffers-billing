@@ -64,6 +64,21 @@ export interface HomeUptickConfig {
 }
 
 /**
+ * A product's free trial (Desk #1350): a new signup's card is saved, nothing is charged, and the
+ * first charge (the full renewal cost) lands `duration_days` after purchase. The subscription stays
+ * `active` throughout, so the ordinary renewal cron takes that charge. Mirrors `productTrialSchema`
+ * in the monorepo's `@g8r/schemas`, which this repo does not consume. Unrelated to the HomeUptick
+ * contact allowance in `homeuptick.free_trial`.
+ */
+export interface ProductTrial {
+  enabled: boolean
+  /** Length in days, 1 to 90. The first charge lands on day N. */
+  duration_days: number
+  /** A trial always saves a card. Present so the intent is explicit on the row. */
+  require_card: true
+}
+
+/**
  * Data stored in Products.data JSON field
  */
 export interface ProductData {
@@ -103,6 +118,8 @@ export interface ProductData {
   cashoffers?: CashOffersConfig
   /** HomeUptick module configuration */
   homeuptick?: HomeUptickConfig
+  /** Free trial: a new signup's first charge is deferred N days. Absent or disabled = charged at signup. */
+  trial?: ProductTrial
 }
 
 /**
@@ -115,4 +132,16 @@ export interface SubscriptionData {
   cashoffers?: CashOffersConfig
   /** Product data snapshot for use in event handlers */
   productData?: ProductData
+  /**
+   * Written once at purchase when the product's trial applied. `ends_at` is the ISO timestamp of the
+   * first charge and equals `renewal_date` at creation. `reminder_sent_at` is stamped by the cron
+   * when the trial-ending email goes out.
+   */
+  trial?: SubscriptionTrial
+}
+
+export interface SubscriptionTrial {
+  ends_at: string
+  duration_days: number
+  reminder_sent_at?: string
 }
