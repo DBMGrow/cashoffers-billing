@@ -32,6 +32,7 @@ export default function SubscriptionRenewalEmail({
       preview={`Your ${subscription} subscription has been renewed. ${amount} charged.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
+      showChargeNotice
     >
       <EmailHeading>Subscription Renewed</EmailHeading>
       <EmailDivider />

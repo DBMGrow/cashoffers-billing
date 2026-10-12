@@ -32,6 +32,7 @@ export default function SubscriptionPlanUpdatedEmail({
       preview={`Your subscription plan has been changed to ${subscription}.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
+      showChargeNotice={Boolean(proratedCharge)}
     >
       <EmailHeading>Subscription Plan Updated</EmailHeading>
       <EmailDivider />

@@ -16,11 +16,20 @@ import RefundEmail from './refund.email'
 import PropertyUnlockedEmail from './property-unlocked.email'
 import DailyHealthReportEmail from './daily-health-report.email'
 import type { DailyHealthReportEmailProps } from './daily-health-report.email'
+import SubscriptionPlanUpdatedEmail from './subscription-plan-updated.email'
+import { CHARGE_NOTICE } from './components/email-footer'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function renderTemplate<P extends object>(component: React.ComponentType<P>, props: P): Promise<string> {
   return render(createElement(component, props))
+}
+
+/** The REMrktCo notice renders exactly once, in the footer, just above the support line. */
+function expectChargeNoticeInFooter(html: string) {
+  expect(html).toContain('REMrktCo')
+  expect(html.split(CHARGE_NOTICE)).toHaveLength(2)
+  expect(html.indexOf(CHARGE_NOTICE)).toBeLessThan(html.indexOf('Questions? Contact us'))
 }
 
 const baseHealthReport: DailyHealthReportEmailProps = {
@@ -85,11 +94,31 @@ describe('PaymentConfirmationEmail', () => {
     })
     expect(html).toContain('TEST ENVIRONMENT')
   })
+
+  it('says in the footer that the charge is from REMrktCo', async () => {
+    const html = await renderTemplate(PaymentConfirmationEmail, {
+      amount: '$250.00',
+      transactionID: 'TXN-001',
+      date: 'January 31, 2024',
+    })
+    expectChargeNoticeInFooter(html)
+  })
 })
 
 // ─── Payment Error ──────────────────────────────────────────────────────────
 
 describe('PaymentErrorEmail', () => {
+  it('reports no charge, so names no merchant', async () => {
+    const html = await renderTemplate(PaymentErrorEmail, {
+      amount: '$99.00',
+      errorMessage: 'Card declined',
+      updatePaymentUrl: 'https://billing.example.com',
+      date: 'January 31, 2024',
+    })
+    expect(html).not.toContain('REMrktCo')
+    expect(html).not.toContain(CHARGE_NOTICE)
+  })
+
   it('renders error message and update URL', async () => {
     const html = await renderTemplate(PaymentErrorEmail, {
       amount: '$99.00',
@@ -151,11 +180,64 @@ describe('SubscriptionCreatedEmail', () => {
     })
     expect(html).toContain('TEST ENVIRONMENT')
   })
+
+  it('says in the footer that the charge is from REMrktCo', async () => {
+    const html = await renderTemplate(SubscriptionCreatedEmail, {
+      subscription: 'Premium Plan',
+      amount: '$148.00',
+      lineItems: [],
+      date: 'January 31, 2024',
+    })
+    expectChargeNoticeInFooter(html)
+  })
+
+  it('names no merchant when nothing was charged', async () => {
+    const html = await renderTemplate(SubscriptionCreatedEmail, {
+      subscription: 'ExpressOffers Pro',
+      amount: '$0.00',
+      lineItems: [],
+      date: 'October 1, 2026',
+    })
+    expect(html).not.toContain(CHARGE_NOTICE)
+  })
+})
+
+// ─── Subscription Plan Updated ──────────────────────────────────────────────
+
+describe('SubscriptionPlanUpdatedEmail', () => {
+  it('says in the footer that a prorated charge is from REMrktCo', async () => {
+    const html = await renderTemplate(SubscriptionPlanUpdatedEmail, {
+      subscription: 'Premium Plan',
+      amount: '$99.00',
+      effectiveDate: 'February 1, 2024',
+      proratedCharge: '$25.00',
+    })
+    expectChargeNoticeInFooter(html)
+  })
+
+  it('names no merchant when the change charged nothing', async () => {
+    const html = await renderTemplate(SubscriptionPlanUpdatedEmail, {
+      subscription: 'Premium Plan',
+      amount: '$99.00',
+      effectiveDate: 'February 1, 2024',
+    })
+    expect(html).not.toContain(CHARGE_NOTICE)
+  })
 })
 
 // ─── Subscription Renewal ───────────────────────────────────────────────────
 
 describe('SubscriptionRenewalEmail', () => {
+  it('says in the footer that the charge is from REMrktCo', async () => {
+    const html = await renderTemplate(SubscriptionRenewalEmail, {
+      subscription: 'Premium Plan',
+      amount: '$99.00',
+      lineItems: [{ description: 'Premium Plan', amount: 9900 }],
+      date: 'February 1, 2024',
+    })
+    expectChargeNoticeInFooter(html)
+  })
+
   it('renders renewal content with line items', async () => {
     const html = await renderTemplate(SubscriptionRenewalEmail, {
       subscription: 'Premium Plan',
@@ -325,6 +407,17 @@ describe('PropertyUnlockedEmail', () => {
       productName: 'Property Unlock',
     })
     expect(html).toContain('Property Unlock')
+  })
+
+  it('names REMrktCo once, in the footer, not in its own body note', async () => {
+    const html = await renderTemplate(PropertyUnlockedEmail, {
+      propertyAddress: '1234 Oak Ridge Dr, Springfield, IL',
+      amount: '$50.00',
+      transactionID: 'TXN-987654321',
+      date: 'April 7, 2026',
+    })
+    expectChargeNoticeInFooter(html)
+    expect(html).not.toContain('NOTE: The charge will appear')
   })
 })
 

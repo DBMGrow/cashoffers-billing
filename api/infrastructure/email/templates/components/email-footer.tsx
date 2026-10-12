@@ -17,12 +17,18 @@ export interface WhitelabelBrandingProps {
 interface EmailFooterProps {
   year?: number
   whitelabel?: WhitelabelBrandingProps
+  /** Name REMrktCo as the merchant behind the charge. Set only by templates that report a charge. */
+  showChargeNotice?: boolean
 }
 
+/** Payers on a white label do not recognize REMrktCo on their statement, so charge emails say who charged them. */
+export const CHARGE_NOTICE = "This charge is from REMrktCo and will appear as REMRKTCO on your statement."
+
 /**
- * Email footer with support link, copyright notice, and optional whitelabel marketing website.
+ * Email footer with support link, copyright notice, optional whitelabel marketing website,
+ * and an optional notice naming REMrktCo as the merchant behind a charge.
  */
-export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: EmailFooterProps) {
+export function EmailFooter({ year = new Date().getFullYear(), whitelabel, showChargeNotice }: EmailFooterProps) {
   const brandName = whitelabel?.name ?? "CashOffers"
   const supportEmail = whitelabel?.support_email ?? "support@cashoffers.pro"
   const isWhitelabeled = whitelabel && whitelabel.marketing_website && whitelabel.marketing_website !== "/"
@@ -49,6 +55,19 @@ export function EmailFooter({ year = new Date().getFullYear(), whitelabel }: Ema
           >
             Visit our website
           </Link>
+        </Text>
+      )}
+      {showChargeNotice && (
+        <Text
+          style={{
+            margin: "0 0 12px 0",
+            textAlign: "center",
+            fontSize: font.size.sm,
+            color: colors.text.muted,
+            lineHeight: font.lineHeight.relaxed,
+          }}
+        >
+          {CHARGE_NOTICE}
         </Text>
       )}
       <Text

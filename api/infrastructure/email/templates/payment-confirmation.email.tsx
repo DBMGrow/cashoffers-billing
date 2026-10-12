@@ -29,6 +29,7 @@ export default function PaymentConfirmationEmail({
       preview={`Your payment of ${amount} was processed successfully.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
+      showChargeNotice
     >
       <EmailHeading>Payment Successful</EmailHeading>
       <EmailDivider />
