@@ -3,6 +3,13 @@ import type { DB, Subscriptions } from '@api/lib/db'
 import { TransactionContext } from '../transaction/transaction-manager.interface'
 
 /**
+ * A card-on-file trial's first-charge time (Desk #1350, `Subscriptions.data.trial.ends_at`). It is
+ * always written by `toISOString()`, so comparing it to another ISO string is a time comparison. A
+ * row with no trial marker yields NULL and drops out of every comparison.
+ */
+const trialEndsAt = sql<string>`JSON_UNQUOTE(JSON_EXTRACT(Subscriptions.data, '$.trial.ends_at'))`
+
+/**
  * Subscription Repository Implementation
  * Handles subscription records using Kysely
  *
@@ -289,6 +296,84 @@ export class SubscriptionRepository {
       .where(sql`JSON_EXTRACT(data, '$.trial.reminder_sent_at')`, 'is', null)
       .executeTakeFirst()
     return Number(result.numUpdatedRows) > 0
+  }
+
+  /**
+   * Card-on-file free trials (Desk #1350) that have not reached their first charge yet: active, bound
+   * to a user, `data.trial.ends_at` after `now`. Feeds the daily report's `active_trials` and
+   * `ending_in_7d`.
+   */
+  async findActiveTrials(now: Date = new Date(), trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    return await db
+      .selectFrom('Subscriptions')
+      .where('Subscriptions.status', '=', 'active')
+      .where('Subscriptions.user_id', 'is not', null)
+      .where(trialEndsAt, '>', now.toISOString())
+      .selectAll('Subscriptions')
+      .execute()
+  }
+
+  /**
+   * The trial invariant (Desk #1350): every live trial that will be charged has a card to charge.
+   * Returns active trials still before their first charge, not cancel-on-renewal (those will never
+   * be charged), whose user has no `UserCards` row with a card id. Each one is a renewal that will
+   * fail on day N.
+   */
+  async findTrialsWithoutCard(now: Date = new Date(), trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    return await db
+      .selectFrom('Subscriptions')
+      .where('Subscriptions.status', '=', 'active')
+      .where('Subscriptions.user_id', 'is not', null)
+      .where((eb) => eb.or([eb('Subscriptions.cancel_on_renewal', 'is', null), eb('Subscriptions.cancel_on_renewal', '=', 0)]))
+      .where(trialEndsAt, '>', now.toISOString())
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom('UserCards')
+              .select('UserCards.id')
+              .whereRef('UserCards.user_id', '=', 'Subscriptions.user_id')
+              .where('UserCards.card_id', 'is not', null)
+              .where('UserCards.card_id', '!=', '')
+          )
+        )
+      )
+      .selectAll('Subscriptions')
+      .execute()
+  }
+
+  /**
+   * Trials (Desk #1350) whose first charge was due more than 24 hours before `now` and that did
+   * nothing visible: no completed paid RENEWAL purchase request (the "first paid renewal" of
+   * `api/database/reports/promo-redemptions.sql`), not cancelled or cancel-on-renewal, and no
+   * payment failure on the retry ladder. The 24 hours give the cron a day to take the charge.
+   */
+  async findEndedTrialsUnreconciled(now: Date = new Date(), trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    return await db
+      .selectFrom('Subscriptions')
+      .where(trialEndsAt, '<', cutoff.toISOString())
+      .where((eb) => eb.or([eb('Subscriptions.status', 'is', null), eb('Subscriptions.status', '!=', 'cancelled')]))
+      .where((eb) => eb.or([eb('Subscriptions.cancel_on_renewal', 'is', null), eb('Subscriptions.cancel_on_renewal', '=', 0)]))
+      .where('Subscriptions.payment_failure_count', '=', 0)
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom('PurchaseRequests')
+              .select('PurchaseRequests.request_id')
+              .whereRef('PurchaseRequests.subscription_id', '=', 'Subscriptions.subscription_id')
+              .where('PurchaseRequests.request_type', '=', 'RENEWAL')
+              .where('PurchaseRequests.status', '=', 'COMPLETED')
+              .where('PurchaseRequests.amount_charged', '>', 0)
+          )
+        )
+      )
+      .selectAll('Subscriptions')
+      .execute()
   }
 
   async findByEnvironment(

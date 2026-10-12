@@ -5,7 +5,12 @@ import { HealthMetricsService } from "./health-metrics.service"
 // transactionRepository.findByDateRange and subscriptionRepository.findAll.
 const makeService = (subscriptions: any[], transactions: any[] = []) => {
   const transactionRepository = { findByDateRange: async () => transactions }
-  const subscriptionRepository = { findAll: async () => subscriptions }
+  const subscriptionRepository = {
+    findAll: async () => subscriptions,
+    findActiveTrials: async () => [],
+    findTrialsWithoutCard: async () => [],
+    findEndedTrialsUnreconciled: async () => [],
+  }
   const billingLogRepository = { findByDateRange: async () => [] }
   return new HealthMetricsService(
     transactionRepository as any,
@@ -102,5 +107,142 @@ describe("HealthMetricsService revenue de-duplication", () => {
 
     expect(metrics.payments.totalRevenue).toBe(200)
     expect(metrics.payments.successfulPayments).toBe(2)
+  })
+})
+
+describe("HealthMetricsService trials (Desk #1350)", () => {
+  const DAY = 24 * 60 * 60 * 1000
+
+  /**
+   * In-memory Subscriptions, UserCards and PurchaseRequests. The three repository stubs apply the
+   * same filters as the SQL in subscription.repository.ts (whose compiled statements are pinned in
+   * subscription.repository.trials.test.ts), so deleting a card row or adding a paid renewal moves
+   * the counts the way it would against MySQL.
+   */
+  function trialWorld() {
+    const subscriptions: any[] = []
+    const userCards: any[] = []
+    const purchaseRequests: any[] = []
+    const endsAt = (s: any) => {
+      const trial = JSON.parse(s.data ?? "{}").trial
+      return trial ? Date.parse(trial.ends_at) : NaN
+    }
+    const subscriptionRepository = {
+      findAll: async () => subscriptions,
+      findActiveTrials: async (now: Date) =>
+        subscriptions.filter((s) => s.status === "active" && s.user_id != null && endsAt(s) > now.getTime()),
+      findTrialsWithoutCard: async (now: Date) =>
+        subscriptions.filter(
+          (s) =>
+            s.status === "active" &&
+            s.user_id != null &&
+            !s.cancel_on_renewal &&
+            endsAt(s) > now.getTime() &&
+            !userCards.some((c) => c.user_id === s.user_id && c.card_id)
+        ),
+      findEndedTrialsUnreconciled: async (now: Date) =>
+        subscriptions.filter(
+          (s) =>
+            endsAt(s) < now.getTime() - DAY &&
+            s.status !== "cancelled" &&
+            !s.cancel_on_renewal &&
+            s.payment_failure_count === 0 &&
+            !purchaseRequests.some(
+              (r) =>
+                r.subscription_id === s.subscription_id &&
+                r.request_type === "RENEWAL" &&
+                r.status === "COMPLETED" &&
+                r.amount_charged > 0
+            )
+        ),
+    }
+    const service = new HealthMetricsService(
+      { findByDateRange: async () => [] } as any,
+      subscriptionRepository as any,
+      { findByDateRange: async () => [] } as any
+    )
+    return { subscriptions, userCards, purchaseRequests, service }
+  }
+
+  function trialSub(id: number, userId: number, endsAtMs: number, overrides: Record<string, any> = {}) {
+    return {
+      subscription_id: id,
+      user_id: userId,
+      product_id: 70,
+      amount: 25000,
+      status: "active",
+      cancel_on_renewal: 0,
+      payment_failure_count: 0,
+      renewal_date: new Date(endsAtMs),
+      data: JSON.stringify({ trial: { ends_at: new Date(endsAtMs).toISOString(), duration_days: 30 } }),
+      updatedAt: new Date(),
+      ...overrides,
+    }
+  }
+
+  it("flags a trial with no card (AC10: delete the card row, the count goes to 1)", async () => {
+    const { subscriptions, userCards, service } = trialWorld()
+    const now = Date.now()
+    subscriptions.push(trialSub(70, 1, now + 20 * DAY), trialSub(71, 2, now + 3 * DAY))
+    userCards.push({ id: 1, user_id: 1, card_id: "ccof:1" }, { id: 2, user_id: 2, card_id: "ccof:2" })
+
+    const before = await service.getDailyHealthMetrics()
+    expect(before.trials).toEqual({ active_trials: 2, ending_in_7d: 1, trials_without_card: 0, unreconciled_ended_trials: 0 })
+
+    // The injected fault: user 1's card row is deleted.
+    userCards.splice(0, 1)
+
+    const after = await service.getDailyHealthMetrics()
+    expect(after.trials.trials_without_card).toBe(1)
+    expect(after.trials.active_trials).toBe(2)
+  })
+
+  it("does not flag a cancel-on-renewal trial with no card: it will never be charged", async () => {
+    const { subscriptions, service } = trialWorld()
+    subscriptions.push(trialSub(70, 1, Date.now() + 20 * DAY, { cancel_on_renewal: 1 }))
+
+    const metrics = await service.getDailyHealthMetrics()
+    expect(metrics.trials.trials_without_card).toBe(0)
+  })
+
+  it("reconciles ended trials (AC11: an unconverted one counts 1, a converted one 0)", async () => {
+    const { subscriptions, userCards, purchaseRequests, service } = trialWorld()
+    const twoDaysAgo = Date.now() - 2 * DAY
+    // Ended two days ago; renewal_date was advanced or not, either way nothing visible happened.
+    subscriptions.push(trialSub(80, 1, twoDaysAgo))
+    // Ended two days ago and converted: a completed paid RENEWAL purchase request.
+    subscriptions.push(trialSub(81, 2, twoDaysAgo))
+    purchaseRequests.push({ subscription_id: 81, request_type: "RENEWAL", status: "COMPLETED", amount_charged: 25000 })
+    userCards.push({ id: 1, user_id: 1, card_id: "ccof:1" }, { id: 2, user_id: 2, card_id: "ccof:2" })
+
+    const metrics = await service.getDailyHealthMetrics()
+    expect(metrics.trials.unreconciled_ended_trials).toBe(1)
+    // Ended trials are not active trials, and their card state is not the live invariant.
+    expect(metrics.trials.active_trials).toBe(0)
+    expect(metrics.trials.trials_without_card).toBe(0)
+
+    // Converting the first one clears the anomaly.
+    purchaseRequests.push({ subscription_id: 80, request_type: "RENEWAL", status: "COMPLETED", amount_charged: 25000 })
+    expect((await service.getDailyHealthMetrics()).trials.unreconciled_ended_trials).toBe(0)
+  })
+
+  it("counts an ended trial that cancelled, is failing visibly, or ended under a day ago as reconciled", async () => {
+    const { subscriptions, purchaseRequests, service } = trialWorld()
+    const twoDaysAgo = Date.now() - 2 * DAY
+    subscriptions.push(
+      trialSub(90, 1, twoDaysAgo, { status: "cancelled" }),
+      trialSub(91, 2, twoDaysAgo, { cancel_on_renewal: 1 }),
+      trialSub(92, 3, twoDaysAgo, { payment_failure_count: 1 }),
+      trialSub(93, 4, Date.now() - 2 * 60 * 60 * 1000)
+    )
+    // A $0 or failed renewal is not a conversion.
+    subscriptions.push(trialSub(94, 5, twoDaysAgo))
+    purchaseRequests.push(
+      { subscription_id: 94, request_type: "RENEWAL", status: "COMPLETED", amount_charged: 0 },
+      { subscription_id: 94, request_type: "RENEWAL", status: "FAILED", amount_charged: 25000 }
+    )
+
+    const metrics = await service.getDailyHealthMetrics()
+    expect(metrics.trials.unreconciled_ended_trials).toBe(1)
   })
 })

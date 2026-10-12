@@ -45,6 +45,16 @@ export interface DailyHealthReportEmailProps {
   criticalErrors: number
   criticalErrorsColor: string
 
+  // Card-on-file free trials (Desk #1350). The two anomaly colors are red when the count is above 0.
+  trials?: {
+    activeTrials: number
+    endingIn7d: number
+    trialsWithoutCard: number
+    trialsWithoutCardColor: string
+    unreconciledEndedTrials: number
+    unreconciledEndedTrialsColor: string
+  }
+
   // Conditional sections
   failureReasons?: Array<{ reason: string; count: number }>
   recentErrors?: Array<{ timestamp: string; component: string; message: string }>
@@ -119,6 +129,7 @@ export default function DailyHealthReportEmail({
   totalErrorsColor,
   criticalErrors,
   criticalErrorsColor,
+  trials,
   failureReasons,
   recentErrors,
   actionItems,
@@ -223,6 +234,25 @@ export default function DailyHealthReportEmail({
           <MetricRow label="Critical Errors" value={String(criticalErrors)} valueColor={criticalErrorsColor} />
         </ReportSection>
 
+        {/* Free Trials: card-on-file trials and their two anomaly counts */}
+        {trials && (
+          <ReportSection>
+            <SectionHeader>Free Trials</SectionHeader>
+            <MetricRow label="Active Trials" value={String(trials.activeTrials)} />
+            <MetricRow label="Ending in 7 Days" value={String(trials.endingIn7d)} />
+            <MetricRow
+              label="Trials Without a Card"
+              value={String(trials.trialsWithoutCard)}
+              valueColor={trials.trialsWithoutCardColor}
+            />
+            <MetricRow
+              label="Ended Trials Not Reconciled"
+              value={String(trials.unreconciledEndedTrials)}
+              valueColor={trials.unreconciledEndedTrialsColor}
+            />
+          </ReportSection>
+        )}
+
         {/* Top Failure Reasons — only renders if data present */}
         {failureReasons && failureReasons.length > 0 && (
           <ReportSection>
@@ -295,6 +325,14 @@ DailyHealthReportEmail.PreviewProps = {
   totalErrorsColor: "#d97706",
   criticalErrors: 0,
   criticalErrorsColor: "#16a34a",
+  trials: {
+    activeTrials: 7,
+    endingIn7d: 2,
+    trialsWithoutCard: 1,
+    trialsWithoutCardColor: "#dc2626",
+    unreconciledEndedTrials: 0,
+    unreconciledEndedTrialsColor: "#6b7280",
+  },
   failureReasons: [{ reason: "Card declined", count: 2 }],
   recentErrors: [
     { timestamp: "2024-01-31 14:23:01", component: "RenewalCron", message: "Payment failed for subscription #1042" },

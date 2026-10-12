@@ -151,6 +151,14 @@ export class HealthReportService implements IHealthReportService {
               message: err.message,
             }))
           : undefined,
+      trials: {
+        activeTrials: metrics.trials.active_trials,
+        endingIn7d: metrics.trials.ending_in_7d,
+        trialsWithoutCard: metrics.trials.trials_without_card,
+        trialsWithoutCardColor: metrics.trials.trials_without_card > 0 ? '#dc2626' : '#6b7280',
+        unreconciledEndedTrials: metrics.trials.unreconciled_ended_trials,
+        unreconciledEndedTrialsColor: metrics.trials.unreconciled_ended_trials > 0 ? '#dc2626' : '#6b7280',
+      },
       actionItems: this.generateActionItems(metrics),
     }
   }
@@ -193,6 +201,14 @@ export class HealthReportService implements IHealthReportService {
       return {
         overallStatus: 'warning',
         statusMessage: `${Math.round(retryRate * 100)}% of active subscriptions in retry (${metrics.subscriptions.subscriptionsInRetry}/${metrics.subscriptions.activeSubscriptions}).`,
+      }
+    }
+    // Warning: a free trial that cannot convert, or one that ended and did nothing visible
+    const trialAnomalies = metrics.trials.trials_without_card + metrics.trials.unreconciled_ended_trials
+    if (trialAnomalies > 0) {
+      return {
+        overallStatus: 'warning',
+        statusMessage: `${trialAnomalies} free trial anomal${trialAnomalies > 1 ? 'ies' : 'y'}: ${metrics.trials.trials_without_card} without a card, ${metrics.trials.unreconciled_ended_trials} ended and not reconciled.`,
       }
     }
     return { overallStatus: 'good', statusMessage: 'All systems operating normally.' }
@@ -238,6 +254,12 @@ export class HealthReportService implements IHealthReportService {
     }
     if (metrics.subscriptions.pastDueSubscriptions > 0) {
       items.push(`• ${metrics.subscriptions.pastDueSubscriptions} active subscription(s) past due (renewal date passed) — verify the renewal cron is processing them`)
+    }
+    if (metrics.trials.trials_without_card > 0) {
+      items.push(`• ${metrics.trials.trials_without_card} free trial(s) have no card on file, so their first charge will fail. The subscriptions cron logs each one at error ("Trial has no card on file")`)
+    }
+    if (metrics.trials.unreconciled_ended_trials > 0) {
+      items.push(`• ${metrics.trials.unreconciled_ended_trials} free trial(s) ended over a day ago with no paid renewal, no cancel and no payment failure. The subscriptions cron logs each one at error ("Ended trial not reconciled")`)
     }
 
     return items.length > 0 ? items : undefined

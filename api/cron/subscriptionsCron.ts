@@ -264,6 +264,36 @@ export default async function subscriptionsCron() {
     } catch (err: any) {
       cronLogger.error('Error processing trial-ending reminders', err)
     }
+
+    // Card-on-file trial invariants (Desk #1350), read-only: each anomaly becomes an `error` row in
+    // BillingLogs naming the subscription, so it reaches the daily health report's error list. The
+    // report counts the same two queries in its Free Trials section.
+    try {
+      const now = new Date()
+      const [withoutCard, unreconciled] = await Promise.all([
+        subscriptionRepository.findTrialsWithoutCard(now),
+        subscriptionRepository.findEndedTrialsUnreconciled(now),
+      ])
+
+      for (const subscription of withoutCard) {
+        cronLogger.error(`Trial has no card on file: subscription ${subscription.subscription_id}`, undefined, {
+          subscription_id: subscription.subscription_id,
+          user_id: subscription.user_id,
+          product_id: subscription.product_id,
+          subjectUserId: subscription.user_id,
+        })
+      }
+      for (const subscription of unreconciled) {
+        cronLogger.error(`Ended trial not reconciled: subscription ${subscription.subscription_id}`, undefined, {
+          subscription_id: subscription.subscription_id,
+          user_id: subscription.user_id,
+          product_id: subscription.product_id,
+          subjectUserId: subscription.user_id,
+        })
+      }
+    } catch (err: any) {
+      cronLogger.error('Error checking card-on-file trial invariants', err)
+    }
   } catch (error: any) {
     cronLogger.error('Fatal error in subscriptions cron', error)
 
