@@ -32,6 +32,9 @@ export class HealthReportService implements IHealthReportService {
     let subject: string
     try {
       const metrics = await this.healthMetricsService.getDailyHealthMetrics(date)
+      if (metrics.trials.unavailable) {
+        this.logger.error('Free trial metrics unavailable', new Error(metrics.trials.unavailable), { recipients })
+      }
       const props = this.buildEmailProps(metrics)
       html = await render(<DailyHealthReportEmail {...props} />)
       subject = `Daily Billing System Health Report - ${props.reportDate}`
@@ -203,6 +206,13 @@ export class HealthReportService implements IHealthReportService {
         statusMessage: `${Math.round(retryRate * 100)}% of active subscriptions in retry (${metrics.subscriptions.subscriptionsInRetry}/${metrics.subscriptions.activeSubscriptions}).`,
       }
     }
+    // Warning: the trial queries failed, so the trial counts are not known
+    if (metrics.trials.unavailable) {
+      return {
+        overallStatus: 'warning',
+        statusMessage: `Free trial metrics unavailable: ${metrics.trials.unavailable}`,
+      }
+    }
     // Warning: a free trial that cannot convert, or one that ended and did nothing visible
     const trialAnomalies = metrics.trials.trials_without_card + metrics.trials.unreconciled_ended_trials
     if (trialAnomalies > 0) {
@@ -254,6 +264,9 @@ export class HealthReportService implements IHealthReportService {
     }
     if (metrics.subscriptions.pastDueSubscriptions > 0) {
       items.push(`• ${metrics.subscriptions.pastDueSubscriptions} active subscription(s) past due (renewal date passed) — verify the renewal cron is processing them`)
+    }
+    if (metrics.trials.unavailable) {
+      items.push(`• Free trial metrics could not be read (${metrics.trials.unavailable}). The trial counts in this report are not real; check the trial queries in subscription.repository.ts`)
     }
     if (metrics.trials.trials_without_card > 0) {
       items.push(`• ${metrics.trials.trials_without_card} free trial(s) have no card on file, so their first charge will fail. The subscriptions cron logs each one at error ("Trial has no card on file")`)

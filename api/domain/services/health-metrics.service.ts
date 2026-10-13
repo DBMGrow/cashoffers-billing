@@ -77,6 +77,8 @@ export interface TrialMetrics {
   ending_in_7d: number
   trials_without_card: number
   unreconciled_ended_trials: number
+  // Set when the trial queries failed: the counts above are 0 and must not be read as healthy
+  unavailable?: string
 }
 
 /**
@@ -139,8 +141,17 @@ export class HealthMetricsService implements IHealthMetricsService {
       this.getErrorMetrics(startDate, endDate),
       this.getFailureReasons(startDate, endDate),
       // Trial state is a snapshot, so it is measured at the current instant (capped at the
-      // window's end), like pastDueSubscriptions.
-      this.getTrialMetrics(new Date(Math.min(endDate.getTime(), Date.now()))),
+      // window's end), like pastDueSubscriptions. A failure here degrades the trial section only,
+      // so the rest of the report still goes out.
+      this.getTrialMetrics(new Date(Math.min(endDate.getTime(), Date.now()))).catch(
+        (error): TrialMetrics => ({
+          active_trials: 0,
+          ending_in_7d: 0,
+          trials_without_card: 0,
+          unreconciled_ended_trials: 0,
+          unavailable: error instanceof Error ? error.message : String(error),
+        })
+      ),
     ])
 
     return {

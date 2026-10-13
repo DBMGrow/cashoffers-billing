@@ -19,6 +19,30 @@ const makeService = (subscriptions: any[], transactions: any[] = []) => {
   )
 }
 
+describe("HealthMetricsService trial query failure", () => {
+  it("returns the rest of the metrics and marks the trial section unavailable", async () => {
+    const subscriptionRepository = {
+      findAll: async () => [],
+      findActiveTrials: async () => {
+        throw new Error("Unknown column 'data'")
+      },
+      findTrialsWithoutCard: async () => [],
+      findEndedTrialsUnreconciled: async () => [],
+    }
+    const service = new HealthMetricsService(
+      { findByDateRange: async () => [] } as any,
+      subscriptionRepository as any,
+      { findByDateRange: async () => [] } as any
+    )
+
+    const metrics = await service.getDailyHealthMetrics()
+
+    expect(metrics.subscriptions).toBeDefined()
+    expect(metrics.trials.unavailable).toBe("Unknown column 'data'")
+    expect(metrics.trials.trials_without_card).toBe(0)
+  })
+})
+
 describe("HealthMetricsService.pastDueSubscriptions", () => {
   it("only counts active, user-bound subscriptions whose renewal_date is in the past as of now", async () => {
     // Report is generated for "today", so endDate is end-of-day (23:59:59).

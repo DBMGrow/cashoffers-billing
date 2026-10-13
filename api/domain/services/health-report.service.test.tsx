@@ -141,4 +141,18 @@ describe("HealthReportService free trials (Desk #1350)", () => {
     expect(html).toContain("2 free trial anomalies")
     expect(html).toContain("ended over a day ago with no paid renewal")
   })
+
+  it("still sends when the trial queries failed, warns and says the counts are not real", async () => {
+    const html = await sentHtml({
+      active_trials: 0,
+      ending_in_7d: 0,
+      trials_without_card: 0,
+      unreconciled_ended_trials: 0,
+      unavailable: "Unknown column 'data'",
+    })
+
+    expect(html).toContain("Free trial metrics unavailable: Unknown column")
+    expect(html).toContain("could not be read")
+    expect(html).not.toContain("All systems operating normally.")
+  })
 })
