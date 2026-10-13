@@ -4,7 +4,9 @@ import type { IDomainEvent } from "@api/infrastructure/events/event-bus.interfac
 import type { IEmailService } from "@api/infrastructure/email/email-service.interface"
 import type { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { whitelabelResolverService, userApiClient } from "@api/lib/services"
-import { whitelabelRepository, productRepository } from "@api/lib/repositories"
+import { whitelabelRepository, productRepository, subscriptionRepository } from "@api/lib/repositories"
+import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
+import type { SubscriptionTrial } from "@api/domain/types/product-data.types"
 import {
   parseProductData,
   productHidesBilling,
@@ -95,6 +97,26 @@ export class EmailNotificationHandler extends BaseEventHandler {
 
   private isSandbox(environment?: "production" | "sandbox"): boolean {
     return environment === "sandbox"
+  }
+
+  /**
+   * The subscription's free-trial marker: from `event.metadata.subscriptionTrial` when the publisher
+   * put it there, otherwise read from the row (the purchase writes `data.trial` before it publishes
+   * `SubscriptionCreated`). A failed read is logged and treated as no trial, so the email still goes.
+   */
+  private async findSubscriptionTrial(event: SubscriptionCreatedEvent): Promise<SubscriptionTrial | null> {
+    const fromMetadata = readSubscriptionTrial({ trial: event.metadata?.subscriptionTrial })
+    if (fromMetadata) return fromMetadata
+    try {
+      const subscription = await subscriptionRepository.findById(event.payload.subscriptionId)
+      return readSubscriptionTrial(subscription?.data)
+    } catch (error) {
+      this.logger.warn("Could not read the subscription's trial marker", {
+        subscriptionId: event.payload.subscriptionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   }
 
   /**
@@ -248,9 +270,16 @@ export class EmailNotificationHandler extends BaseEventHandler {
         // Fetch whitelabel for this user
         const whitelabelInfo = await whitelabelResolverService.resolveForUser(userId)
 
+        // A card-on-file free trial (Desk #1350) is marked by `Subscriptions.data.trial`. It charges
+        // $0 today at the full `amount`, so it is never a "free product" and would otherwise get the
+        // paid receipt for $0.00.
+        const subscriptionTrial = chargedAmount === 0 ? await this.findSubscriptionTrial(event) : null
+
         // Skip email entirely for $0 non-trial purchases (free products)
         const isFreeProduct = chargedAmount === 0 && amount === 0
-        const isTrial = isFreeProduct && (productName?.toLowerCase().includes("trial") || false)
+        // The product-name heuristic stays as the fallback for HomeUptick trials (no card, no marker)
+        const isHomeUptickTrial = isFreeProduct && (productName?.toLowerCase().includes("trial") || false)
+        const isTrial = !!subscriptionTrial || isHomeUptickTrial
 
         if (isFreeProduct && !isTrial) {
           this.logger.info("Skipping subscription created email for $0 free product", {
@@ -260,19 +289,19 @@ export class EmailNotificationHandler extends BaseEventHandler {
           return
         }
 
-        if (isTrial && nextRenewalDate) {
+        const trialEndsAt = subscriptionTrial?.ends_at ?? nextRenewalDate
+        if (isTrial && trialEndsAt) {
           const productData = event.metadata?.productData as any
-          const trialDays = productData?.homeuptick?.free_trial?.duration_days ?? 90
-          const expirationDate = new Date(nextRenewalDate).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })
+          const trialDays = subscriptionTrial?.duration_days ?? productData?.homeuptick?.free_trial?.duration_days ?? 90
+          const expirationDate = this.formatDate(new Date(trialEndsAt))
 
           const html = await render(
             <TrialWelcomeEmail
               trialDays={trialDays}
               expirationDate={expirationDate}
+              firstCharge={
+                subscriptionTrial ? { subscription: productName, amount: this.formatCurrency(amount) } : undefined
+              }
               isSandbox={this.isSandbox(environment)}
               whitelabel={this.toBrandingProps(whitelabelInfo)}
             />

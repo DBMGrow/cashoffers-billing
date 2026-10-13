@@ -32,6 +32,7 @@ export default function SubscriptionCreatedEmail({
       preview={`Welcome to ${brandName}! Your ${subscription} subscription is now active.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
+      showChargeNotice={amount !== "$0.00"}
     >
       <EmailHeading>Subscription Created</EmailHeading>
       <EmailDivider />

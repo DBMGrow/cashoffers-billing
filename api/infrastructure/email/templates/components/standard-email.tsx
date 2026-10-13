@@ -15,6 +15,8 @@ interface StandardEmailProps {
   isSandbox?: boolean
   /** Whitelabel branding information */
   whitelabel?: WhitelabelBrandingProps
+  /** Footer names REMrktCo as the merchant. Set only by templates that report a charge. */
+  showChargeNotice?: boolean
   children: React.ReactNode
 }
 
@@ -23,13 +25,13 @@ interface StandardEmailProps {
  * Composes Layout + Header + SandboxBanner + Card + Footer.
  * Used by most transactional templates — keeps them thin.
  */
-export function StandardEmail({ title, preview, isSandbox, whitelabel, children }: StandardEmailProps) {
+export function StandardEmail({ title, preview, isSandbox, whitelabel, showChargeNotice, children }: StandardEmailProps) {
   return (
     <EmailLayout title={title} preview={preview}>
       <EmailHeader name={whitelabel?.name} />
       <SandboxBanner isSandbox={isSandbox} />
       <EmailCard>{children}</EmailCard>
-      <EmailFooter whitelabel={whitelabel} />
+      <EmailFooter whitelabel={whitelabel} showChargeNotice={showChargeNotice} />
     </EmailLayout>
   )
 }

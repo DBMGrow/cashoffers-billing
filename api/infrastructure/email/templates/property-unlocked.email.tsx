@@ -36,6 +36,7 @@ export default function PropertyUnlockedEmail({
       preview={`You've unlocked ${propertyAddress} — full property details are now available.`}
       isSandbox={isSandbox}
       whitelabel={whitelabel}
+      showChargeNotice
     >
       <EmailHeading>Property Unlocked</EmailHeading>
       <EmailDivider />
@@ -111,10 +112,6 @@ export default function PropertyUnlockedEmail({
 
       <EmailText variant="muted" style={{ marginTop: spacing.lg, marginBottom: "0" }}>
         This is a one-time charge. No recurring payments will be made for this property.
-      </EmailText>
-
-      <EmailText variant="muted" style={{ marginTop: spacing.md, marginBottom: "0" }}>
-        NOTE: The charge will appear as REMRKTCO on your statement.
       </EmailText>
     </StandardEmail>
   )

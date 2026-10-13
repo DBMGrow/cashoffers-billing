@@ -81,6 +81,18 @@ export function isProductFree(product: Product | undefined): boolean {
   return renewalCost === 0 && signupFee === 0
 }
 
+/**
+ * Days of free trial a new signup gets on this product (Desk #1350), or null when it has none.
+ * Mirrors the purchase's rule in `calculatePricing`: the trial applies only when it is enabled
+ * with a positive whole number of days. The card is still saved; the first charge lands on day N.
+ */
+export function productTrialDays(product: Product | undefined): number | null {
+  const trial = product?.data?.trial
+  if (!trial?.enabled) return null
+  const days = trial.duration_days
+  return Number.isInteger(days) && days > 0 ? days : null
+}
+
 export function useProducts(params: FetchProductsParams) {
   const { data: products = [], isLoading, error, refetch } = useQuery({
     queryKey: ["products", params.mode, params.whitelabel, productParam(params.product)],

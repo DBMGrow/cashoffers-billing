@@ -20,7 +20,8 @@ export default defineConfig({
         extends: "./vitest.config.api.ts",
         test: {
           name: "api",
-          include: ["api/**/*.test.ts"],
+          // .tsx too: health-report.service.test.tsx renders the report email and was never collected.
+          include: ["api/**/*.test.{ts,tsx}"],
           environment: "node",
         },
       },

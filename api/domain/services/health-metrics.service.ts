@@ -1,6 +1,10 @@
 import type { TransactionRepository } from '@api/lib/repositories'
 import type { SubscriptionRepository } from '@api/lib/repositories'
 import type { BillingLogRepository } from '@api/lib/repositories'
+import { readSubscriptionTrial } from './subscription-trial'
+
+/** A trial whose first charge lands within this many days counts toward `ending_in_7d`. */
+const TRIAL_ENDING_WINDOW_DAYS = 7
 
 /**
  * Health Metrics Service
@@ -58,6 +62,23 @@ export interface DailyHealthMetrics {
 
   // Top failure reasons
   failureReasons: FailureReason[]
+
+  // Card-on-file free trials (Desk #1350), a snapshot as of the report time
+  trials: TrialMetrics
+}
+
+/**
+ * Card-on-file free trial health. `trials_without_card` and `unreconciled_ended_trials` are the
+ * anomalies: either above 0 means a trial that cannot convert, or one that ended and did nothing
+ * visible (no paid renewal, no cancel, no failure on the retry ladder).
+ */
+export interface TrialMetrics {
+  active_trials: number
+  ending_in_7d: number
+  trials_without_card: number
+  unreconciled_ended_trials: number
+  // Set when the trial queries failed: the counts above are 0 and must not be read as healthy
+  unavailable?: string
 }
 
 /**
@@ -113,11 +134,24 @@ export class HealthMetricsService implements IHealthMetricsService {
       paymentMetrics,
       errorMetrics,
       failureReasons,
+      trialMetrics,
     ] = await Promise.all([
       this.getSubscriptionMetrics(startDate, endDate),
       this.getPaymentMetrics(startDate, endDate),
       this.getErrorMetrics(startDate, endDate),
       this.getFailureReasons(startDate, endDate),
+      // Trial state is a snapshot, so it is measured at the current instant (capped at the
+      // window's end), like pastDueSubscriptions. A failure here degrades the trial section only,
+      // so the rest of the report still goes out.
+      this.getTrialMetrics(new Date(Math.min(endDate.getTime(), Date.now()))).catch(
+        (error): TrialMetrics => ({
+          active_trials: 0,
+          ending_in_7d: 0,
+          trials_without_card: 0,
+          unreconciled_ended_trials: 0,
+          unavailable: error instanceof Error ? error.message : String(error),
+        })
+      ),
     ])
 
     return {
@@ -128,6 +162,32 @@ export class HealthMetricsService implements IHealthMetricsService {
       payments: paymentMetrics,
       errors: errorMetrics,
       failureReasons,
+      trials: trialMetrics,
+    }
+  }
+
+  /**
+   * Card-on-file free trial health (Desk #1350) as of `now`. The two anomaly counts come from the
+   * repository's invariant queries, which the subscriptions cron also logs at `error`.
+   */
+  async getTrialMetrics(now: Date): Promise<TrialMetrics> {
+    const [activeTrials, withoutCard, unreconciled] = await Promise.all([
+      this.subscriptionRepository.findActiveTrials(now),
+      this.subscriptionRepository.findTrialsWithoutCard(now),
+      this.subscriptionRepository.findEndedTrialsUnreconciled(now),
+    ])
+
+    const windowEnd = now.getTime() + TRIAL_ENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    const endingSoon = activeTrials.filter((s: any) => {
+      const trial = readSubscriptionTrial(s.data)
+      return trial !== null && Date.parse(trial.ends_at) <= windowEnd
+    })
+
+    return {
+      active_trials: activeTrials.length,
+      ending_in_7d: endingSoon.length,
+      trials_without_card: withoutCard.length,
+      unreconciled_ended_trials: unreconciled.length,
     }
   }
 

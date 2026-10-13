@@ -3,7 +3,7 @@
 import { Card, CardBody } from "@/components/Theme/Card"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import Link from "next/link"
-import { useProducts } from "@/providers/ProductProvider"
+import { useProducts, productTrialDays } from "@/providers/ProductProvider"
 
 interface PricingProps {
   whitelabel: string
@@ -18,12 +18,14 @@ function ProductCard({ product, whitelabel = "iop" }: ProductCardProps) {
   const signupFeeAmount = (product.price || 0) / 100
   const monthlyPrice = (product.data?.renewal_cost || 0) / 100
   const hasSignupFee = signupFeeAmount > 0
+  const trialDays = productTrialDays(product)
 
   return (
     <Card className="w-full">
       <CardBody className="flex flex-col gap-3 justify-between">
         <h3 className="text-center">{product.product_name}</h3>
         <div>
+          {trialDays && <div className="flex justify-center text-caption">{trialDays}-day free trial</div>}
           <div className="flex justify-center text-price items-end">
             ${monthlyPrice}
             <span className="text-caption pb-0.75">/mo</span>

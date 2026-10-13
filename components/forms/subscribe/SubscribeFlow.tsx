@@ -9,7 +9,7 @@ import { FlowDevTools, type DevPreset } from "@/components/dev/FlowDevTools"
 import { useFlowAnimation } from "@/hooks/useFlowAnimation"
 import { useFlowState } from "@/hooks/useFlowState"
 import FlowWrapper from "../FlowWrapper"
-import { useProducts, isProductFree } from "@/providers/ProductProvider"
+import { useProducts, isProductFree, productTrialDays } from "@/providers/ProductProvider"
 import { useWhitelabel } from "@/providers/WhitelabelProvider"
 
 // Step components
@@ -182,15 +182,24 @@ export default function SubscribeFlow({
   const [errorTitle, setErrorTitle] = useState<string | undefined>(undefined)
   const [errorDescription, setErrorDescription] = useState<string | undefined>(undefined)
 
+  // Free trial (Desk #1350): the card step says when the saved card is first charged
+  const trialDays = productTrialDays(selectedProduct)
+
   const stepConfig = useMemo(
     () => ({
       ...BASE_STEP_CONFIG,
+      card: trialDays
+        ? {
+            ...BASE_STEP_CONFIG.card,
+            description: `${BASE_STEP_CONFIG.card.description} You won't be charged until your ${trialDays}-day trial ends.`,
+          }
+        : BASE_STEP_CONFIG.card,
       error: {
         title: errorTitle ?? BASE_STEP_CONFIG.error.title,
         description: errorDescription ?? BASE_STEP_CONFIG.error.description,
       },
     }),
-    [errorTitle, errorDescription]
+    [errorTitle, errorDescription, trialDays]
   )
 
   const { displayStep, transitionToStep, titleText, descriptionText, containerRef } = useFlowAnimation<FormStep>(

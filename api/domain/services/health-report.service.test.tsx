@@ -29,6 +29,7 @@ const metrics: DailyHealthMetrics = {
   },
   errors: { totalErrors: 0, criticalErrors: 0, recentErrors: [] },
   failureReasons: [],
+  trials: { active_trials: 3, ending_in_7d: 1, trials_without_card: 0, unreconciled_ended_trials: 0 },
 }
 
 const makeLogger = (): ILogger => ({
@@ -99,5 +100,59 @@ describe("HealthReportService.sendDailyHealthReport", () => {
     await expect(service().sendDailyHealthReport(["a@x.com"])).rejects.toThrow("db down")
 
     expect(emailService.sendEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe("HealthReportService free trials (Desk #1350)", () => {
+  const sentHtml = async (trials: DailyHealthMetrics["trials"]) => {
+    const emailService: IEmailService = {
+      sendEmail: vi.fn().mockResolvedValue(undefined),
+      sendPlainEmail: vi.fn().mockResolvedValue(undefined),
+    }
+    const metricsService: IHealthMetricsService = {
+      getDailyHealthMetrics: vi.fn().mockResolvedValue({ ...metrics, trials }),
+    }
+    await new HealthReportService(metricsService, emailService, makeLogger()).sendDailyHealthReport(["a@x.com"])
+    return vi.mocked(emailService.sendEmail).mock.calls[0][0].html as string
+  }
+
+  it("renders the Free Trials row, gray and healthy when there are no anomalies", async () => {
+    const html = await sentHtml({ active_trials: 3, ending_in_7d: 1, trials_without_card: 0, unreconciled_ended_trials: 0 })
+
+    expect(html).toContain("Free Trials")
+    expect(html).toContain("Trials Without a Card")
+    expect(html).toContain("Ended Trials Not Reconciled")
+    expect(html).not.toContain("#dc2626")
+    expect(html).toContain("All systems operating normally.")
+  })
+
+  it("renders a trial with no card red, warns and adds an action item", async () => {
+    const html = await sentHtml({ active_trials: 3, ending_in_7d: 1, trials_without_card: 1, unreconciled_ended_trials: 0 })
+
+    expect(html).toContain("#dc2626")
+    expect(html).toContain("1 free trial anomaly: 1 without a card, 0 ended and not reconciled.")
+    expect(html).toContain("have no card on file")
+  })
+
+  it("renders an unreconciled ended trial red and adds an action item", async () => {
+    const html = await sentHtml({ active_trials: 0, ending_in_7d: 0, trials_without_card: 0, unreconciled_ended_trials: 2 })
+
+    expect(html).toContain("#dc2626")
+    expect(html).toContain("2 free trial anomalies")
+    expect(html).toContain("ended over a day ago with no paid renewal")
+  })
+
+  it("still sends when the trial queries failed, warns and says the counts are not real", async () => {
+    const html = await sentHtml({
+      active_trials: 0,
+      ending_in_7d: 0,
+      trials_without_card: 0,
+      unreconciled_ended_trials: 0,
+      unavailable: "Unknown column 'data'",
+    })
+
+    expect(html).toContain("Free trial metrics unavailable: Unknown column")
+    expect(html).toContain("could not be read")
+    expect(html).not.toContain("All systems operating normally.")
   })
 })
