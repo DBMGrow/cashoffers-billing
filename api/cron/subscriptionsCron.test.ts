@@ -19,6 +19,9 @@ vi.mock("@api/lib/services", () => ({
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
   },
+  whitelabelResolverService: {
+    resolveForUser: vi.fn(),
+  },
 }))
 
 vi.mock("@api/lib/repositories", () => ({
@@ -26,10 +29,17 @@ vi.mock("@api/lib/repositories", () => ({
     findSubscriptionsForCronProcessing: vi.fn(),
     findExpiredTrials: vi.fn(),
     findTrialsExpiringSoon: vi.fn(),
+    findTrialsEndingWithin: vi.fn(),
+    stampTrialReminderSent: vi.fn(),
+    findTrialsWithoutCard: vi.fn(),
+    findEndedTrialsUnreconciled: vi.fn(),
     update: vi.fn(),
   },
   transactionRepository: {
     create: vi.fn(),
+  },
+  userCardRepository: {
+    findByUserId: vi.fn(),
   },
 }))
 
@@ -79,6 +89,10 @@ vi.mock("@api/infrastructure/email/templates/trial-expired.email", () => ({
   default: () => null,
 }))
 
+vi.mock("@api/infrastructure/email/templates/trial-ending.email", () => ({
+  default: () => null,
+}))
+
 vi.mock("@api/config/config.service", () => ({
   config: {
     api: {
@@ -90,8 +104,9 @@ vi.mock("@api/config/config.service", () => ({
 }))
 
 import subscriptionsCron from "./subscriptionsCron"
-import { subscriptionRepository, transactionRepository } from "@api/lib/repositories"
-import { emailService, eventBus } from "@api/lib/services"
+import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
+import { emailService, eventBus, whitelabelResolverService, logger } from "@api/lib/services"
+import { render } from "@react-email/render"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 
 const mockSubscriptionRepo = vi.mocked(subscriptionRepository)
@@ -99,6 +114,9 @@ const mockTransactionRepo = vi.mocked(transactionRepository)
 const mockEmailService = vi.mocked(emailService)
 const mockEventBus = vi.mocked(eventBus)
 const mockRenewUseCase = vi.mocked(renewSubscriptionUseCase)
+const mockUserCardRepo = vi.mocked(userCardRepository)
+const mockWhitelabelResolver = vi.mocked(whitelabelResolverService)
+const mockRender = vi.mocked(render)
 
 describe("subscriptionsCron", () => {
   beforeEach(() => {
@@ -108,6 +126,17 @@ describe("subscriptionsCron", () => {
     mockSubscriptionRepo.findSubscriptionsForCronProcessing = vi.fn().mockResolvedValue([])
     mockSubscriptionRepo.findExpiredTrials = vi.fn().mockResolvedValue([])
     mockSubscriptionRepo.findTrialsExpiringSoon = vi.fn().mockResolvedValue([])
+    mockSubscriptionRepo.findTrialsEndingWithin = vi.fn().mockResolvedValue([])
+    mockSubscriptionRepo.stampTrialReminderSent = vi.fn().mockResolvedValue(true)
+    mockSubscriptionRepo.findTrialsWithoutCard = vi.fn().mockResolvedValue([])
+    mockSubscriptionRepo.findEndedTrialsUnreconciled = vi.fn().mockResolvedValue([])
+    mockUserCardRepo.findByUserId = vi.fn().mockResolvedValue([{ last_4: "4242" }])
+    mockWhitelabelResolver.resolveForUser = vi.fn().mockResolvedValue({
+      whitelabel_id: 1,
+      code: "default",
+      name: "InstantOffers",
+      branding: { billing_url: "https://account.cashoffers.pro/" },
+    } as any)
     mockSubscriptionRepo.update = vi.fn().mockResolvedValue({})
     mockTransactionRepo.create = vi.fn().mockResolvedValue({ transaction_id: 1 })
     mockEmailService.sendEmail = vi.fn().mockResolvedValue(undefined)
@@ -309,6 +338,190 @@ describe("subscriptionsCron", () => {
       await subscriptionsCron()
 
       expect(mockEmailService.sendEmail).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("Card trial ending reminder (Desk #1350)", () => {
+    const DAY = 24 * 60 * 60 * 1000
+    const endsAt = () => new Date(Date.now() + 5 * DAY).toISOString()
+
+    /**
+     * An in-memory Subscriptions table: `findTrialsEndingWithin` honours the same filters as the SQL
+     * (active, not cancel-on-renewal, ending within the window, no reminder stamp) and
+     * `stampTrialReminderSent` writes the stamp, so two runs exercise the real idempotency path.
+     */
+    function trialTable(rows: Array<Record<string, any>>) {
+      mockSubscriptionRepo.findTrialsEndingWithin = vi.fn(async (days: number) => {
+        const now = Date.now()
+        return rows.filter((row) => {
+          const trial = JSON.parse(row.data).trial
+          const ends = Date.parse(trial.ends_at)
+          return (
+            row.status === "active" &&
+            !row.cancel_on_renewal &&
+            ends > now &&
+            ends <= now + days * DAY &&
+            trial.reminder_sent_at === undefined
+          )
+        })
+      }) as any
+      mockSubscriptionRepo.stampTrialReminderSent = vi.fn(async (id: number, sentAt: Date) => {
+        const row = rows.find((r) => r.subscription_id === id)!
+        const data = JSON.parse(row.data)
+        data.trial.reminder_sent_at = sentAt.toISOString()
+        row.data = JSON.stringify(data)
+        return true
+      }) as any
+      return rows
+    }
+
+    function trialRow(overrides: Record<string, any> = {}) {
+      return {
+        subscription_id: 70,
+        user_id: 1,
+        subscription_name: "InstantOffers365 Individual",
+        amount: 25000,
+        status: "active",
+        cancel_on_renewal: 0,
+        square_environment: "production",
+        data: JSON.stringify({ trial: { ends_at: endsAt(), duration_days: 30 } }),
+        ...overrides,
+      }
+    }
+
+    const trialEndingSends = () =>
+      mockEmailService.sendEmail.mock.calls.filter(([arg]: any[]) => arg.templateName === "trial-ending")
+
+    const renderedTrialEndingProps = () =>
+      mockRender.mock.calls.map(([element]: any[]) => element?.props).find((p: any) => p?.manageUrl !== undefined)
+
+    it("sends one trial-ending reminder across two runs and stamps reminder_sent_at", async () => {
+      const [row] = trialTable([trialRow()])
+
+      await subscriptionsCron()
+      await subscriptionsCron()
+
+      expect(mockSubscriptionRepo.findTrialsEndingWithin).toHaveBeenCalledWith(7)
+      expect(trialEndingSends()).toHaveLength(1)
+      expect(trialEndingSends()[0][0]).toEqual(
+        expect.objectContaining({ to: "user1@test.com", templateName: "trial-ending", fromName: "InstantOffers" })
+      )
+      expect(mockSubscriptionRepo.stampTrialReminderSent).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(row.data).trial.reminder_sent_at).toEqual(expect.any(String))
+    })
+
+    it("renders the plan's own amount, the card's last four and the manage link", async () => {
+      trialTable([trialRow({ amount: 99000, subscription_name: "InstantOffers365 Team" })])
+
+      await subscriptionsCron()
+
+      expect(renderedTrialEndingProps()).toEqual(
+        expect.objectContaining({
+          subscription: "InstantOffers365 Team",
+          amount: "$990.00",
+          cardLast4: "4242",
+          manageUrl: "https://account.cashoffers.pro/manage",
+          isSandbox: false,
+        })
+      )
+    })
+
+    it("sends nothing to a cancelled trial", async () => {
+      trialTable([trialRow({ cancel_on_renewal: 1 }), trialRow({ subscription_id: 71, status: "cancelled" })])
+
+      await subscriptionsCron()
+
+      expect(trialEndingSends()).toHaveLength(0)
+      expect(mockSubscriptionRepo.stampTrialReminderSent).not.toHaveBeenCalled()
+    })
+
+    it("does not stamp when the send fails, so the next run retries", async () => {
+      trialTable([trialRow()])
+      mockEmailService.sendEmail = vi.fn().mockRejectedValueOnce(new Error("SMTP down")).mockResolvedValue(undefined)
+
+      await subscriptionsCron()
+      expect(mockSubscriptionRepo.stampTrialReminderSent).not.toHaveBeenCalled()
+
+      await subscriptionsCron()
+      expect(mockSubscriptionRepo.stampTrialReminderSent).toHaveBeenCalledTimes(1)
+      expect(trialEndingSends()).toHaveLength(2)
+    })
+
+    it("still sends with no card row, naming the card on file", async () => {
+      trialTable([trialRow()])
+      mockUserCardRepo.findByUserId = vi.fn().mockResolvedValue([])
+
+      await subscriptionsCron()
+
+      expect(trialEndingSends()).toHaveLength(1)
+      expect(renderedTrialEndingProps().cardLast4).toBeUndefined()
+    })
+  })
+
+  describe("Card trial invariants (Desk #1350)", () => {
+    const DAY = 24 * 60 * 60 * 1000
+    /** The child logger the cron created on this run (the logger mock hands out a fresh one per call). */
+    const cronLogger = () => vi.mocked(logger.child).mock.results[0].value as { error: ReturnType<typeof vi.fn> }
+
+    function trialSub(id: number, userId: number) {
+      return {
+        subscription_id: id,
+        user_id: userId,
+        product_id: 70,
+        status: "active",
+        cancel_on_renewal: 0,
+        data: JSON.stringify({ trial: { ends_at: new Date(Date.now() + 20 * DAY).toISOString(), duration_days: 30 } }),
+      }
+    }
+
+    it("flags a trial with no card: an error log names the subscription, user and product", async () => {
+      // The trialing subscription whose UserCards row was deleted (the repository query's result).
+      mockSubscriptionRepo.findTrialsWithoutCard = vi.fn().mockResolvedValue([trialSub(70, 1)])
+
+      await subscriptionsCron()
+
+      expect(mockSubscriptionRepo.findTrialsWithoutCard).toHaveBeenCalledWith(expect.any(Date))
+      expect(cronLogger().error).toHaveBeenCalledWith("Trial has no card on file: subscription 70", undefined, {
+        subscription_id: 70,
+        user_id: 1,
+        product_id: 70,
+        subjectUserId: 1,
+      })
+    })
+
+    it("logs each unreconciled ended trial at error", async () => {
+      mockSubscriptionRepo.findEndedTrialsUnreconciled = vi.fn().mockResolvedValue([trialSub(80, 2), trialSub(81, 3)])
+
+      await subscriptionsCron()
+
+      const unreconciled = cronLogger().error.mock.calls.filter(([msg]: any[]) => String(msg).startsWith("Ended trial not reconciled"))
+      expect(unreconciled.map(([, , meta]: any[]) => meta.subscription_id)).toEqual([80, 81])
+    })
+
+    it("logs nothing when every trial has a card and every ended trial reconciled", async () => {
+      await subscriptionsCron()
+
+      expect(cronLogger().error).not.toHaveBeenCalled()
+    })
+
+    it("is read-only and never charges, emails or writes", async () => {
+      mockSubscriptionRepo.findTrialsWithoutCard = vi.fn().mockResolvedValue([trialSub(70, 1)])
+      mockSubscriptionRepo.findEndedTrialsUnreconciled = vi.fn().mockResolvedValue([trialSub(80, 2)])
+
+      await subscriptionsCron()
+
+      expect(mockRenewUseCase.execute).not.toHaveBeenCalled()
+      expect(mockEmailService.sendEmail).not.toHaveBeenCalled()
+      expect(mockSubscriptionRepo.update).not.toHaveBeenCalled()
+      expect(mockTransactionRepo.create).not.toHaveBeenCalled()
+    })
+
+    it("a failing invariant query is logged and does not fail the cron", async () => {
+      mockSubscriptionRepo.findTrialsWithoutCard = vi.fn().mockRejectedValue(new Error("query timeout"))
+
+      await expect(subscriptionsCron()).resolves.toBeUndefined()
+      expect(cronLogger().error).toHaveBeenCalledWith("Error checking card-on-file trial invariants", expect.any(Error))
+      expect(mockEmailService.sendPlainEmail).not.toHaveBeenCalled()
     })
   })
 

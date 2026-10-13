@@ -5,7 +5,8 @@ import { UseFormReturn } from "react-hook-form"
 import type { SubscribeFormData } from "@/types/forms"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { usePurchase } from "@/hooks/api/usePurchase"
-import { useProducts, isProductFree } from "@/providers/ProductProvider"
+import { useProducts, isProductFree, productTrialDays } from "@/providers/ProductProvider"
+import formatDate from "@/components/utils/formatDate"
 import Row from "@/components/Theme/Row"
 import Table from "@/components/Theme/Table"
 import InvestorConsent from "@/components/UI/SignupForm/InvestorConsent"
@@ -67,11 +68,16 @@ export default function ReviewStep({
 
   const productPrice = monthlyPrice
 
+  // Free trial (Desk #1350): nothing is charged today, the card is saved, and the plan's price is
+  // first charged `trialDays` days from now. A coupon does not apply to a trial product (plan Q7).
+  const trialDays = productTrialDays(productData)
+  const firstChargeDate = trialDays ? new Date(new Date().setDate(new Date().getDate() + trialDays)) : null
+
   // Promo code (from `?coupon=` or typed below). Display only: the purchase re-validates server-side.
-  const coupon = formData.coupon ?? null
+  const coupon = trialDays ? null : (formData.coupon ?? null)
   const promo = useValidatePromo(coupon, typeof product === "number" ? product : null, "signup")
   const promoQuote = coupon ? (promo.data?.quote ?? null) : null
-  const priceToday = promoQuote ? promoQuote.charged_amount / 100 : productPrice + signupFeeAmount
+  const priceToday = trialDays ? 0 : promoQuote ? promoQuote.charged_amount / 100 : productPrice + signupFeeAmount
 
   const CARD_ERROR_MESSAGES: Record<string, string> = {
     INSUFFICIENT_FUNDS:
@@ -94,6 +100,8 @@ export default function ReviewStep({
     CARD_CREATION_FAILED:
       "Your card information is invalid or could not be processed. Please check your card details and try again.",
     PUR08: "Your card was declined. Please try a different card or contact your bank.",
+    TRIAL_CARD_REQUIRED:
+      "Your card information is invalid or could not be processed. Please check your card details and try again.",
   }
 
   const isCardError = (code?: string): boolean => (code ? code in CARD_ERROR_MESSAGES : false)
@@ -136,7 +144,7 @@ export default function ReviewStep({
         state: formData.state,
         slug: formData.slug,
         url,
-        coupon: formData.coupon,
+        coupon,
         mock_purchase: mockPurchase,
       })
     } catch (error) {
@@ -204,7 +212,7 @@ export default function ReviewStep({
   const isLoading = purchaseMutation.isPending
 
   return (
-    <div>
+    <div className="w-full min-w-0">
       <Table
         footer={
           <>
@@ -215,7 +223,7 @@ export default function ReviewStep({
                 <span className="text-caption">/mo</span>
               </div>
             </div>
-            {signupFeeAmount > 0 && (
+            {!trialDays && signupFeeAmount > 0 && (
               <div className="flex gap-2 justify-between items-start">
                 <strong>Signup Fee</strong>
                 <div className="text-xl font-bold">${signupFeeAmount}</div>
@@ -228,10 +236,21 @@ export default function ReviewStep({
               </div>
             )}
             <div className="flex gap-2 justify-between items-start">
-              <strong>Total Today</strong>
+              <strong>{trialDays ? "Due today" : "Total Today"}</strong>
               <div className="text-price">${promoQuote ? priceToday.toFixed(2) : priceToday}</div>
             </div>
-            {!isFree && (
+            {firstChargeDate && (
+              <div
+                className="flex flex-col sm:flex-row gap-1 sm:gap-2 sm:justify-between"
+                data-testid="trial-first-charge"
+              >
+                <strong>Then</strong>
+                <div>
+                  ${productPrice}/mo starting {formatDate(firstChargeDate)}
+                </div>
+              </div>
+            )}
+            {!isFree && !trialDays && (
               <PromoCodeField
                 code={coupon}
                 validation={promo.data}
@@ -258,7 +277,7 @@ export default function ReviewStep({
       <GeneralConsent isChecked={isGeneralChecked} setIsChecked={setIsGeneralChecked} />
       <CommunicationConsent isChecked={isCommunicationChecked} setIsChecked={setIsCommunicationChecked} />
       <InvestorConsent isInvestor={isInvestorProduct} isChecked={isChecked} setIsChecked={setIsChecked} />
-      <div className="w-100 flex justify-stretch items-stretch pt-4">
+      <div className="w-full max-w-100 flex justify-stretch items-stretch pt-4">
         <ThemeButton
           color="secondary"
           isDisabled={!isChecked || !isGeneralChecked}

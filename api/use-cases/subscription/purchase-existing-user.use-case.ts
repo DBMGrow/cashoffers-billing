@@ -142,6 +142,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
       // Process payment (skip for free $0 purchases)
       await this.deps.purchaseRequestRepository.updateStatus(purchaseRequestId, "PROCESSING_PAYMENT")
       // No fallback to `price` as a signup fee: this account already signed up (see calculatePricing).
+      // `existingUser` also means no free trial: an existing account pays list price (plan Q5).
       const pricing = promoPricing ?? calculatePricing(product, productData, { existingUser: true })
       let payment: { id: string; status: string; environment: "production" | "sandbox" } | null = null
       if (pricing.initialAmount > 0) {
