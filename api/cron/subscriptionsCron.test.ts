@@ -621,15 +621,15 @@ describe("subscriptionsCron", () => {
       const driftErrors = () =>
         cronLogger().error.mock.calls.filter(([msg]: any[]) => String(msg).startsWith("Trial date drift"))
 
-      // The drift check runs on the 12:00 UTC run only (see "logs a drifted row once a day" below)
+      // The drift check runs on the 11:00 UTC run only (see "logs a drifted row once a day" below)
       beforeEach(() => {
         vi.useFakeTimers({ toFake: ["Date"] })
-        vi.setSystemTime(new Date("2026-10-14T12:05:00.000Z"))
+        vi.setSystemTime(new Date("2026-10-14T11:05:00.000Z"))
       })
       afterEach(() => vi.useRealTimers())
 
-      it("logs a drifted row once a day: on the 12:00 UTC run, not on the other 23 hourly runs", async () => {
-        expect(TRIAL_DRIFT_CHECK_UTC_HOUR).toBe(12)
+      it("logs a drifted row once a day: on the 11:00 UTC run, not on the other 23 hourly runs", async () => {
+        expect(TRIAL_DRIFT_CHECK_UTC_HOUR).toBe(11)
         mockSubscriptionRepo.findUnconvertedTrials = vi
           .fn()
           .mockResolvedValue([unconvertedTrial(97, "2026-11-01T12:00:00.000Z", new Date("2026-11-06T12:00:00.000Z"))])
@@ -639,11 +639,33 @@ describe("subscriptionsCron", () => {
           vi.setSystemTime(new Date(Date.UTC(2026, 9, 14, hour, 5)))
           await subscriptionsCron()
           logged += driftErrors().length
-          if (hour !== 12) expect(driftErrors()).toHaveLength(0)
+          if (hour !== TRIAL_DRIFT_CHECK_UTC_HOUR) expect(driftErrors()).toHaveLength(0)
         }
         expect(logged).toBe(1)
         // The other 23 runs do not even query for drift
         expect(mockSubscriptionRepo.findUnconvertedTrials).toHaveBeenCalledTimes(1)
+      })
+
+      it("decides by when the run started: an 11:59 run that reaches the check after 12:00 still checks, a 10:59 run that spills into 11:00 does not", async () => {
+        mockSubscriptionRepo.findUnconvertedTrials = vi
+          .fn()
+          .mockResolvedValue([unconvertedTrial(98, "2026-11-01T12:00:00.000Z", new Date("2026-11-06T12:00:00.000Z"))])
+        const spillTo = (later: string) =>
+          vi.mocked(mockSubscriptionRepo.findSubscriptionsForCronProcessing).mockImplementationOnce(async () => {
+            vi.setSystemTime(new Date(later))
+            return []
+          })
+
+        vi.setSystemTime(new Date("2026-10-14T11:59:30.000Z"))
+        spillTo("2026-10-14T12:03:00.000Z")
+        await subscriptionsCron()
+        expect(driftErrors()).toHaveLength(1)
+
+        vi.mocked(logger.child).mockClear()
+        vi.setSystemTime(new Date("2026-10-14T10:59:30.000Z"))
+        spillTo("2026-10-14T11:03:00.000Z")
+        await subscriptionsCron()
+        expect(driftErrors()).toHaveLength(0)
       })
 
       it("logs one error naming the subscription, both dates and 'Trial date drift' when ends_at and renewal_date disagree", async () => {

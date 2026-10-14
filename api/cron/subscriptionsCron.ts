@@ -16,13 +16,18 @@ import TrialEndingEmail from "@api/infrastructure/email/templates/trial-ending.e
 const TRIAL_REMINDER_DAYS = 7
 
 /**
- * The UTC hour of the one run a day that checks for trial date drift (D1). The cron runs hourly, so
- * checking every run would log each drifted row 24 times a day. The health report reads the last 24
- * hours of BillingLogs, so one run a day puts each drifted row in every report exactly once.
+ * The UTC hour of the one run a day that checks for trial date drift (D1), judged by when the run
+ * started. The cron runs hourly, so checking every run would log each drifted row 24 times a day. It is
+ * 11:00, not 12:00, because the daily health report also fires at 12:00 UTC and reads the 24 hours
+ * before it: an 11:00 check lands well inside that window, so each report holds one check's rows.
  */
-export const TRIAL_DRIFT_CHECK_UTC_HOUR = 12
+export const TRIAL_DRIFT_CHECK_UTC_HOUR = 11
 
 export default async function subscriptionsCron() {
+  // When this run started. The daily drift check keys on it, so a run that spills past the hour
+  // still decides by the hour it was scheduled for.
+  const runStartedAt = new Date()
+
   // Create child logger with cron context
   const cronLogger = logger.child({
     component: 'subscriptionsCron',
@@ -278,7 +283,7 @@ export default async function subscriptionsCron() {
     // it through the error count and list.
     try {
       const now = new Date()
-      const checkDrift = now.getUTCHours() === TRIAL_DRIFT_CHECK_UTC_HOUR
+      const checkDrift = runStartedAt.getUTCHours() === TRIAL_DRIFT_CHECK_UTC_HOUR
       const [withoutCard, unreconciled, unconverted] = await Promise.all([
         subscriptionRepository.findTrialsWithoutCard(now),
         subscriptionRepository.findEndedTrialsUnreconciled(now),
