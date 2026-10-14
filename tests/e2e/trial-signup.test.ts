@@ -11,6 +11,7 @@ import {
   setupPurchaseMocks,
 } from "./helpers/form-helpers"
 import { generateTestEmail, generateTestSlug } from "./fixtures/test-data"
+import { formatTrialChargeDate, trialFirstChargeDate } from "../../api/domain/services/trial-charge-date"
 
 /**
  * Free trial signup (Desk #1350, plan AC7). The product list is mocked with a trial product, so
@@ -58,10 +59,9 @@ async function fillAgentSteps(page: Page) {
   await fillPhone(page, "(555) 123-4567")
 }
 
+/** The UTC day the cron charges on, the date the emails name too (D3, #1402) */
 function firstChargeDate(): string {
-  const date = new Date()
-  date.setDate(date.getDate() + 30)
-  return date.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
+  return formatTrialChargeDate(trialFirstChargeDate(30))
 }
 
 test.describe("Free trial signup", () => {

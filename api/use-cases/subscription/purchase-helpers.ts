@@ -472,6 +472,12 @@ export async function createSubscriptionRecord(
     pricing: PurchasePricing
     /** null for free ($0) purchases — no payment was processed */
     payment: { environment: "production" | "sandbox" } | null
+    /**
+     * The card saved for this subscription, null when there is none (a free product). Its environment
+     * stands in when nothing was charged today (a free trial, a promo that covers the first charge),
+     * so the row still says which Square environment its renewals charge in.
+     */
+    card: { square_environment: "production" | "sandbox" | null } | null
     userConfig: ProductUserConfig | undefined
     cashoffers: CashOffersConfig | undefined
   }
@@ -502,7 +508,7 @@ export async function createSubscriptionRecord(
     status: "active",
     renewal_date: renewalDate,
     product_id: params.product.product_id,
-    square_environment: params.payment?.environment ?? null,
+    square_environment: params.payment?.environment ?? params.card?.square_environment ?? null,
     cancel_on_renewal: 0,
     downgrade_on_renewal: 0,
     data: JSON.stringify(subscriptionData),
@@ -558,7 +564,12 @@ export async function publishPurchaseEvents(
     userId: number | null
     email: string
     product: { product_id: number; product_name: string }
-    subscription: { subscription_id: number; renewal_date: Date | null }
+    /** `square_environment` names the environment when nothing was charged today (a free trial) */
+    subscription: {
+      subscription_id: number
+      renewal_date: Date | null
+      square_environment?: "production" | "sandbox" | null
+    }
     transaction: { transaction_id: number }
     pricing: PurchasePricing
     /** null for free ($0) purchases */
@@ -596,7 +607,7 @@ export async function publishPurchaseEvents(
       userWasCreated: params.userWasCreated,
       provisioningFailed: params.provisioningFailed ?? false,
       nextRenewalDate: params.subscription.renewal_date ?? undefined,
-      environment: params.payment?.environment,
+      environment: params.payment?.environment ?? params.subscription.square_environment ?? undefined,
       source: "API",
       lineItems: [
         ...(params.pricing.signupFee > 0 ? [{ description: "Signup Fee", amount: params.pricing.signupFee }] : []),

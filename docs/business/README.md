@@ -8,7 +8,7 @@ Describes what the system does (capabilities), constraints it enforces (rules), 
 |-----------|-------------|
 | [Subscription Lifecycle](capabilities/subscription-lifecycle) | Create, renew, pause, resume, cancel, downgrade subscriptions |
 | [Payment Processing](capabilities/payment-processing) | Charge cards, retry on failure, refund payments |
-| [Free Trials](capabilities/free-trials) | Start trials, expire them, convert to paid |
+| [Free Trials](capabilities/free-trials) | Card-on-file trial (deferred first charge) and the legacy HomeUptick trial |
 | [User Configuration](capabilities/user-configuration) | Apply roles, premium status, and whitelabel from product config |
 | [HomeUptick Integration](capabilities/homeuptick-integration) | Addon subscriptions linked to HomeUptick tiers |
 | [Whitelabel Support](capabilities/whitelabel-support) | Brand-specific checkout and user assignment |

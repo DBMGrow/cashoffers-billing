@@ -1,8 +1,9 @@
 // NOTE: the runtime imports are deferred into `beforeEach`. The #1494 suite was
 // `describe.skip`-ed because a static import of the handler did not resolve under
 // vitest at the time; it resolves now (checked for #1170), so both suites run.
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import type { EmailNotificationHandler as EmailNotificationHandlerClass } from "./email-notification.handler"
+import { FIRST_CHARGE_CASES, TRIAL_DAYS } from "@api/tests/fixtures/first-charge-instants"
 
 // Mock module-level singletons the handler imports.
 vi.mock("@api/lib/services", () => ({
@@ -130,15 +131,10 @@ describe("EmailNotificationHandler: SubscriptionCreated for a free trial (Desk #
     expect(emailService.sendEmail.mock.calls[0][0]).toEqual(
       expect.objectContaining({ to: "agent@example.com", templateName: "trial-welcome" })
     )
-    const expectedDate = new Date(endsAt).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    })
     expect(welcomeProps()).toEqual(
       expect.objectContaining({
         trialDays: 30,
-        expirationDate: expectedDate,
+        expirationDate: "November 11, 2026",
         firstCharge: { subscription: "InstantOffers365 Individual", amount: "$250.00" },
       })
     )
@@ -197,5 +193,29 @@ describe("EmailNotificationHandler: SubscriptionCreated for a free trial (Desk #
 
     expect(findSubscription).not.toHaveBeenCalled()
     expect(emailService.sendEmail.mock.calls[0][0].templateName).toBe("subscription-created")
+  })
+
+  // D3, AC26: the welcome names the UTC day the hourly run charges on, the day the review step
+  // showed, whatever zone the server runs in.
+  describe("names the UTC day the charging run falls on (D3, AC26)", () => {
+    const ORIGINAL_TZ = process.env.TZ
+    afterEach(() => {
+      process.env.TZ = ORIGINAL_TZ
+    })
+
+    for (const c of FIRST_CHARGE_CASES) {
+      for (const zone of ["UTC", "America/Los_Angeles", "Asia/Manila"]) {
+        it(`a signup at ${c.name}, on a server in ${zone}: ${c.firstCharge}`, async () => {
+          process.env.TZ = zone
+          findSubscription.mockResolvedValue({
+            data: JSON.stringify({ trial: { ends_at: c.endsAt, duration_days: TRIAL_DAYS } }),
+          })
+
+          await handler.handle(created({ nextRenewalDate: new Date(c.endsAt) }))
+
+          expect(welcomeProps().expirationDate).toBe(c.firstCharge)
+        })
+      }
+    }
   })
 })

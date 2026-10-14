@@ -313,7 +313,32 @@ returns `initialAmount: 0` and `trialDays: N`; the new-user flow saves the card,
 (no payment transaction, no `PaymentProcessed`), and creates the subscription `active` at the full
 `renewal_cost` with `renewal_date = now + N days` and `data.trial = { ends_at, duration_days }`.
 The ordinary renewal cron takes the first charge on day N; nothing in the renewal path knows about
-trials. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
+trials. With no payment to read, the subscription's `square_environment` is the saved card's
+(`createSubscriptionRecord`: the payment's environment, else the card's, else NULL for a free
+product), and `SubscriptionCreated` carries the same value, so a sandbox trial's trial-welcome and
+trial-ending emails are marked `[SANDBOX]` (D2). A promo that covers today's charge takes the same
+fallback. The renewal itself still chooses its environment from the card first.
+
+Until the trial converts (a completed paid `RENEWAL` purchase request), its first charge is its
+`renewal_date`, so `data.trial.ends_at` always equals it (D1). `SubscriptionRepository.update`, which
+every billing writer of `renewal_date` goes through (the CashOffers webhook's reactivation, the
+resume route, the dev `set-state` tool), rewrites `ends_at` with `JSON_SET` in the same statement
+when it writes `renewal_date` on an unconverted trial row. The renewal that converts the trial is
+excluded: it writes the next period while its request is `CREATING_SUBSCRIPTION`, so `ends_at` keeps
+the first-charge date. A writer outside billing (a direct SQL edit, the legacy API) bypasses this;
+the subscriptions cron's drift check logs any such row at `error`.
+
+A plan change during a trial keeps the trial (D5). `POST /manage/purchase` replaces
+`Subscriptions.data` with the new product's data minus its trial SETTING (`subscriptionDataFromProduct`;
+a product's `data.trial` is `{ enabled, duration_days, require_card }`, a subscription's is the marker
+`{ ends_at, duration_days }`), so the statement sets the stored marker into the new document with
+`JSON_SET` when the row's trial has not converted and the new document brings no marker (`trial.ends_at`)
+of its own (`withTrialRules` in `subscription.repository.ts`, also
+applied by `SubscriptionRepository.update` and by `scripts/reconcile-subscriptions.ts --commit`, the
+other wholesale writer). A plan change does not move `renewal_date`, so `ends_at` still equals it; a
+write that replaces `data` and moves `renewal_date` together carries the trial first, then sets
+`ends_at` to the new date. A converted subscription, and one with no trial, gets the new product's
+data exactly as before. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
 subscription exists. A `coupon` on a trial product is ignored with a warn line, not refused. An
 existing account enrolling through `/manage` never gets the trial and pays list price. Team plans
 need no special case: the team step's read-modify-write of `Subscriptions.data` keeps `trial`.
@@ -324,6 +349,17 @@ The signup page states the terms before the agent presses Sign Up, using the sam
 the card step adds "You won't be charged until your N-day trial ends.", and the review step reads
 "Due today $0" then "$<renewal_cost>/mo starting <date>", with no signup fee line and no promo
 field. The card step is still required (a trial product is not free).
+
+The first-charge date is one calendar day everywhere the agent reads it (D3): the UTC day of the
+first hourly renewal run (`0 * * * *` in cashoffers-cron) at or after `renewal_date`, which is the
+run that takes the charge. A trial ending at 23:30 UTC is charged by the midnight run, so it names
+the next day. `api/domain/services/trial-charge-date.ts` holds the rule: `trialFirstChargeDate(N)`
+is now plus exactly N days (the server's `calculateRenewalDate` arithmetic), and
+`formatTrialChargeDate` turns that or `ends_at` into the charging run's UTC day ("November 11,
+2026"). The review step, the trial-welcome email and the trial-ending email all use it, so a signup
+at 23:30 in Los Angeles or 00:30 in Manila sees the same date on the page as in both emails,
+whatever zone the browser or server runs in. If the renewal cron's schedule changes,
+`RENEWAL_RUN_INTERVAL_MS` changes with it.
 
 ---
 

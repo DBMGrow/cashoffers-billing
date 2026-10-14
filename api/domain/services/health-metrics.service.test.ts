@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { HealthMetricsService } from "./health-metrics.service"
 
 // Minimal repository stubs — the metrics we test touch
@@ -168,7 +168,8 @@ describe("HealthMetricsService trials (Desk #1350)", () => {
         subscriptions.filter(
           (s) =>
             endsAt(s) < now.getTime() - DAY &&
-            s.status !== "cancelled" &&
+            new Date(s.renewal_date).getTime() < now.getTime() - DAY &&
+            s.status === "active" &&
             !s.cancel_on_renewal &&
             s.payment_failure_count === 0 &&
             !purchaseRequests.some(
@@ -268,5 +269,75 @@ describe("HealthMetricsService trials (Desk #1350)", () => {
 
     const metrics = await service.getDailyHealthMetrics()
     expect(metrics.trials.unreconciled_ended_trials).toBe(1)
+  })
+
+  // D6, AC29. A paused trial is never charged (the cron charges active rows only), so while it is
+  // paused it is no anomaly. Once reactivated, the webhook moves renewal_date a month on and the
+  // repository moves ends_at with it (D1), and the normal rules apply to the new date.
+  it("AC29: a paused unconverted trial past its date is no anomaly; after reactivation the normal rules apply", async () => {
+    const { subscriptions, userCards, purchaseRequests, service } = trialWorld()
+    userCards.push({ id: 1, user_id: 1, card_id: "ccof:1" })
+    const realNow = Date.now()
+    const originalEnd = realNow - 10 * DAY
+    const paused = trialSub(100, 1, originalEnd, { status: "paused", suspension_date: new Date(originalEnd - 2 * DAY) })
+    subscriptions.push(paused)
+
+    expect((await service.getDailyHealthMetrics()).trials).toEqual({
+      active_trials: 0,
+      ending_in_7d: 0,
+      trials_without_card: 0,
+      unreconciled_ended_trials: 0,
+    })
+
+    // Reactivated today: one month on, both dates
+    const newEnd = realNow + 30 * DAY
+    Object.assign(paused, {
+      status: "active",
+      suspension_date: null,
+      renewal_date: new Date(newEnd),
+      data: JSON.stringify({ trial: { ends_at: new Date(newEnd).toISOString(), duration_days: 30 } }),
+    })
+    expect((await service.getDailyHealthMetrics()).trials).toEqual({
+      active_trials: 1,
+      ending_in_7d: 0,
+      trials_without_card: 0,
+      unreconciled_ended_trials: 0,
+    })
+
+    // Its card goes: the live invariant flags it again
+    userCards.splice(0, 1)
+    expect((await service.getDailyHealthMetrics()).trials.trials_without_card).toBe(1)
+    userCards.push({ id: 1, user_id: 1, card_id: "ccof:1" })
+
+    // 6 days before the new date it is ending in 7 days
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      vi.setSystemTime(new Date(newEnd - 6 * DAY))
+      expect((await service.getDailyHealthMetrics()).trials.ending_in_7d).toBe(1)
+
+      // Two days past the new date with no charge taken: now it is unreconciled
+      vi.setSystemTime(new Date(newEnd + 2 * DAY))
+      expect((await service.getDailyHealthMetrics()).trials.unreconciled_ended_trials).toBe(1)
+
+      // The charge converts it
+      purchaseRequests.push({ subscription_id: 100, request_type: "RENEWAL", status: "COMPLETED", amount_charged: 25000 })
+      expect((await service.getDailyHealthMetrics()).trials.unreconciled_ended_trials).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("AC29: a suspended, inactive or cancelled trial past its date is no anomaly either (none of them is charged)", async () => {
+    const { subscriptions, service } = trialWorld()
+    const twoDaysAgo = Date.now() - 2 * DAY
+    subscriptions.push(
+      trialSub(110, 1, twoDaysAgo, { status: "suspended" }),
+      trialSub(111, 2, twoDaysAgo, { status: "inactive" }),
+      trialSub(112, 3, twoDaysAgo, { status: "cancelled" }),
+      trialSub(113, 4, twoDaysAgo, { status: "paused" })
+    )
+
+    const metrics = await service.getDailyHealthMetrics()
+    expect(metrics.trials.unreconciled_ended_trials).toBe(0)
   })
 })
