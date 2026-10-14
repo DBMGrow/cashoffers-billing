@@ -4,6 +4,8 @@ import { useForm } from "react-hook-form"
 import type { SubscribeFormData } from "@/types/forms"
 import type { Product } from "@/providers/ProductProvider"
 import ReviewStep from "../steps/ReviewStep"
+import { formatTrialChargeDate } from "@/api/domain/services/trial-charge-date"
+import { FIRST_CHARGE_CASES, MACHINE_ZONES, TRIAL_DAYS } from "@/api/tests/fixtures/first-charge-instants"
 
 const mocks = vi.hoisted(() => ({
   product: undefined as unknown,
@@ -147,6 +149,29 @@ describe("ReviewStep on a free trial product (AC6)", () => {
     expect(screen.getByTestId("promo-summary")).toBeTruthy()
     expect(screen.queryByText("Due today")).toBeNull()
     expect(screen.queryByTestId("trial-first-charge")).toBeNull()
+  })
+
+  // D3, AC26: the review step names the UTC day the cron charges on, the same date both trial emails
+  // name (same table: api/tests/fixtures/first-charge-instants.ts), whatever the browser's zone.
+  describe("names the first-charge date the emails name (D3, AC26)", () => {
+    const ORIGINAL_TZ = process.env.TZ
+    afterEach(() => {
+      process.env.TZ = ORIGINAL_TZ
+    })
+
+    for (const c of FIRST_CHARGE_CASES) {
+      for (const zone of [...new Set([c.browserZone, ...MACHINE_ZONES])]) {
+        it(`a signup at ${c.name}, in a browser in ${zone}: ${c.firstCharge}`, () => {
+          process.env.TZ = zone
+          vi.setSystemTime(new Date(c.signupAt))
+          mocks.product = product({ trial: { enabled: true, duration_days: TRIAL_DAYS, require_card: true } })
+          render(<Harness />)
+
+          expect(within(footerRow("Then")).getByText(`$250/mo starting ${c.firstCharge}`)).toBeTruthy()
+          expect(formatTrialChargeDate(c.endsAt)).toBe(c.firstCharge)
+        })
+      }
+    }
   })
 
   it("treats a disabled trial as no trial", () => {

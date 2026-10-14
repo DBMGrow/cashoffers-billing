@@ -6,7 +6,7 @@ import type { SubscribeFormData } from "@/types/forms"
 import { ThemeButton } from "@/components/Theme/ThemeButton"
 import { usePurchase } from "@/hooks/api/usePurchase"
 import { useProducts, isProductFree, productTrialDays } from "@/providers/ProductProvider"
-import formatDate from "@/components/utils/formatDate"
+import { formatTrialChargeDate, trialFirstChargeDate } from "@/api/domain/services/trial-charge-date"
 import Row from "@/components/Theme/Row"
 import Table from "@/components/Theme/Table"
 import InvestorConsent from "@/components/UI/SignupForm/InvestorConsent"
@@ -71,7 +71,8 @@ export default function ReviewStep({
   // Free trial (Desk #1350): nothing is charged today, the card is saved, and the plan's price is
   // first charged `trialDays` days from now. A coupon does not apply to a trial product (plan Q7).
   const trialDays = productTrialDays(productData)
-  const firstChargeDate = trialDays ? new Date(new Date().setDate(new Date().getDate() + trialDays)) : null
+  // Named as the UTC day of the hourly run that charges it, as both trial emails name it (D3, #1402).
+  const firstChargeDate = trialDays ? trialFirstChargeDate(trialDays) : null
 
   // Promo code (from `?coupon=` or typed below). Display only: the purchase re-validates server-side.
   const coupon = trialDays ? null : (formData.coupon ?? null)
@@ -246,7 +247,7 @@ export default function ReviewStep({
               >
                 <strong>Then</strong>
                 <div>
-                  ${productPrice}/mo starting {formatDate(firstChargeDate)}
+                  ${productPrice}/mo starting {formatTrialChargeDate(firstChargeDate)}
                 </div>
               </div>
             )}

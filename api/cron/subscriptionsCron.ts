@@ -5,6 +5,7 @@ import { logger, emailService, eventBus, whitelabelResolverService } from "@api/
 import { db } from "@api/lib/database"
 import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
 import { readSubscriptionTrial, trialDateDrift } from "@api/domain/services/subscription-trial"
+import { formatTrialChargeDate } from "@api/domain/services/trial-charge-date"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import TrialExpiringEmail from "@api/infrastructure/email/templates/trial-expiring.email"
@@ -229,9 +230,8 @@ export default async function subscriptionsCron() {
           const whitelabelInfo = await whitelabelResolverService.resolveForUser(subscription.user_id!)
           const billingBase = (whitelabelInfo.branding?.billing_url ?? 'https://account.cashoffers.pro').replace(/\/$/, '')
           const isSandbox = subscription.square_environment === 'sandbox'
-          const chargeDate = new Date(trial.ends_at).toLocaleDateString('en-US', {
-            month: 'long', day: 'numeric', year: 'numeric',
-          })
+          // The UTC day of the hourly run that charges it, the day the review step showed (D3, #1402)
+          const chargeDate = formatTrialChargeDate(trial.ends_at)
 
           const html = await render(
             createElement(TrialEndingEmail, {

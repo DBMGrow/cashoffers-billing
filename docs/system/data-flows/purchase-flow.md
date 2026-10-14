@@ -338,6 +338,17 @@ the card step adds "You won't be charged until your N-day trial ends.", and the 
 "Due today $0" then "$<renewal_cost>/mo starting <date>", with no signup fee line and no promo
 field. The card step is still required (a trial product is not free).
 
+The first-charge date is one calendar day everywhere the agent reads it (D3): the UTC day of the
+first hourly renewal run (`0 * * * *` in cashoffers-cron) at or after `renewal_date`, which is the
+run that takes the charge. A trial ending at 23:30 UTC is charged by the midnight run, so it names
+the next day. `api/domain/services/trial-charge-date.ts` holds the rule: `trialFirstChargeDate(N)`
+is now plus exactly N days (the server's `calculateRenewalDate` arithmetic), and
+`formatTrialChargeDate` turns that or `ends_at` into the charging run's UTC day ("November 11,
+2026"). The review step, the trial-welcome email and the trial-ending email all use it, so a signup
+at 23:30 in Los Angeles or 00:30 in Manila sees the same date on the page as in both emails,
+whatever zone the browser or server runs in. If the renewal cron's schedule changes,
+`RENEWAL_RUN_INTERVAL_MS` changes with it.
+
 ---
 
 ## HomeUptick Subscription Seeding

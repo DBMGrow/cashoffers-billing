@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
+import { FIRST_CHARGE_CASES, TRIAL_DAYS } from "@api/tests/fixtures/first-charge-instants"
 
 // Mock all external dependencies before importing the cron function
 vi.mock("@api/lib/services", () => ({
@@ -480,11 +481,40 @@ describe("subscriptionsCron", () => {
         vi.setSystemTime(new Date(NEW_END.getTime() - 6 * DAY))
         await subscriptionsCron()
 
-        const newDate = NEW_END.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        const newDate = "November 18, 2026"
         expect(trialEndingSends()).toHaveLength(1)
         expect(trialEndingSends()[0][0].subject).toBe(`Your free trial ends on ${newDate}`)
         expect(renderedTrialEndingProps().chargeDate).toBe(newDate)
       })
+    })
+
+    // D3, AC26: the reminder names the UTC day the hourly run charges on, the day the review step
+    // showed, whatever zone the server runs in.
+    describe("names the UTC day the charging run falls on (D3, AC26)", () => {
+      const ORIGINAL_TZ = process.env.TZ
+      afterEach(() => {
+        process.env.TZ = ORIGINAL_TZ
+        vi.useRealTimers()
+      })
+
+      for (const c of FIRST_CHARGE_CASES) {
+        for (const zone of ["UTC", "America/Los_Angeles", "Asia/Manila"]) {
+          it(`a signup at ${c.name}, on a server in ${zone}: ${c.firstCharge}`, async () => {
+            process.env.TZ = zone
+            vi.useFakeTimers({ toFake: ["Date"] })
+            vi.setSystemTime(new Date(Date.parse(c.endsAt) - 7 * DAY + 60_000))
+            trialTable([
+              trialRow({ data: JSON.stringify({ trial: { ends_at: c.endsAt, duration_days: TRIAL_DAYS } }) }),
+            ])
+
+            await subscriptionsCron()
+
+            expect(trialEndingSends()).toHaveLength(1)
+            expect(trialEndingSends()[0][0].subject).toBe(`Your free trial ends on ${c.firstCharge}`)
+            expect(renderedTrialEndingProps().chargeDate).toBe(c.firstCharge)
+          })
+        }
+      }
     })
 
     it("still sends with no card row, naming the card on file", async () => {
