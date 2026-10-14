@@ -41,6 +41,8 @@ import {
   type SubscriptionRow,
 } from "@api/domain/services/product-matching"
 import { isRoleV2, legacyOf } from "@api/domain/services/role-v2"
+import { withTrialRules } from "@api/infrastructure/database/repositories/subscription.repository"
+import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
 
 type ResultStatus = "matched" | "reassigned" | "data_updated" | "skipped" | "failed"
 
@@ -331,9 +333,11 @@ async function main() {
       // Determine what changed
       const productIdChanged = row.product_id !== matched.product_id
       const resultStatus: ResultStatus = productIdChanged ? "reassigned" : "data_updated"
-      const resultReason = productIdChanged
-        ? `product_id ${row.product_id} → ${matched.product_id} (${reason})`
-        : `product_id=${matched.product_id} confirmed, data rebuilt`
+      const trialNote = readSubscriptionTrial(subData) ? "; data.trial is kept if the trial has not converted" : ""
+      const resultReason =
+        (productIdChanged
+          ? `product_id ${row.product_id} → ${matched.product_id} (${reason})`
+          : `product_id=${matched.product_id} confirmed, data rebuilt`) + trialNote
 
       results.push({
         subscription_id: row.subscription_id,
@@ -449,9 +453,10 @@ async function main() {
           if (r.status === "reassigned" && r.new_product_id !== null) {
             updateFields.product_id = r.new_product_id
           }
+          // The rebuilt data has no `trial`; an unconverted trial keeps its own (D5, withTrialRules)
           await trx
             .updateTable("Subscriptions")
-            .set(updateFields)
+            .set(withTrialRules(updateFields))
             .where("subscription_id", "=", r.subscription_id)
             .execute()
         }

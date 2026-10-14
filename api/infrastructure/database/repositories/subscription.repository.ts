@@ -23,15 +23,36 @@ const trialConvertedOrConverting = sql<boolean>`EXISTS (SELECT 1 FROM PurchaseRe
 const hasTrialMarker = sql<boolean>`JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial')) = 'OBJECT'`
 
 /**
+ * The D5 rule (Desk #1350): a plan change during a trial keeps the trial. A writer that replaces
+ * `data` wholesale (the manage route's plan change writes the new product's data) would delete
+ * `data.trial`, and with it the reminder, the reconciliation, the dashboard banner and the Trial
+ * filter. So when an update writes a `data` document that has no `trial` key, on a row whose stored
+ * `data.trial` is an object and that has not converted, the statement copies the stored trial block
+ * into the new document with JSON_SET. A document that brings its own `trial` (the read-modify-write
+ * writers) is written as given, and a converted or non-trial row gets exactly the document the
+ * writer sent. MySQL reads the stored `data` of the row it updates, so there is no read-modify-write
+ * race. `data: null` is written as null.
+ */
+export function withTrialCarriedOver(data: Updateable<Subscriptions>): UpdateObject<DB, 'Subscriptions'> {
+  if (typeof data.data !== 'string') return data
+  const doc = data.data
+  return {
+    ...data,
+    data: sql<any>`CASE WHEN ${hasTrialMarker} AND NOT ${trialConvertedOrConverting} AND JSON_EXTRACT(${doc}, '$.trial') IS NULL THEN JSON_SET(${doc}, '$.trial', JSON_EXTRACT(Subscriptions.data, '$.trial')) ELSE ${doc} END`,
+  }
+}
+
+/**
  * The D1 invariant (Desk #1350): until a card-on-file trial converts, its first charge is its
  * `renewal_date`, so `data.trial.ends_at` says the same thing. When an update writes
  * `renewal_date`, the same statement rewrites `data` with JSON_SET of `ends_at` (ISO, as
  * `toISOString()` writes it) on a row whose `data.trial` is an object and that has not converted,
  * and leaves `data` as it was otherwise. MySQL evaluates the condition on the row it updates, so
  * there is no read-modify-write race. When the update also writes `data` (the renewal use case
- * writes the whole row), the new value is the one rewritten.
+ * writes the whole row, a plan change writes the new product's data), the new value is the one
+ * rewritten, after D5 has carried the trial into it (`withTrialCarriedOver`).
  */
-export function withTrialEndFollowingRenewal(data: Updateable<Subscriptions>): UpdateObject<DB, 'Subscriptions'> {
+export function withTrialEndFollowingRenewal(data: UpdateObject<DB, 'Subscriptions'>): UpdateObject<DB, 'Subscriptions'> {
   const renewal = data.renewal_date
   if (renewal == null) return data
   const renewalDate = renewal instanceof Date ? renewal : new Date(renewal as unknown as string)
@@ -42,6 +63,16 @@ export function withTrialEndFollowingRenewal(data: Updateable<Subscriptions>): U
     ...data,
     data: sql<any>`CASE WHEN JSON_TYPE(JSON_EXTRACT(${doc}, '$.trial')) = 'OBJECT' AND NOT ${trialConvertedOrConverting} THEN JSON_SET(${doc}, '$.trial.ends_at', ${renewalDate.toISOString()}) ELSE ${doc} END`,
   }
+}
+
+/**
+ * Both trial rules for one `Subscriptions` update: D5 carries a stored trial into a wholesale
+ * `data` write, then D1 moves `ends_at` with `renewal_date`. `SubscriptionRepository.update` applies
+ * it to every update, and a writer that updates `Subscriptions` directly (the manage route's plan
+ * change, the reconcile script) applies it to its own `set`.
+ */
+export function withTrialRules(data: Updateable<Subscriptions>): UpdateObject<DB, 'Subscriptions'> {
+  return withTrialEndFollowingRenewal(withTrialCarriedOver(data))
 }
 
 /**
@@ -118,10 +149,11 @@ export class SubscriptionRepository {
   ): Promise<Selectable<Subscriptions>> {
     const db = trx ?? this.db
 
-    // Every billing writer of `renewal_date` comes through here, so a trial's end follows it (D1)
+    // Every billing writer of `renewal_date` comes through here, so a trial's end follows it (D1),
+    // and a wholesale `data` write keeps the trial (D5)
     await db
       .updateTable('Subscriptions')
-      .set(withTrialEndFollowingRenewal(data))
+      .set(withTrialRules(data))
       .where('subscription_id', '=', Number(id))
       .executeTakeFirstOrThrow()
 

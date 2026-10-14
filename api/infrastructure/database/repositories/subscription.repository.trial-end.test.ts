@@ -4,6 +4,7 @@ import {
   subscriptionUpdates,
   trialEndsAtWritten,
   TRIAL_END_FOLLOWS_RENEWAL,
+  TRIAL_CARRIED_OVER,
 } from "@api/tests/helpers/capturing-kysely"
 import { SubscriptionRepository } from "./subscription.repository"
 
@@ -66,7 +67,8 @@ describe("SubscriptionRepository.update: trial end follows renewal_date (D1)", (
     const [update] = subscriptionUpdates(queries)
     expect(update.sql).toMatch(TRIAL_END_FOLLOWS_RENEWAL)
     expect(update.sql).not.toContain("`Subscriptions`.`data`, '$.trial'")
-    expect(update.parameters.filter((p) => p === data)).toHaveLength(3)
+    // D5 wraps the written document once (3 bindings), and D1 uses that rewrite three times
+    expect(update.parameters.filter((p) => p === data)).toHaveLength(9)
     expect(trialEndsAtWritten(update)).toBe("2026-12-01T00:00:00.000Z")
   })
 
@@ -79,12 +81,17 @@ describe("SubscriptionRepository.update: trial end follows renewal_date (D1)", (
     expect(update.sql).not.toContain("`data`")
   })
 
-  it("an update that writes data but not renewal_date sends data as given", async () => {
+  it("an update that writes data but not renewal_date gets only the D5 carry-over, no ends_at rewrite", async () => {
     const { repo: r, queries } = repo()
     await r.update(7, { data: JSON.stringify({ team_id: 4 }) })
 
     const [update] = subscriptionUpdates(queries)
-    expect(update.sql).toBe("update `Subscriptions` set `data` = ? where `subscription_id` = ?")
+    expect(update.sql).not.toContain("ends_at")
+    expect(update.sql).toMatch(
+      new RegExp(
+        "^update `Subscriptions` set `data` = " + TRIAL_CARRIED_OVER.source + " where `subscription_id` = \\?$"
+      )
+    )
   })
 
   it("updateRenewalDate goes through the same rewrite", async () => {

@@ -51,14 +51,45 @@ export function subscriptionUpdates(queries: CompiledQuery[]): CompiledQuery[] {
   return queries.filter((q) => q.sql.startsWith("update `Subscriptions`"))
 }
 
+/** The conversion guard both trial rules share, matched in full. */
+const NOT_CONVERTED =
+  /NOT EXISTS \(SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr\.subscription_id = Subscriptions\.subscription_id AND trial_pr\.request_type = 'RENEWAL' AND \(\(trial_pr\.status = 'COMPLETED' AND trial_pr\.amount_charged > 0\) OR trial_pr\.status IN \('CREATING_SUBSCRIPTION', 'FINALIZING'\)\)\)/
+    .source
+
+const CARRIED =
+  /CASE WHEN JSON_TYPE\(JSON_EXTRACT\(Subscriptions\.data, '\$\.trial'\)\) = 'OBJECT' AND /.source +
+  NOT_CONVERTED +
+  / AND JSON_EXTRACT\(\?, '\$\.trial'\) IS NULL THEN JSON_SET\(\?, '\$\.trial', JSON_EXTRACT\(Subscriptions\.data, '\$\.trial'\)\) ELSE \? END/
+    .source
+
+/**
+ * The D5 rewrite of a written `data` document (Desk #1350): CASE WHEN the stored row carries a
+ * trial object, has not converted, and the new document has no `trial` THEN JSON_SET the stored
+ * trial into the new document ELSE the new document as sent. The document binds to all three `?`.
+ * The conversion guard is matched in full.
+ */
+export const TRIAL_CARRIED_OVER = new RegExp(CARRIED)
+
+/** The document D1 rewrites: the stored `data`, the written one, or the D5 rewrite of the written one. */
+const DOC = "(`Subscriptions`\\.`data`|\\?|" + CARRIED + ")"
+
 /**
  * The D1 rewrite of `data` that `SubscriptionRepository.update` adds when a statement writes
  * `renewal_date` (Desk #1350): `data` = CASE WHEN the row carries a trial object and has not
  * converted THEN JSON_SET(ends_at) ELSE unchanged. The conversion guard is matched in full, so a
  * test fails if it ever stops excluding a converted or converting trial.
  */
-export const TRIAL_END_FOLLOWS_RENEWAL =
-  /`data` = CASE WHEN JSON_TYPE\(JSON_EXTRACT\((`Subscriptions`\.`data`|\?), '\$\.trial'\)\) = 'OBJECT' AND NOT EXISTS \(SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr\.subscription_id = Subscriptions\.subscription_id AND trial_pr\.request_type = 'RENEWAL' AND \(\(trial_pr\.status = 'COMPLETED' AND trial_pr\.amount_charged > 0\) OR trial_pr\.status IN \('CREATING_SUBSCRIPTION', 'FINALIZING'\)\)\) THEN JSON_SET\((`Subscriptions`\.`data`|\?), '\$\.trial\.ends_at', \?\) ELSE (`Subscriptions`\.`data`|\?) END/
+export const TRIAL_END_FOLLOWS_RENEWAL = new RegExp(
+  "`data` = CASE WHEN JSON_TYPE\\(JSON_EXTRACT\\(" +
+    DOC +
+    ", '\\$\\.trial'\\)\\) = 'OBJECT' AND " +
+    NOT_CONVERTED +
+    " THEN JSON_SET\\(" +
+    DOC +
+    ", '\\$\\.trial\\.ends_at', \\?\\) ELSE " +
+    DOC +
+    " END"
+)
 
 /**
  * The ISO `ends_at` a captured update would write through the D1 rewrite, or null when the

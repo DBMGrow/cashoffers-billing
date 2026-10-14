@@ -326,7 +326,17 @@ resume route, the dev `set-state` tool), rewrites `ends_at` with `JSON_SET` in t
 when it writes `renewal_date` on an unconverted trial row. The renewal that converts the trial is
 excluded: it writes the next period while its request is `CREATING_SUBSCRIPTION`, so `ends_at` keeps
 the first-charge date. A writer outside billing (a direct SQL edit, the legacy API) bypasses this;
-the subscriptions cron's drift check logs any such row at `error`. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
+the subscriptions cron's drift check logs any such row at `error`.
+
+A plan change during a trial keeps the trial (D5). `POST /manage/purchase` replaces
+`Subscriptions.data` with the new product's data, which has no `trial`, so the statement carries the
+stored `data.trial` into the new document with `JSON_SET` when the row's trial has not converted and
+the new document brings no `trial` of its own (`withTrialRules` in `subscription.repository.ts`, also
+applied by `SubscriptionRepository.update` and by `scripts/reconcile-subscriptions.ts --commit`, the
+other wholesale writer). A plan change does not move `renewal_date`, so `ends_at` still equals it; a
+write that replaces `data` and moves `renewal_date` together carries the trial first, then sets
+`ends_at` to the new date. A converted subscription, and one with no trial, gets the new product's
+data exactly as before. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
 subscription exists. A `coupon` on a trial product is ignored with a warn line, not refused. An
 existing account enrolling through `/manage` never gets the trial and pays list price. Team plans
 need no special case: the team step's read-modify-write of `Subscriptions.data` keeps `trial`.
