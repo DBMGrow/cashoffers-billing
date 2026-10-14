@@ -134,7 +134,8 @@ export interface SubscriptionData {
   productData?: ProductData
   /**
    * Written once at purchase when the product's trial applied. `ends_at` is the ISO timestamp of the
-   * first charge and equals `renewal_date` at creation. `reminder_sent_at` is stamped by the cron
+   * first charge and equals `renewal_date` until the trial converts: the subscription repository's
+   * update moves it with `renewal_date` (D1). `reminder_sent_at` is stamped by the cron
    * when the trial-ending email goes out.
    */
   trial?: SubscriptionTrial

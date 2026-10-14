@@ -76,8 +76,19 @@ describe("SubscriptionRepository trial invariants (Desk #1350)", () => {
     expect(sql).toMatch(
       /not exists \(select `PurchaseRequests`\.`request_id` from `PurchaseRequests` where `PurchaseRequests`\.`subscription_id` = `Subscriptions`\.`subscription_id` and `PurchaseRequests`\.`request_type` = \? and `PurchaseRequests`\.`status` = \? and `PurchaseRequests`\.`amount_charged` > \?\)/
     )
-    // The cutoff is a day before now: the cron gets a day to take the first charge.
-    expect(parameters).toEqual(["2026-10-11T12:00:00.000Z", "cancelled", 0, 0, "RENEWAL", "COMPLETED", 0])
+    // The cutoff is a day before now: the cron gets a day to take the first charge. renewal_date must
+    // have passed it too (D1, AC22): the cron charges on renewal_date.
+    expect(sql).toContain("`Subscriptions`.`renewal_date` < ?")
+    expect(parameters).toEqual([
+      "2026-10-11T12:00:00.000Z",
+      new Date("2026-10-11T12:00:00.000Z"),
+      "cancelled",
+      0,
+      0,
+      "RENEWAL",
+      "COMPLETED",
+      0,
+    ])
   })
 
   it("findActiveTrials: active, user-bound subscriptions whose trial has not ended", async () => {
@@ -94,8 +105,9 @@ describe("SubscriptionRepository trial invariants (Desk #1350)", () => {
     await repo.findActiveTrials(NOW)
     await repo.findTrialsWithoutCard(NOW)
     await repo.findEndedTrialsUnreconciled(NOW)
+    await repo.findUnconvertedTrials()
 
-    expect(queries).toHaveLength(3)
+    expect(queries).toHaveLength(4)
     for (const q of queries) expect(q.sql.startsWith("select ")).toBe(true)
   })
 })

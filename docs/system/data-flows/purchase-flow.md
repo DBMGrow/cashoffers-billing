@@ -313,7 +313,16 @@ returns `initialAmount: 0` and `trialDays: N`; the new-user flow saves the card,
 (no payment transaction, no `PaymentProcessed`), and creates the subscription `active` at the full
 `renewal_cost` with `renewal_date = now + N days` and `data.trial = { ends_at, duration_days }`.
 The ordinary renewal cron takes the first charge on day N; nothing in the renewal path knows about
-trials. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
+trials.
+
+Until the trial converts (a completed paid `RENEWAL` purchase request), its first charge is its
+`renewal_date`, so `data.trial.ends_at` always equals it (D1). `SubscriptionRepository.update`, which
+every billing writer of `renewal_date` goes through (the CashOffers webhook's reactivation, the
+resume route, the dev `set-state` tool), rewrites `ends_at` with `JSON_SET` in the same statement
+when it writes `renewal_date` on an unconverted trial row. The renewal that converts the trial is
+excluded: it writes the next period while its request is `CREATING_SUBSCRIPTION`, so `ends_at` keeps
+the first-charge date. A writer outside billing (a direct SQL edit, the legacy API) bypasses this;
+the subscriptions cron's drift check logs any such row at `error`. A card record with no `card_id` fails the purchase with `TRIAL_CARD_REQUIRED` before the
 subscription exists. A `coupon` on a trial product is ignored with a warn line, not refused. An
 existing account enrolling through `/manage` never gets the trial and pays list price. Team plans
 need no special case: the team step's read-modify-write of `Subscriptions.data` keeps `trial`.

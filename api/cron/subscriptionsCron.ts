@@ -4,7 +4,7 @@ import { config } from "@api/config/config.service"
 import { logger, emailService, eventBus, whitelabelResolverService } from "@api/lib/services"
 import { db } from "@api/lib/database"
 import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
-import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
+import { readSubscriptionTrial, trialDateDrift } from "@api/domain/services/subscription-trial"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import TrialExpiringEmail from "@api/infrastructure/email/templates/trial-expiring.email"
@@ -267,12 +267,14 @@ export default async function subscriptionsCron() {
 
     // Card-on-file trial invariants (Desk #1350), read-only: each anomaly becomes an `error` row in
     // BillingLogs naming the subscription, so it reaches the daily health report's error list. The
-    // report counts the same two queries in its Free Trials section.
+    // report counts the first two queries in its Free Trials section; trial date drift (D1) reaches
+    // it through the error count and list.
     try {
       const now = new Date()
-      const [withoutCard, unreconciled] = await Promise.all([
+      const [withoutCard, unreconciled, unconverted] = await Promise.all([
         subscriptionRepository.findTrialsWithoutCard(now),
         subscriptionRepository.findEndedTrialsUnreconciled(now),
+        subscriptionRepository.findUnconvertedTrials(),
       ])
 
       for (const subscription of withoutCard) {
@@ -290,6 +292,24 @@ export default async function subscriptionsCron() {
           product_id: subscription.product_id,
           subjectUserId: subscription.user_id,
         })
+      }
+      // D1: until it converts, a trial's ends_at is its renewal_date. The repository keeps the two
+      // together on every update, so a disagreement means a writer moved one without the other.
+      for (const subscription of unconverted) {
+        const drift = trialDateDrift(subscription)
+        if (!drift) continue
+        cronLogger.error(
+          `Trial date drift: subscription ${subscription.subscription_id} has ends_at ${drift.ends_at} but renewal_date ${drift.renewal_date}`,
+          undefined,
+          {
+            subscription_id: subscription.subscription_id,
+            user_id: subscription.user_id,
+            product_id: subscription.product_id,
+            ends_at: drift.ends_at,
+            renewal_date: drift.renewal_date,
+            subjectUserId: subscription.user_id,
+          }
+        )
       }
     } catch (err: any) {
       cronLogger.error('Error checking card-on-file trial invariants', err)

@@ -1,4 +1,4 @@
-import { Kysely, Selectable, Insertable, Updateable, sql } from 'kysely'
+import { Kysely, Selectable, Insertable, Updateable, UpdateObject, sql } from 'kysely'
 import type { DB, Subscriptions } from '@api/lib/db'
 import { TransactionContext } from '../transaction/transaction-manager.interface'
 
@@ -8,6 +8,41 @@ import { TransactionContext } from '../transaction/transaction-manager.interface
  * row with no trial marker yields NULL and drops out of every comparison.
  */
 const trialEndsAt = sql<string>`JSON_UNQUOTE(JSON_EXTRACT(Subscriptions.data, '$.trial.ends_at'))`
+
+/**
+ * The trial has converted, or is converting right now (Desk #1350, D1). Converted is the
+ * reconciliation's definition: a completed RENEWAL purchase request with `amount_charged > 0`.
+ * Converting is a RENEWAL request in `CREATING_SUBSCRIPTION` or `FINALIZING`: the renewal use case
+ * moves its request there after the charge and before it writes the next period's `renewal_date`,
+ * so that write is the conversion and must not carry `ends_at` a period forward. Only valid inside
+ * a statement on `Subscriptions`.
+ */
+const trialConvertedOrConverting = sql<boolean>`EXISTS (SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr.subscription_id = Subscriptions.subscription_id AND trial_pr.request_type = 'RENEWAL' AND ((trial_pr.status = 'COMPLETED' AND trial_pr.amount_charged > 0) OR trial_pr.status IN ('CREATING_SUBSCRIPTION', 'FINALIZING')))`
+
+/** `data.trial` is a JSON object: the row carries a card-on-file trial marker. */
+const hasTrialMarker = sql<boolean>`JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial')) = 'OBJECT'`
+
+/**
+ * The D1 invariant (Desk #1350): until a card-on-file trial converts, its first charge is its
+ * `renewal_date`, so `data.trial.ends_at` says the same thing. When an update writes
+ * `renewal_date`, the same statement rewrites `data` with JSON_SET of `ends_at` (ISO, as
+ * `toISOString()` writes it) on a row whose `data.trial` is an object and that has not converted,
+ * and leaves `data` as it was otherwise. MySQL evaluates the condition on the row it updates, so
+ * there is no read-modify-write race. When the update also writes `data` (the renewal use case
+ * writes the whole row), the new value is the one rewritten.
+ */
+export function withTrialEndFollowingRenewal(data: Updateable<Subscriptions>): UpdateObject<DB, 'Subscriptions'> {
+  const renewal = data.renewal_date
+  if (renewal == null) return data
+  const renewalDate = renewal instanceof Date ? renewal : new Date(renewal as unknown as string)
+  if (Number.isNaN(renewalDate.getTime())) return data
+
+  const doc = data.data !== undefined ? sql`${data.data}` : sql.ref('Subscriptions.data')
+  return {
+    ...data,
+    data: sql<any>`CASE WHEN JSON_TYPE(JSON_EXTRACT(${doc}, '$.trial')) = 'OBJECT' AND NOT ${trialConvertedOrConverting} THEN JSON_SET(${doc}, '$.trial.ends_at', ${renewalDate.toISOString()}) ELSE ${doc} END`,
+  }
+}
 
 /**
  * Subscription Repository Implementation
@@ -83,9 +118,10 @@ export class SubscriptionRepository {
   ): Promise<Selectable<Subscriptions>> {
     const db = trx ?? this.db
 
+    // Every billing writer of `renewal_date` comes through here, so a trial's end follows it (D1)
     await db
       .updateTable('Subscriptions')
-      .set(data)
+      .set(withTrialEndFollowingRenewal(data))
       .where('subscription_id', '=', Number(id))
       .executeTakeFirstOrThrow()
 
@@ -349,6 +385,8 @@ export class SubscriptionRepository {
    * nothing visible: no completed paid RENEWAL purchase request (the "first paid renewal" of
    * `api/database/reports/promo-redemptions.sql`), not cancelled or cancel-on-renewal, and no
    * payment failure on the retry ladder. The 24 hours give the cron a day to take the charge.
+   * `renewal_date` must have passed the cutoff too: the cron charges on `renewal_date`, so a trial
+   * whose renewal was moved later is not due, whatever `ends_at` says (D1, AC22).
    */
   async findEndedTrialsUnreconciled(now: Date = new Date(), trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
     const db = trx ?? this.db
@@ -356,6 +394,7 @@ export class SubscriptionRepository {
     return await db
       .selectFrom('Subscriptions')
       .where(trialEndsAt, '<', cutoff.toISOString())
+      .where('Subscriptions.renewal_date', '<', cutoff)
       .where((eb) => eb.or([eb('Subscriptions.status', 'is', null), eb('Subscriptions.status', '!=', 'cancelled')]))
       .where((eb) => eb.or([eb('Subscriptions.cancel_on_renewal', 'is', null), eb('Subscriptions.cancel_on_renewal', '=', 0)]))
       .where('Subscriptions.payment_failure_count', '=', 0)
@@ -372,6 +411,23 @@ export class SubscriptionRepository {
           )
         )
       )
+      .selectAll('Subscriptions')
+      .execute()
+  }
+
+  /**
+   * Card-on-file trials (Desk #1350) that have not converted (D1): a `data.trial` object, not
+   * cancelled, and no completed paid RENEWAL nor one in the middle of converting. For each of these
+   * `data.trial.ends_at` must equal `renewal_date`; the cron's drift check compares the two
+   * (`trialDateDrift`) and logs any row where a writer moved one without the other.
+   */
+  async findUnconvertedTrials(trx?: TransactionContext): Promise<Selectable<Subscriptions>[]> {
+    const db = trx ?? this.db
+    return await db
+      .selectFrom('Subscriptions')
+      .where(hasTrialMarker)
+      .where((eb) => eb.or([eb('Subscriptions.status', 'is', null), eb('Subscriptions.status', '!=', 'cancelled')]))
+      .where(sql<boolean>`NOT ${trialConvertedOrConverting}`)
       .selectAll('Subscriptions')
       .execute()
   }
