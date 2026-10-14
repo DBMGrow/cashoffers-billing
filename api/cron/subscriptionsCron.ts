@@ -15,6 +15,13 @@ import TrialEndingEmail from "@api/infrastructure/email/templates/trial-ending.e
 /** Days before a card-on-file trial's first charge that the trial-ending reminder goes out. */
 const TRIAL_REMINDER_DAYS = 7
 
+/**
+ * The UTC hour of the one run a day that checks for trial date drift (D1). The cron runs hourly, so
+ * checking every run would log each drifted row 24 times a day. The health report reads the last 24
+ * hours of BillingLogs, so one run a day puts each drifted row in every report exactly once.
+ */
+export const TRIAL_DRIFT_CHECK_UTC_HOUR = 12
+
 export default async function subscriptionsCron() {
   // Create child logger with cron context
   const cronLogger = logger.child({
@@ -271,10 +278,11 @@ export default async function subscriptionsCron() {
     // it through the error count and list.
     try {
       const now = new Date()
+      const checkDrift = now.getUTCHours() === TRIAL_DRIFT_CHECK_UTC_HOUR
       const [withoutCard, unreconciled, unconverted] = await Promise.all([
         subscriptionRepository.findTrialsWithoutCard(now),
         subscriptionRepository.findEndedTrialsUnreconciled(now),
-        subscriptionRepository.findUnconvertedTrials(),
+        checkDrift ? subscriptionRepository.findUnconvertedTrials() : Promise.resolve([]),
       ])
 
       for (const subscription of withoutCard) {
@@ -295,6 +303,7 @@ export default async function subscriptionsCron() {
       }
       // D1: until it converts, a trial's ends_at is its renewal_date. The repository keeps the two
       // together on every update, so a disagreement means a writer moved one without the other.
+      // Checked on the 12:00 UTC run only, so a drifted row is logged once a day, not every hour.
       for (const subscription of unconverted) {
         const drift = trialDateDrift(subscription)
         if (!drift) continue

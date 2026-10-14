@@ -105,7 +105,7 @@ vi.mock("@api/config/config.service", () => ({
   },
 }))
 
-import subscriptionsCron from "./subscriptionsCron"
+import subscriptionsCron, { TRIAL_DRIFT_CHECK_UTC_HOUR } from "./subscriptionsCron"
 import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
 import { emailService, eventBus, whitelabelResolverService, logger } from "@api/lib/services"
 import { render } from "@react-email/render"
@@ -620,6 +620,31 @@ describe("subscriptionsCron", () => {
       }
       const driftErrors = () =>
         cronLogger().error.mock.calls.filter(([msg]: any[]) => String(msg).startsWith("Trial date drift"))
+
+      // The drift check runs on the 12:00 UTC run only (see "logs a drifted row once a day" below)
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["Date"] })
+        vi.setSystemTime(new Date("2026-10-14T12:05:00.000Z"))
+      })
+      afterEach(() => vi.useRealTimers())
+
+      it("logs a drifted row once a day: on the 12:00 UTC run, not on the other 23 hourly runs", async () => {
+        expect(TRIAL_DRIFT_CHECK_UTC_HOUR).toBe(12)
+        mockSubscriptionRepo.findUnconvertedTrials = vi
+          .fn()
+          .mockResolvedValue([unconvertedTrial(97, "2026-11-01T12:00:00.000Z", new Date("2026-11-06T12:00:00.000Z"))])
+        let logged = 0
+        for (let hour = 0; hour < 24; hour++) {
+          vi.mocked(logger.child).mockClear()
+          vi.setSystemTime(new Date(Date.UTC(2026, 9, 14, hour, 5)))
+          await subscriptionsCron()
+          logged += driftErrors().length
+          if (hour !== 12) expect(driftErrors()).toHaveLength(0)
+        }
+        expect(logged).toBe(1)
+        // The other 23 runs do not even query for drift
+        expect(mockSubscriptionRepo.findUnconvertedTrials).toHaveBeenCalledTimes(1)
+      })
 
       it("logs one error naming the subscription, both dates and 'Trial date drift' when ends_at and renewal_date disagree", async () => {
         mockSubscriptionRepo.findUnconvertedTrials = vi
