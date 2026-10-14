@@ -3,6 +3,7 @@ import {
   capturingKysely,
   subscriptionUpdates,
   trialEndsAtWritten,
+  reminderKeptWithin,
   TRIAL_END_FOLLOWS_RENEWAL,
   TRIAL_CARRIED_OVER,
 } from "@api/tests/helpers/capturing-kysely"
@@ -107,6 +108,37 @@ describe("SubscriptionRepository.update: trial end follows renewal_date (D1)", (
     await r.update(7, { renewal_date: "2027-02-01T10:00:00Z" as any })
 
     expect(trialEndsAtWritten(subscriptionUpdates(queries)[0])).toBe("2027-02-01T10:00:00.000Z")
+  })
+
+  // D6, AC29: a trial paused after its reminder and reactivated later must be reminded again before
+  // the new date. The rewrite removes `reminder_sent_at` when the stored end moves, and keeps it when
+  // the stored end is within the drift tolerance of the new date.
+  it("AC29: moving the trial end clears reminder_sent_at; the stamp survives only a write of the same date (within 1s)", async () => {
+    const { repo: r, queries } = repo()
+    const moved = new Date("2026-12-14T12:00:00.000Z")
+
+    await r.update(7, { status: "active", suspension_date: null, renewal_date: moved })
+
+    const [update] = subscriptionUpdates(queries)
+    expect(update.sql).toMatch(TRIAL_END_FOLLOWS_RENEWAL)
+    expect(update.sql).toContain(
+      "IF(JSON_UNQUOTE(JSON_EXTRACT(Subscriptions.data, '$.trial.ends_at')) BETWEEN ? AND ?, '{}', '{\"trial\":{\"reminder_sent_at\":null}}')"
+    )
+    // The stored end is compared with the new date, a second either side (MySQL rounds renewal_date)
+    expect(reminderKeptWithin(update)).toEqual(["2026-12-14T11:59:59.000Z", "2026-12-14T12:00:01.000Z"])
+    expect(trialEndsAtWritten(update)).toBe("2026-12-14T12:00:00.000Z")
+  })
+
+  it("AC29: the reminder reset is inside the unconverted-trial branch, so a converted subscription's data is untouched", async () => {
+    const { repo: r, queries } = repo()
+    await r.update(7, { renewal_date: new Date("2026-12-14T12:00:00.000Z") })
+
+    const [update] = subscriptionUpdates(queries)
+    const thenAt = update.sql.indexOf(" THEN JSON_MERGE_PATCH(")
+    const elseAt = update.sql.lastIndexOf(" ELSE `Subscriptions`.`data` END")
+    expect(thenAt).toBeGreaterThan(update.sql.indexOf("AND NOT EXISTS (SELECT 1 FROM PurchaseRequests AS trial_pr"))
+    expect(update.sql.indexOf("reminder_sent_at")).toBeGreaterThan(thenAt)
+    expect(update.sql.indexOf("reminder_sent_at")).toBeLessThan(elseAt)
   })
 })
 

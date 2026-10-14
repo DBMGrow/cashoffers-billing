@@ -10,7 +10,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import type { CompiledQuery } from "kysely"
-import { capturingKysely, subscriptionUpdates, trialEndsAtWritten } from "@api/tests/helpers/capturing-kysely"
+import {
+  capturingKysely,
+  subscriptionUpdates,
+  trialEndsAtWritten,
+  reminderKeptWithin,
+} from "@api/tests/helpers/capturing-kysely"
 import { SubscriptionRepository } from "@api/infrastructure/database/repositories/subscription.repository"
 import { CashOffersWebhookHandler, addOneMonth } from "@api/application/webhook-handlers/cashoffers-webhook.handler"
 import { ResumeSubscriptionUseCase } from "@api/use-cases/subscription/resume-subscription.use-case"
@@ -93,6 +98,45 @@ describe("AC20: each writer of renewal_date moves the trial end with it", () => 
     const expected = addOneMonth(new Date(NOW.getTime() + 20 * DAY))
     expect(renewalDateWritten(reactivate)).toEqual(expected)
     expect(trialEndsAtWritten(reactivate)).toBe(expected.toISOString())
+  })
+
+  it("AC29: a trial paused after its reminder is reminded again: the reactivation clears reminder_sent_at, the pause keeps it", async () => {
+    const reminded = JSON.stringify({
+      trial: { ends_at: ENDS_AT, duration_days: 30, reminder_sent_at: "2026-10-23T12:00:00.000Z" },
+    })
+    let state: Record<string, unknown> = trialRow({ data: reminded })
+    const { subscriptionRepository, queries } = repositoryOver(() => state)
+    const { logger } = makeRecordingLogger()
+    const handler = new CashOffersWebhookHandler({
+      logger,
+      userApiClient: {} as any,
+      subscriptionRepository: subscriptionRepository as any,
+      eventBus: new InMemoryEventBus(logger),
+    })
+
+    // Paused 2 days before its end, after the 7-day reminder went out: data is not written
+    vi.setSystemTime(new Date(new Date(ENDS_AT).getTime() - 2 * DAY))
+    await handler.handle({ type: "user.deactivated", userId: 999843 })
+    const [pause] = subscriptionUpdates(queries)
+    expect(pause.sql).not.toContain("`data`")
+
+    // Reactivated 40 days later, long past the original end
+    state = trialRow({ status: "paused", suspension_date: new Date(), data: reminded })
+    const reactivatedAt = new Date(new Date(ENDS_AT).getTime() + 38 * DAY)
+    vi.setSystemTime(reactivatedAt)
+    await handler.handle({ type: "user.activated", userId: 999843 })
+
+    const [, reactivate] = subscriptionUpdates(queries)
+    const newEnd = addOneMonth(reactivatedAt)
+    expect(trialEndsAtWritten(reactivate)).toBe(newEnd.toISOString())
+    // The stamp is kept only if the stored end (ENDS_AT) is within a second of the new end; it is not,
+    // so MySQL takes the merge-patch that removes reminder_sent_at.
+    const [from, to] = reminderKeptWithin(reactivate)!
+    expect(ENDS_AT >= from && ENDS_AT <= to).toBe(false)
+    expect([from, to]).toEqual([
+      new Date(newEnd.getTime() - 1000).toISOString(),
+      new Date(newEnd.getTime() + 1000).toISOString(),
+    ])
   })
 
   it("ResumeSubscriptionUseCase (the subscription resume route): the shifted renewal_date and ends_at move together", async () => {

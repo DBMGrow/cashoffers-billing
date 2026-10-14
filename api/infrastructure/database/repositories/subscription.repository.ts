@@ -1,6 +1,7 @@
 import { Kysely, Selectable, Insertable, Updateable, UpdateObject, sql } from 'kysely'
 import type { DB, Subscriptions } from '@api/lib/db'
 import { TransactionContext } from '../transaction/transaction-manager.interface'
+import { TRIAL_DATE_DRIFT_TOLERANCE_MS } from '@api/domain/services/subscription-trial'
 
 /**
  * A card-on-file trial's first-charge time (Desk #1350, `Subscriptions.data.trial.ends_at`). It is
@@ -51,6 +52,13 @@ export function withTrialCarriedOver(data: Updateable<Subscriptions>): UpdateObj
  * there is no read-modify-write race. When the update also writes `data` (the renewal use case
  * writes the whole row, a plan change writes the new product's data), the new value is the one
  * rewritten, after D5 has carried the trial into it (`withTrialCarriedOver`).
+ *
+ * When the write moves the trial's end (the stored `ends_at` is more than the drift tolerance from
+ * the new date, or there is none), the same rewrite removes `data.trial.reminder_sent_at` (D6,
+ * AC29): the reminder that went out named a date that is no longer the charge date, so the cron
+ * sends one for the new date. Without this, a trial paused after its reminder and reactivated a
+ * month later would be charged with no warning. A write that keeps the date (a whole-row write of
+ * the same renewal) keeps the stamp, so it never causes a second reminder.
  */
 export function withTrialEndFollowingRenewal(data: UpdateObject<DB, 'Subscriptions'>): UpdateObject<DB, 'Subscriptions'> {
   const renewal = data.renewal_date
@@ -59,9 +67,14 @@ export function withTrialEndFollowingRenewal(data: UpdateObject<DB, 'Subscriptio
   if (Number.isNaN(renewalDate.getTime())) return data
 
   const doc = data.data !== undefined ? sql`${data.data}` : sql.ref('Subscriptions.data')
+  // The stored end against the new one, as ISO strings: fixed width, so string order is time order.
+  // JSON_MERGE_PATCH with `{}` changes nothing; with a null member it removes that member.
+  const sameEndFrom = new Date(renewalDate.getTime() - TRIAL_DATE_DRIFT_TOLERANCE_MS).toISOString()
+  const sameEndTo = new Date(renewalDate.getTime() + TRIAL_DATE_DRIFT_TOLERANCE_MS).toISOString()
+  const reminderReset = sql`IF(${trialEndsAt} BETWEEN ${sameEndFrom} AND ${sameEndTo}, '{}', '{"trial":{"reminder_sent_at":null}}')`
   return {
     ...data,
-    data: sql<any>`CASE WHEN JSON_TYPE(JSON_EXTRACT(${doc}, '$.trial')) = 'OBJECT' AND NOT ${trialConvertedOrConverting} THEN JSON_SET(${doc}, '$.trial.ends_at', ${renewalDate.toISOString()}) ELSE ${doc} END`,
+    data: sql<any>`CASE WHEN JSON_TYPE(JSON_EXTRACT(${doc}, '$.trial')) = 'OBJECT' AND NOT ${trialConvertedOrConverting} THEN JSON_MERGE_PATCH(JSON_SET(${doc}, '$.trial.ends_at', ${renewalDate.toISOString()}), ${reminderReset}) ELSE ${doc} END`,
   }
 }
 
@@ -414,9 +427,10 @@ export class SubscriptionRepository {
 
   /**
    * Trials (Desk #1350) whose first charge was due more than 24 hours before `now` and that did
-   * nothing visible: no completed paid RENEWAL purchase request (the "first paid renewal" of
-   * `api/database/reports/promo-redemptions.sql`), not cancelled or cancel-on-renewal, and no
-   * payment failure on the retry ladder. The 24 hours give the cron a day to take the charge.
+   * nothing visible: still `active` (D6: a paused, cancelled, inactive or suspended row is never
+   * charged), no completed paid RENEWAL purchase request (the "first paid renewal" of
+   * `api/database/reports/promo-redemptions.sql`), not cancel-on-renewal, and no payment failure on
+   * the retry ladder. The 24 hours give the cron a day to take the charge.
    * `renewal_date` must have passed the cutoff too: the cron charges on `renewal_date`, so a trial
    * whose renewal was moved later is not due, whatever `ends_at` says (D1, AC22).
    */
@@ -427,7 +441,10 @@ export class SubscriptionRepository {
       .selectFrom('Subscriptions')
       .where(trialEndsAt, '<', cutoff.toISOString())
       .where('Subscriptions.renewal_date', '<', cutoff)
-      .where((eb) => eb.or([eb('Subscriptions.status', 'is', null), eb('Subscriptions.status', '!=', 'cancelled')]))
+      // Only a row the cron charges can owe a charge it did not take, and the cron charges `active`
+      // alone (`findSubscriptionsForCronProcessing`). A paused trial (the account was deactivated;
+      // D6, AC29), a cancelled, inactive or dunning-suspended one is never charged.
+      .where('Subscriptions.status', '=', 'active')
       .where((eb) => eb.or([eb('Subscriptions.cancel_on_renewal', 'is', null), eb('Subscriptions.cancel_on_renewal', '=', 0)]))
       .where('Subscriptions.payment_failure_count', '=', 0)
       .where((eb) =>

@@ -488,6 +488,52 @@ describe("subscriptionsCron", () => {
       })
     })
 
+    // D6, AC29: a paused trial gets no reminder while paused. Its reactivation moves renewal_date a
+    // month on; the repository moves ends_at with it and, because the end moved, removes
+    // reminder_sent_at in the same statement (pinned in subscription.repository.trial-end.test.ts
+    // and proven on staging). So a trial paused after its reminder is reminded again for the new date.
+    describe("a paused trial, then reactivated (D6, AC29)", () => {
+      const ORIGINAL_END = new Date("2026-11-13T18:00:00.000Z")
+      const NEW_END = new Date("2026-12-24T09:00:00.000Z")
+      afterEach(() => vi.useRealTimers())
+
+      it("sends nothing while paused, and exactly one reminder 7 days before the new date after reactivation", async () => {
+        vi.useFakeTimers({ toFake: ["Date"] })
+        const [row] = trialTable([trialRow({ data: JSON.stringify({ trial: { ends_at: ORIGINAL_END.toISOString(), duration_days: 30 } }) })])
+
+        // The 7-day reminder for the original date goes out
+        vi.setSystemTime(new Date(ORIGINAL_END.getTime() - 7 * DAY + 60_000))
+        await subscriptionsCron()
+        expect(trialEndingSends()).toHaveLength(1)
+
+        // Paused two days before the end (user.deactivated writes status and suspension_date only)
+        Object.assign(row, { status: "paused", suspension_date: new Date(ORIGINAL_END.getTime() - 2 * DAY) })
+        for (const at of [ORIGINAL_END.getTime() - DAY, ORIGINAL_END.getTime() + 2 * DAY]) {
+          vi.setSystemTime(new Date(at))
+          await subscriptionsCron()
+        }
+        expect(trialEndingSends()).toHaveLength(1)
+
+        // Reactivated: the row as the repository's statement leaves it
+        const data = JSON.parse(row.data)
+        data.trial.ends_at = NEW_END.toISOString()
+        delete data.trial.reminder_sent_at
+        Object.assign(row, { status: "active", suspension_date: null, renewal_date: NEW_END, data: JSON.stringify(data) })
+
+        vi.setSystemTime(new Date(NEW_END.getTime() - 8 * DAY))
+        await subscriptionsCron()
+        expect(trialEndingSends()).toHaveLength(1)
+
+        vi.setSystemTime(new Date(NEW_END.getTime() - 7 * DAY + 60_000))
+        await subscriptionsCron()
+        vi.setSystemTime(new Date(NEW_END.getTime() - 6 * DAY))
+        await subscriptionsCron()
+
+        expect(trialEndingSends()).toHaveLength(2)
+        expect(trialEndingSends()[1][0].subject).toBe("Your free trial ends on December 24, 2026")
+      })
+    })
+
     // D3, AC26: the reminder names the UTC day the hourly run charges on, the day the review step
     // showed, whatever zone the server runs in.
     describe("names the UTC day the charging run falls on (D3, AC26)", () => {

@@ -65,13 +65,18 @@ describe("SubscriptionRepository trial invariants (Desk #1350)", () => {
     expect(parameters).toEqual(["active", 0, NOW.toISOString(), ""])
   })
 
-  it("findEndedTrialsUnreconciled: ended over 24h ago with no paid renewal, no cancel and no failure", async () => {
+  it("findEndedTrialsUnreconciled: ended over 24h ago, still active, with no paid renewal, no cancel and no failure", async () => {
     const { repo, queries } = capturingDb()
     await repo.findEndedTrialsUnreconciled(NOW)
 
     const [{ sql, parameters }] = queries
     expect(sql).toContain(`${ENDS_AT} < ?`)
-    expect(sql).toContain("`Subscriptions`.`status` is null or `Subscriptions`.`status` != ?")
+    // D6, AC29: only an active row is charged by the cron, so only an active row can be unreconciled.
+    // A paused trial (status 'paused', set by user.deactivated and the pause use case), and a
+    // cancelled, inactive or suspended one, are never charged.
+    expect(sql).toContain("`Subscriptions`.`status` = ?")
+    expect(sql).not.toContain("`Subscriptions`.`status` is null")
+    expect(sql).not.toContain("`Subscriptions`.`status` !=")
     expect(sql).toContain("`Subscriptions`.`payment_failure_count` = ?")
     expect(sql).toMatch(
       /not exists \(select `PurchaseRequests`\.`request_id` from `PurchaseRequests` where `PurchaseRequests`\.`subscription_id` = `Subscriptions`\.`subscription_id` and `PurchaseRequests`\.`request_type` = \? and `PurchaseRequests`\.`status` = \? and `PurchaseRequests`\.`amount_charged` > \?\)/
@@ -82,7 +87,7 @@ describe("SubscriptionRepository trial invariants (Desk #1350)", () => {
     expect(parameters).toEqual([
       "2026-10-11T12:00:00.000Z",
       new Date("2026-10-11T12:00:00.000Z"),
-      "cancelled",
+      "active",
       0,
       0,
       "RENEWAL",
@@ -98,6 +103,29 @@ describe("SubscriptionRepository trial invariants (Desk #1350)", () => {
     const [{ sql, parameters }] = queries
     expect(sql).toContain(`${ENDS_AT} > ?`)
     expect(parameters).toEqual(["active", NOW.toISOString()])
+  })
+
+  it("AC29: a paused trial reaches no reminder, count or anomaly query; only the drift check still reads it", async () => {
+    const { repo, queries } = capturingDb()
+    await repo.findTrialsEndingWithin(7, NOW)
+    await repo.findActiveTrials(NOW)
+    await repo.findTrialsWithoutCard(NOW)
+    await repo.findEndedTrialsUnreconciled(NOW)
+
+    // Each one keeps only `status = 'active'`: a paused trial gets no reminder, is not counted as an
+    // active trial or as ending in 7 days, and is neither without-card nor unreconciled.
+    for (const { sql, parameters } of queries) {
+      expect(sql).toMatch(/`(Subscriptions`\.`)?status` = \?/)
+      expect(parameters).toContain("active")
+    }
+
+    // The D1 drift check keeps a paused trial on purpose: its dates must still agree, because the
+    // reactivation moves renewal_date and the repository moves ends_at with it.
+    const drift = capturingDb()
+    await drift.repo.findUnconvertedTrials()
+    const [{ sql, parameters }] = drift.queries
+    expect(sql).toContain("`Subscriptions`.`status` is null or `Subscriptions`.`status` != ?")
+    expect(parameters).toEqual(["cancelled"])
   })
 
   it("only reads: no statement writes", async () => {
