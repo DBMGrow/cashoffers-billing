@@ -51,12 +51,17 @@ describe("SubscriptionRepository.update: trial end follows renewal_date (D1)", (
     expect(update.sql).toContain("ELSE `Subscriptions`.`data` END")
   })
 
-  it("a row with no trial object keeps its data: the rewrite only applies when data.trial is a JSON object", async () => {
+  it("a row with no trial marker keeps its data: the rewrite only applies when data.trial.ends_at is a string", async () => {
     const { repo: r, queries } = repo()
     await r.update(7, { renewal_date: new Date("2026-12-01T00:00:00.000Z") })
 
     const [update] = subscriptionUpdates(queries)
-    expect(update.sql).toContain("CASE WHEN JSON_TYPE(JSON_EXTRACT(`Subscriptions`.`data`, '$.trial')) = 'OBJECT'")
+    // A product's trial SETTING ({ enabled, duration_days, require_card }) is an object too, so the
+    // test is for `ends_at`, not for an object
+    expect(update.sql).toContain(
+      "CASE WHEN COALESCE(JSON_TYPE(JSON_EXTRACT(`Subscriptions`.`data`, '$.trial.ends_at')) = 'STRING', FALSE)"
+    )
+    expect(update.sql).not.toContain("'OBJECT'")
   })
 
   it("when the same update writes data too (the renewal writes the whole row), the new data is the document rewritten", async () => {
@@ -87,7 +92,9 @@ describe("SubscriptionRepository.update: trial end follows renewal_date (D1)", (
     await r.update(7, { data: JSON.stringify({ team_id: 4 }) })
 
     const [update] = subscriptionUpdates(queries)
-    expect(update.sql).not.toContain("ends_at")
+    // The D5 condition reads `ends_at` (the marker test), but nothing writes it
+    expect(update.sql).not.toContain("'$.trial.ends_at', ?")
+    expect(update.sql).not.toContain("JSON_MERGE_PATCH")
     expect(update.sql).toMatch(
       new RegExp(
         "^update `Subscriptions` set `data` = " + TRIAL_CARRIED_OVER.source + " where `subscription_id` = \\?$"
@@ -160,7 +167,8 @@ describe("SubscriptionRepository trial queries (D1)", () => {
 
     const [{ sql, parameters }] = queries
     expect(sql.startsWith("select ")).toBe(true)
-    expect(sql).toContain("JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial')) = 'OBJECT'")
+    expect(sql).toContain("COALESCE(JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial.ends_at')) = 'STRING', FALSE)")
+    expect(sql).not.toContain("'OBJECT'")
     expect(sql).toContain("`Subscriptions`.`status` is null or `Subscriptions`.`status` != ?")
     expect(sql).toContain(
       "NOT EXISTS (SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr.subscription_id = Subscriptions.subscription_id AND trial_pr.request_type = 'RENEWAL' AND ((trial_pr.status = 'COMPLETED' AND trial_pr.amount_charged > 0) OR trial_pr.status IN ('CREATING_SUBSCRIPTION', 'FINALIZING')))"

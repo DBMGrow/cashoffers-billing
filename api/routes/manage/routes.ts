@@ -23,6 +23,7 @@ import {
   type EnrollmentCategory,
 } from "@api/domain/services/enrollment-intent.service"
 import { withTrialRules } from "@api/infrastructure/database/repositories/subscription.repository"
+import { subscriptionDataFromProduct } from "@api/domain/services/subscription-trial"
 import {
   CheckPlanRoute,
   CheckTokenRoute,
@@ -761,8 +762,9 @@ app.openapi(ManagePurchaseRoute, async (c) => {
       chargeDetails = paymentResult.data
     }
 
-    // 7. Update subscription with new product. `data` becomes the new product's data; an
-    // unconverted trial keeps its `data.trial` through the same statement (D5, withTrialRules).
+    // 7. Update subscription with new product. `data` becomes the new product's data without the
+    // product's trial SETTING (a plan change grants no trial); an unconverted trial keeps its
+    // `data.trial` marker through the same statement (D5, withTrialRules).
     const newAmount = productData?.renewal_cost || newProduct.price
     await db
       .updateTable("Subscriptions")
@@ -772,7 +774,7 @@ app.openapi(ManagePurchaseRoute, async (c) => {
           subscription_name: newProduct.product_name,
           amount: newAmount,
           duration: productData?.duration,
-          data: JSON.stringify(productData),
+          data: subscriptionDataFromProduct(productData),
           updatedAt: new Date(),
         })
       )

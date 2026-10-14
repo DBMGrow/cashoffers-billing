@@ -32,6 +32,33 @@ export function readSubscriptionTrial(data: unknown): SubscriptionTrial | null {
 }
 
 /**
+ * A product's `data` as a subscription's `data` (Desk #1350). The key `trial` means two things: on a
+ * product it is the trial SETTING (`{ enabled, duration_days, require_card }`), on a subscription it
+ * is the trial MARKER (`{ ends_at, duration_days, reminder_sent_at? }`). A writer that stores a
+ * product's data on a subscription (a plan change, `CreateSubscriptionUseCase`) would otherwise
+ * store the setting where the marker belongs. So the product's `trial` is dropped and everything
+ * else is kept; only the purchase that grants a trial writes a marker.
+ *
+ * Returns JSON text for the `data` column. JSON text that does not parse to an object is returned
+ * as given, and anything else is `JSON.stringify`'d, which is what the writers did before.
+ */
+export function subscriptionDataFromProduct(productData: unknown): string {
+  let parsed: unknown = productData
+  if (typeof productData === "string") {
+    try {
+      parsed = JSON.parse(productData)
+    } catch {
+      return productData
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !("trial" in parsed)) {
+    return typeof productData === "string" ? productData : JSON.stringify(productData)
+  }
+  const { trial: _setting, ...rest } = parsed as Record<string, unknown>
+  return JSON.stringify(rest)
+}
+
+/**
  * How far apart `ends_at` and `renewal_date` may be before it counts as drift. `renewal_date` is a
  * whole-second DATETIME and `ends_at` keeps the milliseconds of the same `Date`, so equal values can
  * differ by up to half a second once MySQL rounds the column.

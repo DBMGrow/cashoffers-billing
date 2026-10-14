@@ -52,6 +52,8 @@ import { manageRoutes } from "./routes"
 import * as database from "@api/lib/database"
 import { eventBus } from "@api/lib/services"
 import { capturingKysely, subscriptionUpdates, TRIAL_CARRIED_OVER } from "@api/tests/helpers/capturing-kysely"
+import { evaluateDataWrite } from "@api/tests/helpers/evaluate-data-write"
+import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
 
 const queries = (database as unknown as { queries: CompiledQuery[] }).queries
 
@@ -72,6 +74,9 @@ const NEW_PRODUCT_DATA = {
     user_config: { role: "AGENT", role_v2: "AGENT_ELITE", is_premium: 1, is_team_plan: false },
   },
 }
+
+/** A product's trial SETTING (Desk #1350), as every InstantOffers365 plan will carry it */
+const TRIAL_SETTING = { enabled: true, duration_days: 30, require_card: true }
 
 function subscriptionRow(data: Record<string, unknown>) {
   return {
@@ -144,7 +149,7 @@ describe("POST /manage/purchase during a trial (D5, AC28)", () => {
     expect(update.parameters[update.parameters.length - 1]).toBe(280)
     // A plan change does not move the first charge, so there is no ends_at rewrite and no renewal_date
     expect(update.sql).not.toContain("renewal_date")
-    expect(update.sql).not.toContain("ends_at")
+    expect(update.sql).not.toContain("'$.trial.ends_at', ?")
   })
 
   it("a converted subscription's plan change sends the same columns and values as before D5, with the new data as the ELSE branch", async () => {
@@ -186,6 +191,43 @@ describe("POST /manage/purchase during a trial (D5, AC28)", () => {
     const [update] = subscriptionUpdates(queries)
     expect(update.sql).toMatch(TRIAL_CARRIED_OVER)
     expect(update.parameters.filter((p) => p === JSON.stringify(NEW_PRODUCT_DATA))).toHaveLength(3)
+  })
+
+  // PR #73 review, finding 1: every InstantOffers365 plan carries the trial SETTING in its data, so
+  // a trial agent switching between two of them must keep the MARKER, not get the setting
+  it("a trial agent moving to another trial-enabled product keeps the marker, with ends_at = renewal_date", async () => {
+    const marker = { ends_at: ENDS_AT, duration_days: 30 }
+    const stored = { ...OLD_PRODUCT_DATA, trial: marker }
+    fixtures.subscription = subscriptionRow(stored)
+    fixtures.product = { ...fixtures.product, data: { ...NEW_PRODUCT_DATA, trial: TRIAL_SETTING } }
+
+    expect((await changePlan()).status).toBe(200)
+
+    const [update] = subscriptionUpdates(queries)
+    // The route writes the product's data without its setting
+    expect(update.parameters).toContain(JSON.stringify(NEW_PRODUCT_DATA))
+    expect(update.parameters.some((p) => typeof p === "string" && p.includes('"enabled"'))).toBe(false)
+    // and MySQL keeps the stored marker
+    const after = evaluateDataWrite(update, { data: JSON.stringify(stored) })!
+    expect(after).toEqual({ ...NEW_PRODUCT_DATA, trial: marker })
+    expect(readSubscriptionTrial(after)!.ends_at).toBe(new Date(ENDS_AT).toISOString())
+    // The event still carries the product's data as configured
+    const event = vi.mocked(eventBus.publish).mock.calls[0][0] as any
+    expect((event.payload ?? event).toProductData).toEqual({ ...NEW_PRODUCT_DATA, trial: TRIAL_SETTING })
+  })
+
+  // PR #73 review, finding 2: a paying subscriber changing into a trial-enabled product gets no trial
+  it("a paying subscriber moving into a trial-enabled product stores no trial key and no marker", async () => {
+    fixtures.subscription = subscriptionRow(OLD_PRODUCT_DATA)
+    fixtures.product = { ...fixtures.product, data: { ...NEW_PRODUCT_DATA, trial: TRIAL_SETTING } }
+
+    expect((await changePlan()).status).toBe(200)
+
+    const [update] = subscriptionUpdates(queries)
+    const after = evaluateDataWrite(update, { data: JSON.stringify(OLD_PRODUCT_DATA) })!
+    expect(after).toEqual(NEW_PRODUCT_DATA)
+    expect(after).not.toHaveProperty("trial")
+    expect(readSubscriptionTrial(after)).toBeNull()
   })
 
   it("still publishes SubscriptionUpgraded with the new product data", async () => {

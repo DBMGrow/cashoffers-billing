@@ -329,9 +329,11 @@ the first-charge date. A writer outside billing (a direct SQL edit, the legacy A
 the subscriptions cron's drift check logs any such row at `error`.
 
 A plan change during a trial keeps the trial (D5). `POST /manage/purchase` replaces
-`Subscriptions.data` with the new product's data, which has no `trial`, so the statement carries the
-stored `data.trial` into the new document with `JSON_SET` when the row's trial has not converted and
-the new document brings no `trial` of its own (`withTrialRules` in `subscription.repository.ts`, also
+`Subscriptions.data` with the new product's data minus its trial SETTING (`subscriptionDataFromProduct`;
+a product's `data.trial` is `{ enabled, duration_days, require_card }`, a subscription's is the marker
+`{ ends_at, duration_days }`), so the statement sets the stored marker into the new document with
+`JSON_SET` when the row's trial has not converted and the new document brings no marker (`trial.ends_at`)
+of its own (`withTrialRules` in `subscription.repository.ts`, also
 applied by `SubscriptionRepository.update` and by `scripts/reconcile-subscriptions.ts --commit`, the
 other wholesale writer). A plan change does not move `renewal_date`, so `ends_at` still equals it; a
 write that replaces `data` and moves `renewal_date` together carries the trial first, then sets

@@ -1,4 +1,4 @@
-import { Kysely, Selectable, Insertable, Updateable, UpdateObject, sql } from 'kysely'
+import { Kysely, Selectable, Insertable, Updateable, UpdateObject, sql, type RawBuilder } from 'kysely'
 import type { DB, Subscriptions } from '@api/lib/db'
 import { TransactionContext } from '../transaction/transaction-manager.interface'
 import { TRIAL_DATE_DRIFT_TOLERANCE_MS } from '@api/domain/services/subscription-trial'
@@ -20,26 +20,39 @@ const trialEndsAt = sql<string>`JSON_UNQUOTE(JSON_EXTRACT(Subscriptions.data, '$
  */
 const trialConvertedOrConverting = sql<boolean>`EXISTS (SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr.subscription_id = Subscriptions.subscription_id AND trial_pr.request_type = 'RENEWAL' AND ((trial_pr.status = 'COMPLETED' AND trial_pr.amount_charged > 0) OR trial_pr.status IN ('CREATING_SUBSCRIPTION', 'FINALIZING')))`
 
-/** `data.trial` is a JSON object: the row carries a card-on-file trial marker. */
-const hasTrialMarker = sql<boolean>`JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial')) = 'OBJECT'`
+/**
+ * A `data` document carries a card-on-file trial MARKER (Desk #1350): `trial.ends_at` is a JSON
+ * string. The key `trial` means two things: a product's `data.trial` is its trial SETTING
+ * (`{ enabled, duration_days, require_card }`), a subscription's is the marker
+ * (`{ ends_at, duration_days, reminder_sent_at? }`). A setting copied onto a subscription is an
+ * object too, so testing for an object would read it as a live trial; only `ends_at` tells them
+ * apart. Never NULL (a missing path is FALSE), so it can be negated.
+ */
+function trialMarkerIn(doc: RawBuilder<unknown>) {
+  return sql<boolean>`COALESCE(JSON_TYPE(JSON_EXTRACT(${doc}, '$.trial.ends_at')) = 'STRING', FALSE)`
+}
+
+/** The stored row carries a card-on-file trial marker (`data.trial.ends_at`). */
+const hasTrialMarker = trialMarkerIn(sql`Subscriptions.data`)
 
 /**
  * The D5 rule (Desk #1350): a plan change during a trial keeps the trial. A writer that replaces
  * `data` wholesale (the manage route's plan change writes the new product's data) would delete
  * `data.trial`, and with it the reminder, the reconciliation, the dashboard banner and the Trial
- * filter. So when an update writes a `data` document that has no `trial` key, on a row whose stored
- * `data.trial` is an object and that has not converted, the statement copies the stored trial block
- * into the new document with JSON_SET. A document that brings its own `trial` (the read-modify-write
- * writers) is written as given, and a converted or non-trial row gets exactly the document the
- * writer sent. MySQL reads the stored `data` of the row it updates, so there is no read-modify-write
- * race. `data: null` is written as null.
+ * filter. So when an update writes a `data` document with no trial marker (no `trial.ends_at`:
+ * no `trial` at all, or a product's trial SETTING), on a row whose stored `data` has a marker and
+ * that has not converted, the statement JSON_SETs the stored marker into the new document, replacing
+ * whatever `trial` it had. A document that brings its own marker (the read-modify-write writers) is
+ * written as given, and a converted or non-trial row gets exactly the document the writer sent.
+ * MySQL reads the stored `data` of the row it updates, so there is no read-modify-write race.
+ * `data: null` is written as null.
  */
 export function withTrialCarriedOver(data: Updateable<Subscriptions>): UpdateObject<DB, 'Subscriptions'> {
   if (typeof data.data !== 'string') return data
   const doc = data.data
   return {
     ...data,
-    data: sql<any>`CASE WHEN ${hasTrialMarker} AND NOT ${trialConvertedOrConverting} AND JSON_EXTRACT(${doc}, '$.trial') IS NULL THEN JSON_SET(${doc}, '$.trial', JSON_EXTRACT(Subscriptions.data, '$.trial')) ELSE ${doc} END`,
+    data: sql<any>`CASE WHEN ${hasTrialMarker} AND NOT ${trialConvertedOrConverting} AND NOT ${trialMarkerIn(sql`${doc}`)} THEN JSON_SET(${doc}, '$.trial', JSON_EXTRACT(Subscriptions.data, '$.trial')) ELSE ${doc} END`,
   }
 }
 
@@ -47,7 +60,8 @@ export function withTrialCarriedOver(data: Updateable<Subscriptions>): UpdateObj
  * The D1 invariant (Desk #1350): until a card-on-file trial converts, its first charge is its
  * `renewal_date`, so `data.trial.ends_at` says the same thing. When an update writes
  * `renewal_date`, the same statement rewrites `data` with JSON_SET of `ends_at` (ISO, as
- * `toISOString()` writes it) on a row whose `data.trial` is an object and that has not converted,
+ * `toISOString()` writes it) on a row whose `data` has a trial marker (`trial.ends_at`; a product's
+ * trial SETTING is not one, so a paying row never gains a marker) and that has not converted,
  * and leaves `data` as it was otherwise. MySQL evaluates the condition on the row it updates, so
  * there is no read-modify-write race. When the update also writes `data` (the renewal use case
  * writes the whole row, a plan change writes the new product's data), the new value is the one
@@ -74,7 +88,7 @@ export function withTrialEndFollowingRenewal(data: UpdateObject<DB, 'Subscriptio
   const reminderReset = sql`IF(${trialEndsAt} BETWEEN ${sameEndFrom} AND ${sameEndTo}, '{}', '{"trial":{"reminder_sent_at":null}}')`
   return {
     ...data,
-    data: sql<any>`CASE WHEN JSON_TYPE(JSON_EXTRACT(${doc}, '$.trial')) = 'OBJECT' AND NOT ${trialConvertedOrConverting} THEN JSON_MERGE_PATCH(JSON_SET(${doc}, '$.trial.ends_at', ${renewalDate.toISOString()}), ${reminderReset}) ELSE ${doc} END`,
+    data: sql<any>`CASE WHEN ${trialMarkerIn(doc)} AND NOT ${trialConvertedOrConverting} THEN JSON_MERGE_PATCH(JSON_SET(${doc}, '$.trial.ends_at', ${renewalDate.toISOString()}), ${reminderReset}) ELSE ${doc} END`,
   }
 }
 
@@ -465,7 +479,7 @@ export class SubscriptionRepository {
   }
 
   /**
-   * Card-on-file trials (Desk #1350) that have not converted (D1): a `data.trial` object, not
+   * Card-on-file trials (Desk #1350) that have not converted (D1): a `data.trial.ends_at` marker, not
    * cancelled, and no completed paid RENEWAL nor one in the middle of converting. For each of these
    * `data.trial.ends_at` must equal `renewal_date`; the cron's drift check compares the two
    * (`trialDateDrift`) and logs any row where a writer moved one without the other.

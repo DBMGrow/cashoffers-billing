@@ -51,12 +51,15 @@ describe("SubscriptionRepository.update: a wholesale data write keeps an unconve
     expect(update.sql).toMatch(new RegExp("`data` = " + TRIAL_CARRIED_OVER.source))
     // The stored trial comes from the row being updated, not from a read before the write
     expect(update.sql).toContain("JSON_SET(?, '$.trial', JSON_EXTRACT(Subscriptions.data, '$.trial'))")
-    // Only when the new document has no trial of its own
-    expect(update.sql).toContain("AND JSON_EXTRACT(?, '$.trial') IS NULL")
+    // Only when the new document has no trial MARKER of its own (no `trial.ends_at`: no `trial`,
+    // or a product's trial SETTING)
+    expect(update.sql).toContain(
+      "AND NOT COALESCE(JSON_TYPE(JSON_EXTRACT(?, '$.trial.ends_at')) = 'STRING', FALSE) THEN"
+    )
     // The new product data is the document written, in every branch
     expect(update.parameters.filter((p) => p === NEW_PRODUCT_DATA)).toHaveLength(3)
     // No renewal_date written: no ends_at rewrite
-    expect(update.sql).not.toContain("ends_at")
+    expect(update.sql).not.toContain("'$.trial.ends_at', ?")
     expect(update.sql).not.toContain("`renewal_date`")
     expect(subscriptionUpdates(queries)).toHaveLength(1)
   })
@@ -66,9 +69,9 @@ describe("SubscriptionRepository.update: a wholesale data write keeps an unconve
     await r.update(7, { data: NEW_PRODUCT_DATA })
 
     const [update] = subscriptionUpdates(queries)
-    // The carry is skipped unless the stored data.trial is an object and the trial has not converted
+    // The carry is skipped unless the stored data has a trial marker and the trial has not converted
     expect(update.sql).toContain(
-      "CASE WHEN JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial')) = 'OBJECT' AND NOT EXISTS (SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr.subscription_id = Subscriptions.subscription_id AND trial_pr.request_type = 'RENEWAL' AND ((trial_pr.status = 'COMPLETED' AND trial_pr.amount_charged > 0) OR trial_pr.status IN ('CREATING_SUBSCRIPTION', 'FINALIZING')))"
+      "CASE WHEN COALESCE(JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial.ends_at')) = 'STRING', FALSE) AND NOT EXISTS (SELECT 1 FROM PurchaseRequests AS trial_pr WHERE trial_pr.subscription_id = Subscriptions.subscription_id AND trial_pr.request_type = 'RENEWAL' AND ((trial_pr.status = 'COMPLETED' AND trial_pr.amount_charged > 0) OR trial_pr.status IN ('CREATING_SUBSCRIPTION', 'FINALIZING')))"
     )
     expect(boundAt(update, "ELSE ?")).toBe(NEW_PRODUCT_DATA)
   })
@@ -82,21 +85,23 @@ describe("SubscriptionRepository.update: a wholesale data write keeps an unconve
     const [update] = subscriptionUpdates(queries)
     expect(update.sql).toMatch(TRIAL_END_FOLLOWS_RENEWAL)
     // D1 rewrites the D5 document, not the stored one and not the bare new one
-    expect(update.sql).toContain("JSON_SET(CASE WHEN JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial'))")
+    expect(update.sql).toContain(
+      "JSON_SET(CASE WHEN COALESCE(JSON_TYPE(JSON_EXTRACT(Subscriptions.data, '$.trial.ends_at'))"
+    )
     expect(update.sql).toContain("END, '$.trial.ends_at', ?)")
     expect(trialEndsAtWritten(update)).toBe("2026-12-05T09:15:00.000Z")
     expect(update.parameters.filter((p) => p === NEW_PRODUCT_DATA)).toHaveLength(9)
   })
 
-  it("a read-modify-write that already carries the trial is not overwritten: the carry needs the new document to have no trial", async () => {
+  it("a read-modify-write that already carries the trial is not overwritten: the carry needs the new document to have no marker", async () => {
     const { repo: r, queries } = repo()
     const withTrial = JSON.stringify({ trial: { ends_at: "2026-11-01T00:00:00.000Z", duration_days: 30 }, team_id: 4 })
 
     await r.update(7, { data: withTrial })
 
     const [update] = subscriptionUpdates(queries)
-    expect(update.sql).toContain("JSON_EXTRACT(?, '$.trial') IS NULL")
-    expect(boundAt(update, "JSON_EXTRACT(?, '$.trial') IS NULL")).toBe(withTrial)
+    expect(update.sql).toContain("NOT COALESCE(JSON_TYPE(JSON_EXTRACT(?, '$.trial.ends_at')) = 'STRING', FALSE)")
+    expect(boundAt(update, "NOT COALESCE(JSON_TYPE(JSON_EXTRACT(?")).toBe(withTrial)
   })
 
   it("data: null is written as null, with no carry", async () => {

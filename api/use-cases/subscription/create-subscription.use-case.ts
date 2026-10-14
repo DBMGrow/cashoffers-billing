@@ -14,6 +14,7 @@ import { CreateSubscriptionInputSchema } from "../types/validation.schemas"
 import { v4 as uuidv4 } from "uuid"
 import { SubscriptionCreatedEvent } from "@api/domain/events/subscription-created.event"
 import { PaymentProcessedEvent } from "@api/domain/events/payment-processed.event"
+import { subscriptionDataFromProduct } from "@api/domain/services/subscription-trial"
 
 interface Dependencies {
   logger: ILogger
@@ -94,7 +95,8 @@ export class CreateSubscriptionUseCase implements ICreateSubscriptionUseCase {
         duration: productData.duration,
         renewal_date: renewalDate,
         status: "active",
-        data: typeof product.data === "string" ? product.data : JSON.stringify(product.data),
+        // The product's data without its trial SETTING: this path grants no trial (Desk #1350)
+        data: subscriptionDataFromProduct(product.data),
         createdAt: now,
         updatedAt: now,
       })

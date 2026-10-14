@@ -98,7 +98,9 @@ describe("PurchaseExistingUserUseCase charge amount", () => {
     expect(createPayment).toHaveBeenCalledTimes(1)
     expect((createPayment.mock.calls[0] as any)[0].amountMoney.amount).toBe(BigInt(25000))
     const created = (deps.subscriptionRepository.create.mock.calls[0] as any)[0]
-    expect(JSON.parse(created.data).trial).toBeUndefined()
+    // No trial key at all: neither a marker nor the product's trial SETTING (PR #73 review, finding 2)
+    expect(JSON.parse(created.data)).not.toHaveProperty("trial")
+    expect(created.data).not.toContain("trial")
     const days = (created.renewal_date.getTime() - Date.now()) / 86_400_000
     expect(days).toBeGreaterThanOrEqual(28)
   })

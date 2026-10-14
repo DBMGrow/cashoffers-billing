@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { CreateSubscriptionUseCase } from "./create-subscription.use-case"
+import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
 import { ConsoleLogger } from "@api/infrastructure/logging/console.logger"
 import { MockPaymentProvider } from "@api/infrastructure/payment/mock/mock-payment.provider"
 import { MockEmailService } from "@api/infrastructure/email/mock/mock-email.service"
@@ -647,6 +648,54 @@ describe("CreateSubscriptionUseCase", () => {
         (e) => e.eventType === "PaymentProcessed" && e.payload.paymentType === "one-time"
       )
       expect(oneTimePayment).toBeUndefined()
+    })
+  })
+
+  // Desk #1350: a product's `data.trial` is its trial SETTING; a subscription's is the trial MARKER.
+  // This path grants no trial, so the setting must not land where the marker belongs: if it did, a
+  // later write of renewal_date could add `ends_at` to it and turn a paying row into a "trial".
+  describe("a product with a trial setting (Desk #1350)", () => {
+    const SETTING = { enabled: true, duration_days: 30, require_card: true }
+
+    beforeEach(() => {
+      productRepo.addProduct("prod_trial", {
+        product_name: "InstantOffers365 Individual",
+        price: 0,
+        data: JSON.stringify({ duration: "monthly", renewal_cost: 25000, trial: SETTING, cashoffers: { managed: true } }),
+      })
+      userCardRepo.addCard(1, { card_id: "card_123", square_customer_id: "cust_123", last_4: "4242" })
+      paymentProvider.addTestCard({
+        id: "card_123",
+        customerId: "cust_123",
+        last4: "4242",
+        cardBrand: "VISA",
+        expMonth: 12,
+        expYear: 2030,
+      })
+      userApiClient.addMockUser({
+        id: 1,
+        email: "user@test.com",
+        first_name: "Test",
+        last_name: "User",
+        active: true,
+        is_premium: true,
+      })
+    })
+
+    it("stores the product's data without its trial setting: no trial key at all", async () => {
+      const result = await useCase.execute({
+        userId: 1,
+        productId: "prod_trial",
+        email: "user@test.com",
+        userAlreadyExists: true,
+      })
+      expect(result.success).toBe(true)
+
+      const [created] = subscriptionRepo.getAll()
+      const data = JSON.parse(created.data)
+      expect(data).not.toHaveProperty("trial")
+      expect(data).toEqual({ duration: "monthly", renewal_cost: 25000, cashoffers: { managed: true } })
+      expect(readSubscriptionTrial(created.data)).toBeNull()
     })
   })
 })
