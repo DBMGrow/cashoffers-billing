@@ -4,7 +4,8 @@ import { config } from "@api/config/config.service"
 import { logger, emailService, eventBus, whitelabelResolverService } from "@api/lib/services"
 import { db } from "@api/lib/database"
 import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
-import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
+import { readSubscriptionTrial, trialDateDrift } from "@api/domain/services/subscription-trial"
+import { formatTrialChargeDate } from "@api/domain/services/trial-charge-date"
 import { renewSubscriptionUseCase } from "@api/use-cases/subscription"
 import { SubscriptionCancelledEvent } from "@api/domain/events/subscription-cancelled.event"
 import TrialExpiringEmail from "@api/infrastructure/email/templates/trial-expiring.email"
@@ -14,7 +15,19 @@ import TrialEndingEmail from "@api/infrastructure/email/templates/trial-ending.e
 /** Days before a card-on-file trial's first charge that the trial-ending reminder goes out. */
 const TRIAL_REMINDER_DAYS = 7
 
+/**
+ * The UTC hour of the one run a day that checks for trial date drift (D1), judged by when the run
+ * started. The cron runs hourly, so checking every run would log each drifted row 24 times a day. It is
+ * 11:00, not 12:00, because the daily health report also fires at 12:00 UTC and reads the 24 hours
+ * before it: an 11:00 check lands well inside that window, so each report holds one check's rows.
+ */
+export const TRIAL_DRIFT_CHECK_UTC_HOUR = 11
+
 export default async function subscriptionsCron() {
+  // When this run started. The daily drift check keys on it, so a run that spills past the hour
+  // still decides by the hour it was scheduled for.
+  const runStartedAt = new Date()
+
   // Create child logger with cron context
   const cronLogger = logger.child({
     component: 'subscriptionsCron',
@@ -229,9 +242,8 @@ export default async function subscriptionsCron() {
           const whitelabelInfo = await whitelabelResolverService.resolveForUser(subscription.user_id!)
           const billingBase = (whitelabelInfo.branding?.billing_url ?? 'https://account.cashoffers.pro').replace(/\/$/, '')
           const isSandbox = subscription.square_environment === 'sandbox'
-          const chargeDate = new Date(trial.ends_at).toLocaleDateString('en-US', {
-            month: 'long', day: 'numeric', year: 'numeric',
-          })
+          // The UTC day of the hourly run that charges it, the day the review step showed (D3, #1402)
+          const chargeDate = formatTrialChargeDate(trial.ends_at)
 
           const html = await render(
             createElement(TrialEndingEmail, {
@@ -267,12 +279,15 @@ export default async function subscriptionsCron() {
 
     // Card-on-file trial invariants (Desk #1350), read-only: each anomaly becomes an `error` row in
     // BillingLogs naming the subscription, so it reaches the daily health report's error list. The
-    // report counts the same two queries in its Free Trials section.
+    // report counts the first two queries in its Free Trials section; trial date drift (D1) reaches
+    // it through the error count and list.
     try {
       const now = new Date()
-      const [withoutCard, unreconciled] = await Promise.all([
+      const checkDrift = runStartedAt.getUTCHours() === TRIAL_DRIFT_CHECK_UTC_HOUR
+      const [withoutCard, unreconciled, unconverted] = await Promise.all([
         subscriptionRepository.findTrialsWithoutCard(now),
         subscriptionRepository.findEndedTrialsUnreconciled(now),
+        checkDrift ? subscriptionRepository.findUnconvertedTrials() : Promise.resolve([]),
       ])
 
       for (const subscription of withoutCard) {
@@ -290,6 +305,25 @@ export default async function subscriptionsCron() {
           product_id: subscription.product_id,
           subjectUserId: subscription.user_id,
         })
+      }
+      // D1: until it converts, a trial's ends_at is its renewal_date. The repository keeps the two
+      // together on every update, so a disagreement means a writer moved one without the other.
+      // Checked on the 12:00 UTC run only, so a drifted row is logged once a day, not every hour.
+      for (const subscription of unconverted) {
+        const drift = trialDateDrift(subscription)
+        if (!drift) continue
+        cronLogger.error(
+          `Trial date drift: subscription ${subscription.subscription_id} has ends_at ${drift.ends_at} but renewal_date ${drift.renewal_date}`,
+          undefined,
+          {
+            subscription_id: subscription.subscription_id,
+            user_id: subscription.user_id,
+            product_id: subscription.product_id,
+            ends_at: drift.ends_at,
+            renewal_date: drift.renewal_date,
+            subjectUserId: subscription.user_id,
+          }
+        )
       }
     } catch (err: any) {
       cronLogger.error('Error checking card-on-file trial invariants', err)

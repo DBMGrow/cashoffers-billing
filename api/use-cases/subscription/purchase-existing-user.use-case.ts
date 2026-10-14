@@ -167,6 +167,7 @@ export class PurchaseExistingUserUseCase implements IPurchaseExistingUserUseCase
         product,
         pricing,
         payment,
+        card: userCard,
         userConfig,
         cashoffers: productData.cashoffers,
       })

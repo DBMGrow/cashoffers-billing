@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest"
-import { calculatePricing, calculateRenewalDate, isUserFacingError, publishPurchaseEvents } from "./purchase-helpers"
+import {
+  calculatePricing,
+  calculateRenewalDate,
+  createSubscriptionRecord,
+  isUserFacingError,
+  publishPurchaseEvents,
+} from "./purchase-helpers"
 import { CashOffersAccountHandler } from "@api/application/service-handlers/cashoffers/cashoffers-account.handler"
 
 describe("isUserFacingError", () => {
@@ -286,5 +292,105 @@ describe("publishPurchaseEvents provisioningFailed", () => {
   it("marks a new-user purchase whose account could not be created", async () => {
     const payload = await createdPayload({ ...baseParams, provisioningFailed: true })
     expect(payload.provisioningFailed).toBe(true)
+  })
+})
+
+// AC25 (card D2): a free trial charges nothing at signup, so the subscription's Square environment
+// comes from its saved card. A charge, when there is one, still decides it.
+describe("createSubscriptionRecord square_environment", () => {
+  const trialPricing = {
+    signupFee: 0,
+    renewalCost: 25000,
+    productDuration: "monthly",
+    initialAmount: 0,
+    trialDays: 30,
+  } as const
+  const paidPricing = { ...trialPricing, initialAmount: 25000, trialDays: null }
+
+  async function storedEnvironment(params: {
+    pricing: typeof trialPricing | typeof paidPricing
+    payment: { environment: "production" | "sandbox" } | null
+    card: { square_environment: "production" | "sandbox" | null } | null
+  }) {
+    const create = vi.fn(async (row: any) => ({ subscription_id: 9, ...row }))
+    await createSubscriptionRecord({ subscriptionRepository: { create } as any }, {
+      userId: null,
+      product: { product_id: 70, product_name: "Individual", price: 25000 },
+      userConfig: undefined,
+      cashoffers: undefined,
+      ...params,
+    })
+    return (create.mock.calls[0] as any)[0].square_environment
+  }
+
+  it.each(["sandbox", "production"] as const)("a trial with a %s card stores that environment", async (environment) => {
+    expect(await storedEnvironment({ pricing: trialPricing, payment: null, card: { square_environment: environment } })).toBe(
+      environment
+    )
+  })
+
+  it("a paid signup keeps the payment's environment over the card's", async () => {
+    expect(
+      await storedEnvironment({
+        pricing: paidPricing,
+        payment: { environment: "sandbox" },
+        card: { square_environment: "production" },
+      })
+    ).toBe("sandbox")
+    expect(
+      await storedEnvironment({ pricing: paidPricing, payment: { environment: "production" }, card: null })
+    ).toBe("production")
+  })
+
+  it("no payment and no card (a free product) stays NULL", async () => {
+    expect(await storedEnvironment({ pricing: trialPricing, payment: null, card: null })).toBeNull()
+    expect(await storedEnvironment({ pricing: trialPricing, payment: null, card: { square_environment: null } })).toBeNull()
+  })
+})
+
+// The trial-welcome email marks [SANDBOX] from SubscriptionCreated's environment, which has no
+// payment to read on a trial, so it falls back to the environment the subscription row stores.
+describe("publishPurchaseEvents environment", () => {
+  const baseParams = {
+    purchaseRequestId: 1,
+    purchaseRequestUuid: "uuid",
+    userId: 42,
+    email: "agent@io365.test",
+    product: { product_id: 70, product_name: "Individual" },
+    subscription: { subscription_id: 9, renewal_date: null },
+    transaction: { transaction_id: 3 },
+    pricing: { signupFee: 0, renewalCost: 25000, productDuration: "monthly", initialAmount: 0, trialDays: 30 },
+    payment: null,
+    cardIdString: "ccof:1",
+    userCard: { last_4: "1111" },
+    userWasCreated: true,
+    startTime: new Date(),
+  }
+
+  async function createdEnvironment(params: Parameters<typeof publishPurchaseEvents>[1]) {
+    const published: any[] = []
+    const deps = {
+      eventBus: { publish: vi.fn(async (e: any) => void published.push(e)) } as any,
+      purchaseRequestRepository: { markAsCompleted: vi.fn() } as any,
+    }
+    await publishPurchaseEvents(deps, params)
+    return published.find((e) => e.eventType === "SubscriptionCreated").payload.environment
+  }
+
+  it("a trial takes the subscription's stored environment", async () => {
+    const subscription = { ...baseParams.subscription, square_environment: "sandbox" as const }
+    expect(await createdEnvironment({ ...baseParams, subscription })).toBe("sandbox")
+  })
+
+  it("a paid signup takes the payment's environment", async () => {
+    const subscription = { ...baseParams.subscription, square_environment: "production" as const }
+    const payment = { id: "pay_1", environment: "sandbox" as const }
+    expect(await createdEnvironment({ ...baseParams, subscription, payment })).toBe("sandbox")
+  })
+
+  it("is undefined when neither says (a free product)", async () => {
+    expect(await createdEnvironment(baseParams)).toBeUndefined()
+    const subscription = { ...baseParams.subscription, square_environment: null }
+    expect(await createdEnvironment({ ...baseParams, subscription })).toBeUndefined()
   })
 })

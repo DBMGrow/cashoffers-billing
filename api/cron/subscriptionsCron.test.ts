@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
+import { FIRST_CHARGE_CASES, TRIAL_DAYS } from "@api/tests/fixtures/first-charge-instants"
 
 // Mock all external dependencies before importing the cron function
 vi.mock("@api/lib/services", () => ({
@@ -33,6 +34,7 @@ vi.mock("@api/lib/repositories", () => ({
     stampTrialReminderSent: vi.fn(),
     findTrialsWithoutCard: vi.fn(),
     findEndedTrialsUnreconciled: vi.fn(),
+    findUnconvertedTrials: vi.fn(),
     update: vi.fn(),
   },
   transactionRepository: {
@@ -103,7 +105,7 @@ vi.mock("@api/config/config.service", () => ({
   },
 }))
 
-import subscriptionsCron from "./subscriptionsCron"
+import subscriptionsCron, { TRIAL_DRIFT_CHECK_UTC_HOUR } from "./subscriptionsCron"
 import { subscriptionRepository, transactionRepository, userCardRepository } from "@api/lib/repositories"
 import { emailService, eventBus, whitelabelResolverService, logger } from "@api/lib/services"
 import { render } from "@react-email/render"
@@ -130,6 +132,7 @@ describe("subscriptionsCron", () => {
     mockSubscriptionRepo.stampTrialReminderSent = vi.fn().mockResolvedValue(true)
     mockSubscriptionRepo.findTrialsWithoutCard = vi.fn().mockResolvedValue([])
     mockSubscriptionRepo.findEndedTrialsUnreconciled = vi.fn().mockResolvedValue([])
+    mockSubscriptionRepo.findUnconvertedTrials = vi.fn().mockResolvedValue([])
     mockUserCardRepo.findByUserId = vi.fn().mockResolvedValue([{ last_4: "4242" }])
     mockWhitelabelResolver.resolveForUser = vi.fn().mockResolvedValue({
       whitelabel_id: 1,
@@ -447,6 +450,119 @@ describe("subscriptionsCron", () => {
       expect(trialEndingSends()).toHaveLength(2)
     })
 
+    // D1, AC21. The trial's renewal_date was moved 5 days later; the repository's update moved
+    // ends_at with it (AC20), so the row now names the new date in both.
+    describe("after renewal_date moved 5 days later (D1, AC21)", () => {
+      const OLD_END = new Date("2026-11-13T18:00:00.000Z")
+      const NEW_END = new Date(OLD_END.getTime() + 5 * DAY)
+      const movedRow = () =>
+        trialRow({
+          renewal_date: NEW_END,
+          data: JSON.stringify({ trial: { ends_at: NEW_END.toISOString(), duration_days: 30 } }),
+        })
+      afterEach(() => vi.useRealTimers())
+
+      it("sends nothing 7 days before the old date", async () => {
+        vi.useFakeTimers({ toFake: ["Date"] })
+        vi.setSystemTime(new Date(OLD_END.getTime() - 7 * DAY + 60_000))
+        trialTable([movedRow()])
+
+        await subscriptionsCron()
+
+        expect(trialEndingSends()).toHaveLength(0)
+      })
+
+      it("sends exactly one reminder 7 days before the new date, naming the new date", async () => {
+        vi.useFakeTimers({ toFake: ["Date"] })
+        trialTable([movedRow()])
+
+        vi.setSystemTime(new Date(NEW_END.getTime() - 7 * DAY + 60_000))
+        await subscriptionsCron()
+        vi.setSystemTime(new Date(NEW_END.getTime() - 6 * DAY))
+        await subscriptionsCron()
+
+        const newDate = "November 18, 2026"
+        expect(trialEndingSends()).toHaveLength(1)
+        expect(trialEndingSends()[0][0].subject).toBe(`Your free trial ends on ${newDate}`)
+        expect(renderedTrialEndingProps().chargeDate).toBe(newDate)
+      })
+    })
+
+    // D6, AC29: a paused trial gets no reminder while paused. Its reactivation moves renewal_date a
+    // month on; the repository moves ends_at with it and, because the end moved, removes
+    // reminder_sent_at in the same statement (pinned in subscription.repository.trial-end.test.ts
+    // and proven on staging). So a trial paused after its reminder is reminded again for the new date.
+    describe("a paused trial, then reactivated (D6, AC29)", () => {
+      const ORIGINAL_END = new Date("2026-11-13T18:00:00.000Z")
+      const NEW_END = new Date("2026-12-24T09:00:00.000Z")
+      afterEach(() => vi.useRealTimers())
+
+      it("sends nothing while paused, and exactly one reminder 7 days before the new date after reactivation", async () => {
+        vi.useFakeTimers({ toFake: ["Date"] })
+        const [row] = trialTable([trialRow({ data: JSON.stringify({ trial: { ends_at: ORIGINAL_END.toISOString(), duration_days: 30 } }) })])
+
+        // The 7-day reminder for the original date goes out
+        vi.setSystemTime(new Date(ORIGINAL_END.getTime() - 7 * DAY + 60_000))
+        await subscriptionsCron()
+        expect(trialEndingSends()).toHaveLength(1)
+
+        // Paused two days before the end (user.deactivated writes status and suspension_date only)
+        Object.assign(row, { status: "paused", suspension_date: new Date(ORIGINAL_END.getTime() - 2 * DAY) })
+        for (const at of [ORIGINAL_END.getTime() - DAY, ORIGINAL_END.getTime() + 2 * DAY]) {
+          vi.setSystemTime(new Date(at))
+          await subscriptionsCron()
+        }
+        expect(trialEndingSends()).toHaveLength(1)
+
+        // Reactivated: the row as the repository's statement leaves it
+        const data = JSON.parse(row.data)
+        data.trial.ends_at = NEW_END.toISOString()
+        delete data.trial.reminder_sent_at
+        Object.assign(row, { status: "active", suspension_date: null, renewal_date: NEW_END, data: JSON.stringify(data) })
+
+        vi.setSystemTime(new Date(NEW_END.getTime() - 8 * DAY))
+        await subscriptionsCron()
+        expect(trialEndingSends()).toHaveLength(1)
+
+        vi.setSystemTime(new Date(NEW_END.getTime() - 7 * DAY + 60_000))
+        await subscriptionsCron()
+        vi.setSystemTime(new Date(NEW_END.getTime() - 6 * DAY))
+        await subscriptionsCron()
+
+        expect(trialEndingSends()).toHaveLength(2)
+        expect(trialEndingSends()[1][0].subject).toBe("Your free trial ends on December 24, 2026")
+      })
+    })
+
+    // D3, AC26: the reminder names the UTC day the hourly run charges on, the day the review step
+    // showed, whatever zone the server runs in.
+    describe("names the UTC day the charging run falls on (D3, AC26)", () => {
+      const ORIGINAL_TZ = process.env.TZ
+      afterEach(() => {
+        process.env.TZ = ORIGINAL_TZ
+        vi.useRealTimers()
+      })
+
+      for (const c of FIRST_CHARGE_CASES) {
+        for (const zone of ["UTC", "America/Los_Angeles", "Asia/Manila"]) {
+          it(`a signup at ${c.name}, on a server in ${zone}: ${c.firstCharge}`, async () => {
+            process.env.TZ = zone
+            vi.useFakeTimers({ toFake: ["Date"] })
+            vi.setSystemTime(new Date(Date.parse(c.endsAt) - 7 * DAY + 60_000))
+            trialTable([
+              trialRow({ data: JSON.stringify({ trial: { ends_at: c.endsAt, duration_days: TRIAL_DAYS } }) }),
+            ])
+
+            await subscriptionsCron()
+
+            expect(trialEndingSends()).toHaveLength(1)
+            expect(trialEndingSends()[0][0].subject).toBe(`Your free trial ends on ${c.firstCharge}`)
+            expect(renderedTrialEndingProps().chargeDate).toBe(c.firstCharge)
+          })
+        }
+      }
+    })
+
     it("still sends with no card row, naming the card on file", async () => {
       trialTable([trialRow()])
       mockUserCardRepo.findByUserId = vi.fn().mockResolvedValue([])
@@ -496,6 +612,120 @@ describe("subscriptionsCron", () => {
 
       const unreconciled = cronLogger().error.mock.calls.filter(([msg]: any[]) => String(msg).startsWith("Ended trial not reconciled"))
       expect(unreconciled.map(([, , meta]: any[]) => meta.subscription_id)).toEqual([80, 81])
+    })
+
+    describe("trial date drift (D1, AC24)", () => {
+      function unconvertedTrial(id: number, endsAt: string, renewalDate: Date) {
+        return { ...trialSub(id, 1), renewal_date: renewalDate, data: JSON.stringify({ trial: { ends_at: endsAt, duration_days: 30 } }) }
+      }
+      const driftErrors = () =>
+        cronLogger().error.mock.calls.filter(([msg]: any[]) => String(msg).startsWith("Trial date drift"))
+
+      // The drift check runs on the 11:00 UTC run only (see "logs a drifted row once a day" below)
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["Date"] })
+        vi.setSystemTime(new Date("2026-10-14T11:05:00.000Z"))
+      })
+      afterEach(() => vi.useRealTimers())
+
+      it("logs a drifted row once a day: on the 11:00 UTC run, not on the other 23 hourly runs", async () => {
+        expect(TRIAL_DRIFT_CHECK_UTC_HOUR).toBe(11)
+        mockSubscriptionRepo.findUnconvertedTrials = vi
+          .fn()
+          .mockResolvedValue([unconvertedTrial(97, "2026-11-01T12:00:00.000Z", new Date("2026-11-06T12:00:00.000Z"))])
+        let logged = 0
+        for (let hour = 0; hour < 24; hour++) {
+          vi.mocked(logger.child).mockClear()
+          vi.setSystemTime(new Date(Date.UTC(2026, 9, 14, hour, 5)))
+          await subscriptionsCron()
+          logged += driftErrors().length
+          if (hour !== TRIAL_DRIFT_CHECK_UTC_HOUR) expect(driftErrors()).toHaveLength(0)
+        }
+        expect(logged).toBe(1)
+        // The other 23 runs do not even query for drift
+        expect(mockSubscriptionRepo.findUnconvertedTrials).toHaveBeenCalledTimes(1)
+      })
+
+      it("decides by when the run started: an 11:59 run that reaches the check after 12:00 still checks, a 10:59 run that spills into 11:00 does not", async () => {
+        mockSubscriptionRepo.findUnconvertedTrials = vi
+          .fn()
+          .mockResolvedValue([unconvertedTrial(98, "2026-11-01T12:00:00.000Z", new Date("2026-11-06T12:00:00.000Z"))])
+        const spillTo = (later: string) =>
+          vi.mocked(mockSubscriptionRepo.findSubscriptionsForCronProcessing).mockImplementationOnce(async () => {
+            vi.setSystemTime(new Date(later))
+            return []
+          })
+
+        vi.setSystemTime(new Date("2026-10-14T11:59:30.000Z"))
+        spillTo("2026-10-14T12:03:00.000Z")
+        await subscriptionsCron()
+        expect(driftErrors()).toHaveLength(1)
+
+        vi.mocked(logger.child).mockClear()
+        vi.setSystemTime(new Date("2026-10-14T10:59:30.000Z"))
+        spillTo("2026-10-14T11:03:00.000Z")
+        await subscriptionsCron()
+        expect(driftErrors()).toHaveLength(0)
+      })
+
+      it("logs one error naming the subscription, both dates and 'Trial date drift' when ends_at and renewal_date disagree", async () => {
+        mockSubscriptionRepo.findUnconvertedTrials = vi
+          .fn()
+          .mockResolvedValue([unconvertedTrial(90, "2026-11-01T12:00:00.000Z", new Date("2026-11-06T12:00:00.000Z"))])
+
+        await subscriptionsCron()
+
+        expect(mockSubscriptionRepo.findUnconvertedTrials).toHaveBeenCalledTimes(1)
+        expect(driftErrors()).toHaveLength(1)
+        const [message, error, meta] = driftErrors()[0]
+        expect(message).toBe(
+          "Trial date drift: subscription 90 has ends_at 2026-11-01T12:00:00.000Z but renewal_date 2026-11-06T12:00:00.000Z"
+        )
+        expect(error).toBeUndefined()
+        expect(meta).toEqual({
+          subscription_id: 90,
+          user_id: 1,
+          product_id: 70,
+          ends_at: "2026-11-01T12:00:00.000Z",
+          renewal_date: "2026-11-06T12:00:00.000Z",
+          subjectUserId: 1,
+        })
+      })
+
+      it("is silent when the dates agree, including MySQL's rounding of renewal_date to the second", async () => {
+        mockSubscriptionRepo.findUnconvertedTrials = vi.fn().mockResolvedValue([
+          unconvertedTrial(91, "2026-11-01T12:00:00.000Z", new Date("2026-11-01T12:00:00.000Z")),
+          unconvertedTrial(92, "2026-11-01T12:00:00.678Z", new Date("2026-11-01T12:00:01.000Z")),
+        ])
+
+        await subscriptionsCron()
+
+        expect(driftErrors()).toHaveLength(0)
+        expect(cronLogger().error).not.toHaveBeenCalled()
+      })
+
+      it("logs each drifting trial and only those", async () => {
+        mockSubscriptionRepo.findUnconvertedTrials = vi.fn().mockResolvedValue([
+          unconvertedTrial(93, "2026-11-01T12:00:00.000Z", new Date("2026-10-20T00:00:00.000Z")),
+          unconvertedTrial(94, "2026-11-01T12:00:00.000Z", new Date("2026-11-01T12:00:00.000Z")),
+          unconvertedTrial(95, "2026-12-01T12:00:00.000Z", new Date("2026-11-01T12:00:00.000Z")),
+        ])
+
+        await subscriptionsCron()
+
+        expect(driftErrors().map(([, , meta]: any[]) => meta.subscription_id)).toEqual([93, 95])
+      })
+
+      it("is read-only: a drifting trial is reported, not corrected", async () => {
+        mockSubscriptionRepo.findUnconvertedTrials = vi
+          .fn()
+          .mockResolvedValue([unconvertedTrial(96, "2026-11-01T12:00:00.000Z", new Date("2026-11-09T12:00:00.000Z"))])
+
+        await subscriptionsCron()
+
+        expect(mockSubscriptionRepo.update).not.toHaveBeenCalled()
+        expect(mockEmailService.sendEmail).not.toHaveBeenCalled()
+      })
     })
 
     it("logs nothing when every trial has a card and every ended trial reconciled", async () => {

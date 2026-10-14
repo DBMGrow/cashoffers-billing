@@ -6,6 +6,7 @@ import type { ILogger } from "@api/infrastructure/logging/logger.interface"
 import { whitelabelResolverService, userApiClient } from "@api/lib/services"
 import { whitelabelRepository, productRepository, subscriptionRepository } from "@api/lib/repositories"
 import { readSubscriptionTrial } from "@api/domain/services/subscription-trial"
+import { formatTrialChargeDate } from "@api/domain/services/trial-charge-date"
 import type { SubscriptionTrial } from "@api/domain/types/product-data.types"
 import {
   parseProductData,
@@ -293,7 +294,8 @@ export class EmailNotificationHandler extends BaseEventHandler {
         if (isTrial && trialEndsAt) {
           const productData = event.metadata?.productData as any
           const trialDays = subscriptionTrial?.duration_days ?? productData?.homeuptick?.free_trial?.duration_days ?? 90
-          const expirationDate = this.formatDate(new Date(trialEndsAt))
+          // The UTC day of the hourly run that charges it, the day the review step showed (D3, #1402)
+          const expirationDate = formatTrialChargeDate(trialEndsAt)
 
           const html = await render(
             <TrialWelcomeEmail
