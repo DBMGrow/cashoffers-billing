@@ -205,7 +205,12 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       rollback.pricing = pricing
 
       let cardIdString: string | null = null
-      let userCard: { card_id: string | null; square_customer_id: string | null; last_4: string | null } | null = null
+      let userCard: {
+        card_id: string | null
+        square_customer_id: string | null
+        last_4: string | null
+        square_environment: "production" | "sandbox" | null
+      } | null = null
       let payment: { id: string; environment: "production" | "sandbox" } | null = null
       let paymentTransaction: { transaction_id: number } | null = null
 
@@ -262,6 +267,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         product,
         pricing,
         payment,
+        card: userCard,
         userConfig,
         cashoffers: productData.cashoffers,
       })

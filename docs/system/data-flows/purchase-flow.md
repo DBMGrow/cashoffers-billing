@@ -313,7 +313,11 @@ returns `initialAmount: 0` and `trialDays: N`; the new-user flow saves the card,
 (no payment transaction, no `PaymentProcessed`), and creates the subscription `active` at the full
 `renewal_cost` with `renewal_date = now + N days` and `data.trial = { ends_at, duration_days }`.
 The ordinary renewal cron takes the first charge on day N; nothing in the renewal path knows about
-trials.
+trials. With no payment to read, the subscription's `square_environment` is the saved card's
+(`createSubscriptionRecord`: the payment's environment, else the card's, else NULL for a free
+product), and `SubscriptionCreated` carries the same value, so a sandbox trial's trial-welcome and
+trial-ending emails are marked `[SANDBOX]` (D2). A promo that covers today's charge takes the same
+fallback. The renewal itself still chooses its environment from the card first.
 
 Until the trial converts (a completed paid `RENEWAL` purchase request), its first charge is its
 `renewal_date`, so `data.trial.ends_at` always equals it (D1). `SubscriptionRepository.update`, which

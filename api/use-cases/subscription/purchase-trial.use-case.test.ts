@@ -53,7 +53,14 @@ const TEAM = {
 
 const DAY = 86_400_000
 
-function makeDeps(product: Record<string, any> = INDIVIDUAL, card: { card_id: string | null } | null = null) {
+type SquareEnvironment = "production" | "sandbox"
+
+function makeDeps(
+  product: Record<string, any> = INDIVIDUAL,
+  card: { card_id?: string | null; square_environment?: SquareEnvironment | null } | null = null
+) {
+  // The saved card's environment: the one Square created it in unless a case overrides it
+  const cardEnvironment = card && "square_environment" in card ? card.square_environment : "sandbox"
   // The subscription row as written, so findById (the team step's read-modify-write) reads it back
   let stored: Record<string, any> | null = null
   const deps = {
@@ -62,7 +69,7 @@ function makeDeps(product: Record<string, any> = INDIVIDUAL, card: { card_id: st
       createCard: vi.fn(async () => ({
         id: "ccof:new",
         customerId: "cust_1",
-        environment: "sandbox",
+        environment: cardEnvironment ?? "production",
         cardBrand: "VISA",
         last4: "1111",
       })),
@@ -97,9 +104,10 @@ function makeDeps(product: Record<string, any> = INDIVIDUAL, card: { card_id: st
       findByUserId: vi.fn(async () => []),
       findOne: vi.fn(async ({ card_id }: { card_id: string }) => ({
         id: 1,
-        card_id: card ? card.card_id : card_id,
+        card_id: card && "card_id" in card ? card.card_id : card_id,
         square_customer_id: "cust_1",
         last_4: "1111",
+        square_environment: cardEnvironment,
       })),
       findAll: vi.fn(async () => [{ id: 1 }]),
       update: vi.fn(),
@@ -241,5 +249,54 @@ describe("PurchaseNewUserUseCase on a trial product", () => {
     expect((deps.paymentProvider.createPayment.mock.calls[0] as any)[0].amountMoney.amount).toBe(BigInt(25000))
     const created = (deps.subscriptionRepository.create.mock.calls[0] as any)[0]
     expect(JSON.parse(created.data).trial).toBeUndefined()
+  })
+})
+
+/**
+ * AC25 (card D2 of docs/plans/feedback/2026-10-14-1139-trial-review-defects.md): a trial charges nothing
+ * at signup, so the subscription's `square_environment` comes from the saved card, not the payment.
+ * Without it a sandbox trial was stored as NULL: its trial emails had no [SANDBOX] marking and it was
+ * missing from reporting by environment.
+ */
+describe("PurchaseNewUserUseCase trial square_environment", () => {
+  const createdRow = (deps: ReturnType<typeof makeDeps>["deps"]) =>
+    (deps.subscriptionRepository.create.mock.calls[0] as any)[0]
+  const subscriptionCreated = (deps: ReturnType<typeof makeDeps>["deps"]) =>
+    deps.eventBus.publish.mock.calls.map(([event]: any[]) => event).find((e: any) => e.eventType === "SubscriptionCreated")
+
+  it.each<SquareEnvironment>(["sandbox", "production"])("a trial with a %s card stores that environment", async (environment) => {
+    const { deps } = makeDeps(INDIVIDUAL, { square_environment: environment })
+    const result = await new PurchaseNewUserUseCase(deps as never).execute(input(70) as never)
+
+    expect(result.success).toBe(true)
+    expect(deps.paymentProvider.createPayment).not.toHaveBeenCalled()
+    expect(createdRow(deps).square_environment).toBe(environment)
+    // The $0 subscription transaction keeps the payment's environment: there was no payment
+    expect((deps.transactionRepository.create.mock.calls[0] as any)[0].square_environment).toBeNull()
+    // The trial-welcome email reads the event's environment for its [SANDBOX] subject and banner
+    expect(subscriptionCreated(deps).payload.environment).toBe(environment)
+  })
+
+  it("a paid signup takes the payment's environment, not the card's", async () => {
+    // A card row that disagrees with the charge, so the precedence is visible
+    const { deps } = makeDeps(
+      { ...INDIVIDUAL, data: { ...INDIVIDUAL.data, trial: { ...TRIAL, enabled: false } } },
+      { square_environment: "production" }
+    )
+    const result = await new PurchaseNewUserUseCase(deps as never).execute(input(70) as never)
+
+    expect(result.success).toBe(true)
+    expect(deps.paymentProvider.createPayment).toHaveBeenCalledTimes(1)
+    expect(createdRow(deps).square_environment).toBe("sandbox")
+    expect(subscriptionCreated(deps).payload.environment).toBe("sandbox")
+  })
+
+  it("a trial whose card row has no environment stores NULL", async () => {
+    const { deps } = makeDeps(INDIVIDUAL, { square_environment: null })
+    const result = await new PurchaseNewUserUseCase(deps as never).execute(input(70) as never)
+
+    expect(result.success).toBe(true)
+    expect(createdRow(deps).square_environment).toBeNull()
+    expect(subscriptionCreated(deps).payload.environment).toBeUndefined()
   })
 })
