@@ -165,3 +165,30 @@ describe("PurchaseNewUserUseCase: the role a new signup is created on", () => {
     )
   })
 })
+
+/**
+ * The set-password token (#1421). The main API's GET /users/:id strips credentials, so the purchase
+ * route cannot read the token back from the user; the use case returns the one it generated.
+ */
+describe("PurchaseNewUserUseCase: the set-password token for the user it created", () => {
+  it("returns the token it sent with createUser", async () => {
+    const d = deps(PRO)
+    const result = await new PurchaseNewUserUseCase(d as never).execute(input(122) as never)
+
+    expect(result.success).toBe(true)
+    const created = (d.userApiClient.createUser.mock.calls as unknown as [Record<string, unknown>][])[0][0]
+    expect(typeof created.reset_token).toBe("string")
+    expect((created.reset_token as string).length).toBeGreaterThan(0)
+    expect(result.success && result.data.resetToken).toBe(created.reset_token)
+  })
+
+  it("returns no token when provisioning failed and no user exists", async () => {
+    const d = deps(PRO)
+    d.userApiClient.createUser.mockRejectedValueOnce(new Error("main API down"))
+    const result = await new PurchaseNewUserUseCase(d as never).execute(input(122) as never)
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.data.userProvisioned).toBe(false)
+    expect(result.success && result.data.resetToken).toBeNull()
+  })
+})

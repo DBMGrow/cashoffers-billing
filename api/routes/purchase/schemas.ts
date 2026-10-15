@@ -82,7 +82,8 @@ export const PurchaseUserSchema = z.object({
   email: z.string(),
   phone: z.string().nullable().optional(),
   active: z.union([z.number(), z.boolean()]).optional(),
-  reset_token: z.string(),
+  /** Only on a new-user purchase, for the user that request created: the welcome page's set-password token */
+  reset_token: z.string().optional(),
 })
 
 /**

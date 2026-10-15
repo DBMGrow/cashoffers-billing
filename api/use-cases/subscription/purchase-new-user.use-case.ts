@@ -81,7 +81,12 @@ interface RollbackContext {
   subscriptionCreated: boolean
 }
 
-type ProvisioningResult = { success: true; userId: number } | { success: false; reason: string }
+/**
+ * `resetToken` is the set-password token this request generated for the user it created. The purchase
+ * route hands it to the browser so the signup can redirect to the dashboard's welcome page: the main
+ * API's GET /users/:id strips credentials, so the token cannot be read back from the user (#1421).
+ */
+type ProvisioningResult = { success: true; userId: number; resetToken: string } | { success: false; reason: string }
 
 /**
  * PurchaseNewUserUseCase
@@ -350,6 +355,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         proratedCharge: 0,
         userCreated: provisioning.success,
         userProvisioned: provisioning.success,
+        resetToken: provisioning.success ? provisioning.resetToken : null,
       })
     } catch (error) {
       return this.handleError(error, purchaseRequestId, rollback, startTime, {
@@ -551,7 +557,7 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
         })
       )
 
-      return { success: true, userId }
+      return { success: true, userId, resetToken }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       logger.error("User provisioning failed after successful payment", {

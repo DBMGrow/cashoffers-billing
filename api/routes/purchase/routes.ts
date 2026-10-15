@@ -79,6 +79,10 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
       userId != null ? userCardRepository.findByUserId(userId) : Promise.resolve([]),
     ])
 
+    // The main API no longer returns reset_token from GET /users/:id, so the welcome redirect uses the
+    // token this request generated when it created the user, and only that one (#1421).
+    const responseUser = user ? { ...(user as any), reset_token: data.resetToken ?? undefined } : null
+
     // Set session cookie only when we have a real user with an api_token
     const newUserApiToken = (user as any)?._api_token
     if (newUserApiToken) {
@@ -102,7 +106,7 @@ app.openapi(NewUserPurchaseRoute, async (c) => {
             amount: data.amount,
           },
           product: product as any,
-          user: user as any,
+          user: responseUser,
           userCard: (userCards as any[]).length > 0 ? (userCards as any[])[0] : null,
           userCreated: data.userCreated,
           userProvisioned: data.userProvisioned,
@@ -196,7 +200,8 @@ app.openapi(ExistingUserPurchaseRoute, async (c) => {
             amount: data.amount,
           },
           product: product as any,
-          user: user as any,
+          // An existing user's purchase never carries a set-password token, whatever the user API returns.
+          user: user ? { ...(user as any), reset_token: undefined } : null,
           userCard: userCards.length > 0 ? (userCards[0] as any) : null,
           userCreated: data.userCreated,
           proratedCharge: data.proratedCharge,
