@@ -249,6 +249,11 @@ export interface PurchaseSubscriptionOutput {
   userCreated: boolean
   /** true when the user account exists and is bound to the subscription */
   userProvisioned: boolean
+  /**
+   * The set-password token generated for the user this purchase created. Set only by the new-user
+   * purchase when provisioning succeeded; never set for an existing user (#1421).
+   */
+  resetToken?: string | null
 }
 
 /**
