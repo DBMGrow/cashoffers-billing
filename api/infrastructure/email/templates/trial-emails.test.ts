@@ -53,6 +53,8 @@ describe("trial-ending email (Desk #1350)", () => {
   })
 })
 
+const STATEMENT_NOTE = "NOTE: The charge will appear as REMRKTCO on your statement."
+
 describe("trial-welcome email", () => {
   it("names the first charge for a card trial, with no HomeUptick upgrade copy", async () => {
     const copy = await text(
@@ -74,6 +76,29 @@ describe("trial-welcome email", () => {
     const copy = await text(createElement(TrialWelcomeEmail, { trialDays: 90, expirationDate: "June 15, 2026" }))
     expect(copy).toContain("HomeUptick")
     expect(copy).toContain("upgrade to a paid plan")
+    expect(copy).not.toContain(STATEMENT_NOTE)
+  })
+
+  // #1425: React puts `<!-- -->` between adjacent text nodes, and an email client dropped the space beside it
+  // ("$250.00and"). The tag-stripping helper hides that, so these read the raw HTML.
+  const cardTrial = {
+    trialDays: 30,
+    expirationDate: "November 11, 2026",
+    firstCharge: { subscription: "InstantOffers365 Individual", amount: "$250.00" },
+  }
+
+  it("renders the card trial copy as single strings, with no comment marker beside the amount (#1425)", async () => {
+    const html = await render(createElement(TrialWelcomeEmail, cardTrial))
+    expect(html).toContain("charged $250.00 and your plan continues")
+    expect(html).toContain("<strong>30-day free trial</strong> of InstantOffers365 Individual is now active")
+    expect(html).toContain("full access to CashOffers during your trial")
+    expect(html).not.toMatch(/<!-- -->\$250\.00|\$250\.00<!-- -->/)
+  })
+
+  it("ends the card trial email with the REMRKTCO statement note (#1425)", async () => {
+    const html = await render(createElement(TrialWelcomeEmail, cardTrial))
+    expect(html).toContain(STATEMENT_NOTE)
+    expect(html.indexOf(STATEMENT_NOTE)).toBeGreaterThan(html.indexOf("Explore Your Dashboard"))
   })
 })
 

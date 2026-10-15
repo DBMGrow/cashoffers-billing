@@ -5,6 +5,10 @@ import { EmailText } from "./components/email-text"
 import { SummaryTable } from "./components/summary-table"
 import { SummaryRow } from "./components/summary-row"
 import { ActionButton } from "./components/action-button"
+import { colors, font } from "./components/tokens"
+
+/** #1425: a card trial is charged later by REMrktCo, so the welcome email names the statement descriptor. */
+const STATEMENT_NOTE = "NOTE: The charge will appear as REMRKTCO on your statement."
 
 export interface TrialWelcomeEmailProps {
   trialDays: number
@@ -43,9 +47,12 @@ export default function TrialWelcomeEmail({
       >
         <EmailHeading>Welcome to Your Free Trial!</EmailHeading>
         <EmailDivider />
+        {/* #1425: each sentence is one template string. Adjacent JSX text nodes render with `<!-- -->` between
+            them, and an email client dropped the space next to the marker ("$250.00and"). */}
         <EmailText>
-          Your <strong>{trialDays}-day free trial</strong> of {firstCharge.subscription} is now active. You have full
-          access to {brandName} during your trial, and nothing has been charged today.
+          {"Your "}
+          <strong>{`${trialDays}-day free trial`}</strong>
+          {` of ${firstCharge.subscription} is now active. You have full access to ${brandName} during your trial, and nothing has been charged today.`}
         </EmailText>
 
         <SummaryTable>
@@ -61,11 +68,14 @@ export default function TrialWelcomeEmail({
         </SummaryTable>
 
         <EmailText style={{ marginTop: "20px" }}>
-          When your trial ends, the card you saved is charged {firstCharge.amount} and your plan continues. We&apos;ll
-          email you a reminder 7 days before. To cancel before then, visit your billing page.
+          {`When your trial ends, the card you saved is charged ${firstCharge.amount} and your plan continues. We'll email you a reminder 7 days before. To cancel before then, visit your billing page.`}
         </EmailText>
 
         <ActionButton href={billingUrl}>Explore Your Dashboard</ActionButton>
+
+        <EmailText style={{ marginTop: "20px", fontSize: font.size.sm, color: colors.text.muted }}>
+          {STATEMENT_NOTE}
+        </EmailText>
       </StandardEmail>
     )
   }
