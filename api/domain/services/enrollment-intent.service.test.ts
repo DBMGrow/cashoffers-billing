@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   intentForCategory,
   mayBeOfferedHomeUptickOnly,
+  returningCashOffersCategory,
   selectUpgradeProduct,
   upgradeTargetFor,
 } from "./enrollment-intent.service"
@@ -66,5 +67,23 @@ describe("selectUpgradeProduct (mirror of api-v2 upgradeDestination)", () => {
   it("matches NULL to NULL for a user with no white label code", () => {
     const platform = { ...pro, whitelabel_code: null }
     expect(selectUpgradeProduct([platform], "AGENT_EXP_PRO", null)).toEqual({ product: platform })
+  })
+})
+
+describe("returningCashOffersCategory (Desk #1758)", () => {
+  it("re-offers the CashOffers plan to a subscriber whose plan has ended", () => {
+    expect(returningCashOffersCategory(["premium_cashoffers"])).toBe("premium_cashoffers")
+    expect(intentForCategory(returningCashOffersCategory(["premium_cashoffers"])!)).toBe("buy_product")
+  })
+
+  it("finds the lapsed CashOffers plan among the other plans the user held", () => {
+    expect(returningCashOffersCategory(["homeuptick_only", "premium_cashoffers"])).toBe("premium_cashoffers")
+  })
+
+  it("leaves a user who never held a CashOffers plan to the is_premium rule", () => {
+    expect(returningCashOffersCategory([])).toBeNull()
+    expect(returningCashOffersCategory(["homeuptick_only"])).toBeNull()
+    expect(returningCashOffersCategory(["external_cashoffers"])).toBeNull()
+    expect(returningCashOffersCategory([null, undefined])).toBeNull()
   })
 })

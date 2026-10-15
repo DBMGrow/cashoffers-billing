@@ -181,6 +181,25 @@ export default function ManageFlow() {
     }
   }
 
+  /**
+   * Where a user goes once they are authenticated. Shared by the mount path (an existing session
+   * or an SSO token) and by the email/password login below.
+   *
+   * Desk #1758: the login path used to call goToStep(resolvePostLoginStep()) directly, so it
+   * skipped the enrollment check. useLogin never seeds the ["session"] query (staleTime Infinity),
+   * so the mount effect does not run again either, and a returning subscriber signing in with a
+   * password landed on the dashboard, where the only action is updating a card.
+   */
+  const routeAfterLogin = (targetStep: ManageStep) => {
+    if (targetStep !== "dashboard") {
+      goToStep(targetStep)
+      return
+    }
+    checkEnrollment().then((needsEnrollment) => {
+      goToStep(needsEnrollment ? "enrollment" : "dashboard")
+    })
+  }
+
   // On mount: check session, then route accordingly
   useEffect(() => {
     if (isCheckingSession) return
@@ -190,15 +209,7 @@ export default function ManageFlow() {
     if (sessionUser) {
       setUser(sessionUser)
 
-      const targetStep = resolvePostLoginStep()
-      // If heading to dashboard, check enrollment first
-      if (targetStep === "dashboard") {
-        checkEnrollment().then((needsEnrollment) => {
-          goToStep(needsEnrollment ? "enrollment" : "dashboard")
-        })
-      } else {
-        goToStep(targetStep)
-      }
+      routeAfterLogin(resolvePostLoginStep())
     } else {
       setAllowReset(false)
       goToStep("email")
@@ -229,7 +240,7 @@ export default function ManageFlow() {
             form={form}
             onSuccess={(userData) => {
               setUser(userData)
-              goToStep(resolvePostLoginStep())
+              routeAfterLogin(resolvePostLoginStep())
             }}
             onBack={() => goToStep("email")}
             onError={(message, title, description) => goToError(message, "password", title, description)}

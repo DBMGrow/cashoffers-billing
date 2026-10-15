@@ -105,3 +105,21 @@ export function selectUpgradeProduct<P extends UpgradeCandidate>(
   if (matches.length === 1) return { product: matches[0] }
   return { reason: `${matches.length} products for ${target} in ${userWhitelabelCode ?? "no white label"}` }
 }
+
+/**
+ * The category to re-offer a user whose billing subscriptions have all ended, read from the
+ * categories of the plans they held before.
+ *
+ * A lapsed CashOffers plan makes them a returning subscriber, so the answer is
+ * `premium_cashoffers`: the plan they lost is the one thing the account site can sell them back.
+ * A lapsed HomeUptick-only plan, or no prior plan at all, is not a returning CashOffers
+ * subscriber, and the `is_premium` rule answers for them as before.
+ *
+ * Desk #1758: without this, a lapsed agent fell through to `homeuptick_only`, which offers a
+ * HomeUptick standalone plan or, on a white label that sells none, nothing at all.
+ */
+export function returningCashOffersCategory(
+  priorCategories: readonly (EnrollmentCategory | null | undefined)[]
+): EnrollmentCategory | null {
+  return priorCategories.includes("premium_cashoffers") ? "premium_cashoffers" : null
+}

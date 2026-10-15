@@ -18,6 +18,7 @@ import { resolveSignedInRoleV2 } from "./signed-in-role"
 import {
   intentForCategory,
   mayBeOfferedHomeUptickOnly,
+  returningCashOffersCategory,
   selectUpgradeProduct,
   upgradeTargetFor,
   type EnrollmentCategory,
@@ -382,6 +383,8 @@ app.openapi(GetSubscriptionRoute, async (c) => {
  *   (intent buy_product), or eligible: false with no products when there is not exactly one, so
  *   the account site lands on the dashboard. Never HomeUptick-only.
  * - is_premium = 1: external_cashoffers (paying for CO elsewhere, just need HU). intent: activate_homeuptick
+ * - A returning subscriber (every CashOffers subscription they held has ended): premium_cashoffers,
+ *   so the account site sells them the plan again rather than a HomeUptick one. intent: buy_product
  * - Otherwise: homeuptick_only (SHELL CO access + HU base fee). intent: homeuptick_only
  *
  * A Guest (`role_v2 = AGENT_EXP_GUEST`) is never offered a homeuptick_only product on any of
@@ -513,11 +516,27 @@ app.openapi(GetEnrollmentRoute, async (c) => {
     if (overrideApplies) {
       productCategory = categoryOverride!
       reason = `Admin-directed enrollment: category override to ${categoryOverride}`
+    } else if (fullUser?.is_premium === 1) {
+      productCategory = "external_cashoffers"
+      reason = "User has active premium CashOffers account but no billing subscription"
     } else {
-      const isPremium = fullUser?.is_premium === 1
-      productCategory = isPremium ? "external_cashoffers" : "homeuptick_only"
-      reason = isPremium
-        ? "User has active premium CashOffers account but no billing subscription"
+      // Desk #1758: a lapsed CashOffers agent is not a HomeUptick prospect. Every subscription row
+      // still on this user has ended, because the active/trial/paused check above answered 409, so
+      // a prior premium_cashoffers plan means a returning subscriber and the plan they lost is what
+      // to offer them. Without this they fell through to homeuptick_only and were shown the wrong
+      // plan, or nothing at all on a white label that sells none, which left "Update Your Billing
+      // Info" as the only thing on the account site they could act on: a card taken, no access.
+      const priorPlans = await db
+        .selectFrom("Subscriptions")
+        .innerJoin("Products", "Products.product_id", "Subscriptions.product_id")
+        .select("Products.product_category")
+        .where("Subscriptions.user_id", "=", user.user_id)
+        .execute()
+      const returning = returningCashOffersCategory(priorPlans.map((plan) => plan.product_category))
+
+      productCategory = returning ?? "homeuptick_only"
+      reason = returning
+        ? "User's CashOffers subscription has ended, eligible to subscribe again"
         : "User has no premium CashOffers account, eligible for HomeUptick standalone"
     }
 
