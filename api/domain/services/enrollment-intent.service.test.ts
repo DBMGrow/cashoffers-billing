@@ -2,9 +2,10 @@ import { describe, it, expect } from "vitest"
 import {
   intentForCategory,
   mayBeOfferedHomeUptickOnly,
-  returningCashOffersCategory,
+  returningCashOffersSubscriber,
   selectUpgradeProduct,
   upgradeTargetFor,
+  type EnrollmentCategory,
 } from "./enrollment-intent.service"
 
 const pro = {
@@ -70,20 +71,37 @@ describe("selectUpgradeProduct (mirror of api-v2 upgradeDestination)", () => {
   })
 })
 
-describe("returningCashOffersCategory (Desk #1758)", () => {
-  it("re-offers the CashOffers plan to a subscriber whose plan has ended", () => {
-    expect(returningCashOffersCategory(["premium_cashoffers"])).toBe("premium_cashoffers")
-    expect(intentForCategory(returningCashOffersCategory(["premium_cashoffers"])!)).toBe("buy_product")
+describe("returningCashOffersSubscriber (Desk #1758)", () => {
+  const plan = (product_category: EnrollmentCategory | null | undefined, status: string | null) => ({
+    product_category,
+    status,
+  })
+
+  it("sells the CashOffers plan again to a subscriber whose plan has ended", () => {
+    expect(returningCashOffersSubscriber([plan("premium_cashoffers", "cancelled")])).toBe("buy_again")
+    expect(
+      returningCashOffersSubscriber([plan("premium_cashoffers", "expired"), plan("premium_cashoffers", "inactive")])
+    ).toBe("buy_again")
   })
 
   it("finds the lapsed CashOffers plan among the other plans the user held", () => {
-    expect(returningCashOffersCategory(["homeuptick_only", "premium_cashoffers"])).toBe("premium_cashoffers")
+    expect(
+      returningCashOffersSubscriber([plan("homeuptick_only", "cancelled"), plan("premium_cashoffers", "cancelled")])
+    ).toBe("buy_again")
+  })
+
+  it("never sells a second plan beside a suspended one, which a card update renews", () => {
+    expect(returningCashOffersSubscriber([plan("premium_cashoffers", "suspended")])).toBe("resume_suspended")
+    expect(
+      returningCashOffersSubscriber([plan("premium_cashoffers", "cancelled"), plan("premium_cashoffers", "suspended")])
+    ).toBe("resume_suspended")
   })
 
   it("leaves a user who never held a CashOffers plan to the is_premium rule", () => {
-    expect(returningCashOffersCategory([])).toBeNull()
-    expect(returningCashOffersCategory(["homeuptick_only"])).toBeNull()
-    expect(returningCashOffersCategory(["external_cashoffers"])).toBeNull()
-    expect(returningCashOffersCategory([null, undefined])).toBeNull()
+    expect(returningCashOffersSubscriber([])).toBeNull()
+    expect(returningCashOffersSubscriber([plan("homeuptick_only", "cancelled")])).toBeNull()
+    expect(returningCashOffersSubscriber([plan("homeuptick_only", "suspended")])).toBeNull()
+    expect(returningCashOffersSubscriber([plan("external_cashoffers", "cancelled")])).toBeNull()
+    expect(returningCashOffersSubscriber([plan(null, "cancelled"), plan(undefined, null)])).toBeNull()
   })
 })

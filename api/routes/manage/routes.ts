@@ -18,7 +18,7 @@ import { resolveSignedInRoleV2 } from "./signed-in-role"
 import {
   intentForCategory,
   mayBeOfferedHomeUptickOnly,
-  returningCashOffersCategory,
+  returningCashOffersSubscriber,
   selectUpgradeProduct,
   upgradeTargetFor,
   type EnrollmentCategory,
@@ -383,6 +383,8 @@ app.openapi(GetSubscriptionRoute, async (c) => {
  *   (intent buy_product), or eligible: false with no products when there is not exactly one, so
  *   the account site lands on the dashboard. Never HomeUptick-only.
  * - is_premium = 1: external_cashoffers (paying for CO elsewhere, just need HU). intent: activate_homeuptick
+ * - A CashOffers plan in `suspended`: eligible: false with no products, so the account site lands
+ *   on the dashboard, where updating the card renews that plan. Never a second plan beside it.
  * - A returning subscriber (every CashOffers subscription they held has ended): premium_cashoffers,
  *   so the account site sells them the plan again rather than a HomeUptick one. intent: buy_product
  * - Otherwise: homeuptick_only (SHELL CO access + HU base fee). intent: homeuptick_only
@@ -520,24 +522,43 @@ app.openapi(GetEnrollmentRoute, async (c) => {
       productCategory = "external_cashoffers"
       reason = "User has active premium CashOffers account but no billing subscription"
     } else {
-      // Desk #1758: a lapsed CashOffers agent is not a HomeUptick prospect. Every subscription row
-      // still on this user has ended, because the active/trial/paused check above answered 409, so
-      // a prior premium_cashoffers plan means a returning subscriber and the plan they lost is what
-      // to offer them. Without this they fell through to homeuptick_only and were shown the wrong
-      // plan, or nothing at all on a white label that sells none, which left "Update Your Billing
-      // Info" as the only thing on the account site they could act on: a card taken, no access.
+      // Desk #1758: a lapsed CashOffers agent is not a HomeUptick prospect. The active/trial/paused
+      // check above answered 409, so every subscription row still on this user has ended or is
+      // suspended. A prior premium_cashoffers plan that has ended means a returning subscriber, and
+      // the plan they lost is what to offer them. Without this they fell through to homeuptick_only
+      // and were shown the wrong plan, or nothing at all on a white label that sells none, which
+      // left "Update Your Billing Info" as the only thing on the account site they could act on.
       const priorPlans = await db
         .selectFrom("Subscriptions")
         .innerJoin("Products", "Products.product_id", "Subscriptions.product_id")
-        .select("Products.product_category")
+        .select(["Products.product_category", "Subscriptions.status"])
         .where("Subscriptions.user_id", "=", user.user_id)
         .execute()
-      const returning = returningCashOffersCategory(priorPlans.map((plan) => plan.product_category))
+      const returning = returningCashOffersSubscriber(priorPlans)
 
-      productCategory = returning ?? "homeuptick_only"
-      reason = returning
-        ? "User's CashOffers subscription has ended, eligible to subscribe again"
-        : "User has no premium CashOffers account, eligible for HomeUptick standalone"
+      // A suspended plan is renewed by updating the card, so the dashboard is where they belong.
+      // Selling them a plan here would create a second subscription beside the suspended one.
+      if (returning === "resume_suspended") {
+        return c.json(
+          {
+            success: "success" as const,
+            data: {
+              eligible: false,
+              product_category: null,
+              reason: "User's CashOffers subscription is suspended, updating the card renews it",
+              intent: null,
+              products: [],
+            },
+          },
+          200
+        )
+      }
+
+      productCategory = returning === "buy_again" ? "premium_cashoffers" : "homeuptick_only"
+      reason =
+        returning === "buy_again"
+          ? "User's CashOffers subscription has ended, eligible to subscribe again"
+          : "User has no premium CashOffers account, eligible for HomeUptick standalone"
     }
 
     // Belt and braces for a role that may not be offered HomeUptick-only but has no upgrade entry.

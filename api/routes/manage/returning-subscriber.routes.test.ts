@@ -24,8 +24,8 @@ const fixtures = vi.hoisted(() => ({
   products: [] as Array<Record<string, unknown>>,
   /** The user's running subscription, if any: what the 409 eligibility check reads. */
   subscription: undefined as Record<string, unknown> | undefined,
-  /** The categories of the plans the user held before, newest first. */
-  priorPlans: [] as Array<{ product_category: string | null }>,
+  /** The plans the user held before: their category and subscription status. */
+  priorPlans: [] as Array<{ product_category: string | null; status: string | null }>,
 }))
 
 function eqValue(calls: Call[], column: string): unknown {
@@ -140,7 +140,7 @@ beforeEach(() => {
 
 describe("GET /manage/enrollment for a returning subscriber (Desk #1758)", () => {
   it("offers the CashOffers plan again to a shelled agent whose subscription has ended", async () => {
-    fixtures.priorPlans = [{ product_category: "premium_cashoffers" }]
+    fixtures.priorPlans = [{ product_category: "premium_cashoffers", status: "cancelled" }]
 
     const res = await manageRoutes.request("/enrollment")
     expect(res.status).toBe(200)
@@ -149,6 +149,20 @@ describe("GET /manage/enrollment for a returning subscriber (Desk #1758)", () =>
     expect(body.data.product_category).toBe("premium_cashoffers")
     expect(body.data.intent).toBe("buy_product")
     expect(body.data.products.map((p: any) => p.product_id)).toEqual([70])
+  })
+
+  it("sends an agent whose plan is suspended to the dashboard, never to a second plan", async () => {
+    fixtures.priorPlans = [
+      { product_category: "premium_cashoffers", status: "cancelled" },
+      { product_category: "premium_cashoffers", status: "suspended" },
+    ]
+
+    const res = await manageRoutes.request("/enrollment")
+    expect(res.status).toBe(200)
+    const body: any = await res.json()
+    expect(body.data.eligible).toBe(false)
+    expect(body.data.intent).toBeNull()
+    expect(body.data.products).toEqual([])
   })
 
   it("still offers HomeUptick standalone to a user who never held a CashOffers plan", async () => {
@@ -163,7 +177,7 @@ describe("GET /manage/enrollment for a returning subscriber (Desk #1758)", () =>
   })
 
   it("still offers HomeUptick standalone when only a HomeUptick plan has lapsed", async () => {
-    fixtures.priorPlans = [{ product_category: "homeuptick_only" }]
+    fixtures.priorPlans = [{ product_category: "homeuptick_only", status: "cancelled" }]
 
     const res = await manageRoutes.request("/enrollment")
     const body: any = await res.json()
@@ -172,7 +186,7 @@ describe("GET /manage/enrollment for a returning subscriber (Desk #1758)", () =>
 
   it("leaves a user who pays for CashOffers elsewhere on external_cashoffers", async () => {
     fixtures.users = { is_premium: 1, whitelabel_id: WL }
-    fixtures.priorPlans = [{ product_category: "premium_cashoffers" }]
+    fixtures.priorPlans = [{ product_category: "premium_cashoffers", status: "cancelled" }]
 
     const res = await manageRoutes.request("/enrollment")
     const body: any = await res.json()
@@ -181,7 +195,7 @@ describe("GET /manage/enrollment for a returning subscriber (Desk #1758)", () =>
   })
 
   it("leaves an admin-directed category override in charge", async () => {
-    fixtures.priorPlans = [{ product_category: "premium_cashoffers" }]
+    fixtures.priorPlans = [{ product_category: "premium_cashoffers", status: "cancelled" }]
 
     const res = await manageRoutes.request("/enrollment?category=homeuptick_only")
     const body: any = await res.json()
@@ -190,7 +204,7 @@ describe("GET /manage/enrollment for a returning subscriber (Desk #1758)", () =>
 
   it("still refuses a user who already has a running subscription", async () => {
     fixtures.subscription = { subscription_id: 9 }
-    fixtures.priorPlans = [{ product_category: "premium_cashoffers" }]
+    fixtures.priorPlans = [{ product_category: "premium_cashoffers", status: "cancelled" }]
 
     const res = await manageRoutes.request("/enrollment")
     expect(res.status).toBe(409)

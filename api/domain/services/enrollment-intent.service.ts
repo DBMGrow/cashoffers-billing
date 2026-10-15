@@ -106,20 +106,30 @@ export function selectUpgradeProduct<P extends UpgradeCandidate>(
   return { reason: `${matches.length} products for ${target} in ${userWhitelabelCode ?? "no white label"}` }
 }
 
+/** A plan a user held before, as `GET /manage/enrollment` reads it once no plan is running. */
+export interface PriorPlan {
+  product_category: EnrollmentCategory | null | undefined
+  status: string | null | undefined
+}
+
 /**
- * The category to re-offer a user whose billing subscriptions have all ended, read from the
- * categories of the plans they held before.
+ * What a user with no running subscription is to a CashOffers plan they held before, or null when
+ * they never held one (a lapsed HomeUptick-only plan does not count).
  *
- * A lapsed CashOffers plan makes them a returning subscriber, so the answer is
- * `premium_cashoffers`: the plan they lost is the one thing the account site can sell them back.
- * A lapsed HomeUptick-only plan, or no prior plan at all, is not a returning CashOffers
- * subscriber, and the `is_premium` rule answers for them as before.
+ * - `resume_suspended`: a CashOffers plan is `suspended` (dunning gave up on it). It is not over:
+ *   updating the card renews it (`createCardUseCase`, `attemptRenewal`), so they must not be sold a
+ *   second plan. A new purchase creates a new subscription beside the suspended one, and the card
+ *   update would then renew both.
+ * - `buy_again`: every CashOffers plan they held has ended, so the plan they lost is the one thing
+ *   the account site can sell them back (`premium_cashoffers`).
  *
  * Desk #1758: without this, a lapsed agent fell through to `homeuptick_only`, which offers a
  * HomeUptick standalone plan or, on a white label that sells none, nothing at all.
  */
-export function returningCashOffersCategory(
-  priorCategories: readonly (EnrollmentCategory | null | undefined)[]
-): EnrollmentCategory | null {
-  return priorCategories.includes("premium_cashoffers") ? "premium_cashoffers" : null
+export function returningCashOffersSubscriber(
+  priorPlans: readonly PriorPlan[]
+): "resume_suspended" | "buy_again" | null {
+  const cashOffersPlans = priorPlans.filter((plan) => plan.product_category === "premium_cashoffers")
+  if (cashOffersPlans.length === 0) return null
+  return cashOffersPlans.some((plan) => plan.status === "suspended") ? "resume_suspended" : "buy_again"
 }
