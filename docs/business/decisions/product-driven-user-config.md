@@ -54,11 +54,9 @@ which is why [Products Name a Tier](role-v2) exists.
   the config (derived from the legacy pair when the product has no `role_v2`) and sends it to the
   main API's role endpoint, which derives `role` and the tier bits in the same statement.
 - A product carrying **no `user_config` at all** is not reachable by that schema, which validates a
-  config that exists rather than requiring one. A new-user purchase of such a product therefore
-  provisioned nothing: `role`, `is_premium` and `role_v2` all went unsent, and the main API's column
-  defaults created a free `AGENT` with a NULL `role_v2` on whatever white label the product named.
-  Reported on CashOffers.PRO as desk-1774, "no one should be able to come in as a free user".
-  `PurchaseNewUserUseCase` now refuses to create the account when the product resolves no role, and
-  fails provisioning instead: the subscription is marked `pending_provisioning`, an admin is alerted
-  with the product id and the customer is told the setup is being finished. Team plans are exempt,
-  because they are created as `SHELL` and promoted once the team exists.
+  config that exists rather than requiring one. Two live products are like that and are listed on
+  every signup page (product 10 "Individual No Signup" and product 20 "KW Subscribe"). A new-user
+  purchase of one sent no `role`, `is_premium` or `role_v2`, so the main API's defaults would have
+  created a free `AGENT`. `PurchaseNewUserUseCase` now refuses such a sale with
+  `PRODUCT_MISCONFIGURED` before any card or charge, and an admin is alerted. Team plans are not
+  exempt: they are created as `SHELL` and promoted to the product's role once the team exists.
