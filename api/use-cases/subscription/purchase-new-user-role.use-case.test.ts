@@ -63,6 +63,24 @@ const LEGACY_PREMIUM = {
   },
 }
 
+/**
+ * A product whose `data` names no `user_config` at all, as products 10 and 20 do. The create would send no
+ * `role`, no `is_premium` and no `role_v2`, and the main API's column defaults would land the
+ * buyer as a free AGENT with a NULL `role_v2`.
+ */
+const NO_USER_CONFIG = {
+  product_id: 404,
+  product_name: "Misconfigured Individual",
+  price: 25000,
+  whitelabel_code: null,
+  data: {
+    duration: "monthly",
+    renewal_cost: 25000,
+    signup_fee: 0,
+    cashoffers: { managed: true },
+  },
+}
+
 function deps(product: unknown) {
   let requestId = 100
   return {
@@ -163,6 +181,25 @@ describe("PurchaseNewUserUseCase: the role a new signup is created on", () => {
     expect(d.userApiClient.createUser).toHaveBeenCalledWith(
       expect.objectContaining({ role: "AGENT", is_premium: 1, role_v2: "AGENT_PREMIUM" })
     )
+  })
+
+  it("refuses a product that names no role before any card, charge or account", async () => {
+    const d = deps(NO_USER_CONFIG)
+    const result = await new PurchaseNewUserUseCase(d as never).execute(input(404) as never)
+
+    expect(result.success).toBe(false)
+    expect(!result.success && result.code).toBe("PRODUCT_MISCONFIGURED")
+    expect(d.paymentProvider.createCard).not.toHaveBeenCalled()
+    expect(d.paymentProvider.createPayment).not.toHaveBeenCalled()
+    expect(d.subscriptionRepository.create).not.toHaveBeenCalled()
+    expect(d.userApiClient.createUser).not.toHaveBeenCalled()
+    expect(d.purchaseRequestRepository.markAsFailed).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.stringContaining("404"),
+      "PRODUCT_MISCONFIGURED"
+    )
+    // Not a user-facing code, so an admin hears about it
+    expect(d.emailService.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "admin@test" }))
   })
 })
 

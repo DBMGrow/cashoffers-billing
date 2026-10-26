@@ -163,11 +163,27 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       }
 
       // Validate product
-      const { product, productData, userConfig } = await validateAndParseProduct(
+      const { product, productData, userConfig, roleV2 } = await validateAndParseProduct(
         this.deps,
         productIdNum,
         purchaseRequestId
       )
+
+      // A product that names no role cannot be sold to a new user, and is refused here, before any
+      // card or charge. Two live products carry no user_config and are listed on every signup page;
+      // provisioning one either created a free AGENT on the main API's defaults or, now that v1
+      // refuses a create without a role (#1664), took the payment and failed. Refusing the sale
+      // takes nothing from the buyer and alerts an admin (the code is not user-facing). A team plan
+      // needs a role too: it is created as SHELL and promoted to that role once the team exists.
+      if (roleV2 === null) {
+        const message = "This plan is not available right now. Please contact support."
+        await this.deps.purchaseRequestRepository.markAsFailed(
+          purchaseRequestId,
+          `Product ${productIdNum} names no user_config role`,
+          "PRODUCT_MISCONFIGURED"
+        )
+        throw new PurchaseError(message, "PRODUCT_MISCONFIGURED")
+      }
 
       // Resolve whitelabel from product's whitelabel_code column
       let resolvedWhitelabelId: number | undefined
