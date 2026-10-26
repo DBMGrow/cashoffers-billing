@@ -426,6 +426,30 @@ export class PurchaseNewUserUseCase implements IPurchaseNewUserUseCase {
       const resetToken = generateResetToken()
       const isTeamPlan = userConfig?.is_team_plan === true
 
+      /**
+       * A product that names no role cannot provision an account (desk-1774).
+       *
+       * The create below reads `role`, `is_premium` and `role_v2` off `user_config`. When the
+       * product carries none, all three go unsent, and the main API's column defaults decide
+       * instead: `role` falls to AGENT, `is_premium` to 0 and `role_v2` stays NULL. The buyer
+       * lands as a free agent on a paid white label, which is what was reported on CashOffers.PRO,
+       * where no one is meant to arrive free. The NULL `role_v2` compounds it: that is a row the
+       * Phase 4 backfill has already passed and will not revisit, so it resolves through the
+       * legacy column forever.
+       *
+       * Failing here hands it to the path built for exactly this case rather than inventing a
+       * tier: the subscription is marked `pending_provisioning`, an admin is alerted with the
+       * product id, and the customer is told the setup is being finished. The account is then
+       * created on the tier that was bought. A correctly configured product always resolves a
+       * role, so nothing that provisions today changes; a team plan names SHELL explicitly below
+       * and is not asked for one.
+       */
+      if (!isTeamPlan && resolveUserConfigRoleV2(userConfig) === null) {
+        throw new Error(
+          `Product ${productId} carries no user_config role, so the account would be created as a free agent`
+        )
+      }
+
       // For team plans, create user as SHELL first, then create team, then update user with team_id + role
       const newUser = await this.deps.userApiClient.createUser({
         email: v.email,

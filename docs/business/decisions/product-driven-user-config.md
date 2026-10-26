@@ -1,9 +1,11 @@
 # Decision: Product-Driven User Configuration
 
 ## Context
+
 User roles, premium status, and whitelabel assignments need to change when users buy different subscription plans. Hardcoding this logic would require code changes for every new product.
 
 ## Decision
+
 Products store a `user_config` JSON field that defines how a user should be configured when they purchase that product. The billing system reads this config at purchase time and applies it to the user in the main API.
 
 ```json
@@ -24,10 +26,12 @@ They cannot express the difference between two eXp tiers that are both `AGENT` +
 which is why [Products Name a Tier](role-v2) exists.
 
 ## Alternatives Considered
+
 - Hardcode role/premium logic by product ID: fragile, requires code deploys for product changes
 - Store config only in main API: creates tight coupling, billing must know about user roles
 
 ## Tradeoffs
+
 - Products can be configured without code changes
 - `user_config` in `subscription.data` acts as audit trail of what config was applied
 - Requires discipline — `user_config` must be set correctly when creating products
@@ -35,6 +39,7 @@ which is why [Products Name a Tier](role-v2) exists.
 > **Note:** HomeUptick config is NOT stored in `subscription.data`. Product JSON defines the HU template; at purchase, it seeds a `Homeuptick_Subscriptions` row which is the live source of truth. See [HomeUptick Data Ownership](homeuptick-data-ownership).
 
 ## Impact
+
 - All new products should define `user_config` when user configuration matters
 - Upgrade/downgrade logic must read new product's `user_config` and apply role mapping
 - `api/domain/services/role-mapper.ts` handles the team/single plan transition edge case
@@ -48,3 +53,12 @@ which is why [Products Name a Tier](role-v2) exists.
 - Every managed purchase writes the product's role: the account handler resolves `role_v2` from
   the config (derived from the legacy pair when the product has no `role_v2`) and sends it to the
   main API's role endpoint, which derives `role` and the tier bits in the same statement.
+- A product carrying **no `user_config` at all** is not reachable by that schema, which validates a
+  config that exists rather than requiring one. A new-user purchase of such a product therefore
+  provisioned nothing: `role`, `is_premium` and `role_v2` all went unsent, and the main API's column
+  defaults created a free `AGENT` with a NULL `role_v2` on whatever white label the product named.
+  Reported on CashOffers.PRO as desk-1774, "no one should be able to come in as a free user".
+  `PurchaseNewUserUseCase` now refuses to create the account when the product resolves no role, and
+  fails provisioning instead: the subscription is marked `pending_provisioning`, an admin is alerted
+  with the product id and the customer is told the setup is being finished. Team plans are exempt,
+  because they are created as `SHELL` and promoted once the team exists.
